@@ -1,0 +1,25 @@
+# LLM & RAG Frameworks
+langchain
+langchain_community
+llama-index
+
+# Vector DB
+faiss-cpu  # CPU 버전을 사용, GPU는 faiss-gpu
+chromadb
+
+# Embedding Model
+sentence-transformers
+
+# Document Parsers
+python-docx
+openpyxl
+GitPython
+
+# Web UI
+streamlit 
+gradio
+
+# Ollama API call
+requests
+
+
