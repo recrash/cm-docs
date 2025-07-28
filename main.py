@@ -33,6 +33,7 @@ if st.button("테스트 시나리오 생성하기 🚀"):
             st.write("1. Git 변경 내역을 분석 중입니다...")
             git_analysis = get_git_analysis_text(repo_path)
             
+            
             st.write("2. LLM을 호출하여 모든 정보를 생성합니다... (시간이 걸릴 수 있습니다)")
             model_name = "qwen3:14b" # 안정적인 모델 추천
             

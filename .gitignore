@@ -265,4 +265,39 @@ cache/
 
 # 임시 파일
 temp/
-tmp/ 
+tmp/
+
+# RAG & Vector Database
+# ChromaDB 벡터 데이터베이스 파일들
+vector_db_data/
+*.sqlite3
+*.db
+
+# Sentence Transformers 모델 캐시
+.cache/
+~/.cache/torch/
+~/.cache/huggingface/
+
+# 설정 파일 (개인별 경로 포함)
+config.json
+
+# 개발 중 생성되는 테스트 파일들
+test_*.py
+debug_*.py
+temp_*.py
+
+# Jupyter notebook 체크포인트
+.ipynb_checkpoints/
+
+# 프로파일링 결과
+*.prof
+
+# ML 모델 파일들 (용량이 큰 경우)
+*.bin
+*.pt
+*.pth
+*.model
+
+# 개발용 스크립트들
+scripts/
+dev_tools/ 
