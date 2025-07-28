@@ -1,6 +1,6 @@
 {
     "repo_path": "/Users/recrash/Documents/Workspace/CPMES",
-    "model_name": "qwen3:14b",
+    "model_name": "qwen3:8b",
     "timeout": 600,
     "rag": {
         "enabled": true,

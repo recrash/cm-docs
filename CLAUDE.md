@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TestscenarioMaker is an AI-powered tool that analyzes Git repository changes and automatically generates Korean test scenarios in Excel format. It uses Ollama's LLM (Qwen3:14B by default) to process Git commit messages and code diffs, then outputs structured test scenarios.
+TestscenarioMaker is an AI-powered tool that analyzes Git repository changes and automatically generates Korean test scenarios in Excel format. It uses Ollama's LLM (qwen3:8b by default) to process Git commit messages and code diffs, then outputs structured test scenarios.
 
 ## Development Commands
 
@@ -27,7 +27,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Ollama setup (required for LLM functionality)
-ollama pull qwen3:14b
+ollama pull qwen3:8b
 ollama serve
 ```
 
@@ -84,7 +84,7 @@ Generated Excel files contain:
 - Excel template (templates/template.xlsx) defines output structure
 - Ollama server must be running on localhost:11434
 - Git repository path is configurable via config.json or UI input
-- Default model is qwen3:14b but can be changed in configuration
+- Default model is qwen3:8b but can be changed in configuration
 - Timeout is configurable (default 600 seconds) for LLM processing
 - **RAG System**: ChromaDB and sentence-transformers dependencies required
 - **Vector DB**: Stored in vector_db_data/ directory, persists across sessions

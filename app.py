@@ -84,7 +84,7 @@ if st.button("테스트 시나리오 생성하기 🚀"):
             if use_rag:
                 st.write("   🧠 RAG 기능을 사용하여 관련 컨텍스트를 포함합니다...")
             
-            model_name = config.get("model_name", "qwen3:14b")
+            model_name = config.get("model_name", "qwen3:8b")
             timeout = config.get("timeout", 600)
             
             # RAG 사용 여부에 따라 프롬프트 생성
