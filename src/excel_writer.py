@@ -35,13 +35,26 @@ def save_results_to_excel(result_json, template_path="templates/template.xlsx"):
     for i, scenario in enumerate(test_cases):
         current_row = start_row + i
         sheet[f'A{current_row}'] = scenario.get("ID", f"CMP_MES_{i+1:03d}")
-        sheet[f'B{current_row}'] = scenario.get("절차", "")
-        sheet[f'C{current_row}'] = scenario.get("사전조건", "")
+        
+        # 절차 필드에서 \\n을 실제 개행으로 변환
+        procedure = scenario.get("절차", "").replace("\\n", "\n")
+        sheet[f'B{current_row}'] = procedure
+        
+        # 사전조건 필드에서도 개행 처리
+        precondition = scenario.get("사전조건", "").replace("\\n", "\n")
+        sheet[f'C{current_row}'] = precondition
+        
         test_data = scenario.get("데이터", "")
         if isinstance(test_data, (dict, list)):
             test_data = json.dumps(test_data, indent=2, ensure_ascii=False)
+        else:
+            test_data = str(test_data).replace("\\n", "\n")
         sheet[f'D{current_row}'] = test_data
-        sheet[f'E{current_row}'] = scenario.get("예상결과", "")
+        
+        # 예상결과 필드에서도 개행 처리
+        expected_result = scenario.get("예상결과", "").replace("\\n", "\n")
+        sheet[f'E{current_row}'] = expected_result
+        
         test_type = scenario.get("종류", "")
         sheet[f'F{current_row}'] = 'Y' if "단위" in test_type else ""
         sheet[f'G{current_row}'] = 'Y' if "통합" in test_type else ""
