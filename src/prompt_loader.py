@@ -2,10 +2,14 @@
 from .config_loader import load_config
 from .vector_db.rag_manager import RAGManager
 from .vector_db.document_indexer import DocumentIndexer
+from .feedback_manager import FeedbackManager
+from .prompt_enhancer import PromptEnhancer
 
 # 전역 인스턴스들 (지연 로딩을 위해 None으로 시작)
 _rag_manager = None
 _document_indexer = None
+_feedback_manager = None
+_prompt_enhancer = None
 
 def get_rag_manager(lazy_load=True):
     """RAG 매니저 싱글톤 인스턴스 반환"""
@@ -24,6 +28,21 @@ def get_rag_manager(lazy_load=True):
             print("RAG Manager 초기화 완료")
     return _rag_manager
 
+def get_feedback_manager():
+    """피드백 매니저 싱글톤 인스턴스 반환"""
+    global _feedback_manager
+    if _feedback_manager is None:
+        _feedback_manager = FeedbackManager()
+    return _feedback_manager
+
+def get_prompt_enhancer():
+    """프롬프트 개선기 싱글톤 인스턴스 반환"""
+    global _prompt_enhancer
+    if _prompt_enhancer is None:
+        feedback_manager = get_feedback_manager()
+        _prompt_enhancer = PromptEnhancer(feedback_manager)
+    return _prompt_enhancer
+
 def load_prompt(path="prompts/final_prompt.txt"):
     """텍스트 파일에서 프롬프트 템플릿을 읽어옵니다."""
     try:
@@ -33,13 +52,14 @@ def load_prompt(path="prompts/final_prompt.txt"):
         print(f"오류: 프롬프트 파일('{path}')을 찾을 수 없습니다.")
         return None
 
-def create_final_prompt(git_analysis, use_rag=True):
+def create_final_prompt(git_analysis, use_rag=True, use_feedback_enhancement=True):
     """
-    프롬프트 템플릿을 로드하고, RAG를 사용하여 향상된 프롬프트를 생성합니다.
+    프롬프트 템플릿을 로드하고, RAG와 피드백을 사용하여 향상된 프롬프트를 생성합니다.
     
     Args:
         git_analysis: Git 분석 결과
         use_rag: RAG 사용 여부
+        use_feedback_enhancement: 피드백 기반 개선 사용 여부
     
     Returns:
         완성된 프롬프트 문자열
@@ -48,6 +68,8 @@ def create_final_prompt(git_analysis, use_rag=True):
     if not template:
         return None
     
+    final_prompt = None
+    
     # RAG가 활성화되어 있고 use_rag가 True인 경우
     config = load_config()
     if use_rag and config and config.get('rag', {}).get('enabled', False):
@@ -55,13 +77,35 @@ def create_final_prompt(git_analysis, use_rag=True):
             # 실제 RAG 사용시에만 로딩
             rag_manager = get_rag_manager(lazy_load=False)
             if rag_manager:
-                return rag_manager.create_enhanced_prompt(template, git_analysis, use_rag=True)
+                final_prompt = rag_manager.create_enhanced_prompt(template, git_analysis, use_rag=True)
         except Exception as e:
             print(f"RAG 프롬프트 생성 중 오류 발생: {e}")
             print("기본 프롬프트를 사용합니다.")
     
     # RAG를 사용하지 않거나 오류가 발생한 경우 기본 프롬프트 사용
-    return template.format(git_analysis=git_analysis)
+    if final_prompt is None:
+        final_prompt = template.format(git_analysis=git_analysis)
+    
+    # 피드백 기반 프롬프트 개선 적용
+    if use_feedback_enhancement:
+        try:
+            prompt_enhancer = get_prompt_enhancer()
+            enhanced_prompt = prompt_enhancer.enhance_prompt(final_prompt)
+            
+            # 개선 요약 출력 (디버깅용)
+            enhancement_summary = prompt_enhancer.get_enhancement_summary()
+            if enhancement_summary['feedback_count'] >= 3:
+                print(f"피드백 기반 프롬프트 개선 적용: {enhancement_summary['feedback_count']}개 피드백 반영")
+                print(f"평균 점수: {enhancement_summary['average_score']:.1f}/5.0")
+                if enhancement_summary['improvement_areas']:
+                    print(f"개선 영역: {', '.join(enhancement_summary['improvement_areas'])}")
+            
+            return enhanced_prompt
+        except Exception as e:
+            print(f"피드백 기반 프롬프트 개선 중 오류 발생: {e}")
+            print("기본 프롬프트를 사용합니다.")
+    
+    return final_prompt
 
 def add_git_analysis_to_rag(git_analysis, repo_path):
     """
