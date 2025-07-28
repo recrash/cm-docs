@@ -2,6 +2,7 @@
     "repo_path": "/Users/recrash/Documents/Workspace/CPMES",
     "model_name": "qwen3:8b",
     "timeout": 600,
+    "documents_folder": "documents",
     "rag": {
         "enabled": true,
         "persist_directory": "vector_db_data",

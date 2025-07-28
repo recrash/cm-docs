@@ -301,3 +301,6 @@ temp_*.py
 # 개발용 스크립트들
 scripts/
 dev_tools/ 
+
+# 문서 폴더 내 항목들
+documents/

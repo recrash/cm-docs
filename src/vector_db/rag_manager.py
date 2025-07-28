@@ -251,21 +251,32 @@ class RAGManager:
                 return base_prompt.format(git_analysis=git_analysis)
             
             # Git 분석 내용을 쿼리로 사용하여 관련 컨텍스트 검색
-            query = clean_analysis[:500]  # 처음 500자를 쿼리로 사용
+            query = clean_analysis  # 전체 Git 분석 내용을 쿼리로 사용
+            print(f"[DEBUG] 검색 쿼리 길이: {len(query)}")
+            print(f"[DEBUG] 검색 쿼리 미리보기: {repr(query[:100])}")
+            
             if not query or len(query.strip()) < 2:
                 print("쿼리가 유효하지 않아 RAG를 사용할 수 없습니다.")
                 return base_prompt.format(git_analysis=git_analysis)
                 
             rag_results = self.search_relevant_context(query, n_results=3)
+            print(f"[DEBUG] RAG 검색 결과: {len(rag_results.get('documents', []))}개 문서")
             
             enhanced_prompt = base_prompt
             
             # 관련 컨텍스트가 있으면 프롬프트에 추가
-            if rag_results['context'] and rag_results['context'].strip():
+            context = rag_results.get('context', '')
+            print(f"[DEBUG] 검색된 컨텍스트 길이: {len(context)}")
+            print(f"[DEBUG] 컨텍스트 미리보기: {repr(context[:100])}")
+            
+            if context and context.strip():
                 enhanced_prompt = enhanced_prompt.replace(
                     "### 분석할 Git 변경 내역:",
-                    f"### 관련 참조 정보:\n{rag_results['context']}\n\n### 분석할 Git 변경 내역:"
+                    f"### 관련 참조 정보:\n{context}\n\n### 분석할 Git 변경 내역:"
                 )
+                print("[DEBUG] RAG 컨텍스트가 프롬프트에 추가됨")
+            else:
+                print("[DEBUG] 검색된 컨텍스트가 없어 기본 프롬프트 사용")
             
             return enhanced_prompt.format(git_analysis=git_analysis)
             
