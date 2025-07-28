@@ -48,3 +48,6 @@ def save_results_to_excel(result_json, template_path="templates/template.xlsx"):
 
     workbook.save(final_filename)
     print(f"\n✅ 성공! '{final_filename}' 파일에 {len(test_cases)}개의 테스트 시나리오를 저장했습니다.")
+    
+    # --- [수정] 생성된 파일의 전체 경로를 반환 ---
+    return final_filename
