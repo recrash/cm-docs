@@ -32,7 +32,31 @@ ollama serve
 ```
 
 ### Testing
-No automated test framework is configured. Manual testing is done by running the application and verifying Excel output generation.
+```bash
+# Run all tests
+pytest
+
+# Run tests with coverage
+pytest --cov=src
+
+# Run specific test file
+pytest tests/unit/test_config_loader.py
+
+# Run specific test class
+pytest tests/unit/test_config_loader.py::TestConfigLoader
+
+# Run specific test method
+pytest tests/unit/test_config_loader.py::TestConfigLoader::test_load_valid_config
+
+# Run tests with verbose output
+pytest -v
+
+# Run integration tests only
+pytest tests/integration/
+
+# Run unit tests only
+pytest tests/unit/
+```
 
 ### Database Management
 ```bash
@@ -71,6 +95,12 @@ sqlite3 feedback.db "SELECT * FROM scenario_feedback LIMIT 5;"
 ### User Interfaces  
 - **app.py**: Streamlit web interface with file upload/download capabilities
 - **main.py**: Command-line interface for batch processing
+
+### Testing Framework (tests/)
+- **conftest.py**: Test fixtures and shared configuration for pytest
+- **tests/unit/**: Unit tests for individual modules with comprehensive mock scenarios
+- **tests/integration/**: Integration tests for complete workflow validation
+- **pytest.ini**: pytest configuration with Korean-friendly test discovery
 
 ### Configuration
 - **config.json**: Contains repo_path, model_name, timeout, and RAG settings
@@ -135,6 +165,9 @@ Generated Excel files contain:
 - Feedback database (feedback.db) stores user evaluations and is used for automatic prompt improvement
 - Performance mode can be enabled to limit prompt size and improve LLM response times
 - Backup system automatically creates timestamped snapshots in backups/ folder before any feedback data modifications
+- Testing framework requires pytest, pytest-mock, and pytest-cov packages (included in requirements.txt)
+- Test execution does not require Ollama server to be running (all LLM calls are mocked)
+- Tests run in isolation using temporary directories and do not affect production data
 
 ## Key UI/UX Features
 
@@ -178,6 +211,14 @@ Key session variables that control application flow:
 - Git repository access validation
 - Modal state management to prevent UI conflicts
 
+### Testing Architecture
+- **Mock-based testing**: All external dependencies (Git repos, Ollama API, file systems) are mocked
+- **Fixture-driven setup**: Comprehensive test fixtures in conftest.py provide reusable test data
+- **Integration workflow tests**: Full pipeline testing from config loading to Excel generation
+- **Korean text handling**: Tests include Unicode and Korean character validation
+- **Error scenario coverage**: Network failures, invalid inputs, and missing dependencies are tested
+- **Temporary directory isolation**: All file operations use temporary directories to avoid side effects
+
 ## Development Guidelines
 
 - Avoid hardcoding values - use configuration files
@@ -188,6 +229,15 @@ Key session variables that control application flow:
 - When modifying UI components, always test modal interactions and session state transitions
 - RAG system changes require testing with both enabled/disabled configurations
 - Feedback system modifications should maintain backward compatibility with existing SQLite schema
+
+### Testing Guidelines
+- Write unit tests for all new modules following the existing fixture pattern
+- Use mocks for external dependencies (Git, Ollama, file system operations)
+- Include Korean text scenarios in tests to validate Unicode handling
+- Test error conditions alongside happy path scenarios
+- Use temporary directories for file operations to ensure test isolation
+- Follow pytest naming conventions: test files, classes, and methods must start with `test_`
+- Integration tests should cover complete workflows from input to Excel output
 
 ## Important Development Notes
 
