@@ -1,25 +1,21 @@
-# LLM & RAG Frameworks
-langchain
-langchain_community
-llama-index
+# Core dependencies
+openpyxl        # .xlsx 파일 읽기/쓰기
+python-docx     # .docx 파일 읽기
+GitPython       # Git 저장소 분석용
+streamlit       # Web UI
+requests        # HTTP 통신
+pandas          # 데이터 처리 및 엑셀 읽기
 
-# Vector DB
-faiss-cpu  # CPU 버전을 사용, GPU는 faiss-gpu
-chromadb
+# RAG & Vector DB
+chromadb        # 로컬 Vector DB
+sentence-transformers # 한국어 임베딩 모델
 
-# Embedding Model
-sentence-transformers
-
-# Document Parsers
-python-docx
-openpyxl
-GitPython
-
-# Web UI
-streamlit 
-gradio
-
-# Ollama API call
-requests
-
-
+# Optional (commented out to reduce dependencies)
+# langchain
+# langchain-community  
+# langchain-ollama
+# llama-index
+# faiss-cpu
+# fastapi
+# uvicorn[standard]
+# python-dotenv

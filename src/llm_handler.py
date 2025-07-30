@@ -1,7 +1,7 @@
 # src/llm_handler.py
 import requests
 
-def call_ollama_llm(prompt, model="qwen3:14b", format="", timeout=600):
+def call_ollama_llm(prompt, model="qwen3:8b", format="", timeout=600):
     """Ollama API를 호출하는 범용 함수."""
     print(f"...Ollama 모델({model}) 호출 중...")
     ollama_api_url = "http://localhost:11434/api/generate"

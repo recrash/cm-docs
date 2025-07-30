@@ -9,7 +9,7 @@ Git 변경 내역을 분석하여 자동으로 테스트 시나리오를 생성�
 ## 🎯 주요 기능
 
 - **Git 변경 내역 분석**: 커밋 메시지와 코드 diff를 자동으로 추출
-- **LLM 기반 시나리오 생성**: Ollama를 통한 Qwen3:14B 모델 활용
+- **LLM 기반 시나리오 생성**: Ollama를 통한 qwen3:8b 모델 활용
 - **Excel 템플릿 기반 출력**: 표준화된 테스트 시나리오 형식으로 저장
 - **다국어 지원**: 한국어 기반의 테스트 시나리오 생성
 
@@ -52,8 +52,8 @@ pip install -r requirements.txt
 
 ```bash
 # Ollama 설치 (https://ollama.ai)
-# Qwen3:14B 모델 다운로드
-ollama pull qwen3:14b
+# qwen3:8b 모델 다운로드
+ollama pull qwen3:8b
 
 # Ollama 서버 시작
 ollama serve
@@ -89,7 +89,7 @@ python main.py
 
 ### llm_handler.py
 - Ollama API를 통한 LLM 호출
-- 다양한 모델 지원 (기본: qwen3:14b)
+- 다양한 모델 지원 (기본: qwen3:8b)
 - 타임아웃 및 에러 처리
 
 ### excel_writer.py
@@ -112,7 +112,7 @@ python main.py
 
 ## 🛠️ 기술 스택
 
-- **LLM**: Ollama + Qwen3:14B
+- **LLM**: Ollama + qwen3:8b
 - **Git 분석**: GitPython
 - **Excel 처리**: openpyxl
 - **문서 파싱**: python-docx
@@ -132,7 +132,7 @@ python main.py
 
 3. **모델 다운로드 실패**
    - 인터넷 연결 확인
-   - `ollama pull qwen3:14b` 재실행
+   - `ollama pull qwen3:8b` 재실행
 
 ## 🤝 기여하기
 
