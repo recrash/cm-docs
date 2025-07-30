@@ -281,8 +281,7 @@ vector_db_data/
 # 설정 파일 (개인별 경로 포함)
 config.json
 
-# 개발 중 생성되는 테스트 파일들
-test_*.py
+# 개발 중 생성되는 임시 파일들
 debug_*.py
 temp_*.py
 

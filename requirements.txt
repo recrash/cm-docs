@@ -10,6 +10,11 @@ pandas          # 데이터 처리 및 엑셀 읽기
 chromadb        # 로컬 Vector DB
 sentence-transformers # 한국어 임베딩 모델
 
+# Testing dependencies
+pytest          # 테스트 프레임워크
+pytest-mock     # Mock 객체 지원
+pytest-cov      # 테스트 커버리지
+
 # Optional (commented out to reduce dependencies)
 # langchain
 # langchain-community  
