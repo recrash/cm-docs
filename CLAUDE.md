@@ -42,6 +42,11 @@ sqlite3 feedback.db "SELECT * FROM scenario_feedback LIMIT 5;"
 
 # Clear vector database (if needed)
 # This is handled through the Streamlit UI RAG management section
+
+# Feedback data management (through UI)
+# - Complete reset: All feedback data with automatic backup
+# - Category-based reset: good/bad/neutral feedback only
+# - Backups saved to backups/ folder with timestamp
 ```
 
 ## Architecture
@@ -53,7 +58,7 @@ sqlite3 feedback.db "SELECT * FROM scenario_feedback LIMIT 5;"
 - **prompt_loader.py**: Manages LLM prompts and RAG integration with singleton pattern
 - **config_loader.py**: Loads configuration from config.json
 - **document_parser.py**: Parses Word documents (변경관리요청서) using python-docx
-- **feedback_manager.py**: SQLite-based feedback collection, storage, and analysis system
+- **feedback_manager.py**: SQLite-based feedback collection, storage, analysis, and reset system with backup functionality
 - **prompt_enhancer.py**: Analyzes user feedback to dynamically improve prompts
 
 ### Vector DB & RAG System (src/vector_db/)
@@ -104,7 +109,9 @@ The excel_writer.py module handles newline formatting by converting `\\n` escape
 - **Storage**: SQLite database with structured feedback data including scores, categories, and comments
 - **Analysis**: Statistical insights including problem areas, success patterns, and improvement recommendations
 - **Enhancement**: Automatic prompt improvement using good/bad examples when sufficient feedback is collected (minimum 3 feedback entries)
+- **Reset Functionality**: Complete or category-based feedback data clearing with automatic backup to backups/ folder
 - **Session Management**: Streamlit session state manages modal visibility and user interactions
+- **Cache Management**: Automatic singleton instance reset after feedback operations to maintain state consistency
 
 ## Output Format
 
@@ -127,6 +134,7 @@ Generated Excel files contain:
 - Document processing supports DOCX, TXT, and PDF files in the documents/ folder
 - Feedback database (feedback.db) stores user evaluations and is used for automatic prompt improvement
 - Performance mode can be enabled to limit prompt size and improve LLM response times
+- Backup system automatically creates timestamped snapshots in backups/ folder before any feedback data modifications
 
 ## Key UI/UX Features
 
@@ -138,6 +146,7 @@ Generated Excel files contain:
 - **Preview functionality**: Generated scenarios displayed with proper text formatting (newline handling)
 - **Session state management**: Maintains application state across user interactions
 - **Performance monitoring**: LLM response time and prompt size tracking
+- **Feedback management**: Complete data export, selective reset with backup, and category-based analysis
 
 ## Technical Implementation Details
 
@@ -179,3 +188,17 @@ Key session variables that control application flow:
 - When modifying UI components, always test modal interactions and session state transitions
 - RAG system changes require testing with both enabled/disabled configurations
 - Feedback system modifications should maintain backward compatibility with existing SQLite schema
+
+## Important Development Notes
+
+### Feedback System Management
+- Always create automatic backups before any feedback data modifications
+- Use `reset_feedback_cache()` after feedback operations to maintain singleton consistency
+- Backup files are stored in `backups/` folder with timestamp format `feedback_backup_YYYYMMDD_HHMMSS.json`
+- Category-based operations support: 'good', 'bad', 'neutral' classifications
+
+### LLM Integration Architecture
+- Default model: qwen3:8b running on Ollama (localhost:11434)
+- Chain of Thought pattern: LLM uses `<thinking>` tags before `<json>` output
+- Prompt enhancement system activates after collecting 3+ feedback entries
+- Performance mode available to limit prompt size for faster responses

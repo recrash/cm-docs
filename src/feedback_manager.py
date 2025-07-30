@@ -291,3 +291,99 @@ class FeedbackManager:
         except Exception as e:
             print(f"피드백 데이터 내보내기 중 오류 발생: {e}")
             return False
+
+    def backup_feedback(self, backup_path: str = None) -> bool:
+        """피드백 데이터 백업"""
+        if backup_path is None:
+            # backups 폴더 생성
+            backup_dir = Path("backups")
+            backup_dir.mkdir(exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = backup_dir / f"feedback_backup_{timestamp}.json"
+        
+        return self.export_feedback_data(str(backup_path))
+    
+    def clear_all_feedback(self, create_backup: bool = True) -> bool:
+        """모든 피드백 데이터 삭제"""
+        try:
+            # 백업 생성
+            if create_backup:
+                if not self.backup_feedback():
+                    print("백업 생성에 실패했지만 초기화를 계속 진행합니다.")
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # 테스트케이스 피드백 먼저 삭제 (외래키 제약 조건)
+                cursor.execute('DELETE FROM testcase_feedback')
+                
+                # 시나리오 피드백 삭제
+                cursor.execute('DELETE FROM scenario_feedback')
+                
+                conn.commit()
+                print("모든 피드백 데이터가 삭제되었습니다.")
+                return True
+                
+        except Exception as e:
+            print(f"피드백 데이터 삭제 중 오류 발생: {e}")
+            return False
+    
+    def clear_feedback_by_category(self, category: str, create_backup: bool = True) -> bool:
+        """특정 카테고리의 피드백 데이터만 삭제"""
+        if category not in ['good', 'bad', 'neutral']:
+            print(f"잘못된 카테고리입니다: {category}")
+            return False
+        
+        try:
+            # 백업 생성
+            if create_backup:
+                if not self.backup_feedback():
+                    print("백업 생성에 실패했지만 초기화를 계속 진행합니다.")
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # 해당 카테고리의 scenario_id 조회
+                cursor.execute('SELECT scenario_id FROM scenario_feedback WHERE category = ?', (category,))
+                scenario_ids = [row[0] for row in cursor.fetchall()]
+                
+                if not scenario_ids:
+                    print(f"'{category}' 카테고리에 해당하는 피드백이 없습니다.")
+                    return True
+                
+                # 테스트케이스 피드백 삭제
+                for scenario_id in scenario_ids:
+                    cursor.execute('DELETE FROM testcase_feedback WHERE scenario_id = ?', (scenario_id,))
+                
+                # 시나리오 피드백 삭제
+                cursor.execute('DELETE FROM scenario_feedback WHERE category = ?', (category,))
+                
+                conn.commit()
+                print(f"'{category}' 카테고리의 피드백 {len(scenario_ids)}개가 삭제되었습니다.")
+                return True
+                
+        except Exception as e:
+            print(f"피드백 데이터 삭제 중 오류 발생: {e}")
+            return False
+    
+    def get_feedback_count_by_category(self) -> Dict[str, int]:
+        """카테고리별 피드백 개수 조회"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT category, COUNT(*) 
+                FROM scenario_feedback 
+                WHERE category IS NOT NULL
+                GROUP BY category
+            ''')
+            
+            result = dict(cursor.fetchall())
+            
+            # 모든 카테고리 포함 (값이 없으면 0)
+            return {
+                'good': result.get('good', 0),
+                'bad': result.get('bad', 0),
+                'neutral': result.get('neutral', 0)
+            }

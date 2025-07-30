@@ -7,7 +7,7 @@ from src.git_analyzer import get_git_analysis_text
 from src.llm_handler import call_ollama_llm
 from src.excel_writer import save_results_to_excel
 from src.config_loader import load_config
-from src.prompt_loader import create_final_prompt, add_git_analysis_to_rag, get_rag_info, index_documents_folder, get_documents_info, get_prompt_enhancer
+from src.prompt_loader import create_final_prompt, add_git_analysis_to_rag, get_rag_info, index_documents_folder, get_documents_info, get_prompt_enhancer, reset_feedback_cache
 from src.feedback_manager import FeedbackManager
 
 # --- 1. 설정 및 화면 구성 ---
@@ -312,12 +312,20 @@ with tab1:
         with result_placeholder.container():
             st.success("테스트 시나리오 생성이 완료되었습니다!")
 
-            with open(final_filename, "rb") as file:
+            # 파일 데이터를 세션 상태에 저장하여 재읽기 방지
+            if 'file_data' not in st.session_state and final_filename and os.path.exists(final_filename):
+                with open(final_filename, "rb") as file:
+                    st.session_state['file_data'] = file.read()
+                    st.session_state['file_name'] = os.path.basename(final_filename)
+            
+            # 세션 상태에서 파일 데이터 사용
+            if 'file_data' in st.session_state:
                 st.download_button(
                     label="엑셀 파일 다운로드 📥",
-                    data=file,
-                    file_name=os.path.basename(final_filename),
-                    mime="application/vnd.ms-excel"
+                    data=st.session_state['file_data'],
+                    file_name=st.session_state['file_name'],
+                    mime="application/vnd.ms-excel",
+                    key="download_button"
                 )
 
             st.subheader("📊 생성 결과 미리보기")
@@ -424,12 +432,20 @@ with tab1:
                         
                         final_filename = save_results_to_excel(result_json)
                         
+                        # 파일 데이터를 세션 상태에 저장
+                        if final_filename and os.path.exists(final_filename):
+                            with open(final_filename, "rb") as file:
+                                file_data = file.read()
+                                file_name = os.path.basename(final_filename)
+                        
                         # 세션 상태에 결과 저장
                         st.session_state['generated'] = True
                         st.session_state['result_json'] = result_json
                         st.session_state['final_filename'] = final_filename
                         st.session_state['git_analysis'] = git_analysis
                         st.session_state['repo_path'] = repo_path
+                        st.session_state['file_data'] = file_data
+                        st.session_state['file_name'] = file_name
                         
                         status.update(label="생성 완료!", state="complete", expanded=False)
                         st.write("🐛 DEBUG: 세션 상태 저장 완료")
@@ -573,3 +589,57 @@ with tab2:
                     )
             else:
                 st.error("데이터 내보내기 중 오류가 발생했습니다.")
+
+        st.subheader("🗑️ 피드백 데이터 초기화")
+        st.warning("⚠️ 초기화 작업은 되돌릴 수 없습니다. 초기화 전 자동으로 백업이 생성됩니다.")
+        
+        # 카테고리별 피드백 개수 표시
+        category_counts = feedback_manager.get_feedback_count_by_category()
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.write(f"👍 좋은 피드백: {category_counts['good']}개")
+        with col2:
+            st.write(f"👎 나쁜 피드백: {category_counts['bad']}개")
+        with col3:
+            st.write(f"😐 중립 피드백: {category_counts['neutral']}개")
+        
+        reset_option = st.selectbox(
+            "초기화 범위 선택:",
+            ["전체 피드백 삭제", "좋은 피드백만 삭제", "나쁜 피드백만 삭제", "중립 피드백만 삭제"],
+            key="reset_option"
+        )
+        
+        if st.button("피드백 초기화 실행", key="reset_feedback_btn", type="secondary"):
+            if reset_option == "전체 피드백 삭제":
+                if stats['total_feedback'] == 0:
+                    st.info("삭제할 피드백이 없습니다.")
+                else:
+                    success = feedback_manager.clear_all_feedback(create_backup=True)
+                    if success:
+                        reset_feedback_cache()  # 캐시 리셋
+                        st.success(f"모든 피드백 {stats['total_feedback']}개가 삭제되었습니다. (백업 생성됨)")
+                        st.rerun()  # 화면 새로고침
+                    else:
+                        st.error("피드백 삭제 중 오류가 발생했습니다.")
+            else:
+                # 카테고리별 삭제
+                category_map = {
+                    "좋은 피드백만 삭제": "good",
+                    "나쁜 피드백만 삭제": "bad", 
+                    "중립 피드백만 삭제": "neutral"
+                }
+                category = category_map[reset_option]
+                target_count = category_counts[category]
+                
+                if target_count == 0:
+                    st.info(f"삭제할 {reset_option.replace('만 삭제', '')}가 없습니다.")
+                else:
+                    success = feedback_manager.clear_feedback_by_category(category, create_backup=True)
+                    if success:
+                        reset_feedback_cache()  # 캐시 리셋
+                        st.success(f"{reset_option.replace('만 삭제', '')} {target_count}개가 삭제되었습니다. (백업 생성됨)")
+                        st.rerun()  # 화면 새로고침
+                    else:
+                        st.error("피드백 삭제 중 오류가 발생했습니다.")
+        
+        st.info("💡 백업 파일은 'backups/' 폴더에 'feedback_backup_YYYYMMDD_HHMMSS.json' 형식으로 저장됩니다.")

@@ -43,6 +43,14 @@ def get_prompt_enhancer():
         _prompt_enhancer = PromptEnhancer(feedback_manager)
     return _prompt_enhancer
 
+def reset_feedback_cache():
+    """피드백 관련 캐시 리셋 (피드백 데이터 초기화 후 호출)"""
+    global _feedback_manager, _prompt_enhancer
+    # 기존 인스턴스들을 리셋하여 다음 호출 시 새로 생성되도록 함
+    _feedback_manager = None
+    _prompt_enhancer = None
+    print("피드백 관련 캐시가 리셋되었습니다.")
+
 def load_prompt(path="prompts/final_prompt.txt"):
     """텍스트 파일에서 프롬프트 템플릿을 읽어옵니다."""
     try:

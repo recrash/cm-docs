@@ -304,3 +304,6 @@ dev_tools/
 
 # 문서 폴더 내 항목들
 documents/
+
+# 피드백 백업 파일들
+backups/
