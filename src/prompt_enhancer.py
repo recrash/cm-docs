@@ -31,49 +31,88 @@ class PromptEnhancer:
         }
     
     def _extract_common_issues(self, bad_examples: List[Dict]) -> List[str]:
-        """나쁜 예시에서 공통 이슈 추출"""
+        """나쁜 예시에서 공통 이슈 추출 (개선된 텍스트 분석)"""
         common_issues = []
+        issue_frequency = {}
         
-        # 키워드 기반 이슈 분석
+        # 확장된 키워드 기반 이슈 분석
         issue_keywords = {
-            '불명확': ['불명확', '모호', '애매', '부정확'],
-            '누락': ['누락', '빠짐', '없음', '부족'],
-            '중복': ['중복', '반복', '같음'],
-            '비현실적': ['비현실적', '불가능', '이상함', '너무'],
-            '복잡함': ['복잡', '어려움', '이해하기 힘듦', '길다']
+            '불명확성': ['불명확', '모호', '애매', '부정확', '이해하기 어려움', '헷갈림'],
+            '내용 누락': ['누락', '빠짐', '없음', '부족', '생략', '빼먹음'],
+            '중복 문제': ['중복', '반복', '같음', '겹침', '또 나옴'],
+            '비현실적': ['비현실적', '불가능', '이상함', '너무', '과도', '말이 안됨'],
+            '복잡성': ['복잡', '어려움', '이해하기 힘듦', '길다', '너무 많음'],
+            '절차 문제': ['절차', '순서', '단계', '흐름', '프로세스'],
+            '데이터 문제': ['데이터', '값', '입력', '파라미터', '변수'],
+            '예상결과 문제': ['결과', '기대값', '예상', '출력', '응답'],
+            '실무 부적합': ['실무', '실제', '현실', '환경', '적용하기 어려움']
         }
         
         for example in bad_examples:
-            comments = example.get('comments', '').lower()
+            comments = example.get('comments', '').strip()
+            if not comments:
+                continue
+                
+            comments_lower = comments.lower()
+            
+            # 각 이슈 타입별로 키워드 매칭
             for issue_type, keywords in issue_keywords.items():
-                if any(keyword in comments for keyword in keywords):
-                    issue_desc = f"{issue_type}: {comments[:50]}..."
-                    if issue_desc not in common_issues:
-                        common_issues.append(issue_desc)
+                if any(keyword in comments_lower for keyword in keywords):
+                    # 실제 사용자 코멘트를 그대로 활용
+                    issue_key = f"{issue_type}"
+                    if issue_key not in issue_frequency:
+                        issue_frequency[issue_key] = []
+                    issue_frequency[issue_key].append(comments[:100])
         
-        return common_issues[:5]  # 상위 5개만
+        # 빈도수 기준으로 정렬하여 상위 이슈 선별
+        for issue_type, comment_list in issue_frequency.items():
+            if len(comment_list) >= 1:  # 1개 이상 나타난 이슈만
+                # 대표적인 코멘트 선택
+                representative_comment = comment_list[0]
+                common_issues.append(f"{issue_type}: \"{representative_comment}\"")
+        
+        return common_issues[:7]  # 상위 7개로 확장
     
     def _extract_success_patterns(self, good_examples: List[Dict]) -> List[str]:
-        """좋은 예시에서 성공 패턴 추출"""
+        """좋은 예시에서 성공 패턴 추출 (개선된 텍스트 분석)"""
         success_patterns = []
+        pattern_frequency = {}
         
-        # 긍정적 키워드 분석
+        # 확장된 긍정적 키워드 분석
         positive_keywords = {
-            '명확성': ['명확', '이해하기 쉬움', '분명', '정확'],
-            '완성도': ['완전', '자세', '충분', '포괄적'],
-            '실용성': ['실용적', '유용', '도움', '실무'],
-            '구체성': ['구체적', '세부적', '상세', '정밀']
+            '명확성': ['명확', '이해하기 쉬움', '분명', '정확', '명료', '확실'],
+            '완성도': ['완전', '자세', '충분', '포괄적', '빠짐없이', '완벽'],
+            '실용성': ['실용적', '유용', '도움', '실무', '현실적', '적용하기 좋음'],
+            '구체성': ['구체적', '세부적', '상세', '정밀', '디테일', '자세함'],
+            '체계성': ['체계적', '순서', '단계별', '논리적', '흐름'],
+            '효율성': ['효율적', '간결', '핵심', '빠른', '효과적'],
+            '창의성': ['창의적', '새로운', '다양', '참신', '독특'],
+            '적절성': ['적절', '알맞음', '균형', '조화', '적당']
         }
         
         for example in good_examples:
-            comments = example.get('comments', '').lower()
+            comments = example.get('comments', '').strip()
+            if not comments:
+                continue
+                
+            comments_lower = comments.lower()
+            
+            # 각 성공 패턴별로 키워드 매칭
             for pattern_type, keywords in positive_keywords.items():
-                if any(keyword in comments for keyword in keywords):
-                    pattern_desc = f"{pattern_type}: {comments[:50]}..."
-                    if pattern_desc not in success_patterns:
-                        success_patterns.append(pattern_desc)
+                if any(keyword in comments_lower for keyword in keywords):
+                    pattern_key = f"{pattern_type}"
+                    if pattern_key not in pattern_frequency:
+                        pattern_frequency[pattern_key] = []
+                    pattern_frequency[pattern_key].append(comments[:100])
         
-        return success_patterns[:5]  # 상위 5개만
+        # 빈도수 기준으로 정렬하여 상위 패턴 선별
+        for pattern_type, comment_list in pattern_frequency.items():
+            if len(comment_list) >= 1:  # 1개 이상 나타난 패턴만
+                # 대표적인 코멘트 선택
+                representative_comment = comment_list[0]
+                success_patterns.append(f"{pattern_type}: \"{representative_comment}\"")
+        
+        return success_patterns[:7]  # 상위 7개로 확장
     
     def generate_enhancement_instructions(self) -> str:
         """피드백 기반 개선 지침 생성"""
@@ -92,19 +131,19 @@ class PromptEnhancer:
                 }.get(area, area)
                 low_scoring_areas.append(f"{area_korean}({score:.1f}점)")
         
-        enhancement_text = "\n=== 피드백 기반 개선 지침 ===\n"
+        enhancement_text = "\n=== 사용자 피드백 기반 개선 지침 ===\n"
         
         if low_scoring_areas:
             enhancement_text += f"⚠️ 개선 필요 영역: {', '.join(low_scoring_areas)}\n\n"
         
         if insights['common_issues']:
-            enhancement_text += "❌ 피해야 할 패턴:\n"
+            enhancement_text += "❌ 사용자가 지적한 문제점들 (실제 피드백 기반):\n"
             for issue in insights['common_issues']:
                 enhancement_text += f"- {issue}\n"
             enhancement_text += "\n"
         
         if insights['success_patterns']:
-            enhancement_text += "✅ 권장하는 패턴:\n"
+            enhancement_text += "✅ 사용자가 좋아한 패턴들 (실제 피드백 기반):\n"
             for pattern in insights['success_patterns']:
                 enhancement_text += f"- {pattern}\n"
             enhancement_text += "\n"
@@ -123,6 +162,12 @@ class PromptEnhancer:
         if stats['average_scores']['completeness'] < 3.5:
             enhancement_text += "- 테스트 시나리오의 사전조건, 절차, 예상결과를 모두 구체적으로 작성하세요\n"
             enhancement_text += "- Edge case와 예외 상황도 고려한 테스트케이스를 포함하세요\n"
+        
+        # 사용자 텍스트 피드백을 직접 활용한 구체적 지침
+        enhancement_text += "\n💬 사용자 의견을 반영한 구체적 지침:\n"
+        enhancement_text += "- 위의 실제 사용자 피드백을 면밀히 검토하여 시나리오를 작성하세요\n"
+        enhancement_text += "- 사용자가 좋아한 패턴은 적극 활용하고, 지적한 문제점은 반드시 피하세요\n"
+        enhancement_text += "- 사용자의 구체적인 의견과 표현을 참고하여 더 만족스러운 결과를 만들어주세요\n"
         
         enhancement_text += "\n=== 개선 지침 끝 ===\n"
         
@@ -173,35 +218,45 @@ class PromptEnhancer:
         # 개선 지침을 프롬프트에 추가
         enhanced_prompt += f"\n\n{enhancement_instructions}\n"
         
-        # 좋은 예시 추가
+        # 좋은 예시 추가 (사용자 텍스트 피드백 강조)
         if good_scenarios:
-            enhanced_prompt += "\n=== 좋은 시나리오 예시 ===\n"
+            enhanced_prompt += "\n=== 사용자가 좋게 평가한 시나리오 예시 ===\n"
             for i, example in enumerate(good_scenarios, 1):
-                enhanced_prompt += f"\n좋은 예시 {i} (점수: {example['feedback']['score']}/5):\n"
+                enhanced_prompt += f"\n👍 좋은 예시 {i} (점수: {example['feedback']['score']}/5):\n"
                 enhanced_prompt += f"제목: {example['scenario'].get('Test Scenario Name', 'N/A')}\n"
                 enhanced_prompt += f"개요: {example['scenario'].get('Scenario Description', 'N/A')}\n"
                 if example['feedback']['comments']:
-                    enhanced_prompt += f"평가 의견: {example['feedback']['comments']}\n"
+                    enhanced_prompt += f"🗣️ 사용자 평가: \"{example['feedback']['comments']}\"\n"
+                    enhanced_prompt += f"→ 이런 특징들을 적극 활용하세요!\n"
                 
                 # 테스트케이스 1-2개 예시
                 test_cases = example['scenario'].get('Test Cases', [])
                 if test_cases:
-                    enhanced_prompt += "테스트케이스 예시:\n"
+                    enhanced_prompt += "우수한 테스트케이스 구조 참고:\n"
                     for tc in test_cases[:2]:  # 최대 2개만
                         enhanced_prompt += f"- ID: {tc.get('ID', 'N/A')}\n"
                         enhanced_prompt += f"  절차: {tc.get('절차', 'N/A')[:100]}...\n"
                         enhanced_prompt += f"  예상결과: {tc.get('예상결과', 'N/A')[:100]}...\n"
         
-        # 나쁜 예시 추가 (주의사항)
+        # 나쁜 예시 추가 (사용자 텍스트 피드백 강조)
         if bad_scenarios:
-            enhanced_prompt += "\n=== 피해야 할 패턴 (나쁜 예시) ===\n"
+            enhanced_prompt += "\n=== 사용자가 부정적으로 평가한 패턴 (절대 피해야 함) ===\n"
             for i, example in enumerate(bad_scenarios, 1):
-                enhanced_prompt += f"\n주의할 점 {i} (점수: {example['feedback']['score']}/5):\n"
+                enhanced_prompt += f"\n👎 피해야 할 패턴 {i} (점수: {example['feedback']['score']}/5):\n"
                 if example['feedback']['comments']:
-                    enhanced_prompt += f"문제점: {example['feedback']['comments']}\n"
+                    enhanced_prompt += f"🗣️ 사용자 불만사항: \"{example['feedback']['comments']}\"\n"
+                    enhanced_prompt += f"→ 이런 문제점들은 반드시 피하세요!\n"
                 enhanced_prompt += f"문제가 된 제목 예시: {example['scenario'].get('Test Scenario Name', 'N/A')}\n"
         
-        enhanced_prompt += "\n위의 피드백과 예시를 참고하여 더 나은 테스트 시나리오를 생성해주세요.\n"
+        enhanced_prompt += "\n🎯 중요: 위의 실제 사용자 피드백과 예시를 면밀히 분석하여, 사용자가 만족할 만한 고품질 테스트 시나리오를 생성해주세요.\n"
+        enhanced_prompt += "사용자의 구체적인 의견과 표현 방식을 참고하여 더 나은 결과를 만들어주세요.\n"
+        
+        # 프롬프트 크기 제한 (약 8000 토큰 제한)
+        if len(enhanced_prompt) > 32000:  # 대략적인 토큰 제한
+            print(f"⚠️ 프롬프트가 너무 길어서 일부 내용을 제거합니다. (길이: {len(enhanced_prompt)})")
+            # 기본 프롬프트 + 개선 지침만 유지
+            enhanced_prompt = base_prompt + f"\n\n{enhancement_instructions}\n"
+            enhanced_prompt += "\n🎯 중요: 위의 개선 지침을 참고하여 고품질 테스트 시나리오를 생성해주세요.\n"
         
         return enhanced_prompt
     
