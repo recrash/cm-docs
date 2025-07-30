@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TestscenarioMaker is an AI-powered tool that analyzes Git repository changes and automatically generates Korean test scenarios in Excel format. It uses Ollama's LLM (qwen3:8b by default) to process Git commit messages and code diffs, then outputs structured test scenarios using RAG (Retrieval-Augmented Generation) for enhanced context.
+TestscenarioMaker is an AI-powered tool that analyzes Git repository changes and automatically generates Korean test scenarios in Excel format. It uses Ollama's LLM (qwen3:8b by default) to process Git commit messages and code diffs, then outputs structured test scenarios using RAG (Retrieval-Augmented Generation) for enhanced context and a feedback system for continuous improvement.
 
 ## Development Commands
 
@@ -34,6 +34,16 @@ ollama serve
 ### Testing
 No automated test framework is configured. Manual testing is done by running the application and verifying Excel output generation.
 
+### Database Management
+```bash
+# View feedback database content (SQLite)
+sqlite3 feedback.db ".tables"
+sqlite3 feedback.db "SELECT * FROM scenario_feedback LIMIT 5;"
+
+# Clear vector database (if needed)
+# This is handled through the Streamlit UI RAG management section
+```
+
 ## Architecture
 
 ### Core Modules (src/)
@@ -43,6 +53,8 @@ No automated test framework is configured. Manual testing is done by running the
 - **prompt_loader.py**: Manages LLM prompts and RAG integration with singleton pattern
 - **config_loader.py**: Loads configuration from config.json
 - **document_parser.py**: Parses Word documents (변경관리요청서) using python-docx
+- **feedback_manager.py**: SQLite-based feedback collection, storage, and analysis system
+- **prompt_enhancer.py**: Analyzes user feedback to dynamically improve prompts
 
 ### Vector DB & RAG System (src/vector_db/)
 - **chroma_manager.py**: ChromaDB vector database management with Korean embeddings
@@ -64,10 +76,12 @@ No automated test framework is configured. Manual testing is done by running the
 1. **Git Analysis**: Extracts commit messages and code diffs from specified repository
 2. **RAG Integration**: Git analysis is chunked and stored in ChromaDB for future reference
 3. **Context Retrieval**: Similar past analyses are retrieved using vector similarity search
-4. **Prompt Enhancement**: Template is populated with Git analysis and relevant historical context
+4. **Prompt Enhancement**: Template is populated with Git analysis, RAG context, and feedback-based improvements
 5. **LLM Generation**: Ollama generates structured JSON response with Korean test scenarios
-6. **Excel Output**: JSON is mapped to Excel template with proper formatting
+6. **Excel Output**: JSON is mapped to Excel template with proper formatting (includes \n to newline conversion)
 7. **File Storage**: Output saved to outputs/ directory with timestamp
+8. **Feedback Collection**: Users evaluate scenarios through UI, data stored in SQLite database
+9. **Continuous Improvement**: Collected feedback automatically improves future prompt generation
 
 ## RAG System Details
 
@@ -84,6 +98,13 @@ No automated test framework is configured. Manual testing is done by running the
 
 ### Excel Output Processing
 The excel_writer.py module handles newline formatting by converting `\\n` escape sequences to actual newlines for proper display in Excel cells. This affects all text fields including 절차, 사전조건, 데이터, and 예상결과.
+
+### Feedback System Architecture
+- **Collection**: Modal-based UI with detailed evaluation forms and individual test case ratings
+- **Storage**: SQLite database with structured feedback data including scores, categories, and comments
+- **Analysis**: Statistical insights including problem areas, success patterns, and improvement recommendations
+- **Enhancement**: Automatic prompt improvement using good/bad examples when sufficient feedback is collected (minimum 3 feedback entries)
+- **Session Management**: Streamlit session state manages modal visibility and user interactions
 
 ## Output Format
 
@@ -104,6 +125,49 @@ Generated Excel files contain:
 - Vector DB persists across sessions in vector_db_data/ directory
 - RAG can be disabled in config.json by setting rag.enabled to false
 - Document processing supports DOCX, TXT, and PDF files in the documents/ folder
+- Feedback database (feedback.db) stores user evaluations and is used for automatic prompt improvement
+- Performance mode can be enabled to limit prompt size and improve LLM response times
+
+## Key UI/UX Features
+
+### Streamlit Web Interface (app.py)
+- **Two-tab layout**: Scenario generation and feedback analysis dashboard
+- **RAG system management**: Document indexing, database clearing, and status monitoring
+- **Real-time generation**: Progress indicators with status updates during scenario creation
+- **Interactive feedback**: Modal-based evaluation system with detailed scoring options
+- **Preview functionality**: Generated scenarios displayed with proper text formatting (newline handling)
+- **Session state management**: Maintains application state across user interactions
+- **Performance monitoring**: LLM response time and prompt size tracking
+
+## Technical Implementation Details
+
+### Prompt Engineering Architecture
+- **Base template**: Located in prompts/final_prompt.txt with structured JSON output format
+- **Dynamic enhancement**: PromptEnhancer class analyzes feedback to inject improvement instructions
+- **RAG integration**: Similar historical analyses retrieved via vector similarity search
+- **Performance optimization**: Optional prompt size limiting for faster LLM responses
+- **Chain of Thought**: LLM uses `<thinking>` tags before generating final `<json>` output
+
+### Session State Management (Streamlit)
+Key session variables that control application flow:
+- `generated`: Boolean indicating if scenario generation is complete
+- `result_json`: Generated scenario data structure
+- `final_filename`: Path to created Excel file
+- `real_modal_visible`: Controls feedback modal display
+- `real_modal_type`: Tracks whether feedback is positive ('like') or negative ('dislike')
+- `rag_info`: Cached RAG system status information
+
+### Database Schema (SQLite)
+- **scenario_feedback**: Main feedback table with scenario_id, scores, comments, and metadata
+- **testcase_feedback**: Individual test case evaluations linked to scenarios
+- **Scoring system**: 1-5 scale for overall, usefulness, accuracy, and completeness metrics
+
+### Error Handling Patterns
+- RAG system initialization with fallback modes (lazy loading)
+- LLM timeout handling with configurable limits
+- Excel template validation and error recovery
+- Git repository access validation
+- Modal state management to prevent UI conflicts
 
 ## Development Guidelines
 
@@ -112,3 +176,6 @@ Generated Excel files contain:
 - Use Chain of Thought approach for complex problem solving
 - Base code changes on the most recent successful implementation
 - Ensure Korean language output for all user-facing content
+- When modifying UI components, always test modal interactions and session state transitions
+- RAG system changes require testing with both enabled/disabled configurations
+- Feedback system modifications should maintain backward compatibility with existing SQLite schema
