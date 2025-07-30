@@ -31,6 +31,52 @@ ollama pull qwen3:8b
 ollama serve
 ```
 
+### Offline Environment Setup (폐쇄망 환경)
+
+폐쇄망 환경에서 RAG 시스템을 사용하려면 한국어 임베딩 모델을 사전에 다운로드해야 합니다.
+
+#### 1. 사전 모델 다운로드 (인터넷 환경에서)
+```bash
+# 임베딩 모델 다운로드 스크립트 실행
+python scripts/download_embedding_model.py
+```
+
+이 스크립트는:
+- `jhgan/ko-sroberta-multitask` 모델을 다운로드
+- `./models/ko-sroberta-multitask/` 경로에 저장 
+- 약 500MB 용량 필요
+
+#### 2. 폐쇄망 환경으로 파일 복사
+```bash
+# models/ 폴더 전체를 폐쇄망 환경으로 복사
+cp -r models/ /path/to/offline/environment/
+```
+
+#### 3. 설정 파일 수정
+```json
+// config.json
+{
+    "rag": {
+        "enabled": true,
+        "embedding_model": "jhgan/ko-sroberta-multitask",
+        "local_embedding_model_path": "./models/ko-sroberta-multitask",  // 로컬 경로 설정
+        "persist_directory": "vector_db_data",
+        // ... 기타 설정
+    }
+}
+```
+
+#### 4. 모델 로딩 우선순위
+1. **로컬 모델 (1순위)**: `local_embedding_model_path`가 설정되고 해당 경로에 모델이 존재하면 사용
+2. **HuggingFace 캐시 (2순위)**: 로컬 경로가 없으면 기존 캐시된 모델 사용
+3. **온라인 다운로드 (3순위)**: 캐시도 없으면 온라인에서 다운로드 시도
+
+#### 5. 문제 해결
+RAG 시스템 초기화 실패 시:
+- 에러 메시지에서 제공하는 가이드 참조
+- `config.json`에서 임시로 `rag.enabled: false` 설정 가능
+- 로컬 모델 경로와 파일 존재 여부 확인
+
 ### Testing
 ```bash
 # Run all tests
@@ -71,6 +117,12 @@ sqlite3 feedback.db "SELECT * FROM scenario_feedback LIMIT 5;"
 # - Complete reset: All feedback data with automatic backup
 # - Category-based reset: good/bad/neutral feedback only
 # - Backups saved to backups/ folder with timestamp
+```
+
+### Scripts & Utilities (scripts/)
+```bash
+# Utility scripts for system management
+scripts/download_embedding_model.py  # Downloads Korean embedding model for offline use
 ```
 
 ## Architecture
@@ -229,6 +281,13 @@ Key session variables that control application flow:
 - When modifying UI components, always test modal interactions and session state transitions
 - RAG system changes require testing with both enabled/disabled configurations
 - Feedback system modifications should maintain backward compatibility with existing SQLite schema
+
+### File Organization Guidelines
+- **Large binary files**: Add to `.gitignore` (ML models, large datasets)
+- **Utility scripts**: Place in `scripts/` directory
+- **Generated outputs**: Store in `outputs/` with timestamped filenames
+- **Configuration files**: Use `config.example.json` pattern with real config in `.gitignore`
+- **Documentation**: Keep both user docs (README.md) and development docs (CLAUDE.md) synchronized
 
 ### Testing Guidelines
 - Write unit tests for all new modules following the existing fixture pattern

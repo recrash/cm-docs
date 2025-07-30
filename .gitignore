@@ -297,8 +297,10 @@ temp_*.py
 *.pth
 *.model
 
+# 한국어 임베딩 모델 (대용량 파일, 스크립트로 다운로드 가능)
+models/
+
 # 개발용 스크립트들
-scripts/
 dev_tools/ 
 
 # 문서 폴더 내 항목들

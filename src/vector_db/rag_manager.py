@@ -8,6 +8,7 @@ class RAGManager:
     def __init__(self, 
                  persist_directory: str = "vector_db_data",
                  embedding_model: str = "jhgan/ko-sroberta-multitask",
+                 local_model_path: str = None,
                  chunk_size: int = 1000,
                  chunk_overlap: int = 200):
         """
@@ -15,11 +16,12 @@ class RAGManager:
         
         Args:
             persist_directory: 벡터 DB 저장 경로
-            embedding_model: 한국어 임베딩 모델
+            embedding_model: 한국어 임베딩 모델 (HuggingFace 모델명)
+            local_model_path: 로컬 모델 경로 (우선 사용)
             chunk_size: 청크 크기
             chunk_overlap: 청크 겹침
         """
-        self.chroma_manager = ChromaManager(persist_directory, embedding_model)
+        self.chroma_manager = ChromaManager(persist_directory, embedding_model, local_model_path)
         self.document_chunker = DocumentChunker(chunk_size, chunk_overlap)
         
         print("RAG 시스템 초기화 완료")

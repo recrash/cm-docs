@@ -51,6 +51,10 @@ TestscenarioMaker/
 │       ├── document_indexer.py # 문서 인덱싱
 │       ├── document_reader.py  # 문서 읽기
 │       └── rag_manager.py      # RAG 시스템 관리
+├── 📂 scripts/                 # 유틸리티 스크립트
+│   └── download_embedding_model.py  # 임베딩 모델 다운로드 도구
+├── 📂 models/                  # 한국어 임베딩 모델 (로컬 설치)
+│   └── ko-sroberta-multitask/  # sentence-transformers 모델
 ├── 📂 tests/                   # 테스트 코드
 │   ├── conftest.py             # 공유 fixtures
 │   ├── 📂 unit/                # 단위 테스트
@@ -88,7 +92,16 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Ollama 설정
+### 3. 한국어 임베딩 모델 설치
+
+```bash
+# RAG 시스템용 한국어 임베딩 모델 다운로드 (약 432MB)
+python scripts/download_embedding_model.py
+```
+
+> **📝 참고**: 이 단계는 RAG 기능을 사용하려는 경우에만 필요합니다. `config.json`에서 `rag.enabled: false`로 설정하면 모델 없이도 기본 기능을 사용할 수 있습니다.
+
+### 4. Ollama 설정
 
 ```bash
 # Ollama 설치 (https://ollama.ai)
@@ -99,7 +112,7 @@ ollama pull qwen3:8b
 ollama serve
 ```
 
-### 4. 설정 파일 생성
+### 5. 설정 파일 생성
 
 ```bash
 # 설정 파일 복사 및 수정
@@ -107,7 +120,7 @@ cp config.example.json config.json
 # config.json에서 repo_path 등을 실제 환경에 맞게 수정
 ```
 
-### 5. 실행 방법
+### 6. 실행 방법
 
 #### 웹 인터페이스 (권장)
 ```bash
@@ -121,7 +134,7 @@ streamlit run app.py
 python main.py
 ```
 
-### 6. 테스트 실행
+### 7. 테스트 실행
 
 ```bash
 # 모든 테스트 실행
@@ -156,6 +169,54 @@ pytest tests/integration/
 1. **설정 파일 수정**: `config.json`에서 저장소 경로 등 설정
 2. **스크립트 실행**: `python main.py`
 3. **결과 확인**: `outputs/` 폴더에서 생성된 Excel 파일 확인
+
+### 폐쇄망 환경 설정
+
+TestscenarioMaker는 인터넷 연결이 제한된 폐쇄망 환경에서도 사용 가능합니다.
+
+#### 사전 준비 (인터넷 환경에서)
+
+1. **모델 다운로드**:
+   ```bash
+   # 한국어 임베딩 모델 다운로드 (약 432MB)
+   python scripts/download_embedding_model.py
+   ```
+
+2. **파일 복사 준비**:
+   ```bash
+   # 전체 models/ 폴더를 복사 가능한 형태로 압축
+   tar -czf models.tar.gz models/
+   ```
+
+#### 폐쇄망 환경 설치
+
+1. **프로젝트 파일 복사**: 전체 프로젝트와 `models.tar.gz` 파일을 폐쇄망으로 이동
+2. **모델 파일 압축 해제**:
+   ```bash
+   tar -xzf models.tar.gz
+   ```
+3. **설정 파일 수정** (`config.json`):
+   ```json
+   {
+     "rag": {
+       "enabled": true,
+       "local_embedding_model_path": "./models/ko-sroberta-multitask"
+     }
+   }
+   ```
+
+4. **의존성 설치** (pip wheel 방식):
+   ```bash
+   # 인터넷 환경에서 wheel 파일 다운로드
+   pip download -r requirements.txt -d wheels/
+   
+   # 폐쇄망에서 wheel 파일로 설치
+   pip install --no-index --find-links wheels/ -r requirements.txt
+   ```
+
+#### 주의사항
+- Ollama 설치는 별도로 필요 (폐쇄망용 Ollama 설치 가이드 참조)
+- RAG 기능을 사용하지 않는 경우 `rag.enabled: false` 설정으로 모델 없이 사용 가능
 
 ### 고급 설정
 

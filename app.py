@@ -300,9 +300,7 @@ with tab1:
     # - 더 직관적인 사용자 경험
 
     # ------ 생성된 결과가 있으면 표시 (버튼 클릭과 독립적) ------
-    if st.session_state.get('generated'):
-        st.write("🐛 DEBUG: generated=True, 결과 UI 표시 중...")
-        
+    if st.session_state.get('generated'):                
         # 세션 상태에서 값 불러오기
         result_json = st.session_state.get('result_json')
         final_filename = st.session_state.get('final_filename')

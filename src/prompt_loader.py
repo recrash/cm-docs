@@ -22,6 +22,7 @@ def get_rag_manager(lazy_load=True):
             _rag_manager = RAGManager(
                 persist_directory=rag_config.get('persist_directory', 'vector_db_data'),
                 embedding_model=rag_config.get('embedding_model', 'jhgan/ko-sroberta-multitask'),
+                local_model_path=rag_config.get('local_embedding_model_path'),
                 chunk_size=rag_config.get('chunk_size', 1000),
                 chunk_overlap=rag_config.get('chunk_overlap', 200)
             )

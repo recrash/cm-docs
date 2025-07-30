@@ -7,6 +7,7 @@
         "enabled": true,
         "persist_directory": "vector_db_data",
         "embedding_model": "jhgan/ko-sroberta-multitask",
+        "local_embedding_model_path": "./models/ko-sroberta-multitask",
         "chunk_size": 1000,
         "chunk_overlap": 200,
         "search_k": 5

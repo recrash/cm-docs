@@ -5,23 +5,45 @@ from sentence_transformers import SentenceTransformer
 class ChromaManager:
     """ChromaDB를 사용한 벡터 데이터베이스 관리 클래스"""
     
-    def __init__(self, persist_directory: str = "vector_db_data", embedding_model: str = "jhgan/ko-sroberta-multitask"):
+    def __init__(self, persist_directory: str = "vector_db_data", embedding_model: str = "jhgan/ko-sroberta-multitask", local_model_path: str = None):
         """
         ChromaDB 매니저 초기화
         
         Args:
             persist_directory: 벡터 DB 저장 경로
-            embedding_model: 한국어 임베딩 모델
+            embedding_model: 한국어 임베딩 모델 (HuggingFace 모델명)
+            local_model_path: 로컬 모델 경로 (우선 사용)
         """
+        import os
+        
         self.persist_directory = persist_directory
         self.embedding_model_name = embedding_model
         
         # ChromaDB 클라이언트 초기화
         self.client = chromadb.PersistentClient(path=persist_directory)
         
-        # 한국어 임베딩 모델 로드
-        print(f"한국어 임베딩 모델 로드 중: {embedding_model}")
-        self.embedding_model = SentenceTransformer(embedding_model)
+        # 임베딩 모델 로드 (로컬 경로 우선)
+        if local_model_path and os.path.exists(local_model_path):
+            print(f"로컬 임베딩 모델 사용: {local_model_path}")
+            try:
+                self.embedding_model = SentenceTransformer(local_model_path)
+                self.embedding_model_name = f"local:{local_model_path}"
+            except Exception as e:
+                print(f"로컬 모델 로딩 실패 ({e}), HuggingFace 모델로 대체")
+                self.embedding_model = SentenceTransformer(embedding_model)
+        else:
+            if local_model_path:
+                print(f"로컬 모델 경로 없음: {local_model_path}")
+            print(f"HuggingFace 임베딩 모델 사용: {embedding_model}")
+            try:
+                self.embedding_model = SentenceTransformer(embedding_model)
+            except Exception as e:
+                print(f"임베딩 모델 로딩 실패: {e}")
+                print("폐쇄망 환경인 경우 다음 방법을 시도해보세요:")
+                print("1. 인터넷 연결 환경에서 모델을 미리 다운로드")
+                print("2. config.json의 local_embedding_model_path에 로컬 모델 경로 설정")
+                print("3. 또는 config.json에서 rag.enabled를 false로 설정")
+                raise
         
         # 컬렉션 초기화
         self.collection_name = "test_scenarios"
