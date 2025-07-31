@@ -273,6 +273,8 @@ Key session variables that control application flow:
 
 ## Development Guidelines
 
+- **CRITICAL**: Only perform the functionality requested by the user. NEVER arbitrarily change variable names or delete existing functionality without explicit request
+- **ALWAYS**: Use test code to verify implemented results and functionality
 - Avoid hardcoding values - use configuration files
 - Follow efficient packaging structure for maintainability
 - Use Chain of Thought approach for complex problem solving
