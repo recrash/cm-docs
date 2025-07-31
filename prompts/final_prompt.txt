@@ -1,41 +1,51 @@
-너는 주어진 Git 변경 내역을 분석하여, 완벽한 테스트 시나리오 문서를 생성하는 전문가다.
+You are an expert at generating complete test scenario documents by analyzing a given Git change history.
 
-**지시사항:**
-1. 먼저, 주어진 '분석할 Git 변경 내역'을 바탕으로 최종 JSON 결과물을 만들기 위한 너의 생각 과정을 `<thinking>` 태그 안에 단계별로 서술해라. 모든 생각은 한국어로 작성한다.
-2. 생각 과정이 끝나면, 그 생각을 바탕으로 최종 결과물을 `<json>` 태그 안에 완벽한 JSON 객체로 생성해라.
-3. 최종 JSON 객체의 모든 문자열 값은 **반드시 한국어로** 작성해야 하며, 어떤 필드도 비워두어서는 안 된다.
+**Instructions:**
+1. First, based on the provided 'Git change history to analyze', describe your step-by-step thinking process for creating the final JSON output within <thinking> tags. *The thinking process should be in English, but the written output should be in Korean.*
+2. After the thinking process is complete, generate the final output as a perfect JSON object inside <json> tags based on that thinking.
+3. *All string values in the final JSON object must be written in Korean, and no fields should be left empty.*
 
-### 분석할 Git 변경 내역:
+### Git Change History to Analyze:
 {git_analysis}
 
-### 최종 출력 형식:
+### Final Output Format:
 <thinking>
-1. Git 변경 내역 분석: 핵심 변경 사항 파악.
-2. 개요 및 제목 구상: 전체 시나리오를 대표할 'Scenario Description'과 'Test Scenario Name' 구상.
-3. 테스트 케이스 3개 구상: 각 변경 사항을 검증할 구체적인 ID, 절차, 사전조건 등을 작성.
-4. 최종 JSON 생성: 위 내용을 종합하여 최종 JSON 구조에 맞게 내용 채우기.
+1. Analyze Change History: Identify the core code changes and the functional units affected by them.
+2. Outline and Title Formulation: Formulate a 'Scenario Description' and 'Test Scenario Name' that represent the entire test scenario.
+3. Detailed Test Case Formulation: For each identified functional unit, formulate the necessary test cases. The number of test cases should be variable depending on the complexity and scope of the change history. Each case must include an ID, procedure, preconditions, etc.
+4. Standardize ID Format: All test case IDs should be assigned sequentially, such as 'TEST_001', 'TEST_002'.
+5. Final JSON Generation: Synthesize the above information and populate the final JSON structure accordingly.
 </thinking>
 <json>
 {{
-  "Scenario Description": "사용자 관점에서 이 테스트 전체의 목적을 요약한 설명.",
-  "Test Scenario Name": "테스트 시나리오 전체를 대표하는 명확한 제목.",
+  "Scenario Description": "A summary of the purpose of this entire test from a user's perspective.",
+  "Test Scenario Name": "A clear title representing the entire test scenario.",
   "Test Cases": [
     {{
-      "ID": "CMP_MES_001",
-      "절차": "1. 첫 번째 절차.\\n2. 두 번째 절차.",
-      "사전조건": "테스트를 위한 사전 조건.",
-      "데이터": "테스트에 사용될 특정 데이터.",
-      "예상결과": "시스템의 정상적인 반응.",
-      "종류": "단위 또는 통합"
+      "ID": "TEST_001",
+      "절차": "1. The first test procedure for the first functional unit.\n2. The second procedure.",
+      "사전조건": "The preconditions for testing the corresponding functional unit.",
+      "데이터": "Specific data to be used in the test.",
+      "예상결과": "The normal response of the system.",
+      "종류": "Unit or Integration"
     }},
     {{
-      "ID": "CMP_MES_002",
-      "절차": "...", "사전조건": "...", "데이터": "...", "예상결과": "...", "종류": "..."
+      "ID": "TEST_002",
+      "절차": "1. The test procedure for the second functional unit.\n ...",
+      "사전조건": "...",
+      "데이터": "...",
+      "예상결과": "...",
+      "종류": "..."
     }},
     {{
-      "ID": "CMP_MES_003",
-      "절차": "...", "사전조건": "...", "데이터": "...", "예상결과": "...", "종류": "..."
+      "ID": "TEST_003",
+      "절차": "1. The test procedure for the third functional unit.\n ...",
+      "사전조건": "...",
+      "데이터": "...",
+      "예상결과": "...",
+      "종류": "..."
     }}
+    // ... Add as many test cases as necessary according to the number of analyzed functional units. ...
   ]
 }}
 </json>

@@ -7,6 +7,7 @@ import os
 from src.git_analyzer import get_git_analysis_text
 from src.llm_handler import call_ollama_llm
 from src.excel_writer import save_results_to_excel
+from src.prompt_loader import create_final_prompt
 
 # --- 1. 화면 구성 ---
 st.set_page_config(page_title="🤖 테스트 시나리오 자동 생성기", layout="wide")
@@ -37,36 +38,14 @@ if st.button("테스트 시나리오 생성하기 🚀"):
             st.write("2. LLM을 호출하여 모든 정보를 생성합니다... (시간이 걸릴 수 있습니다)")
             model_name = "qwen3:8b" # 안정적인 모델 추천
             
-            # --- [수정] main.py와 동일한 최종 프롬프트로 교체 ---
-            final_prompt = f"""너는 주어진 Git 변경 내역을 분석하여, 완벽한 테스트 시나리오 문서를 생성하는 전문가다.
-
-**지시사항:**
-1. 먼저, 주어진 '분석할 Git 변경 내역'을 바탕으로 최종 JSON 결과물을 만들기 위한 너의 생각 과정을 `<thinking>` 태그 안에 단계별로 서술해라. 모든 생각은 한국어로 작성한다.
-2. 생각 과정이 끝나면, 그 생각을 바탕으로 최종 결과물을 `<json>` 태그 안에 완벽한 JSON 객체로 생성해라.
-3. 최종 JSON 객체의 모든 문자열 값은 **반드시 한국어로** 작성해야 하며, 어떤 필드도 비워두어서는 안 된다.
-
-### 분석할 Git 변경 내역:
-{git_analysis}
-
-### 최종 출력 형식:
-<thinking>
-1. Git 변경 내역 분석: 핵심 변경 사항 파악.
-2. 개요 및 제목 구상: 전체 시나리오를 대표할 'Scenario Description'과 'Test Scenario Name' 구상.
-3. 테스트 케이스 3개 구상: 각 변경 사항을 검증할 구체적인 ID, 절차, 사전조건 등을 작성.
-4. 최종 JSON 생성: 위 내용을 종합하여 최종 JSON 구조에 맞게 내용 채우기.
-</thinking>
-<json>
-{{
-  "Scenario Description": "사용자 관점에서 이 테스트 전체의 목적을 요약한 설명.",
-  "Test Scenario Name": "테스트 시나리오 전체를 대표하는 명확한 제목.",
-  "Test Cases": [
-    {{ "ID": "CMP_MES_001", "절차": "...", "사전조건": "...", "데이터": "...", "예상결과": "...", "종류": "..." }},
-    {{ "ID": "CMP_MES_002", "절차": "...", "사전조건": "...", "데이터": "...", "예상결과": "...", "종류": "..." }},
-    {{ "ID": "CMP_MES_003", "절차": "...", "사전조건": "...", "데이터": "...", "예상결과": "...", "종류": "..." }}
-  ]
-}}
-</json>
-"""
+            # 현재 하드코딩된 프롬프트를 제거하고 create_final_prompt() 함수 사용
+            final_prompt = create_final_prompt(
+                git_analysis, 
+                use_rag=False,  # main.py는 RAG 기능 없이 기본 기능만 사용
+                use_feedback_enhancement=False,
+                performance_mode=False
+            )
+            
             raw_response = call_ollama_llm(final_prompt, model=model_name, timeout=600)
             
             if not raw_response:

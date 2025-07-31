@@ -38,9 +38,43 @@ rag_initialized = initialize_rag_system()
 # 피드백 매니저 초기화
 feedback_manager = FeedbackManager()
 
+# 세션 상태 초기화 함수
+def initialize_session_state():
+    """세션 상태를 초기화합니다."""
+    if 'generated' not in st.session_state:
+        st.session_state.generated = False
+    if 'result_json' not in st.session_state:
+        st.session_state.result_json = None
+    if 'final_filename' not in st.session_state:
+        st.session_state.final_filename = None
+    if 'git_analysis' not in st.session_state:
+        st.session_state.git_analysis = None
+    if 'repo_path' not in st.session_state:
+        st.session_state.repo_path = None
+    if 'file_data' not in st.session_state:
+        st.session_state.file_data = None
+    if 'file_name' not in st.session_state:
+        st.session_state.file_name = None
+    if 'real_modal_visible' not in st.session_state:
+        st.session_state.real_modal_visible = False
+    if 'real_modal_type' not in st.session_state:
+        st.session_state.real_modal_type = None
+    if 'feedback_submitted' not in st.session_state:
+        st.session_state.feedback_submitted = False
+    if 'feedback_show_success' not in st.session_state:
+        st.session_state.feedback_show_success = False
+
+    if 'rag_info' not in st.session_state:
+        st.session_state.rag_info = None
+
+# 세션 상태 초기화
+initialize_session_state()
+
 # 실제 피드백 모달 함수 (전역 범위에서 정의)
 @st.dialog("피드백")
 def show_real_feedback_modal(feedback_type, git_analysis, result_json, repo_path):
+
+    
     st.write("새로 생성된 시나리오에 대한 의견을 주세요 (선택 사항)")
     
     if feedback_type == 'like':
@@ -108,12 +142,6 @@ def show_real_feedback_modal(feedback_type, git_analysis, result_json, repo_path
                 if i < len(test_cases[:5]) - 1:
                     st.divider()
     
-    # 세션 상태로 제출 상태 관리
-    if 'feedback_submitted' not in st.session_state:
-        st.session_state.feedback_submitted = False
-    if 'feedback_show_success' not in st.session_state:
-        st.session_state.feedback_show_success = False
-    
     # 제출 완료 후 전체 너비로 성공 메시지 표시
     if st.session_state.feedback_show_success:
         st.markdown(
@@ -143,16 +171,7 @@ def show_real_feedback_modal(feedback_type, git_analysis, result_json, repo_path
             st.write(f"**제출된 의견:** {feedback_text[:50]}{'...' if len(feedback_text) > 50 else ''}")
         
         # 통계 표시
-        stats = feedback_manager.get_feedback_stats()
-        st.info(f"현재까지 총 {stats['total_feedback']}개의 피드백이 수집되었습니다.")
-        
-        # 3초 후 자동으로 모달 닫기 - Streamlit 방식으로 개선
-        if st.button("닫기", key="success_close_btn", type="secondary"):
-            st.session_state.feedback_show_success = False
-            st.session_state.feedback_submitted = False
-            st.session_state.real_modal_visible = False
-            st.session_state.real_modal_type = None
-            st.rerun()
+        stats = feedback_manager.get_feedback_stats()                        
     
     # 제출되지 않은 경우에만 버튼 표시
     if not st.session_state.feedback_show_success:
@@ -163,6 +182,8 @@ def show_real_feedback_modal(feedback_type, git_analysis, result_json, repo_path
             if st.button("취소", key="real_modal_cancel", use_container_width=True):
                 st.session_state.real_modal_visible = False
                 st.session_state.real_modal_type = None
+                st.session_state.feedback_submitted = False
+                st.session_state.feedback_show_success = False
                 st.rerun()
         
         with col2:
@@ -188,7 +209,7 @@ def show_real_feedback_modal(feedback_type, git_analysis, result_json, repo_path
                 if success:
                     st.session_state.feedback_submitted = True
                     st.session_state.feedback_show_success = True
-                    st.rerun()
+                    st.rerun()  # 즉시 다시 렌더링하여 성공 메시지 표시
                 else:
                     st.error("피드백 저장 중 오류가 발생했습니다.")
 
@@ -205,13 +226,12 @@ with tab1:
 
     # 세션 상태에서 RAG 정보 관리
     def get_rag_info_cached():
-        if 'rag_info' not in st.session_state:
+        if st.session_state.rag_info is None:
             st.session_state.rag_info = get_rag_info()
         return st.session_state.rag_info
 
     def refresh_rag_info():
-        if 'rag_info' in st.session_state:
-            del st.session_state.rag_info
+        st.session_state.rag_info = None
 
     # RAG 정보 표시
     if not rag_initialized:
@@ -276,12 +296,7 @@ with tab1:
         config.get("repo_path", "")
     )
 
-    # 결과 출력 영역 placeholder (중복 UI 방지)
-    if 'result_placeholder' not in st.session_state:
-        st.session_state['result_placeholder'] = st.empty()
-    result_placeholder = st.session_state['result_placeholder']
-
-    # --- 사이드바: 성능 최적화 옵션 (중복 방지) ---
+    # --- 사이드바: 성능 최적화 옵션 ---
     st.sidebar.subheader("⚡ 성능 최적화")
     use_performance_mode = st.sidebar.checkbox(
         "성능 최적화 모드",
@@ -290,93 +305,11 @@ with tab1:
         help="프롬프트 크기를 제한하여 LLM 응답 속도를 향상시킵니다."
     )
 
-    # ===== 피드백 기능 테스트 섹션 (성공적으로 실제 기능에 적용 완료) =====
-    # ✅ 테스트 섹션의 개선된 UI/UX 요소들이 실제 피드백 기능에 성공적으로 적용되었습니다.
-    # 주요 개선사항:
-    # - 개별 테스트케이스 평가 UI 개선 (컬럼 레이아웃, 구분선 추가)
-    # - 성공 메시지에 결과 요약 추가
-    # - 피드백 버튼 텍스트 개선 ("👍 좋아요", "👎 개선 필요")
-    # - 3초 자동 모달 닫기 기능
-    # - 더 직관적인 사용자 경험
-
-    # ------ 생성된 결과가 있으면 표시 (버튼 클릭과 독립적) ------
-    if st.session_state.get('generated'):                
-        # 세션 상태에서 값 불러오기
-        result_json = st.session_state.get('result_json')
-        final_filename = st.session_state.get('final_filename')
-        git_analysis = st.session_state.get('git_analysis')
-        repo_path = st.session_state.get('repo_path')
-        
-        with result_placeholder.container():
-            st.success("테스트 시나리오 생성이 완료되었습니다!")
-
-            # 파일 데이터를 세션 상태에 저장하여 재읽기 방지
-            if 'file_data' not in st.session_state and final_filename and os.path.exists(final_filename):
-                with open(final_filename, "rb") as file:
-                    st.session_state['file_data'] = file.read()
-                    st.session_state['file_name'] = os.path.basename(final_filename)
-            
-            # 세션 상태에서 파일 데이터 사용
-            if 'file_data' in st.session_state:
-                st.download_button(
-                    label="엑셀 파일 다운로드 📥",
-                    data=st.session_state['file_data'],
-                    file_name=st.session_state['file_name'],
-                    mime="application/vnd.ms-excel",
-                    key="download_button"
-                )
-
-            st.subheader("📊 생성 결과 미리보기")
-            st.write(f"**개요:** {result_json.get('Scenario Description', '')}")
-            st.write(f"**제목:** {result_json.get('Test Scenario Name', '')}")
-            
-            # Test Cases 데이터 전처리 - \n을 실제 개행으로 변환
-            test_cases = result_json.get('Test Cases', [])
-            processed_cases = []
-            
-            for case in test_cases:
-                processed_case = {}
-                for key, value in case.items():
-                    if isinstance(value, str):
-                        # \n을 실제 개행으로 변환
-                        processed_case[key] = value.replace('\\n', '\n')
-                    else:
-                        processed_case[key] = value
-                processed_cases.append(processed_case)
-            
-            st.dataframe(processed_cases, use_container_width=True)
-
-            # 피드백 수집 섹션
-            st.subheader("📝 시나리오 평가 및 피드백")
-            st.info("생성된 시나리오에 대한 평가를 남겨주시면 향후 더 나은 시나리오 생성에 도움이 됩니다.")
-
-            if 'real_modal_visible' not in st.session_state:
-                st.session_state.real_modal_visible = False
-            if 'real_modal_type' not in st.session_state:
-                st.session_state.real_modal_type = None
-
-            st.write("**이 시나리오가 도움이 되었나요?**")
-            col1, col2, _ = st.columns([1, 1, 8])
-
-            with col1:
-                if st.button("👍 좋아요", key="real_like_btn", help="이 시나리오가 유용했습니다", use_container_width=True):
-                    st.session_state.real_modal_visible = True
-                    st.session_state.real_modal_type = 'like'
-                    st.rerun()
-
-            with col2:
-                if st.button("👎 개선 필요", key="real_dislike_btn", help="이 시나리오에 개선이 필요합니다", use_container_width=True):
-                    st.session_state.real_modal_visible = True
-                    st.session_state.real_modal_type = 'dislike'
-                    st.rerun()
-
-    # 생성 버튼 (한 번만 표시)
+    # 생성 버튼
     if st.button("테스트 시나리오 생성하기 🚀", key="generate_btn"):
         if not repo_path or not os.path.isdir(repo_path):
             st.error("유효한 Git 저장소 경로를 입력해주세요.")
         else:
-            # 이전 결과 영역 초기화
-            result_placeholder.empty()
             # 결과 변수 초기화
             result_json = None
             final_filename = None
@@ -403,7 +336,7 @@ with tab1:
                     git_analysis, 
                     use_rag=True, 
                     use_feedback_enhancement=True,
-                    performance_mode=use_performance_mode  # 새로운 파라미터
+                    performance_mode=use_performance_mode
                 )
                 
                 # LLM 호출 전후 시간 측정
@@ -437,32 +370,97 @@ with tab1:
                                 file_name = os.path.basename(final_filename)
                         
                         # 세션 상태에 결과 저장
-                        st.session_state['generated'] = True
-                        st.session_state['result_json'] = result_json
-                        st.session_state['final_filename'] = final_filename
-                        st.session_state['git_analysis'] = git_analysis
-                        st.session_state['repo_path'] = repo_path
-                        st.session_state['file_data'] = file_data
-                        st.session_state['file_name'] = file_name
+                        st.session_state.generated = True
+                        st.session_state.result_json = result_json
+                        st.session_state.final_filename = final_filename
+                        st.session_state.git_analysis = git_analysis
+                        st.session_state.repo_path = repo_path
+                        st.session_state.file_data = file_data
+                        st.session_state.file_name = file_name
                         
                         status.update(label="생성 완료!", state="complete", expanded=False)
-                        st.write("🐛 DEBUG: 세션 상태 저장 완료")
-                        
-                        # UI 새로고침을 위한 rerun
-                        st.rerun()
 
                     except Exception as e:
                         status.update(label="오류 발생!", state="error", expanded=True)
                         st.error(f"결과 처리 중 오류가 발생했습니다: {e}")
                         st.code(raw_response)
 
-    # ------ 피드백 모달 표시 (생성 박스 밖에서) ------
-    if st.session_state.get('real_modal_visible', False):    
-        modal_type = st.session_state.get('real_modal_type')
-        if modal_type and st.session_state.get('generated'):
-            result_json = st.session_state.get('result_json')
-            git_analysis = st.session_state.get('git_analysis')
-            repo_path = st.session_state.get('repo_path')
+    # ------ 생성된 결과가 있으면 표시 ------
+    if st.session_state.generated:                
+        # 세션 상태에서 값 불러오기
+        result_json = st.session_state.result_json
+        final_filename = st.session_state.final_filename
+        git_analysis = st.session_state.git_analysis
+        repo_path = st.session_state.repo_path
+        
+        st.success("테스트 시나리오 생성이 완료되었습니다!")
+
+        # 파일 데이터를 세션 상태에 저장하여 재읽기 방지
+        if st.session_state.file_data is None and final_filename and os.path.exists(final_filename):
+            with open(final_filename, "rb") as file:
+                st.session_state.file_data = file.read()
+                st.session_state.file_name = os.path.basename(final_filename)
+        
+        # 세션 상태에서 파일 데이터 사용
+        if st.session_state.file_data is not None:
+            st.download_button(
+                label="엑셀 파일 다운로드 📥",
+                data=st.session_state.file_data,
+                file_name=st.session_state.file_name,
+                mime="application/vnd.ms-excel",
+                key="download_button"
+            )
+
+        st.subheader("📊 생성 결과 미리보기")
+        st.write(f"**개요:** {result_json.get('Scenario Description', '')}")
+        st.write(f"**제목:** {result_json.get('Test Scenario Name', '')}")
+        
+        # Test Cases 데이터 전처리 - \n을 실제 개행으로 변환
+        test_cases = result_json.get('Test Cases', [])
+        processed_cases = []
+        
+        for case in test_cases:
+            processed_case = {}
+            for key, value in case.items():
+                if isinstance(value, str):
+                    # \n을 실제 개행으로 변환
+                    processed_case[key] = value.replace('\\n', '\n')
+                else:
+                    processed_case[key] = value
+            processed_cases.append(processed_case)
+        
+        st.dataframe(processed_cases, use_container_width=True)
+
+        # 피드백 수집 섹션
+        st.subheader("📝 시나리오 평가 및 피드백")
+        st.info("생성된 시나리오에 대한 평가를 남겨주시면 향후 더 나은 시나리오 생성에 도움이 됩니다.")
+
+        st.write("**이 시나리오가 도움이 되었나요?**")
+        col1, col2, _ = st.columns([1, 1, 8])
+
+        with col1:
+            if st.button("👍 좋아요", key="real_like_btn", help="이 시나리오가 유용했습니다", use_container_width=True):
+                # 피드백 관련 세션 상태 초기화
+                st.session_state.feedback_submitted = False
+                st.session_state.feedback_show_success = False
+                st.session_state.real_modal_visible = True
+                st.session_state.real_modal_type = 'like'
+
+        with col2:
+            if st.button("👎 개선 필요", key="real_dislike_btn", help="이 시나리오에 개선이 필요합니다", use_container_width=True):
+                # 피드백 관련 세션 상태 초기화
+                st.session_state.feedback_submitted = False
+                st.session_state.feedback_show_success = False
+                st.session_state.real_modal_visible = True
+                st.session_state.real_modal_type = 'dislike'
+
+    # ------ 피드백 모달 표시 ------
+    if st.session_state.real_modal_visible:    
+        modal_type = st.session_state.real_modal_type
+        if modal_type and st.session_state.generated:
+            result_json = st.session_state.result_json
+            git_analysis = st.session_state.git_analysis
+            repo_path = st.session_state.repo_path
             
             show_real_feedback_modal(modal_type, git_analysis, result_json, repo_path)
 
