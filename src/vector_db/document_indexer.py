@@ -10,7 +10,16 @@ class DocumentIndexer:
     
     def __init__(self, rag_manager: RAGManager, documents_folder: str = "documents"):
         self.rag_manager = rag_manager
-        self.documents_folder = documents_folder
+        
+        # documents 폴더 경로를 절대 경로로 변환
+        if not os.path.isabs(documents_folder):
+            # 현재 파일의 디렉토리에서 프로젝트 루트로 이동
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(current_dir))  # src/vector_db/ 상위로 두 번
+            self.documents_folder = os.path.join(project_root, documents_folder)
+        else:
+            self.documents_folder = documents_folder
+            
         self.document_reader = DocumentReader()
         self.indexed_files_cache = {}  # 파일 해시 캐시
         

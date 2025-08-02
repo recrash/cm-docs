@@ -4,275 +4,182 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TestscenarioMaker is an AI-powered tool that analyzes Git repository changes and automatically generates Korean test scenarios in Excel format. It uses Ollama's LLM (qwen3:8b by default) to process Git commit messages and code diffs, then outputs structured test scenarios using RAG (Retrieval-Augmented Generation) for enhanced context and a feedback system for continuous improvement.
+TestscenarioMaker is an AI-powered tool that analyzes Git repository changes and automatically generates Korean test scenarios in Excel format. The project has evolved from a Streamlit-based application to a full-stack React + FastAPI architecture with RAG (Retrieval-Augmented Generation) capabilities and a feedback system for continuous improvement.
+
+## Architecture Overview
+
+### Full-Stack Architecture
+- **Frontend**: React 18 + TypeScript + Material-UI + Vite
+- **Backend**: FastAPI + Python with modular routers
+- **AI/LLM**: Ollama integration (qwen3:8b model) 
+- **Vector Database**: ChromaDB for RAG system
+- **Storage**: SQLite for feedback data, Excel files for output
+- **Testing**: Jest + Playwright (E2E) + pytest (backend)
+
+### Key Components
+- **Legacy `src/` modules**: Core analysis logic (git_analyzer, llm_handler, excel_writer, etc.)
+- **Backend API**: FastAPI routers for scenario generation, feedback, RAG, and file management
+- **Frontend SPA**: React components with real-time WebSocket updates
+- **RAG System**: Vector database integration for context-enhanced generation
 
 ## Development Commands
 
-### Running the Application
+### Server Management
 ```bash
-# Streamlit web interface (recommended)
-streamlit run app.py
+# Backend (Port 8000) - Must be run from backend directory
+cd backend && python -m uvicorn main:app --reload --port 8000
 
-# Command-line interface
-python main.py
+# Frontend (Port 3000) - Run from project root
+npm run dev
+
+# Server shutdown
+./stop-dev.sh
+
+# DO NOT use ./start-dev.sh for starting servers
 ```
-
-### Environment Setup
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Ollama setup (required for LLM functionality)
-ollama pull qwen3:8b
-ollama serve
-```
-
-### Offline Environment Setup (폐쇄망 환경)
-
-폐쇄망 환경에서 RAG 시스템을 사용하려면 한국어 임베딩 모델을 사전에 다운로드해야 합니다.
-
-#### 1. 사전 모델 다운로드 (인터넷 환경에서)
-```bash
-# 임베딩 모델 다운로드 스크립트 실행
-python scripts/download_embedding_model.py
-```
-
-이 스크립트는:
-- `jhgan/ko-sroberta-multitask` 모델을 다운로드
-- `./models/ko-sroberta-multitask/` 경로에 저장 
-- 약 500MB 용량 필요
-
-#### 2. 폐쇄망 환경으로 파일 복사
-```bash
-# models/ 폴더 전체를 폐쇄망 환경으로 복사
-cp -r models/ /path/to/offline/environment/
-```
-
-#### 3. 설정 파일 수정
-```json
-// config.json
-{
-    "rag": {
-        "enabled": true,
-        "embedding_model": "jhgan/ko-sroberta-multitask",
-        "local_embedding_model_path": "./models/ko-sroberta-multitask",  // 로컬 경로 설정
-        "persist_directory": "vector_db_data",
-        // ... 기타 설정
-    }
-}
-```
-
-#### 4. 모델 로딩 우선순위
-1. **로컬 모델 (1순위)**: `local_embedding_model_path`가 설정되고 해당 경로에 모델이 존재하면 사용
-2. **HuggingFace 캐시 (2순위)**: 로컬 경로가 없으면 기존 캐시된 모델 사용
-3. **온라인 다운로드 (3순위)**: 캐시도 없으면 온라인에서 다운로드 시도
-
-#### 5. 문제 해결
-RAG 시스템 초기화 실패 시:
-- 에러 메시지에서 제공하는 가이드 참조
-- `config.json`에서 임시로 `rag.enabled: false` 설정 가능
-- 로컬 모델 경로와 파일 존재 여부 확인
 
 ### Testing
 ```bash
-# Run all tests
-pytest
+# Frontend unit tests
+npm run test
+npm run test:watch
+npm run test:coverage
 
-# Run tests with coverage
-pytest --cov=src
+# E2E tests (MANDATORY for testing functionality)
+npm run test:e2e
+npm run test:e2e:ui
 
-# Run specific test file
-pytest tests/unit/test_config_loader.py
+# Backend API tests
+npm run test:api
+# OR: pytest tests/api/
 
-# Run specific test class
-pytest tests/unit/test_config_loader.py::TestConfigLoader
+# Single test file
+pytest tests/api/test_scenario_api.py -v
+pytest tests/unit/test_git_analyzer.py::test_function_name -v
 
-# Run specific test method
-pytest tests/unit/test_config_loader.py::TestConfigLoader::test_load_valid_config
-
-# Run tests with verbose output
-pytest -v
-
-# Run integration tests only
-pytest tests/integration/
-
-# Run unit tests only
-pytest tests/unit/
+# All tests
+npm run test:all
 ```
 
-### Database Management
+### Building and Environment Setup
 ```bash
-# View feedback database content (SQLite)
-sqlite3 feedback.db ".tables"
-sqlite3 feedback.db "SELECT * FROM scenario_feedback LIMIT 5;"
+# Frontend build
+npm run build
 
-# Clear vector database (if needed)
-# This is handled through the Streamlit UI RAG management section
+# Python module imports setup (required for src/ modules)
+export PYTHONPATH=$(pwd):$PYTHONPATH
 
-# Feedback data management (through UI)
-# - Complete reset: All feedback data with automatic backup
-# - Category-based reset: good/bad/neutral feedback only
-# - Backups saved to backups/ folder with timestamp
+# Backend tests with coverage
+pytest --cov=src --cov-report=html
+
+# Download Korean embedding model (first-time setup)
+python scripts/download_embedding_model.py
 ```
 
-### Scripts & Utilities (scripts/)
-```bash
-# Utility scripts for system management
-scripts/download_embedding_model.py  # Downloads Korean embedding model for offline use
+## Critical Development Guidelines
+
+### Fundamental Principles
+- **명확한 명령이나 지시가 있기 전까지는 기존에 있는 기능을 삭제하지 말아라** (Never delete existing functionality without explicit instructions)
+- **Cross-platform compatibility**: Use relative paths only - this project must build on Windows
+- **E2E testing mandatory**: Always perform E2E tests using Playwright MCP when testing functionality
+
+### Path Management
+- Use `pathlib.Path` and relative paths for cross-platform compatibility
+- Never use absolute paths - the project builds on Windows
+- For backend modules: `Path(__file__).parent.parent` pattern for project root references
+- Module imports require PYTHONPATH setup: `sys.path.append(os.path.join(os.path.dirname(__file__), '..'))`
+
+### WebSocket Integration
+- Scenario generation uses WebSocket for real-time progress updates
+- Frontend connects to `ws://localhost:8000/api/scenario/generate-ws`
+- Progress updates show: 10% → 20% → 30% → 80% → 90% → 100%
+- Each step has 1-second delay for user visibility
+- Handle connection states and progress messages appropriately
+
+### Critical WebSocket Implementation Notes
+- Backend uses `progress.model_dump()` + `json.dumps()` for proper serialization
+- Frontend WebSocket URL adapts to environment (localhost:8000 for development)
+- Connection manager prevents duplicate disconnect errors
+- Progress delays ensure user can see each step during generation
+
+## Code Architecture Details
+
+### Frontend Structure (React + TypeScript)
+```
+frontend/src/
+├── components/          # Reusable UI components
+│   ├── ScenarioGenerationTab.tsx    # Main generation interface
+│   ├── ScenarioResultViewer.tsx     # Results display with download
+│   ├── FeedbackModal.tsx            # User feedback collection
+│   ├── RAGSystemPanel.tsx           # RAG system management
+│   └── FeedbackAnalysisTab.tsx      # Analytics dashboard
+├── services/api.ts      # Axios-based API client
+├── types/index.ts       # TypeScript definitions
+└── utils/websocket.ts   # WebSocket connection handling
 ```
 
-## Architecture
+### Backend Structure (FastAPI)
+```
+backend/
+├── main.py              # FastAPI app initialization
+├── routers/             # API endpoint modules
+│   ├── scenario.py      # Generation endpoints + WebSocket
+│   ├── feedback.py      # Feedback collection & analysis
+│   ├── rag.py          # RAG system management
+│   └── files.py        # File upload/download/validation
+└── models/             # Pydantic response models
+```
 
-### Core Modules (src/)
-- **git_analyzer.py**: Extracts Git commit messages and code diffs using GitPython
-- **llm_handler.py**: Handles Ollama API communication with configurable timeouts
-- **excel_writer.py**: Processes LLM JSON responses and writes to Excel templates using openpyxl
-- **prompt_loader.py**: Manages LLM prompts and RAG integration with singleton pattern
-- **config_loader.py**: Loads configuration from config.json
-- **document_parser.py**: Parses Word documents (변경관리요청서) using python-docx
-- **feedback_manager.py**: SQLite-based feedback collection, storage, analysis, and reset system with backup functionality
-- **prompt_enhancer.py**: Analyzes user feedback to dynamically improve prompts
+### Legacy Core Modules (src/)
+The original core logic remains in `src/` and is imported by backend routers:
+- **git_analyzer.py**: Git diff extraction and analysis using GitPython
+- **llm_handler.py**: Ollama LLM integration (qwen3:1.7b model)
+- **excel_writer.py**: Template-based Excel generation (cross-platform paths)
+- **feedback_manager.py**: SQLite-based feedback storage with automatic backups
+- **vector_db/**: RAG system with ChromaDB integration
+  - **rag_manager.py**: Main RAG orchestration class
+  - **chroma_manager.py**: ChromaDB vector database operations
+  - **document_chunker.py**: Text chunking for vector storage
+  - **document_indexer.py**: Document processing and indexing
 
-### Vector DB & RAG System (src/vector_db/)
-- **chroma_manager.py**: ChromaDB vector database management with Korean embeddings
-- **document_chunker.py**: Text chunking for Git analysis, documents, and test scenarios
-- **rag_manager.py**: RAG system integration managing vector storage and context retrieval
-- **document_indexer.py**: Batch processes and indexes documents into ChromaDB
-- **document_reader.py**: Extracts text content from various document formats (DOCX, TXT, PDF)
+### API Integration Patterns
 
-### User Interfaces  
-- **app.py**: Streamlit web interface with file upload/download capabilities
-- **main.py**: Command-line interface for batch processing
+#### Scenario Generation Flow
+1. Frontend validates Git repo path via `/api/files/validate/repo-path`
+2. WebSocket connection to `/api/scenario/generate-ws`
+3. Backend orchestrates: Git analysis → RAG context → LLM generation → Excel output
+4. Real-time progress updates sent via WebSocket
+5. Final result includes metadata and Excel filename
 
-### Testing Framework (tests/)
-- **conftest.py**: Test fixtures and shared configuration for pytest
-- **tests/unit/**: Unit tests for individual modules with comprehensive mock scenarios
-- **tests/integration/**: Integration tests for complete workflow validation
-- **pytest.ini**: pytest configuration with Korean-friendly test discovery
+#### File Download System
+- Excel files generated in `outputs/` directory
+- Download via `/api/files/download/excel/{filename}`
+- Frontend uses `filesApi.downloadExcelFile()` with proper encoding
+- Supports Korean filenames with UTF-8 encoding
 
-### Configuration
-- **config.json**: Contains repo_path, model_name, timeout, and RAG settings
-- **prompts/final_prompt.txt**: LLM prompt template for test scenario generation
-
-## Data Flow
-
-1. **Git Analysis**: Extracts commit messages and code diffs from specified repository
-2. **RAG Integration**: Git analysis is chunked and stored in ChromaDB for future reference
-3. **Context Retrieval**: Similar past analyses are retrieved using vector similarity search
-4. **Prompt Enhancement**: Template is populated with Git analysis, RAG context, and feedback-based improvements
-5. **LLM Generation**: Ollama generates structured JSON response with Korean test scenarios
-6. **Excel Output**: JSON is mapped to Excel template with proper formatting (includes \n to newline conversion)
-7. **File Storage**: Output saved to outputs/ directory with timestamp
-8. **Feedback Collection**: Users evaluate scenarios through UI, data stored in SQLite database
-9. **Continuous Improvement**: Collected feedback automatically improves future prompt generation
-
-## RAG System Details
-
-### Vector Storage
-- **Database**: ChromaDB with persistent storage
-- **Embedding Model**: Korean sentence-transformers (jhgan/ko-sroberta-multitask)
-- **Storage Location**: vector_db_data/ directory
-- **Document Types**: Git analysis results, test scenarios, and general documents
-
-### Text Processing
-- **Chunking Strategy**: 1000 characters with 200 character overlap
-- **Section Awareness**: Git data is chunked by meaningful sections (commits, files)
-- **Context Enhancement**: Top-k similarity search provides relevant historical context
-
-### Excel Output Processing
-The excel_writer.py module handles newline formatting by converting `\\n` escape sequences to actual newlines for proper display in Excel cells. This affects all text fields including 절차, 사전조건, 데이터, and 예상결과.
-
-### Feedback System Architecture
-- **Collection**: Modal-based UI with detailed evaluation forms and individual test case ratings
-- **Storage**: SQLite database with structured feedback data including scores, categories, and comments
-- **Analysis**: Statistical insights including problem areas, success patterns, and improvement recommendations
-- **Enhancement**: Automatic prompt improvement using good/bad examples when sufficient feedback is collected (minimum 3 feedback entries)
-- **Reset Functionality**: Complete or category-based feedback data clearing with automatic backup to backups/ folder
-- **Session Management**: Streamlit session state manages modal visibility and user interactions
-- **Cache Management**: Automatic singleton instance reset after feedback operations to maintain state consistency
-
-## Output Format
-
-Generated Excel files contain:
-- **Scenario Description**: 전체 테스트 목적 (overall test purpose)
-- **Test Scenario Name**: 대표 제목 (representative title)
-- **Test Cases**: Structured data with ID, 절차, 사전조건, 데이터, 예상결과, 종류 fields
-
-## Important Configuration Notes
-
-- All LLM responses are generated in Korean language
-- Excel template (templates/template.xlsx) defines the output structure
-- Ollama server must be running on localhost:11434
-- Git repository path is configurable via config.json or UI input
-- Default model is qwen3:8b but can be changed in configuration
-- Timeout is configurable (default 600 seconds) for LLM processing
-- RAG system requires ChromaDB and sentence-transformers dependencies
-- Vector DB persists across sessions in vector_db_data/ directory
-- RAG can be disabled in config.json by setting rag.enabled to false
-- Document processing supports DOCX, TXT, and PDF files in the documents/ folder
-- Feedback database (feedback.db) stores user evaluations and is used for automatic prompt improvement
-- Performance mode can be enabled to limit prompt size and improve LLM response times
-- Backup system automatically creates timestamped snapshots in backups/ folder before any feedback data modifications
-- Testing framework requires pytest, pytest-mock, and pytest-cov packages (included in requirements.txt)
-- Test execution does not require Ollama server to be running (all LLM calls are mocked)
-- Tests run in isolation using temporary directories and do not affect production data
-
-## Key UI/UX Features
-
-### Streamlit Web Interface (app.py)
-- **Two-tab layout**: Scenario generation and feedback analysis dashboard
-- **RAG system management**: Document indexing, database clearing, and status monitoring
-- **Real-time generation**: Progress indicators with status updates during scenario creation
-- **Interactive feedback**: Modal-based evaluation system with detailed scoring options
-- **Preview functionality**: Generated scenarios displayed with proper text formatting (newline handling)
-- **Session state management**: Maintains application state across user interactions
-- **Performance monitoring**: LLM response time and prompt size tracking
-- **Feedback management**: Complete data export, selective reset with backup, and category-based analysis
-
-## Technical Implementation Details
-
-### Prompt Engineering Architecture
-- **Base template**: Located in prompts/final_prompt.txt with structured JSON output format
-- **Dynamic enhancement**: PromptEnhancer class analyzes feedback to inject improvement instructions
-- **RAG integration**: Similar historical analyses retrieved via vector similarity search
-- **Performance optimization**: Optional prompt size limiting for faster LLM responses
-- **Chain of Thought**: LLM uses `<thinking>` tags before generating final `<json>` output
-
-### Session State Management (Streamlit)
-Key session variables that control application flow:
-- `generated`: Boolean indicating if scenario generation is complete
-- `result_json`: Generated scenario data structure
-- `final_filename`: Path to created Excel file
-- `real_modal_visible`: Controls feedback modal display
-- `real_modal_type`: Tracks whether feedback is positive ('like') or negative ('dislike')
-- `rag_info`: Cached RAG system status information
-
-### Database Schema (SQLite)
-- **scenario_feedback**: Main feedback table with scenario_id, scores, comments, and metadata
-- **testcase_feedback**: Individual test case evaluations linked to scenarios
-- **Scoring system**: 1-5 scale for overall, usefulness, accuracy, and completeness metrics
-
-### Error Handling Patterns
-- RAG system initialization with fallback modes (lazy loading)
-- LLM timeout handling with configurable limits
-- Excel template validation and error recovery
-- Git repository access validation
-- Modal state management to prevent UI conflicts
+#### RAG System Integration
+- Document indexing via `/api/rag/index`
+- Status monitoring via `/api/rag/status`
+- Context retrieval integrated into scenario generation prompt
+- Uses ko-sroberta-multitask for Korean text embeddings
+- Auto-initializes on backend startup if `rag.enabled: true` in config.json
+- Supports DOCX, TXT, PDF document formats with chunk_size=1000, chunk_overlap=200
 
 ### Testing Architecture
-- **Mock-based testing**: All external dependencies (Git repos, Ollama API, file systems) are mocked
-- **Fixture-driven setup**: Comprehensive test fixtures in conftest.py provide reusable test data
-- **Integration workflow tests**: Full pipeline testing from config loading to Excel generation
-- **Korean text handling**: Tests include Unicode and Korean character validation
-- **Error scenario coverage**: Network failures, invalid inputs, and missing dependencies are tested
-- **Temporary directory isolation**: All file operations use temporary directories to avoid side effects
 
-## Development Guidelines
+#### E2E Testing (Playwright - Required)
+- Use Playwright MCP for all E2E testing
+- Test complete user workflows including file downloads
+- Verify WebSocket real-time updates
+- Cross-browser compatibility testing
 
+#### API Testing (pytest)
+- Located in `tests/api/`
+- Covers all FastAPI endpoints
+- Mock external dependencies (Ollama, file system)
+- Database isolation with test fixtures
+
+#### Development Guidelines
 - **CRITICAL**: Only perform the functionality requested by the user. NEVER arbitrarily change variable names or delete existing functionality without explicit request
 - **ALWAYS**: Use test code to verify implemented results and functionality
 - Avoid hardcoding values - use configuration files
@@ -284,32 +191,62 @@ Key session variables that control application flow:
 - RAG system changes require testing with both enabled/disabled configurations
 - Feedback system modifications should maintain backward compatibility with existing SQLite schema
 
-### File Organization Guidelines
-- **Large binary files**: Add to `.gitignore` (ML models, large datasets)
-- **Utility scripts**: Place in `scripts/` directory
-- **Generated outputs**: Store in `outputs/` with timestamped filenames
-- **Configuration files**: Use `config.example.json` pattern with real config in `.gitignore`
-- **Documentation**: Keep both user docs (README.md) and development docs (CLAUDE.md) synchronized
+#### Frontend Testing (Jest)
+- React component testing with Testing Library
+- API service mocking with MSW
+- WebSocket connection testing
 
-### Testing Guidelines
-- Write unit tests for all new modules following the existing fixture pattern
-- Use mocks for external dependencies (Git, Ollama, file system operations)
-- Include Korean text scenarios in tests to validate Unicode handling
-- Test error conditions alongside happy path scenarios
-- Use temporary directories for file operations to ensure test isolation
-- Follow pytest naming conventions: test files, classes, and methods must start with `test_`
-- Integration tests should cover complete workflows from input to Excel output
+## Common Development Patterns
 
-## Important Development Notes
+### Error Handling
+- Backend: FastAPI HTTPException with detailed messages
+- Frontend: Try-catch with user-friendly alerts
+- WebSocket: Dedicated error callbacks with reconnection logic
 
-### Feedback System Management
-- Always create automatic backups before any feedback data modifications
-- Use `reset_feedback_cache()` after feedback operations to maintain singleton consistency
-- Backup files are stored in `backups/` folder with timestamp format `feedback_backup_YYYYMMDD_HHMMSS.json`
-- Category-based operations support: 'good', 'bad', 'neutral' classifications
+### State Management
+- React state for UI components
+- WebSocket state for real-time updates
+- API caching for configuration and status data
 
-### LLM Integration Architecture
-- Default model: qwen3:8b running on Ollama (localhost:11434)
-- Chain of Thought pattern: LLM uses `<thinking>` tags before `<json>` output
-- Prompt enhancement system activates after collecting 3+ feedback entries
-- Performance mode available to limit prompt size for faster responses
+### File Processing
+- Always check file existence before operations
+- Use proper MIME types for Excel downloads
+- Handle Korean filenames with URL encoding
+- Cross-platform path handling with pathlib
+
+### Database Operations
+- SQLite for feedback data with backup system
+- ChromaDB for vector storage with proper cleanup
+- Transaction-based operations for data integrity
+
+## Migration Notes
+
+This project migrated from Streamlit to React+FastAPI. Key changes:
+- Web interface moved from `app.py` (Streamlit) to React SPA
+- API endpoints centralized in FastAPI backend
+- Real-time updates via WebSocket instead of Streamlit rerun
+- Improved testing architecture with E2E coverage
+- Enhanced file management and download system
+
+## Common Issues and Solutions
+
+### Frontend Development
+- **Node.js Deprecation Warning**: Fixed with `NODE_OPTIONS="--no-deprecation"` in npm scripts
+- **WebSocket Progress Stuck at 0%**: Fixed with proper serialization and progress delays
+- **Port Configuration**: Frontend runs on port 3000, backend on port 8000
+
+### WebSocket Troubleshooting
+- **Progress Updates Not Visible**: Each step has 1-second delay for user visibility
+- **JSON Serialization Issues**: Use `progress.model_dump()` instead of `progress.json()`
+- **Connection Manager Errors**: Check for duplicate disconnect calls
+
+### Cross-Platform Compatibility
+- Always use relative paths with `pathlib.Path`
+- Never use absolute paths - project must build on Windows
+- Use proper path separators and encoding for Korean filenames
+
+### Import Issues and Solutions
+- **Typing imports**: Use `from typing import List, Tuple, Optional` (not `from typing import Tuple` alone)
+- **Module path setup**: Backend uses `sys.path.append(os.path.join(os.path.dirname(__file__), '..'))`
+- **PYTHONPATH environment**: Set `PYTHONPATH=$(pwd):$PYTHONPATH` for direct module testing
+- **Config loading**: RAG system requires config.json with proper `rag.enabled` flag

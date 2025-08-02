@@ -27,7 +27,9 @@ You are an expert at generating complete test scenario documents by analyzing a 
       "사전조건": "The preconditions for testing the corresponding functional unit.",
       "데이터": "Specific data to be used in the test.",
       "예상결과": "The normal response of the system.",
-      "종류": "Unit or Integration"
+      "Unit": "Y",
+      "Integration": "",
+      "종류": "Unit"
     }},
     {{
       "ID": "TEST_002",
@@ -35,7 +37,9 @@ You are an expert at generating complete test scenario documents by analyzing a 
       "사전조건": "...",
       "데이터": "...",
       "예상결과": "...",
-      "종류": "..."
+      "Unit": "",
+      "Integration": "Y",
+      "종류": "Integration"
     }},
     {{
       "ID": "TEST_003",
@@ -43,7 +47,9 @@ You are an expert at generating complete test scenario documents by analyzing a 
       "사전조건": "...",
       "데이터": "...",
       "예상결과": "...",
-      "종류": "..."
+      "Unit": "",
+      "Integration": "Y",
+      "종류": "Integration"
     }}
     // ... Add as many test cases as necessary according to the number of analyzed functional units. ...
   ]

@@ -298,7 +298,7 @@ temp_*.py
 *.model
 
 # 한국어 임베딩 모델 (대용량 파일, 스크립트로 다운로드 가능)
-models/
+/models/
 
 # 개발용 스크립트들
 dev_tools/ 
@@ -308,3 +308,37 @@ documents/
 
 # 피드백 백업 파일들
 backups/
+
+# FastAPI + React 추가 항목
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# React build outputs
+/frontend/dist/
+/dist/
+/build/
+/coverage/
+
+# Playwright test results
+/test-results/
+/playwright-report/
+/blob-report/
+playwright/.cache/
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment variables
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Package manager locks (선택적)
+# package-lock.json
+# yarn.lock
