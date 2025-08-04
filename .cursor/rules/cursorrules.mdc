@@ -1,0 +1,137 @@
+---
+alwaysApply: true
+---
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Core Development Commands
+
+### Testing
+```bash
+# Run all tests with coverage
+pytest --cov=ts_cli --cov-report=html
+
+# Run specific test types
+pytest -m unit          # Unit tests only
+pytest -m integration   # Integration tests only  
+pytest -m e2e           # End-to-End tests only
+
+# Run single test file
+pytest tests/unit/test_vcs.py
+
+# Run specific test
+pytest tests/unit/test_vcs.py::TestVCSFactory::test_get_analyzer_with_git_repository
+```
+
+### Code Quality
+```bash
+# Format code
+black src/ tests/
+isort src/ tests/
+
+# Lint code
+flake8 src/ tests/
+
+# Type checking
+mypy src/
+```
+
+### Building
+```bash
+# Build executable
+python scripts/build.py
+
+# Create Windows installer (Windows only)
+makensis scripts/setup_win.nsi
+
+# Create macOS DMG (macOS only)  
+python scripts/create_dmg.py
+```
+
+### Development Setup
+```bash
+# Install in development mode
+pip install -e .
+
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Test CLI directly
+python -m ts_cli.main --help
+```
+
+## Architecture Overview
+
+### Strategy Pattern for VCS Support
+The codebase uses the Strategy pattern to support multiple VCS systems through a common interface:
+
+- **Abstract Base**: `ts_cli.vcs.base_analyzer.RepositoryAnalyzer` defines the contract
+- **Concrete Implementation**: `ts_cli.vcs.git_analyzer.GitAnalyzer` implements Git support
+- **Factory Function**: `ts_cli.vcs.get_analyzer()` returns appropriate analyzer based on repository type
+- **Extensibility**: New VCS systems can be added by implementing `RepositoryAnalyzer`
+
+### Core Components Flow
+1. **CLI Entry** (`main.py`) → Click-based Korean UI with command routing
+2. **Business Logic** (`cli_handler.py`) → Orchestrates: repo analysis → API call → result processing
+3. **VCS Analysis** (`vcs/`) → Strategy pattern for Git/SVN/Mercurial support (currently Git only)
+4. **API Client** (`api_client.py`) → httpx + tenacity for robust API communication
+5. **Configuration** (`utils/config_loader.py`) → Multi-location config file loading
+6. **Logging** (`utils/logger.py`) → Rich console + file logging
+
+### Key Abstractions
+- **RepositoryAnalyzer**: Abstract base for VCS-specific analysis
+- **CLIHandler**: Main business logic orchestrator
+- **APIClient**: Async HTTP client with retry logic
+- **ConfigLoader**: Configuration management with fallback hierarchy
+
+## Testing Strategy
+
+### Test Structure (Test Pyramid)
+- **Unit Tests** (`tests/unit/`): Mock-based isolated component testing
+- **Integration Tests** (`tests/integration/`): API communication with mock servers
+- **E2E Tests** (`tests/e2e/`): Full CLI workflow using subprocess
+
+### Test Markers
+- `@pytest.mark.unit`: Individual module functionality
+- `@pytest.mark.integration`: Cross-module interaction
+- `@pytest.mark.e2e`: Complete user workflows
+
+### Key Test Patterns
+- Mock external dependencies (subprocess, HTTP calls)
+- Use `tmp_path` fixture for filesystem tests
+- `httpx_mock` for API client testing
+- Subprocess-based E2E testing (not Playwright since this is CLI, not web)
+
+## Configuration System
+
+### Config File Hierarchy (first found wins)
+1. Current directory `config.ini`
+2. Project root `config/config.ini`
+3. Auto-generated defaults
+
+### Key Config Sections
+- `[api]`: base_url, timeout, max_retries
+- `[cli]`: default_output_format, verbose, show_progress  
+- `[logging]`: level, file_enabled
+
+## Extension Points
+
+### Adding New VCS Support
+1. Create new analyzer class inheriting from `RepositoryAnalyzer`
+2. Implement abstract methods: `validate_repository()`, `get_changes()`, `get_repository_info()`
+3. Add detection logic to `get_analyzer()` factory function
+4. Add comprehensive tests following existing patterns
+
+### Adding New Commands
+1. Add Click command in `main.py`
+2. Implement business logic in `cli_handler.py`
+3. Add Korean help text and error messages
+4. Write unit, integration, and E2E tests
+
+## Build System
+
+The project uses PyInstaller for cross-platform executable generation:
+- **Spec File**: Auto-generated with embedded config files
+- **Platform-Specific**: Windows NSIS installer, macOS DMG with app bundle
+- **Version Info**: Extracted from `src/ts_cli/__init__.py`
