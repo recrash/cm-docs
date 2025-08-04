@@ -100,7 +100,7 @@ class ConfigLoader:
         """기본 설정 값 로드"""
         # API 설정
         self.config['api'] = {
-            'base_url': 'https://api.testscenariomaker.com',
+            'base_url': 'http://localhost:8000',
             'timeout': '30',
             'max_retries': '3',
             'retry_delay': '1.0',

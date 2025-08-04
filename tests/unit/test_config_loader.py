@@ -62,7 +62,7 @@ file_enabled = true
         loader = ConfigLoader(nonexistent_file)
         
         # 기본값이 로드되어야 함
-        assert loader.get('api', 'base_url') == 'https://api.testscenariomaker.com'
+        assert loader.get('api', 'base_url') == 'http://localhost:8000'
         assert loader.get('api', 'timeout', value_type=int) == 30
     
     def test_config_loader_default_path_resolution(self):
@@ -240,7 +240,7 @@ file_enabled = true
         loader = ConfigLoader(config_file)
         
         # 기본 설정이 로드되었는지 확인
-        assert loader.get('api', 'base_url') == 'https://api.testscenariomaker.com'
+        assert loader.get('api', 'base_url') == 'http://localhost:8000'
         assert loader.get('cli', 'verbose', value_type=bool) is False
         assert loader.get('logging', 'level') == 'INFO'
     
@@ -255,7 +255,7 @@ file_enabled = true
         assert loader.config.has_section('logging')
         assert loader.config.has_section('vcs')
         
-        assert loader.config.get('api', 'base_url') == 'https://api.testscenariomaker.com'
+        assert loader.config.get('api', 'base_url') == 'http://localhost:8000'
         assert loader.config.get('cli', 'verbose') == 'false'
         assert loader.config.get('logging', 'level') == 'INFO'
 
