@@ -13,10 +13,19 @@ import click
 from rich.console import Console
 from rich.traceback import install
 
-from . import __version__
-from .cli_handler import CLIHandler
-from .utils.logger import setup_logger, set_log_level
-from .utils.config_loader import load_config
+# PyInstaller 호환성을 위한 import 처리
+try:
+    from . import __version__
+    from .cli_handler import CLIHandler
+    from .utils.logger import setup_logger, set_log_level
+    from .utils.config_loader import load_config
+except ImportError:
+    # PyInstaller 환경에서는 절대 import 사용
+    import ts_cli
+    from ts_cli import __version__
+    from ts_cli.cli_handler import CLIHandler
+    from ts_cli.utils.logger import setup_logger, set_log_level
+    from ts_cli.utils.config_loader import load_config
 
 # Rich traceback 설치 (더 예쁜 에러 메시지)
 install(show_locals=True)
@@ -163,7 +172,11 @@ def config_show(config: Optional[Path]) -> None:
 def info(path: Path) -> None:
     """저장소 정보를 표시합니다 (분석 없이)."""
     try:
-        from .vcs import get_analyzer
+        # PyInstaller 호환성을 위한 import 처리
+        try:
+            from .vcs import get_analyzer
+        except ImportError:
+            from ts_cli.vcs import get_analyzer
         
         analyzer = get_analyzer(path)
         if not analyzer:

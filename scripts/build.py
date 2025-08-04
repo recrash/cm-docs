@@ -79,21 +79,30 @@ class CLIBuilder:
         """빌드 의존성 확인"""
         print("📦 빌드 의존성 확인 중...")
         
-        required_packages = ['pyinstaller']
+        # 패키지명과 실제 import 모듈명 매핑
+        package_mapping = {
+            'pyinstaller': 'PyInstaller'
+        }
         
-        for package in required_packages:
+        for package, import_name in package_mapping.items():
             try:
-                result = subprocess.run(
-                    [sys.executable, '-c', f'import {package}'],
-                    capture_output=True,
-                    check=True
-                )
+                # 실제 import 모듈명으로 확인
+                __import__(import_name)
                 print(f"   ✓ {package} 설치됨")
-            except subprocess.CalledProcessError:
-                raise BuildError(
-                    f"필수 패키지 {package}가 설치되지 않았습니다. "
-                    f"'pip install {package}'로 설치하세요."
-                )
+            except ImportError:
+                # import 실패 시 subprocess로 재확인
+                try:
+                    result = subprocess.run(
+                        [sys.executable, '-c', f'import {import_name}'],
+                        capture_output=True,
+                        check=True
+                    )
+                    print(f"   ✓ {package} 설치됨 (subprocess 확인)")
+                except subprocess.CalledProcessError:
+                    raise BuildError(
+                        f"필수 패키지 {package}가 설치되지 않았습니다. "
+                        f"'pip install {package}'로 설치하세요."
+                    )
     
     def create_spec_file(self) -> Path:
         """PyInstaller spec 파일 생성"""
