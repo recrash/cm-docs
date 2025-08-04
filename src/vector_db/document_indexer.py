@@ -16,7 +16,9 @@ class DocumentIndexer:
             # 현재 파일의 디렉토리에서 프로젝트 루트로 이동
             current_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.dirname(os.path.dirname(current_dir))  # src/vector_db/ 상위로 두 번
-            self.documents_folder = os.path.join(project_root, documents_folder)
+            
+            # 상대 경로를 프로젝트 루트 기준으로 절대 경로로 변환
+            self.documents_folder = os.path.abspath(os.path.join(project_root, documents_folder))
         else:
             self.documents_folder = documents_folder
             

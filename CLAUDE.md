@@ -11,7 +11,7 @@ TestscenarioMaker is an AI-powered tool that analyzes Git repository changes and
 ### Full-Stack Architecture
 - **Frontend**: React 18 + TypeScript + Material-UI + Vite
 - **Backend**: FastAPI + Python with modular routers
-- **AI/LLM**: Ollama integration (qwen3:8b model) 
+- **AI/LLM**: Ollama integration (qwen3:8b model, fallback to qwen3:1.7b) 
 - **Vector Database**: ChromaDB for RAG system
 - **Storage**: SQLite for feedback data, Excel files for output
 - **Testing**: Jest + Playwright (E2E) + pytest (backend)
@@ -72,8 +72,11 @@ export PYTHONPATH=$(pwd):$PYTHONPATH
 # Backend tests with coverage
 pytest --cov=src --cov-report=html
 
-# Download Korean embedding model (first-time setup)
+# Download Korean embedding model (first-time setup for offline environments)
 python scripts/download_embedding_model.py
+
+# Check application health
+curl http://localhost:8000/api/health
 ```
 
 ## Critical Development Guidelines
@@ -133,7 +136,7 @@ backend/
 ### Legacy Core Modules (src/)
 The original core logic remains in `src/` and is imported by backend routers:
 - **git_analyzer.py**: Git diff extraction and analysis using GitPython
-- **llm_handler.py**: Ollama LLM integration (qwen3:1.7b model)
+- **llm_handler.py**: Ollama LLM integration (qwen3:8b model with fallback)
 - **excel_writer.py**: Template-based Excel generation (cross-platform paths)
 - **feedback_manager.py**: SQLite-based feedback storage with automatic backups
 - **vector_db/**: RAG system with ChromaDB integration
@@ -156,6 +159,8 @@ The original core logic remains in `src/` and is imported by backend routers:
 - Download via `/api/files/download/excel/{filename}`
 - Frontend uses `filesApi.downloadExcelFile()` with proper encoding
 - Supports Korean filenames with UTF-8 encoding
+- Backup files stored in `backups/` directory at project root
+- Backup file management includes list, download, and delete operations with security validation
 
 #### RAG System Integration
 - Document indexing via `/api/rag/index`
@@ -190,6 +195,14 @@ The original core logic remains in `src/` and is imported by backend routers:
 - When modifying UI components, always test modal interactions and session state transitions
 - RAG system changes require testing with both enabled/disabled configurations
 - Feedback system modifications should maintain backward compatibility with existing SQLite schema
+
+#### Feedback System Architecture
+The feedback system includes advanced data management features:
+- **Backup File Management**: Automated backup creation with manual management via BackupFileManagementModal
+- **Data Export**: JSON export functionality with Korean filename support
+- **Summary Reports**: Automated report generation with comprehensive analytics
+- **Data Integrity**: SQLite-based storage with transaction-based operations and foreign key constraints
+- **UI Layout**: 3-button balanced layout for data management actions (export, backup management, summary report)
 
 #### Frontend Testing (Jest)
 - React component testing with Testing Library
@@ -234,6 +247,7 @@ This project migrated from Streamlit to React+FastAPI. Key changes:
 - **Node.js Deprecation Warning**: Fixed with `NODE_OPTIONS="--no-deprecation"` in npm scripts
 - **WebSocket Progress Stuck at 0%**: Fixed with proper serialization and progress delays
 - **Port Configuration**: Frontend runs on port 3000, backend on port 8000
+- **Material-UI Icons**: Use available icons like `Psychology` instead of unavailable ones like `Brain`
 
 ### WebSocket Troubleshooting
 - **Progress Updates Not Visible**: Each step has 1-second delay for user visibility
@@ -250,3 +264,49 @@ This project migrated from Streamlit to React+FastAPI. Key changes:
 - **Module path setup**: Backend uses `sys.path.append(os.path.join(os.path.dirname(__file__), '..'))`
 - **PYTHONPATH environment**: Set `PYTHONPATH=$(pwd):$PYTHONPATH` for direct module testing
 - **Config loading**: RAG system requires config.json with proper `rag.enabled` flag
+- **Jest Configuration**: Use ts-jest for TypeScript transformation, jsdom environment for React testing
+- **API Endpoint Structure**: FastAPI routers organized by domain (scenario, feedback, rag, files) with consistent error handling patterns
+
+## Configuration and Environment
+
+### Configuration Files
+- **config.json**: Main application configuration based on config.example.json
+- **Key Settings**:
+  - `model_name`: Ollama model (default: qwen3:8b)
+  - `timeout`: LLM request timeout (default: 600 seconds)
+  - `rag.enabled`: Enable/disable RAG system
+  - `rag.embedding_model`: Korean embeddings (jhgan/ko-sroberta-multitask)
+  - `rag.local_embedding_model_path`: Local model path for offline environments
+
+### Environment Variables
+```bash
+# Required for Python module imports
+export PYTHONPATH=$(pwd):$PYTHONPATH
+
+# Optional: Suppress Node.js deprecation warnings
+export NODE_OPTIONS="--no-deprecation"
+```
+
+### Offline Environment Setup
+For closed networks, pre-download the Korean embedding model:
+```bash
+python scripts/download_embedding_model.py
+```
+This script downloads the Korean embedding model (~500MB) to `./models/ko-sroberta-multitask/` for offline use.
+
+## Recent System Enhancements
+
+### Feedback System UI/UX Improvements
+The feedback analysis interface has been enhanced with:
+- **Balanced 3-button layout**: Export, backup management, and summary report buttons arranged in responsive grid
+- **BackupFileManagementModal**: Comprehensive modal interface for backup file operations with table display, file metadata, and action buttons
+- **Advanced data management**: Supports backup file listing, downloading, deletion with proper security validation
+- **Korean localization**: All UI text and error messages in Korean for better user experience
+- **Responsive design**: Mobile-friendly layout that adapts to different screen sizes
+
+### API Architecture Patterns
+- **Domain-based routing**: Organized by functionality (scenario, feedback, rag, files)
+- **Consistent error handling**: HTTPException with detailed Korean messages
+- **Path security**: Filename validation to prevent directory traversal attacks
+- **File operations**: Proper MIME types and UTF-8 encoding for Korean filenames
+- **Backup system integration**: Automated backup creation with manual management capabilities

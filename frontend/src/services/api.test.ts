@@ -167,4 +167,128 @@ describe('API Services', () => {
       expect(url).toBe('/api/files/download/excel/test.xlsx')
     })
   })
+
+  describe('feedbackApi - New Backup Management Functions', () => {
+    it('should list backup files', async () => {
+      const mockBackupFiles = {
+        data: {
+          files: [
+            {
+              filename: 'feedback_backup_20240101_120000.json',
+              size: 1024,
+              created_at: '2024-01-01T12:00:00',
+              modified_at: '2024-01-01T12:00:00'
+            }
+          ]
+        }
+      }
+      mockedAxios.get.mockResolvedValue(mockBackupFiles)
+
+      const result = await feedbackApi.listBackupFiles()
+      
+      expect(mockedAxios.get).toHaveBeenCalledWith('/feedback/backup-files')
+      expect(result).toEqual(mockBackupFiles.data)
+    })
+
+    it('should delete backup file', async () => {
+      const mockResponse = {
+        data: {
+          message: '백업 파일이 성공적으로 삭제되었습니다.',
+          success: true
+        }
+      }
+      mockedAxios.delete.mockResolvedValue(mockResponse)
+
+      const filename = 'feedback_backup_20240101_120000.json'
+      const result = await feedbackApi.deleteBackupFile(filename)
+      
+      expect(mockedAxios.delete).toHaveBeenCalledWith('/feedback/backup-files/feedback_backup_20240101_120000.json')
+      expect(result).toEqual(mockResponse.data)
+    })
+
+    it('should download backup file', async () => {
+      const mockResponse = {
+        data: new Blob(['{"test": "data"}'], { type: 'application/json' }),
+        headers: { 'content-type': 'application/json' }
+      }
+      mockedAxios.get.mockResolvedValue(mockResponse)
+
+      const filename = 'feedback_backup_20240101_120000.json'
+      const result = await feedbackApi.downloadBackupFile(filename)
+      
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        '/feedback/backup-files/feedback_backup_20240101_120000.json/download',
+        { responseType: 'blob' }
+      )
+      expect(result).toEqual(mockResponse)
+    })
+
+    it('should generate summary report', async () => {
+      const mockReportData = {
+        data: {
+          report_data: {
+            generated_at: '2024-01-01T12:00:00',
+            summary: {
+              total_feedback: 10,
+              category_distribution: { good: 7, bad: 3 },
+              average_scores: { overall: 4.2 }
+            },
+            insights: {
+              negative_feedback_count: 3,
+              common_issues: ['정확성 부족'],
+              improvement_suggestions: ['더 상세한 분석 필요']
+            },
+            report_metadata: {
+              report_type: 'feedback_summary',
+              report_version: '1.0',
+              data_period: '전체 기간'
+            }
+          },
+          filename: 'feedback_summary_report_20240101_120000.json',
+          success: true
+        }
+      }
+      mockedAxios.post.mockResolvedValue(mockReportData)
+
+      const result = await feedbackApi.generateSummaryReport()
+      
+      expect(mockedAxios.post).toHaveBeenCalledWith('/feedback/summary-report')
+      expect(result).toEqual(mockReportData.data)
+    })
+
+    it('should handle list backup files error', async () => {
+      const errorMessage = 'Failed to list backup files'
+      mockedAxios.get.mockRejectedValue(new Error(errorMessage))
+
+      await expect(feedbackApi.listBackupFiles()).rejects.toThrow(errorMessage)
+      expect(mockedAxios.get).toHaveBeenCalledWith('/feedback/backup-files')
+    })
+
+    it('should handle delete backup file error', async () => {
+      const errorMessage = 'Failed to delete backup file'
+      mockedAxios.delete.mockRejectedValue(new Error(errorMessage))
+
+      const filename = 'feedback_backup_20240101_120000.json'
+      await expect(feedbackApi.deleteBackupFile(filename)).rejects.toThrow(errorMessage)
+      expect(mockedAxios.delete).toHaveBeenCalledWith('/feedback/backup-files/feedback_backup_20240101_120000.json')
+    })
+
+    it('should handle generate summary report error', async () => {
+      const errorMessage = 'Failed to generate report'
+      mockedAxios.post.mockRejectedValue(new Error(errorMessage))
+
+      await expect(feedbackApi.generateSummaryReport()).rejects.toThrow(errorMessage)
+      expect(mockedAxios.post).toHaveBeenCalledWith('/feedback/summary-report')
+    })
+
+    it('should properly encode filename with special characters', async () => {
+      const mockResponse = { data: { success: true } }
+      mockedAxios.delete.mockResolvedValue(mockResponse)
+
+      const filenameWithSpecialChars = 'feedback_backup_2024-01-01_12:00:00.json'
+      await feedbackApi.deleteBackupFile(filenameWithSpecialChars)
+      
+      expect(mockedAxios.delete).toHaveBeenCalledWith('/feedback/backup-files/feedback_backup_2024-01-01_12%3A00%3A00.json')
+    })
+  })
 })

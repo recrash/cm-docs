@@ -11,7 +11,8 @@ import {
   Alert,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Paper
 } from '@mui/material'
 import {
   ExpandMore,
@@ -145,16 +146,57 @@ export default function RAGSystemPanel({ ragStatus, onStatusUpdate }: RAGSystemP
   }
 
   return (
-    <Accordion sx={{ mb: 3 }}>
-      <AccordionSummary expandIcon={<ExpandMore />}>
+    <Accordion 
+      sx={{ 
+        mb: 4,
+        borderRadius: 4,
+        border: '2px solid rgba(156, 39, 176, 0.1)',
+        background: 'linear-gradient(135deg, #f3e5f5 0%, #ffffff 100%)',
+        '&:before': {
+          display: 'none'
+        },
+        '&.Mui-expanded': {
+          margin: 0,
+          mb: 4
+        }
+      }}
+    >
+      <AccordionSummary 
+        expandIcon={<ExpandMore />}
+        sx={{
+          p: 3,
+          '&.Mui-expanded': {
+            minHeight: 72
+          }
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-          <Psychology color="primary" />
-          <Typography variant="h6">RAG 시스템 정보</Typography>
+          <Box 
+            sx={{ 
+              width: 48, 
+              height: 48, 
+              borderRadius: '50%', 
+              background: 'linear-gradient(45deg, #9c27b0 30%, #7b1fa2 90%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(156, 39, 176, 0.3)'
+            }}
+          >
+            <Psychology sx={{ color: 'white', fontSize: 24 }} />
+          </Box>
+          <Typography variant="h5" fontWeight={700} color="secondary.main" sx={{ flexGrow: 1 }}>
+            RAG 시스템 정보
+          </Typography>
           <Chip
             label={getStatusText()}
             color={getStatusColor()}
-            size="small"
-            variant="outlined"
+            sx={{
+              fontWeight: 600,
+              px: 2,
+              py: 1,
+              fontSize: '0.875rem'
+            }}
           />
         </Box>
       </AccordionSummary>
@@ -167,68 +209,158 @@ export default function RAGSystemPanel({ ragStatus, onStatusUpdate }: RAGSystemP
         ) : (
           <Box>
             {/* 상태 정보 */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid container spacing={3} sx={{ mb: 4 }}>
               <Grid item xs={12} md={3}>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    벡터 DB 상태
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    textAlign: 'center', 
+                    p: 3,
+                    background: 'linear-gradient(135deg, #e8f5e8 0%, #ffffff 100%)',
+                    border: '2px solid rgba(76, 175, 80, 0.2)',
+                    borderRadius: 3,
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 24px rgba(76, 175, 80, 0.2)'
+                    }
+                  }}
+                >
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                    📊 벡터 DB 상태
                   </Typography>
-                  <Typography variant="h6">
+                  <Typography variant="h5" fontWeight={700} color="success.main">
                     {getStatusText()}
                   </Typography>
-                </Box>
+                </Paper>
               </Grid>
               <Grid item xs={12} md={3}>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    저장된 문서 수
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    textAlign: 'center', 
+                    p: 3,
+                    background: 'linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%)',
+                    border: '2px solid rgba(33, 150, 243, 0.2)',
+                    borderRadius: 3,
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 24px rgba(33, 150, 243, 0.2)'
+                    }
+                  }}
+                >
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                    📚 저장된 문서 수
                   </Typography>
-                  <Typography variant="h6">
+                  <Typography variant="h5" fontWeight={700} color="primary.main">
                     {ragStatus.document_count}개
                   </Typography>
-                </Box>
+                </Paper>
               </Grid>
               <Grid item xs={12} md={3}>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    임베딩 모델
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    textAlign: 'center', 
+                    p: 3,
+                    background: 'linear-gradient(135deg, #fff3e0 0%, #ffffff 100%)',
+                    border: '2px solid rgba(255, 152, 0, 0.2)',
+                    borderRadius: 3,
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 24px rgba(255, 152, 0, 0.2)'
+                    }
+                  }}
+                >
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                    🤖 임베딩 모델
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                  <Typography variant="body1" fontWeight={700} color="warning.main" sx={{ fontSize: '0.9rem' }}>
                     {ragStatus.embedding_model}
                   </Typography>
-                </Box>
+                </Paper>
               </Grid>
               <Grid item xs={12} md={3}>
-                <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    청크 크기
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    textAlign: 'center', 
+                    p: 3,
+                    background: 'linear-gradient(135deg, #f3e5f5 0%, #ffffff 100%)',
+                    border: '2px solid rgba(156, 39, 176, 0.2)',
+                    borderRadius: 3,
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 24px rgba(156, 39, 176, 0.2)'
+                    }
+                  }}
+                >
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                    🧩 청크 크기
                   </Typography>
-                  <Typography variant="h6">
+                  <Typography variant="h5" fontWeight={700} color="secondary.main">
                     {ragStatus.chunk_size}자
                   </Typography>
-                </Box>
+                </Paper>
               </Grid>
             </Grid>
 
             {/* 문서 정보 */}
             {ragInfo?.documents.enabled && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  <Description fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  문서 폴더 정보
-                </Typography>
-                <Grid container spacing={2}>
+              <Box 
+                sx={{ 
+                  mb: 4,
+                  p: 3,
+                  background: 'linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%)',
+                  border: '2px solid rgba(33, 150, 243, 0.1)',
+                  borderRadius: 3
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                  <Box 
+                    sx={{ 
+                      width: 40, 
+                      height: 40, 
+                      borderRadius: '50%', 
+                      background: 'linear-gradient(45deg, #2196f3 30%, #1976d2 90%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      mr: 2
+                    }}
+                  >
+                    <Description sx={{ color: 'white', fontSize: 20 }} />
+                  </Box>
+                  <Typography variant="h6" fontWeight={600} color="primary.main">
+                    문서 폴더 정보
+                  </Typography>
+                </Box>
+                <Grid container spacing={3}>
                   <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        폴더 경로
+                    <Box 
+                      sx={{ 
+                        p: 2,
+                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                        borderRadius: 2,
+                        border: '1px solid rgba(0, 0, 0, 0.08)'
+                      }}
+                    >
+                      <Typography variant="subtitle2" color="primary.main" fontWeight={600} sx={{ mb: 1 }}>
+                        📁 폴더 경로
                       </Typography>
                       <Typography 
                         variant="body2" 
                         sx={{ 
                           wordBreak: 'break-all',
                           fontSize: '0.875rem',
-                          fontFamily: 'monospace'
+                          fontFamily: 'monospace',
+                          background: 'rgba(33, 150, 243, 0.08)',
+                          p: 1,
+                          borderRadius: 1,
+                          border: '1px solid rgba(33, 150, 243, 0.2)'
                         }}
                       >
                         {ragInfo.documents.folder_path || 'Unknown'}
@@ -236,73 +368,134 @@ export default function RAGSystemPanel({ ragStatus, onStatusUpdate }: RAGSystemP
                     </Box>
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        지원 파일
+                    <Paper 
+                      elevation={0}
+                      sx={{ 
+                        p: 2,
+                        background: 'linear-gradient(135deg, #e8f5e8 0%, #ffffff 100%)',
+                        border: '1px solid rgba(76, 175, 80, 0.2)',
+                        borderRadius: 2
+                      }}
+                    >
+                      <Typography variant="subtitle2" color="success.main" fontWeight={600} sx={{ mb: 1 }}>
+                        📊 지원 파일
                       </Typography>
-                      <Typography variant="body2">
+                      <Typography variant="h6" fontWeight={700} color="success.main">
                         {ragInfo.documents.supported_files}개 / {ragInfo.documents.total_files}개
                       </Typography>
-                    </Box>
+                    </Paper>
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        파일 유형
+                    <Paper 
+                      elevation={0}
+                      sx={{ 
+                        p: 2,
+                        background: 'linear-gradient(135deg, #fff3e0 0%, #ffffff 100%)',
+                        border: '1px solid rgba(255, 152, 0, 0.2)',
+                        borderRadius: 2
+                      }}
+                    >
+                      <Typography variant="subtitle2" color="warning.main" fontWeight={600} sx={{ mb: 1 }}>
+                        📝 파일 유형
                       </Typography>
-                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                         {Object.entries(ragInfo.documents.file_types).map(([ext, count]) => (
                           <Chip
                             key={ext}
                             label={`${ext}(${count})`}
                             size="small"
-                            variant="outlined"
+                            sx={{
+                              background: 'linear-gradient(45deg, #ff9800 30%, #f57c00 90%)',
+                              color: 'white',
+                              fontWeight: 600
+                            }}
                           />
                         ))}
                       </Box>
-                    </Box>
+                    </Paper>
                   </Grid>
                 </Grid>
               </Box>
             )}
 
             {/* 액션 버튼들 */}
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  startIcon={isIndexing ? <CircularProgress size={16} /> : <Description />}
-                  onClick={() => handleIndexDocuments(false)}
-                  disabled={isIndexing || isClearing}
-                >
-                  문서 인덱싱
-                </Button>
+            <Box 
+              sx={{ 
+                p: 3,
+                background: 'linear-gradient(135deg, #f3e5f5 0%, #ffffff 100%)',
+                border: '2px solid rgba(156, 39, 176, 0.1)',
+                borderRadius: 3,
+                mb: 3
+              }}
+            >
+              <Typography variant="h6" fontWeight={600} color="secondary.main" sx={{ mb: 3 }}>
+                ⚙️ 작업 관리
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={4}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    startIcon={isIndexing ? <CircularProgress size={16} color="inherit" /> : <Description />}
+                    onClick={() => handleIndexDocuments(false)}
+                    disabled={isIndexing || isClearing}
+                    sx={{
+                      py: 1.5,
+                      background: 'linear-gradient(45deg, #2196f3 30%, #1976d2 90%)',
+                      '&:hover': {
+                        background: 'linear-gradient(45deg, #1976d2 30%, #1565c0 90%)'
+                      },
+                      '&:disabled': {
+                        background: 'linear-gradient(45deg, #bdbdbd 30%, #9e9e9e 90%)'
+                      }
+                    }}
+                  >
+                    문서 인덱싱
+                  </Button>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    startIcon={isIndexing ? <CircularProgress size={16} color="inherit" /> : <Refresh />}
+                    onClick={() => handleIndexDocuments(true)}
+                    disabled={isIndexing || isClearing}
+                    sx={{
+                      py: 1.5,
+                      background: 'linear-gradient(45deg, #ff9800 30%, #f57c00 90%)',
+                      '&:hover': {
+                        background: 'linear-gradient(45deg, #f57c00 30%, #ef6c00 90%)'
+                      },
+                      '&:disabled': {
+                        background: 'linear-gradient(45deg, #bdbdbd 30%, #9e9e9e 90%)'
+                      }
+                    }}
+                  >
+                    전체 재인덱싱
+                  </Button>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    color="error"
+                    startIcon={isClearing ? <CircularProgress size={16} /> : <Clear />}
+                    onClick={handleClearDatabase}
+                    disabled={isIndexing || isClearing}
+                    sx={{
+                      py: 1.5,
+                      borderWidth: 2,
+                      '&:hover': {
+                        borderWidth: 2,
+                        backgroundColor: 'rgba(244, 67, 54, 0.04)'
+                      }
+                    }}
+                  >
+                    벡터 DB 초기화
+                  </Button>
+                </Grid>
               </Grid>
-              <Grid item xs={12} md={4}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  startIcon={isIndexing ? <CircularProgress size={16} /> : <Refresh />}
-                  onClick={() => handleIndexDocuments(true)}
-                  disabled={isIndexing || isClearing}
-                >
-                  전체 재인덱싱
-                </Button>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  color="error"
-                  startIcon={isClearing ? <CircularProgress size={16} /> : <Clear />}
-                  onClick={handleClearDatabase}
-                  disabled={isIndexing || isClearing}
-                >
-                  벡터 DB 초기화
-                </Button>
-              </Grid>
-            </Grid>
+            </Box>
 
             {/* 메시지 표시 */}
             {message && (

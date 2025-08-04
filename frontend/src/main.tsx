@@ -1,10 +1,32 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import { ThemeProvider, createTheme } from '@mui/material/styles'
-import CssBaseline from '@mui/material/CssBaseline'
-import App from './App.tsx'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import App from './App.tsx';
+import logger from './utils/logger';
 
-// Material-UI 테마 설정
+// --- Global Error Handling ---
+window.onerror = (message, source, lineno, colno, error) => {
+  logger.error('Unhandled global error:', error, {
+    message,
+    source,
+    lineno,
+    colno,
+  });
+  // Prevent default browser error handling
+  return true;
+};
+
+window.onunhandledrejection = (event: PromiseRejectionEvent) => {
+  logger.error('Unhandled promise rejection:', event.reason, {
+    type: event.type,
+  });
+  // Prevent default browser error handling
+  event.preventDefault();
+};
+
+
+// Material-UI theme configuration
 const theme = createTheme({
   palette: {
     mode: 'light',
@@ -26,7 +48,7 @@ const theme = createTheme({
       'sans-serif',
     ].join(','),
   },
-})
+});
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -35,4 +57,4 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <App />
     </ThemeProvider>
   </React.StrictMode>,
-)
+);

@@ -1,85 +1,67 @@
-# src/llm_handler.py
 import requests
+import logging
 from typing import Optional, Dict, Any
 
-# 상수 정의
+# Get a logger for this module
+logger = logging.getLogger(__name__)
+
+# Constants
 DEFAULT_MODEL = "qwen3:8b"
 DEFAULT_TIMEOUT = 600
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 JSON_FORMAT = "json"
 
-
 class OllamaAPIError(Exception):
-    """올라마 API 호출 오류"""
+    """Custom exception for Ollama API errors."""
     pass
 
-
 def _create_payload(prompt: str, model: str, format_type: str) -> Dict[str, Any]:
-    """
-    Ollama API 요청 페이로드를 생성합니다.
-    
-    Args:
-        prompt: LLM에 전달할 프롬프트
-        model: 사용할 모델명
-        format_type: 응답 형식 (빈 문자열 또는 'json')
-    
-    Returns:
-        API 요청 페이로드 딕셔너리
-    """
+    """Creates the payload for the Ollama API request."""
     payload = {
         "model": model,
         "prompt": prompt,
         "stream": False
     }
-    
     if format_type == JSON_FORMAT:
         payload['format'] = JSON_FORMAT
-    
     return payload
 
-
 def _send_request(payload: Dict[str, Any], timeout: int) -> Dict[str, Any]:
-    """
-    Ollama API에 요청을 전송하고 응답을 반환합니다.
-    
-    Args:
-        payload: API 요청 페이로드
-        timeout: 타임아웃 (초)
-    
-    Returns:
-        API 응답 데이터
-    
-    Raises:
-        OllamaAPIError: API 호출 실패 시
-    """
+    """Sends a request to the Ollama API and returns the response."""
     try:
         response = requests.post(OLLAMA_API_URL, json=payload, timeout=timeout)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        raise OllamaAPIError(f"Ollama API 호출 중 오류 발생: {e}")
+        logger.exception("Ollama API request failed")
+        raise OllamaAPIError(f"Error calling Ollama API: {e}")
 
-
-def call_ollama_llm(prompt: str, model: str = DEFAULT_MODEL, format: str = "", timeout: int = DEFAULT_TIMEOUT) -> Optional[str]:
+def call_ollama_llm(
+    prompt: str, 
+    model: str = DEFAULT_MODEL, 
+    format: str = "", 
+    timeout: int = DEFAULT_TIMEOUT
+) -> Optional[str]:
     """
-    Ollama API를 호출하는 범용 함수.
-    
-    Args:
-        prompt: LLM에 전달할 프롬프트
-        model: 사용할 모델명 (기본값: qwen3:8b)
-        format: 응답 형식 ('빈 문자열' 또는 'json')
-        timeout: 타임아웃 시간 (초, 기본값: 600)
-    
-    Returns:
-        LLM 응답 텍스트 또는 None (오류 시)
+    Calls the Ollama API with a given prompt.
     """
-    print(f"...Ollama 모델({model}) 호출 중...")
+    logger.info(f"Calling Ollama model '{model}'...")
     
     try:
         payload = _create_payload(prompt, model, format)
         response_data = _send_request(payload, timeout)
-        return response_data.get('response', '').strip()
+        
+        response_text = response_data.get('response', '').strip()
+        if not response_text:
+            logger.warning("Ollama API returned an empty response.")
+            return None
+            
+        logger.info(f"Successfully received response from Ollama model '{model}'.")
+        return response_text
     
     except OllamaAPIError as e:
-        print(str(e))
+        logger.error(f"Ollama API Error: {e}")
+        return None
+    except Exception as e:
+        logger.exception("An unexpected error occurred in call_ollama_llm")
         return None
