@@ -25,7 +25,17 @@ install(show_locals=True)
 console = Console()
 
 
-@click.command()
+@click.group()
+@click.version_option(
+    version=__version__,
+    prog_name='TestscenarioMaker CLI'
+)
+def main() -> None:
+    """TestscenarioMaker CLI 도구 모음"""
+    pass
+
+
+@main.command()
 @click.option(
     '--path', '-p',
     type=click.Path(exists=True, path_type=Path),
@@ -53,11 +63,7 @@ console = Console()
     is_flag=True,
     help='실제 API 호출 없이 분석만 수행'
 )
-@click.version_option(
-    version=__version__,
-    prog_name='TestscenarioMaker CLI'
-)
-def cli(
+def analyze(
     path: Path,
     config: Optional[Path],
     verbose: bool,
@@ -71,9 +77,9 @@ def cli(
     분석 결과를 다운로드합니다.
     
     예시:
-        ts-cli --path /path/to/repo --verbose
-        ts-cli -p . -o json
-        ts-cli --config custom_config.ini --dry-run
+        ts-cli analyze --path /path/to/repo --verbose
+        ts-cli analyze -p . -o json
+        ts-cli analyze --config custom_config.ini --dry-run
     """
     try:
         # 설정 로드
@@ -105,36 +111,24 @@ def cli(
         if success:
             if not dry_run:
                 console.print(
-                    "[bold green]✅ 저장소 분석이 성공적으로 완료되었습니다![/bold green]"
+                    "[bold green]✅ 저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
                 )
             sys.exit(0)
         else:
-            console.print(
+            print(
                 "[bold red]❌ 저장소 분석 중 오류가 발생했습니다.[/bold red]",
                 file=sys.stderr
             )
             sys.exit(1)
             
     except KeyboardInterrupt:
-        console.print(
-            "\n[yellow]사용자에 의해 작업이 중단되었습니다.[/yellow]"
-        )
-        sys.exit(1)
+        console.print("\n[yellow]사용자에 의해 중단되었습니다.[/yellow]")
+        sys.exit(130)
         
     except Exception as e:
-        console.print(
-            f"[bold red]예상치 못한 오류가 발생했습니다: {str(e)}[/bold red]",
-            file=sys.stderr
-        )
-        if verbose:
-            console.print_exception(show_locals=True)
+        print(f"[red]예상치 못한 오류가 발생했습니다: {e}[/red]", file=sys.stderr)
+        console.print_exception(show_locals=True)
         sys.exit(1)
-
-
-@click.group()
-def main() -> None:
-    """TestscenarioMaker CLI 도구 모음"""
-    pass
 
 
 @main.command()
@@ -149,18 +143,18 @@ def config_show(config: Optional[Path]) -> None:
         config_loader = load_config(config)
         all_config = config_loader.get_all_sections()
         
-        console.print("[bold blue]현재 설정:[/bold blue]")
-        console.print(f"설정 파일: [green]{config_loader.config_path}[/green]")
+        console.print("현재 설정:")
+        console.print(f"설정 파일: {config_loader.config_path}")
         console.print()
         
         for section_name, section_data in all_config.items():
-            console.print(f"[bold yellow][{section_name}][/bold yellow]")
+            console.print(f"[{section_name}]")
             for key, value in section_data.items():
                 console.print(f"  {key} = {value}")
             console.print()
             
     except Exception as e:
-        console.print(f"[red]설정 정보 조회 실패: {e}[/red]", file=sys.stderr)
+        print(f"[red]설정 정보 조회 실패: {e}[/red]", file=sys.stderr)
         sys.exit(1)
 
 
@@ -173,14 +167,14 @@ def info(path: Path) -> None:
         
         analyzer = get_analyzer(path)
         if not analyzer:
-            console.print(
+            print(
                 f"[red]{path}는 지원되는 VCS 저장소가 아닙니다.[/red]",
                 file=sys.stderr
             )
             sys.exit(1)
         
         if not analyzer.validate_repository():
-            console.print(
+            print(
                 f"[red]{path}는 유효하지 않은 저장소입니다.[/red]",
                 file=sys.stderr
             )
@@ -211,7 +205,7 @@ def info(path: Path) -> None:
             console.print("\n[green]작업 디렉토리가 깨끗합니다.[/green]")
             
     except Exception as e:
-        console.print(f"[red]저장소 정보 조회 실패: {e}[/red]", file=sys.stderr)
+        print(f"[red]저장소 정보 조회 실패: {e}[/red]", file=sys.stderr)
         sys.exit(1)
 
 
@@ -219,10 +213,6 @@ def info(path: Path) -> None:
 def version() -> None:
     """버전 정보를 표시합니다."""
     console.print(f"TestscenarioMaker CLI v{__version__}")
-
-
-# 기본 명령어를 main 그룹에 추가
-main.add_command(cli, name='analyze')
 
 
 if __name__ == '__main__':

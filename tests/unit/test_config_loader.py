@@ -155,13 +155,13 @@ file_enabled = true
         """설정 값 설정 시 예외 처리 테스트"""
         loader = ConfigLoader()
         
-        # ConfigParser 예외 시뮬레이션
-        with patch.object(loader.config, 'set', side_effect=Exception("Config error")):
+        # 존재하지 않는 섹션에 대해 ConfigParser 예외 시뮬레이션
+        with patch.object(loader.config, 'add_section', side_effect=Exception("Config error")):
             # 예외가 발생해도 프로그램이 중단되지 않아야 함
-            loader.set('test', 'key', 'value')
+            loader.set('nonexistent_section', 'key', 'value')
             
             # 값이 설정되지 않았는지 확인
-            result = loader.get('test', 'key', 'default')
+            result = loader.get('nonexistent_section', 'key', 'default')
             assert result == 'default'
     
     def test_save_success(self, tmp_path):
