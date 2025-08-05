@@ -78,8 +78,16 @@ The codebase uses the Strategy pattern to support multiple VCS systems through a
 - **Factory Function**: `ts_cli.vcs.get_analyzer()` returns appropriate analyzer based on repository type
 - **Extensibility**: New VCS systems can be added by implementing `RepositoryAnalyzer`
 
+### URL Protocol Integration
+The CLI supports `testscenariomaker://` URL protocol for web browser integration:
+
+- **Protocol Handler**: `handle_url_protocol()` in `main.py` processes URL schemes before Click parser
+- **Cross-Platform Support**: Windows registry (HKCR) and macOS CFBundleURLTypes integration
+- **Path Processing**: Platform-specific URL parsing and path normalization
+- **Error Handling**: Comprehensive validation for URLs, paths, and repository states
+
 ### Core Components Flow
-1. **CLI Entry** (`main.py`) → Click-based Korean UI with command routing
+1. **CLI Entry** (`main.py`) → URL protocol detection → Click-based Korean UI with command routing
 2. **Business Logic** (`cli_handler.py`) → Orchestrates: repo analysis → API call → result processing
 3. **VCS Analysis** (`vcs/`) → Strategy pattern for Git/SVN/Mercurial support (currently Git only)
 4. **API Client** (`api_client.py`) → httpx + tenacity for robust API communication
@@ -129,11 +137,15 @@ The codebase uses the Strategy pattern to support multiple VCS systems through a
 - `ts-cli info <path>`: Show repository information without analysis
 - `ts-cli config-show`: Display current configuration
 - `ts-cli version`: Show version information
+- `ts-cli "testscenariomaker://path"`: Direct URL protocol handling for testing
 
 ### CLI Features
 - **Korean UI**: All user interface text is in Korean for better accessibility
 - **Rich Console**: Uses Rich library for enhanced console output with colors and formatting
-- **URL Protocol**: Supports `testscenariomaker://` protocol for integration
+- **URL Protocol**: Supports `testscenariomaker://` protocol for integration with web browsers
+  - Cross-platform URL parsing and path handling
+  - Automatic protocol registration during installation
+  - Support for URL-encoded paths with spaces and special characters
 - **Branch Comparison**: Analyzes differences between base and head branches (default: origin/develop → HEAD)
 - **Working State**: Includes uncommitted changes in analysis
 
@@ -240,6 +252,7 @@ The project uses PyInstaller for cross-platform executable generation with robus
 - **Robust Mount Point Detection**: Uses regex patterns to parse hdiutil output
 - **Error Recovery**: Automatic cleanup on failures
 - **App Bundle Generation**: Proper macOS app structure with Info.plist
+- **URL Protocol Registration**: Automatic CFBundleURLTypes configuration for testscenariomaker:// protocol
 - **Installation Scripts**: Automated install/uninstall shell scripts
 
 ### Key Improvements
@@ -247,6 +260,7 @@ The project uses PyInstaller for cross-platform executable generation with robus
 - **File Existence Validation**: Pre-flight checks prevent build failures
 - **Relative Path Preservation**: Maintains project portability across environments
 - **Platform Detection**: Automatic platform-specific handling
+- **URL Protocol Integration**: Automatic protocol registration in Windows NSIS and macOS Info.plist
 
 ### Build Troubleshooting
 Common issues and solutions are documented in README.md build section.
@@ -310,16 +324,23 @@ def find_config_file(project_root: Path) -> Optional[Path]:
 4. **Type Annotations**: Fixed missing async return types and parameter annotations
 
 ### Key Files Modified
+- `src/ts_cli/main.py`: Added URL protocol handling with `handle_url_protocol()` function
 - `src/ts_cli/vcs/git_analyzer.py`: Fixed `_run_git_command()` cwd parameter
 - `src/ts_cli/utils/config_loader.py`: Fixed logging format string escaping
+- `tests/test_url_parsing.py`: Comprehensive URL protocol parsing tests
 - `tests/unit/test_path_compatibility.py`: Comprehensive cross-platform path testing
+- `scripts/setup_win.nsi`: Windows NSIS script with URL protocol registration
+- `scripts/create_dmg.py`: macOS DMG script with CFBundleURLTypes integration
+- `test_url_protocol.html`: E2E testing webpage for URL protocol validation
 - Additional cross-platform tests in existing test files
 
 ### Testing Coverage
-- 18 new cross-platform path compatibility tests
-- Edge cases: Unicode paths, long paths, special characters, symlinks
+- 10 new URL protocol parsing tests (8 passing, 2 Windows-specific skipped on macOS)
+- 18 cross-platform path compatibility tests
+- Edge cases: Unicode paths, URL encoding, special characters, symlinks
 - Mock subprocess testing to verify string conversion
 - Platform-specific path separator validation
+- URL protocol error handling and validation
 
 ## Dependencies and Stack
 

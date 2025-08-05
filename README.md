@@ -13,7 +13,7 @@ TestscenarioMaker를 위한 로컬 저장소 분석 CLI 도구입니다.
 - **크로스플랫폼**: Windows와 macOS 모두 지원
 - **한국어 UI**: 모든 사용자 인터페이스가 한국어로 제공
 - **풍부한 출력**: 텍스트와 JSON 형식 출력 지원
-- **URL 프로토콜**: `testscenariomaker://` 프로토콜 지원
+- **URL 프로토콜**: `testscenariomaker://` 프로토콜 지원으로 웹에서 직접 실행
 
 ## 🚀 빠른 시작
 
@@ -66,6 +66,25 @@ ts-cli config-show
 ts-cli --version
 ```
 
+### URL 프로토콜 사용법
+
+설치 후 웹 브라우저에서 `testscenariomaker://` 링크를 클릭하면 CLI가 자동으로 실행됩니다:
+
+```bash
+# 웹에서 클릭 가능한 링크 예시
+testscenariomaker:///path/to/your/repository
+testscenariomaker://C:/projects/my-repo    # Windows
+
+# 터미널에서 직접 테스트
+ts-cli "testscenariomaker:///path/to/repository"
+```
+
+**지원 기능:**
+- 크로스플랫폼 경로 처리 (Windows, macOS, Linux)
+- URL 인코딩된 경로 지원 (공백, 특수문자 포함)
+- 자동 브라우저 통합 (설치 시 프로토콜 등록)
+```
+
 ## 📁 프로젝트 구조
 
 ```
@@ -83,13 +102,15 @@ testscenariomaker-cli/
 ├── tests/                   # 테스트 스위트
 │   ├── unit/               # 단위 테스트
 │   ├── integration/        # 통합 테스트
-│   └── e2e/                # E2E 테스트
+│   ├── e2e/                # E2E 테스트
+│   └── test_url_parsing.py # URL 프로토콜 테스트
 ├── scripts/                # 빌드 및 패키징
 │   ├── build.py           # 빌드 스크립트
-│   ├── setup_win.nsi      # Windows NSIS
-│   └── create_dmg.py      # macOS DMG
-└── config/                # 설정 파일
-    └── config.ini         # 기본 설정
+│   ├── setup_win.nsi      # Windows NSIS (URL 프로토콜 등록)
+│   └── create_dmg.py      # macOS DMG (URL 프로토콜 등록)
+├── config/                # 설정 파일
+│   └── config.ini         # 기본 설정
+└── test_url_protocol.html # URL 프로토콜 E2E 테스트
 ```
 
 ## 🔧 개발자 가이드
@@ -126,6 +147,9 @@ pytest --cov=ts_cli --cov-report=html
 pytest -m unit          # 단위 테스트
 pytest -m integration   # 통합 테스트
 pytest -m e2e           # E2E 테스트
+
+# URL 프로토콜 테스트
+pytest tests/test_url_parsing.py
 ```
 
 ### 빌드
@@ -153,6 +177,7 @@ ls -la dist/
 # 실행파일 빌드 후
 python scripts/build.py
 makensis scripts/setup_win.nsi
+# testscenariomaker:// URL 프로토콜이 자동 등록됩니다
 ```
 
 **macOS DMG (macOS 환경에서)**
@@ -160,6 +185,7 @@ makensis scripts/setup_win.nsi
 # 실행파일 빌드 후
 python scripts/build.py
 python scripts/create_dmg.py
+# testscenariomaker:// URL 프로토콜이 Info.plist에 등록됩니다
 ```
 
 #### 빌드 시스템 특징

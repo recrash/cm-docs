@@ -120,13 +120,17 @@ SectionEnd
 
 Section "URL 프로토콜 등록" SEC05
   
+  ; 32/64비트 호환성을 위한 설정
+  SetShellVarContext all
+  
   ; testscenariomaker:// 프로토콜 등록
   WriteRegStr HKCR "testscenariomaker" "" "URL:TestscenarioMaker Protocol"
   WriteRegStr HKCR "testscenariomaker" "URL Protocol" ""
   WriteRegStr HKCR "testscenariomaker\\DefaultIcon" "" "$INSTDIR\\ts-cli.exe,1"
   WriteRegStr HKCR "testscenariomaker\\shell" "" ""
   WriteRegStr HKCR "testscenariomaker\\shell\\open" "" ""
-  WriteRegStr HKCR "testscenariomaker\\shell\\open\\command" "" '"$INSTDIR\\ts-cli.exe" analyze --path "%1"'
+  ; URL 프로토콜 처리를 위한 올바른 명령어 형식
+  WriteRegStr HKCR "testscenariomaker\\shell\\open\\command" "" '"$INSTDIR\\ts-cli.exe" "%1"'
   
 SectionEnd
 

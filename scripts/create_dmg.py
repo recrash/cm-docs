@@ -131,20 +131,52 @@ class DMGCreator:
             'NSHighResolutionCapable': True,
             'LSApplicationCategoryType': 'public.app-category.developer-tools',
             'CFBundleDocumentTypes': [],
-            'CFBundleURLTypes': [
+        }
+        
+        # CFBundleURLTypes 중복 검사 및 안전 추가
+        if not hasattr(self, '_url_types_added'):
+            url_types = [
                 {
                     'CFBundleURLName': 'TestscenarioMaker Protocol',
                     'CFBundleURLSchemes': ['testscenariomaker'],
                     'LSHandlerRank': 'Owner'
                 }
             ]
-        }
+            
+            # 기존 CFBundleURLTypes 확인
+            existing_url_types = info_plist.get('CFBundleURLTypes', [])
+            
+            # testscenariomaker 스킴이 이미 등록되어 있는지 확인
+            testscenariomaker_exists = False
+            for url_type in existing_url_types:
+                schemes = url_type.get('CFBundleURLSchemes', [])
+                if 'testscenariomaker' in schemes:
+                    testscenariomaker_exists = True
+                    print("   ℹ️ testscenariomaker URL 스킴이 이미 등록되어 있습니다.")
+                    break
+            
+            # testscenariomaker 프로토콜이 없을 경우에만 추가
+            if not testscenariomaker_exists:
+                existing_url_types.extend(url_types)
+                print("   ✓ testscenariomaker URL 프로토콜을 추가했습니다.")
+            
+            info_plist['CFBundleURLTypes'] = existing_url_types
+            self._url_types_added = True
+        else:
+            # 이미 처리된 경우 기본값 설정
+            info_plist['CFBundleURLTypes'] = []
         
         plist_path = contents_dir / "Info.plist"
         with open(plist_path, 'wb') as f:
             plistlib.dump(info_plist, f)
         
         print(f"   ✓ Info.plist 생성: {plist_path}")
+        
+        # Code Signing과 Notarization에 대한 참고 사항
+        print("   📝 참고: macOS Big Sur 이상에서는 Code Signing과 Notarization이 필요할 수 있습니다.")
+        print("   📝 배포 시 다음 명령어를 고려하세요:")
+        print("      codesign --deep --force --verify --verbose --sign 'Developer ID Application: Your Name' 'TestscenarioMaker CLI.app'")
+        print("      xcrun notarytool submit 'TestscenarioMaker-CLI-{}.dmg' --keychain-profile 'notarization'".format(self.version))
     
     def _parse_mount_point(self, hdiutil_output: str) -> Path:
         """hdiutil attach 출력에서 마운트 포인트 추출"""
