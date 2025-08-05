@@ -70,10 +70,131 @@ class CLIBuilder:
         
         for dir_path in dirs_to_clean:
             if dir_path.exists():
-                shutil.rmtree(dir_path)
-                print(f"   ✓ {dir_path.name} 정리 완료")
+                try:
+                    # 기본 삭제 시도 (모든 플랫폼에서 동작)
+                    shutil.rmtree(dir_path)
+                    print(f"   ✓ {dir_path.name} 정리 완료")
+                except PermissionError as e:
+                    # Windows에서만 추가 처리
+                    if self.platform_name == 'windows':
+                        print(f"   ⚠️ Windows 권한 오류 발생: {dir_path.name}")
+                        print(f"   🔧 Windows 전용 정리 방법 시도 중...")
+                        
+                        try:
+                            self._safe_remove_windows_dir(dir_path)
+                            print(f"   ✓ {dir_path.name} Windows 정리 완료")
+                        except Exception as win_error:
+                            print(f"   ❌ Windows 정리도 실패: {win_error}")
+                            print(f"   💡 해결 방법:")
+                            print(f"      1. 관리자 권한으로 PowerShell 실행")
+                            print(f"      2. 수동 삭제: Remove-Item -Path '{dir_path}' -Recurse -Force")
+                            print(f"      3. 또는 --no-clean 옵션으로 빌드 재시도")
+                            raise BuildError(f"Windows 디렉토리 삭제 실패: {e}")
+                    else:
+                        # macOS/Linux에서는 원래 오류 그대로 전파
+                        raise BuildError(f"디렉토리 삭제 권한 오류: {e}")
+                except Exception as e:
+                    # 기타 오류는 모든 플랫폼에서 동일하게 처리
+                    print(f"   ❌ {dir_path.name} 정리 실패: {e}")
+                    raise BuildError(f"디렉토리 정리 실패: {e}")
             
+            # 디렉토리 재생성 (모든 플랫폼에서 동일)
             dir_path.mkdir(parents=True, exist_ok=True)
+
+    def _safe_remove_windows_dir(self, dir_path: Path) -> None:
+        """Windows에서 안전한 디렉토리 삭제 (크로스 플랫폼 호환성 유지)"""
+        import time
+        
+        # 1차 시도: 파일 속성 변경 후 삭제
+        try:
+            # Windows에서만 사용 가능한 방법
+            for root, dirs, files in os.walk(dir_path):
+                for file in files:
+                    file_path = Path(root) / file
+                    try:
+                        # Windows에서만 chmod 사용 (POSIX 호환)
+                        if hasattr(file_path, 'chmod'):
+                            file_path.chmod(0o777)
+                    except (OSError, AttributeError):
+                        # chmod 실패 시 무시 (크로스 플랫폼 안전성)
+                        pass
+                
+                for dir_name in dirs:
+                    dir_file_path = Path(root) / dir_name
+                    try:
+                        if hasattr(dir_file_path, 'chmod'):
+                            dir_file_path.chmod(0o777)
+                    except (OSError, AttributeError):
+                        pass
+            
+            shutil.rmtree(dir_path)
+            return
+        except PermissionError:
+            pass
+        
+        # 2차 시도: 잠시 대기 후 재시도
+        time.sleep(1)
+        try:
+            shutil.rmtree(dir_path)
+            return
+        except PermissionError:
+            pass
+        
+        # 3차 시도: Windows 전용 명령어 (subprocess)
+        try:
+            # Windows에서만 실행되는 코드
+            if self.platform_name == 'windows':
+                subprocess.run(
+                    ['cmd', '/c', f'rmdir /s /q "{dir_path}"'],
+                    check=True,
+                    capture_output=True,
+                    timeout=30  # 타임아웃 추가
+                )
+                return
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        # 4차 시도: PowerShell 명령어 사용
+        try:
+            if self.platform_name == 'windows':
+                subprocess.run(
+                    ['powershell', '-Command', f'Remove-Item -Path "{dir_path}" -Recurse -Force'],
+                    check=True,
+                    capture_output=True,
+                    timeout=30
+                )
+                return
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        # 5차 시도: robocopy를 사용한 삭제 (Windows 전용)
+        try:
+            if self.platform_name == 'windows':
+                # robocopy로 빈 디렉토리로 덮어쓰기 후 삭제
+                temp_dir = dir_path.parent / f"temp_delete_{dir_path.name}"
+                temp_dir.mkdir(exist_ok=True)
+                
+                subprocess.run(
+                    ['robocopy', str(temp_dir), str(dir_path), '/MIR'],
+                    check=True,
+                    capture_output=True,
+                    timeout=30
+                )
+                
+                # 임시 디렉토리 삭제
+                try:
+                    shutil.rmtree(temp_dir)
+                except:
+                    pass
+                
+                # 이제 빈 디렉토리 삭제 시도
+                shutil.rmtree(dir_path)
+                return
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        # 모든 시도 실패
+        raise PermissionError(f"Windows에서 디렉토리 삭제 실패: {dir_path}")
     
     def check_dependencies(self) -> None:
         """빌드 의존성 확인"""
@@ -155,6 +276,10 @@ class CLIBuilder:
             datas_str += f"        {repr(data_item)},\n"
         datas_str += "    ]"
         
+        # version과 icon 경로 처리
+        version_str = f'r"{build_info["version_file"]}"' if build_info['version_file'] else 'None'
+        icon_str = f'r"{build_info["icon_file"]}"' if build_info['icon_file'] else 'None'
+        
         spec_content = f'''# -*- mode: python ; coding: utf-8 -*-
 
 import sys
@@ -218,8 +343,8 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    version=r"{build_info['version_file']}",
-    icon=r"{build_info['icon_file']}",
+    version={version_str},
+    icon={icon_str},
 )
 '''
         

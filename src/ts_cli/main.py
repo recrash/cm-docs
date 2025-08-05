@@ -7,6 +7,19 @@ TestscenarioMaker CLI 메인 모듈
 
 import sys
 import os
+# ▼▼▼ 이 코드를 추가해줘! ▼▼▼
+# PyInstaller로 빌드된 실행 파일이 어디서 실행되든
+# 자기 자신의 위치를 기준으로 모듈을 찾을 수 있게 해주는 코드
+if getattr(sys, 'frozen', False):
+    # 실행 파일(.exe)로 실행된 경우
+    application_path = os.path.dirname(sys.executable)
+    sys.path.append(application_path)
+    # 만약 .exe가 src/ts_cli 안에 있다면 상위 폴더도 추가
+    sys.path.append(os.path.join(application_path, '..'))
+    sys.path.append(os.path.join(application_path, '..', '..'))
+else:
+    # 일반 파이썬 스크립트로 실행된 경우
+    application_path = os.path.dirname(os.path.abspath(__file__))
 import platform
 import urllib.parse
 from pathlib import Path
@@ -128,6 +141,9 @@ def handle_url_protocol() -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
+        
+        input("디버깅: 작업 완료. Enter 키를 누르면 종료됩니다...")
+        sys.exit(0) # input 다음에 종료되도록 이동
             
     except KeyboardInterrupt:
         console.print("\n[yellow]사용자에 의해 중단되었습니다.[/yellow]")
@@ -136,6 +152,7 @@ def handle_url_protocol() -> None:
     except Exception as e:
         print(f"[red]URL 처리 중 오류가 발생했습니다: {e}[/red]", file=sys.stderr)
         console.print_exception(show_locals=True)
+        input("디버깅: 에러 발생. Enter 키를 누르면 종료됩니다...")
         sys.exit(1)
 
 
