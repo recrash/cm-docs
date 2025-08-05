@@ -30,7 +30,7 @@ isort src/ tests/
 # Lint code
 flake8 src/ tests/
 
-# Type checking
+# Type checking (Note: python_version config issue with 3.8)
 mypy src/
 ```
 
@@ -106,6 +106,7 @@ The codebase uses the Strategy pattern to support multiple VCS systems through a
 - Use `tmp_path` fixture for filesystem tests
 - `httpx_mock` for API client testing
 - Subprocess-based E2E testing (not Playwright since this is CLI, not web)
+- Cross-platform path compatibility tests in `test_path_compatibility.py`
 
 ## Configuration System
 
@@ -117,7 +118,8 @@ The codebase uses the Strategy pattern to support multiple VCS systems through a
 ### Key Config Sections
 - `[api]`: base_url, timeout, max_retries
 - `[cli]`: default_output_format, verbose, show_progress  
-- `[logging]`: level, file_enabled
+- `[logging]`: level, file_enabled (format uses %% escaping for ConfigParser)
+- `[vcs]`: git_timeout, max_diff_size
 
 ## Cross-Platform Development Guidelines
 
@@ -141,6 +143,13 @@ if config_file.exists():
 # Resolve to absolute when needed for external tools
 absolute_path = project_root.resolve()
 subprocess.run(['tool', str(absolute_path)])  # Convert to string for subprocess
+
+# CRITICAL: Always convert Path to string for subprocess cwd parameter
+subprocess.run(
+    ['git', 'status'], 
+    cwd=str(repo_path),  # Essential for cross-platform compatibility
+    capture_output=True
+)
 ```
 
 #### ❌ Avoid These Patterns
@@ -157,6 +166,9 @@ config_path = f"{project_root}/config/config.ini"
 
 # DON'T: Passing Path objects to subprocess without str()
 subprocess.run(['tool', project_root])  # Will fail!
+
+# DON'T: Path object as cwd parameter
+subprocess.run(['git', 'status'], cwd=repo_path)  # Cross-platform issues!
 ```
 
 ### Build System Path Handling
@@ -233,10 +245,11 @@ Common issues and solutions are documented in README.md build section.
 5. **Use `.resolve()` sparingly**: Only when absolute paths are required
 
 ### Code Quality Standards
-- **Type Hints**: Use pathlib.Path for path parameters
+- **Type Hints**: Use pathlib.Path for path parameters, proper async return types
 - **Error Handling**: Provide clear error messages with path information
-- **Testing**: Include cross-platform path tests
+- **Testing**: Include cross-platform path tests (see `test_path_compatibility.py`)
 - **Documentation**: Comment platform-specific behavior
+- **ConfigParser**: Use %% escaping for logging format strings to avoid interpolation errors
 
 ### Example Path-Safe Function
 ```python
@@ -256,3 +269,23 @@ def find_config_file(project_root: Path) -> Optional[Path]:
     
     return None
 ```
+
+## Recent Cross-Platform Improvements
+
+### Critical Fixes Implemented
+1. **subprocess.run cwd Parameter**: All Path objects converted to strings before passing to subprocess.run cwd parameter
+2. **ConfigParser Interpolation**: Logging format strings use %% escaping to prevent interpolation errors
+3. **Path Resolution**: Added `.resolve()` calls for symlink handling in tests (macOS compatibility)
+4. **Type Annotations**: Fixed missing async return types and parameter annotations
+
+### Key Files Modified
+- `src/ts_cli/vcs/git_analyzer.py`: Fixed `_run_git_command()` cwd parameter
+- `src/ts_cli/utils/config_loader.py`: Fixed logging format string escaping
+- `tests/unit/test_path_compatibility.py`: Comprehensive cross-platform path testing
+- Additional cross-platform tests in existing test files
+
+### Testing Coverage
+- 18 new cross-platform path compatibility tests
+- Edge cases: Unicode paths, long paths, special characters, symlinks
+- Mock subprocess testing to verify string conversion
+- Platform-specific path separator validation
