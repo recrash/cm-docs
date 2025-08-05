@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 기본 앱 정보 -->
+	<key>CFBundleName</key>
+	<string>TestscenarioMaker Helper</string>
+	
+	<key>CFBundleDisplayName</key>
+	<string>TestscenarioMaker Helper</string>
+	
+	<key>CFBundleIdentifier</key>
+	<string>com.testscenariomaker.helper</string>
+	
+	<key>CFBundleVersion</key>
+	<string>{version}</string>
+	
+	<key>CFBundleShortVersionString</key>
+	<string>{version}</string>
+	
+	<key>CFBundleExecutable</key>
+	<string>applet</string>
+	
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	
+	<key>CFBundleSignature</key>
+	<string>aplt</string>
+	
+	<!-- 아이콘 파일 (있는 경우) -->
+	<key>CFBundleIconFile</key>
+	<string>applet</string>
+	
+	<!-- macOS 호환성 -->
+	<key>LSMinimumSystemVersion</key>
+	<string>10.12</string>
+	
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	
+	<!-- Dock에서 숨기기 (백그라운드 전용 앱) -->
+	<key>LSBackgroundOnly</key>
+	<true/>
+	
+	<!-- 앱 카테고리 -->
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
+	
+	<!-- URL 스킴 등록 (testscenariomaker://) -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>TestscenarioMaker Protocol Handler</string>
+			
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>testscenariomaker</string>
+			</array>
+			
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			
+			<key>CFBundleURLIconFile</key>
+			<string>applet</string>
+		</dict>
+	</array>
+	
+	<!-- 보안 및 권한 설정 -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>TestscenarioMaker CLI를 실행하기 위해 시스템 이벤트 권한이 필요합니다.</string>
+	
+	<!-- AppleScript 앱 관련 설정 -->
+	<key>LSArchitecturePriority</key>
+	<array>
+		<string>x86_64</string>
+		<string>arm64</string>
+	</array>
+	
+	<!-- 파일 연결 방지 (URL 프로토콜 전용) -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+	</array>
+	
+	<!-- 시스템 통합 설정 -->
+	<key>LSUIElement</key>
+	<false/>
+	
+	<!-- Quarantine 관련 설정 -->
+	<key>LSFileQuarantineEnabled</key>
+	<false/>
+	
+	<!-- 앱 설명 -->
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2024 TestscenarioMaker Team</string>
+	
+	<!-- 추가 메타데이터 -->
+	<key>CFBundleGetInfoString</key>
+	<string>TestscenarioMaker Helper v{version} - URL Protocol Handler</string>
+	
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	
+	<!-- macOS Ventura+ 호환성을 위한 추가 설정 -->
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
+	
+	<!-- 네트워크 권한 (CLI가 API 호출을 위해 필요) -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

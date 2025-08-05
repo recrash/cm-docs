@@ -6,6 +6,9 @@ TestscenarioMaker CLI 메인 모듈
 """
 
 import sys
+import os
+import platform
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
@@ -34,14 +37,131 @@ install(show_locals=True)
 console = Console()
 
 
+def handle_url_protocol() -> None:
+    """
+    testscenariomaker:// URL 프로토콜 처리
+    
+    웹 브라우저에서 전달된 URL을 파싱하여 저장소 경로를 추출하고
+    기존 analyze 명령과 동일한 로직으로 분석을 수행합니다.
+    """
+    try:
+        # URL 재조합 (sys.argv[1:]을 다시 합쳐서 완전한 URL 복원)
+        raw_url = " ".join(sys.argv[1:])
+        
+        if not raw_url.startswith('testscenariomaker://'):
+            print("[red]❌ 올바르지 않은 URL 형식입니다.[/red]", file=sys.stderr)
+            sys.exit(1)
+        
+        console.print(f"[cyan]🔗 URL 프로토콜 처리 중: {raw_url}[/cyan]")
+        
+        # 디버깅을 위한 환경 정보 로깅
+        import tempfile
+        debug_file = Path(tempfile.gettempdir()) / "testscenariomaker_debug.log"
+        with open(debug_file, "a", encoding="utf-8") as f:
+            f.write(f"\n=== URL Protocol Debug {__import__('datetime').datetime.now()} ===\n")
+            f.write(f"URL: {raw_url}\n")
+            f.write(f"PATH: {os.environ.get('PATH', 'NOT_SET')}\n")
+            f.write(f"HOME: {os.environ.get('HOME', 'NOT_SET')}\n")
+            f.write(f"USER: {os.environ.get('USER', 'NOT_SET')}\n")
+            f.write(f"PWD: {os.getcwd()}\n")
+            f.write("="*50 + "\n")
+        console.print(f"[dim]🐛 디버그 로그: {debug_file}[/dim]")
+        
+        # URL 디코딩 및 파싱
+        decoded_url = urllib.parse.unquote(raw_url)
+        parsed = urllib.parse.urlparse(decoded_url)
+        
+        # 경로 추출 및 플랫폼별 처리
+        if platform.system() == "Windows":
+            # Windows: netloc과 path를 합쳐서 전체 경로 구성
+            path_str = parsed.netloc + parsed.path
+            # Windows 경로 정규화 (뒤쪽 슬래시와 따옴표만 제거)
+            path_str = path_str.rstrip('/"')
+        else:
+            # macOS/Linux: path만 사용 (절대경로 유지)
+            path_str = parsed.path
+            # 뒤쪽 슬래시와 따옴표만 제거 (앞쪽 슬래시는 절대경로 표시이므로 유지)
+            path_str = path_str.rstrip('/"')
+        
+        # pathlib.Path 객체로 변환
+        repository_path = Path(path_str)
+        
+        console.print(f"[green]📂 분석 대상 경로: {repository_path.resolve()}[/green]")
+        
+        # 경로 존재 여부 확인
+        if not repository_path.exists():
+            print(
+                f"[red]❌ 경로를 찾을 수 없습니다: {repository_path}[/red]", 
+                file=sys.stderr
+            )
+            sys.exit(1)
+        
+        if not repository_path.is_dir():
+            print(
+                f"[red]❌ 디렉토리가 아닙니다: {repository_path}[/red]", 
+                file=sys.stderr
+            )
+            sys.exit(1)
+        
+        # 기본 설정으로 분석 실행
+        console.print(f"[bold blue]TestscenarioMaker CLI v{__version__}[/bold blue]")
+        console.print(f"저장소 분석 시작: [green]{repository_path.resolve()}[/green]")
+        console.print(f"브랜치 비교: [cyan]origin/develop[/cyan] → [cyan]HEAD[/cyan]")
+        
+        # CLI 핸들러 생성 및 실행 (기본 설정 사용)
+        handler = CLIHandler(verbose=False, output_format="text", dry_run=False)
+        
+        success = handler.analyze_repository(
+            repository_path, 
+            base_branch="origin/develop", 
+            head_branch="HEAD"
+        )
+        
+        if success:
+            console.print(
+                "[bold green]✅ 저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
+            )
+            sys.exit(0)
+        else:
+            print(
+                "[bold red]❌ 저장소 분석 중 오류가 발생했습니다.[/bold red]",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        console.print("\n[yellow]사용자에 의해 중단되었습니다.[/yellow]")
+        sys.exit(130)
+        
+    except Exception as e:
+        print(f"[red]URL 처리 중 오류가 발생했습니다: {e}[/red]", file=sys.stderr)
+        console.print_exception(show_locals=True)
+        sys.exit(1)
+
+
 @click.group()
 @click.version_option(version=__version__, prog_name="TestscenarioMaker CLI")
-def main() -> None:
+def click_main() -> None:
     """TestscenarioMaker CLI 도구 모음"""
     pass
 
 
-@main.command()
+def main() -> None:
+    """
+    메인 엔트리 포인트
+    
+    URL 프로토콜 처리를 먼저 확인하고, 해당하지 않으면 기존 Click CLI로 넘어갑니다.
+    """
+    # URL 프로토콜 처리를 위한 사전 검사 (Click 파서 실행 전)
+    if len(sys.argv) > 1 and any(arg.startswith('testscenariomaker://') for arg in sys.argv[1:]):
+        handle_url_protocol()
+        return
+    
+    # 기존 Click CLI 실행
+    click_main()
+
+
+@click_main.command()
 @click.option(
     "--path",
     "-p",
@@ -149,7 +269,7 @@ def analyze(
         sys.exit(1)
 
 
-@main.command()
+@click_main.command()
 @click.option("--config", "-c", type=click.Path(path_type=Path), help="설정 파일 경로")
 def config_show(config: Optional[Path]) -> None:
     """현재 설정 정보를 표시합니다."""
@@ -172,7 +292,7 @@ def config_show(config: Optional[Path]) -> None:
         sys.exit(1)
 
 
-@main.command()
+@click_main.command()
 @click.argument("path", type=click.Path(exists=True, path_type=Path))
 def info(path: Path) -> None:
     """저장소 정보를 표시합니다 (분석 없이)."""
@@ -223,7 +343,7 @@ def info(path: Path) -> None:
         sys.exit(1)
 
 
-@main.command()
+@click_main.command()
 def version() -> None:
     """버전 정보를 표시합니다."""
     console.print(f"TestscenarioMaker CLI v{__version__}")
