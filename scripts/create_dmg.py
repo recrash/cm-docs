@@ -14,6 +14,7 @@ import tempfile
 import plistlib
 from typing import Dict, Any
 import argparse
+import re
 
 
 class DMGCreator:
@@ -75,22 +76,31 @@ class DMGCreator:
         macos_dir.mkdir(parents=True)
         resources_dir.mkdir(parents=True)
         
-        # 실행파일 복사
+        # 실행파일 존재 확인 및 복사
         exe_path = self.dist_dir / "ts-cli"
         if not exe_path.exists():
-            raise FileNotFoundError(f"실행파일을 찾을 수 없습니다: {exe_path}")
+            raise FileNotFoundError(
+                f"실행파일을 찾을 수 없습니다: {exe_path}\n"
+                f"먼저 'python scripts/build.py'를 실행하여 빌드를 완료하세요."
+            )
         
+        if not exe_path.is_file():
+            raise FileNotFoundError(f"실행파일이 올바른 파일이 아닙니다: {exe_path}")
+        
+        print(f"   📄 실행파일 복사: {exe_path}")
         app_exe_path = macos_dir / "ts-cli"
         shutil.copy2(exe_path, app_exe_path)
         app_exe_path.chmod(0o755)  # 실행 권한 부여
         
-        # 설정 파일 복사
-        config_dir = resources_dir / "config"
-        config_dir.mkdir()
-        
+        # 설정 파일 복사 (선택사항)
         source_config = self.project_root / "config" / "config.ini"
         if source_config.exists():
+            config_dir = resources_dir / "config"
+            config_dir.mkdir()
             shutil.copy2(source_config, config_dir / "config.ini")
+            print(f"   📄 설정 파일 복사: {source_config}")
+        else:
+            print(f"   ⚠️ 설정 파일 없음 (선택사항): {source_config}")
         
         # Info.plist 생성
         self._create_info_plist(contents_dir)
@@ -135,6 +145,32 @@ class DMGCreator:
             plistlib.dump(info_plist, f)
         
         print(f"   ✓ Info.plist 생성: {plist_path}")
+    
+    def _parse_mount_point(self, hdiutil_output: str) -> Path:
+        """hdiutil attach 출력에서 마운트 포인트 추출"""
+        # hdiutil attach 출력 형식:
+        # /dev/disk4s2 	Apple_HFS 	/Volumes/TestscenarioMaker CLI 1.0.0
+        
+        patterns = [
+            # 정확한 볼륨 이름 매칭
+            r'/Volumes/TestscenarioMaker CLI[^\t\n]*',
+            # 일반적인 /Volumes/ 패턴
+            r'/Volumes/[^\t\n]+TestscenarioMaker[^\t\n]*',
+            # 백업 패턴: /Volumes/로 시작하는 모든 경로
+            r'/Volumes/[^\t\n]+'
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, hdiutil_output)
+            for match in matches:
+                mount_path = Path(match.strip())
+                if mount_path.exists():
+                    print(f"   🔍 마운트 포인트 발견: {mount_path}")
+                    return mount_path
+        
+        # 모든 패턴이 실패한 경우 디버그 정보 출력
+        print(f"   ⚠️ hdiutil 출력:\n{hdiutil_output}")
+        return None
     
     def create_installer_script(self) -> Path:
         """설치 스크립트 생성"""
@@ -328,15 +364,20 @@ ts-cli config-show
         
         try:
             # 1. 빈 DMG 생성 (100MB)
-            subprocess.run([
+            print("   💿 빈 DMG 생성 중...")
+            create_result = subprocess.run([
                 'hdiutil', 'create',
                 '-size', '100m',
                 '-fs', 'HFS+',
                 '-volname', f'TestscenarioMaker CLI {self.version}',
                 str(temp_dmg)
-            ], check=True, capture_output=True)
+            ], check=True, capture_output=True, text=True)
+            
+            if create_result.returncode != 0:
+                raise RuntimeError(f"DMG 생성 실패: {create_result.stderr}")
             
             # 2. DMG 마운트
+            print("   📂 DMG 마운트 중...")
             mount_result = subprocess.run([
                 'hdiutil', 'attach',
                 str(temp_dmg),
@@ -344,49 +385,72 @@ ts-cli config-show
                 '-noverify'
             ], check=True, capture_output=True, text=True)
             
-            # 마운트 포인트 찾기
-            mount_point = None
-            for line in mount_result.stdout.split('\n'):
-                if '/Volumes/' in line and 'TestscenarioMaker CLI' in line:
-                    mount_point = Path(line.split('\t')[-1].strip())
-                    break
+            if mount_result.returncode != 0:
+                raise RuntimeError(f"DMG 마운트 실패: {mount_result.stderr}")
             
-            if not mount_point:
+            # 마운트 포인트 찾기 (정규식 사용)
+            mount_point = self._parse_mount_point(mount_result.stdout)
+            
+            if not mount_point or not mount_point.exists():
                 raise RuntimeError("DMG 마운트 포인트를 찾을 수 없습니다")
             
             print(f"   📁 마운트 포인트: {mount_point}")
             
             # 3. 파일들을 DMG에 복사
-            shutil.copytree(app_bundle, mount_point / app_bundle.name)
-            
-            # 설치/제거 스크립트 복사
-            install_script = self.create_installer_script()
-            uninstall_script = self.create_uninstaller_script()
-            readme_file = self.create_readme()
-            
-            shutil.copy2(install_script, mount_point)
-            shutil.copy2(uninstall_script, mount_point)
-            shutil.copy2(readme_file, mount_point)
-            
-            # Applications 폴더 링크 생성
-            subprocess.run([
-                'ln', '-s', '/Applications',
-                str(mount_point / 'Applications')
-            ], check=True)
+            print("   📦 파일들을 DMG에 복사 중...")
+            try:
+                shutil.copytree(app_bundle, mount_point / app_bundle.name)
+                print(f"   ✓ 앱 번들 복사 완료")
+                
+                # 설치/제거 스크립트 복사
+                install_script = self.create_installer_script()
+                uninstall_script = self.create_uninstaller_script()
+                readme_file = self.create_readme()
+                
+                shutil.copy2(install_script, mount_point)
+                shutil.copy2(uninstall_script, mount_point)
+                shutil.copy2(readme_file, mount_point)
+                print(f"   ✓ 설치 스크립트 및 문서 복사 완료")
+                
+                # Applications 폴더 링크 생성
+                subprocess.run([
+                    'ln', '-s', '/Applications',
+                    str(mount_point / 'Applications')
+                ], check=True, capture_output=True)
+                print(f"   ✓ Applications 링크 생성 완료")
+                
+            except Exception as e:
+                print(f"   ❌ 파일 복사 중 오류: {e}")
+                # 언마운트 시도
+                try:
+                    subprocess.run([
+                        'hdiutil', 'detach', str(mount_point)
+                    ], capture_output=True)
+                except:
+                    pass
+                raise
             
             # 4. DMG 언마운트
-            subprocess.run([
+            print("   📤 DMG 언마운트 중...")
+            detach_result = subprocess.run([
                 'hdiutil', 'detach',
                 str(mount_point)
-            ], check=True, capture_output=True)
+            ], check=True, capture_output=True, text=True)
+            
+            if detach_result.returncode != 0:
+                print(f"   ⚠️ 언마운트 경고: {detach_result.stderr}")
             
             # 5. 최종 DMG 생성 (압축)
-            subprocess.run([
+            print("   🗜️ DMG 압축 중...")
+            convert_result = subprocess.run([
                 'hdiutil', 'convert',
                 str(temp_dmg),
                 '-format', 'UDZO',
                 '-o', str(dmg_path)
-            ], check=True, capture_output=True)
+            ], check=True, capture_output=True, text=True)
+            
+            if convert_result.returncode != 0:
+                raise RuntimeError(f"DMG 압축 실패: {convert_result.stderr}")
             
             print(f"   ✓ DMG 생성 완료: {dmg_path}")
             return dmg_path
