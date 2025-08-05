@@ -108,7 +108,7 @@ class APIClient:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type((httpx.NetworkError, httpx.TimeoutException)),
+        retry=retry_if_exception_type((httpx.NetworkError, httpx.TimeoutException, NetworkError)),
     )
     async def send_analysis(
         self,
@@ -134,21 +134,16 @@ class APIClient:
             if progress_callback:
                 progress_callback(10)
 
-            # 요청 데이터 준비
+            # 백엔드 API 스펙에 맞게 요청 데이터 준비
             request_data = {
-                "repository_info": analysis_data.get("repository_info", {}),
-                "changes_text": analysis_data.get("changes_text", ""),
-                "metadata": {
-                    "cli_version": analysis_data.get("cli_version"),
-                    "analysis_timestamp": analysis_data.get("analysis_timestamp"),
-                },
+                "analysis_text": analysis_data.get("changes_text", "")  # 백엔드에서 요구하는 필드명
             }
 
             if progress_callback:
                 progress_callback(30)
 
-            # API 호출
-            response = await self.client.post("/api/v1/analysis", json=request_data)
+            # API 호출 - 백엔드 엔드포인트로 수정
+            response = await self.client.post("/api/scenario/v1/generate-from-text", json=request_data)
 
             if progress_callback:
                 progress_callback(70)
@@ -161,7 +156,7 @@ class APIClient:
                 progress_callback(100)
 
             self.logger.info(
-                f"분석 데이터 전송 완료. 분석 ID: {response_data.get('analysis_id')}"
+                f"분석 데이터 전송 완료. 다운로드 URL: {response_data.get('download_url')}"
             )
             return response_data
 
@@ -354,7 +349,7 @@ class APIClient:
             서버 상태 (True: 정상, False: 비정상)
         """
         try:
-            response = await self.client.get("/api/v1/health")
+            response = await self.client.get("/api/health")  # /api/v1/health → /api/health
             return response.is_success
 
         except Exception as e:

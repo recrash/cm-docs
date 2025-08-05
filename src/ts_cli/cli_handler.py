@@ -65,12 +65,14 @@ class CLIHandler:
             self._api_client = APIClient()
         return self._api_client
 
-    def analyze_repository(self, path: Path) -> bool:
+    def analyze_repository(self, path: Path, base_branch: str = "origin/develop", head_branch: str = "HEAD") -> bool:
         """
         저장소 분석 메인 워크플로우
 
         Args:
             path: 분석할 저장소 경로
+            base_branch: 기준 브랜치명 (기본값: origin/develop)
+            head_branch: 대상 브랜치명 (기본값: HEAD)
 
         Returns:
             성공 여부
@@ -81,8 +83,8 @@ class CLIHandler:
             if not analyzer:
                 return False
 
-            # 2. 저장소 변경사항 분석
-            analysis_result = self._analyze_changes(analyzer)
+            # 2. 저장소 변경사항 분석 (브랜치 파라미터 전달)
+            analysis_result = self._analyze_changes(analyzer, base_branch, head_branch)
             if not analysis_result:
                 return False
 
@@ -96,27 +98,14 @@ class CLIHandler:
             if not api_response:
                 return False
 
-            # 5. 결과 파일 다운로드
-            download_success = self._download_result(api_response)
-            if not download_success:
-                return False
-
-            # 6. 최종 결과 출력
+            # 5. 결과 출력 (다운로드 제거)
             self._display_final_result(api_response)
 
             return True
 
-        except KeyboardInterrupt:
-            self.console.print(
-                "\n[yellow]사용자에 의해 작업이 중단되었습니다.[/yellow]"
-            )
-            return False
-
         except Exception as e:
-            self.logger.error(f"저장소 분석 중 예상치 못한 오류: {e}")
-            self.console.print(f"[red]예상치 못한 오류가 발생했습니다: {str(e)}[/red]")
-            if self.verbose:
-                self.console.print_exception(show_locals=True)
+            self.logger.error(f"저장소 분석 중 오류: {e}")
+            self.console.print(f"[red]저장소 분석 중 오류가 발생했습니다: {str(e)}[/red]")
             return False
 
     def _validate_repository(self, path: Path) -> Optional[Any]:
@@ -178,12 +167,14 @@ class CLIHandler:
             )
             return None
 
-    def _analyze_changes(self, analyzer: Any) -> Optional[Dict[str, Any]]:
+    def _analyze_changes(self, analyzer: Any, base_branch: str = "origin/develop", head_branch: str = "HEAD") -> Optional[Dict[str, Any]]:
         """
         저장소 변경사항 분석
 
         Args:
             analyzer: VCS 분석기
+            base_branch: 기준 브랜치명
+            head_branch: 대상 브랜치명
 
         Returns:
             분석 결과 딕셔너리 또는 None
@@ -200,8 +191,8 @@ class CLIHandler:
                 # 저장소 정보 수집
                 repo_info = analyzer.get_repository_info()
 
-                # 변경사항 분석
-                changes_text = analyzer.get_changes()
+                # 변경사항 분석 (브랜치 파라미터 전달)
+                changes_text = analyzer.get_changes(base_branch, head_branch)
 
                 progress.update(task, completed=True)
 
@@ -211,11 +202,17 @@ class CLIHandler:
                 "changes_text": changes_text,
                 "analysis_timestamp": self._get_current_timestamp(),
                 "cli_version": self._get_cli_version(),
+                "branch_info": {
+                    "base_branch": base_branch,
+                    "head_branch": head_branch,
+                },
             }
 
             if self.verbose:
                 self.console.print("[green]✓[/green] 저장소 분석 완료")
                 self.console.print(f"  변경사항 크기: {len(changes_text)} 문자")
+                self.console.print(f"  기준 브랜치: {base_branch}")
+                self.console.print(f"  대상 브랜치: {head_branch}")
 
                 if not changes_text.strip():
                     self.console.print("  [yellow]변경사항이 없습니다.[/yellow]")
@@ -284,63 +281,6 @@ class CLIHandler:
             self.console.print(f"[red]API 전송 중 오류가 발생했습니다: {str(e)}[/red]")
             return None
 
-    def _download_result(self, api_response: Dict[str, Any]) -> bool:
-        """
-        결과 파일 다운로드
-
-        Args:
-            api_response: API 응답
-
-        Returns:
-            다운로드 성공 여부
-        """
-        try:
-            if not api_response.get("result_url"):
-                self.console.print("[yellow]다운로드할 결과 파일이 없습니다.[/yellow]")
-                return True  # 오류는 아니므로 True 반환
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TimeElapsedColumn(),
-                console=self.console,
-                transient=True,
-            ) as progress:
-                task = progress.add_task("결과 파일 다운로드 중...", total=100)
-
-                # 비동기 다운로드를 동기적으로 실행
-                download_path = asyncio.run(
-                    self.api_client.download_result(
-                        api_response["result_url"],
-                        progress_callback=lambda p: progress.update(task, completed=p),
-                    )
-                )
-
-                progress.update(task, completed=100)
-
-            if download_path:
-                if self.verbose:
-                    self.console.print("[green]✓[/green] 결과 파일 다운로드 완료")
-                    self.console.print(f"  저장 위치: [cyan]{download_path}[/cyan]")
-
-                # API 응답에 다운로드 경로 추가
-                api_response["download_path"] = str(download_path)
-                return True
-            else:
-                self.console.print("[red]결과 파일 다운로드에 실패했습니다.[/red]")
-                return False
-
-        except APIError as e:
-            self.logger.error(f"다운로드 오류: {e}")
-            self.console.print(f"[red]결과 파일 다운로드 실패: {str(e)}[/red]")
-            return False
-
-        except Exception as e:
-            self.logger.error(f"다운로드 중 오류: {e}")
-            self.console.print(f"[red]다운로드 중 오류가 발생했습니다: {str(e)}[/red]")
-            return False
-
     def _display_dry_run_result(self, analysis_result: Dict[str, Any]) -> None:
         """
         Dry run 모드 결과 출력
@@ -397,15 +337,22 @@ class CLIHandler:
             self.console.print(syntax)
         else:
             # 텍스트 형식으로 출력
+            download_url = api_response.get('download_url', '')
+            filename = api_response.get('filename', '')
+            message = api_response.get('message', '')
+
             result_panel = Panel(
-                f"분석 ID: {api_response.get('analysis_id', 'N/A')}\n"
-                f"상태: {api_response.get('status', 'N/A')}\n"
-                f"처리 시간: {api_response.get('processing_time', 'N/A')}\n"
-                f"결과 파일: {api_response.get('download_path', '다운로드되지 않음')}",
-                title="분석 완료",
+                f"파일명: {filename}\n"
+                f"메시지: {message}\n"
+                f"웹 UI 다운로드: http://localhost:8000{download_url}",
+                title="✅ 시나리오 생성 완료",
                 border_style="green",
             )
             self.console.print(result_panel)
+
+            # 추가 안내 메시지
+            self.console.print("\n[bold blue] 웹 UI에서 결과를 확인하고 다운로드하세요:[/bold blue]")
+            self.console.print(f"[cyan]http://localhost:8000{download_url}[/cyan]")
 
     def _get_current_timestamp(self) -> str:
         """현재 타임스탬프 반환"""

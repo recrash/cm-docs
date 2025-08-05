@@ -122,9 +122,9 @@ class TestAPIClient:
         mock_response = Mock()
         mock_response.is_success = True
         mock_response.json.return_value = {
-            "analysis_id": "test-123",
-            "status": "accepted",
-            "message": "Analysis started",
+            "filename": "test-scenario.zip",
+            "download_url": "/download/test-scenario.zip",
+            "message": "시나리오 생성 완료",
         }
         mock_post.return_value = mock_response
 
@@ -141,16 +141,20 @@ class TestAPIClient:
 
         result = await api_client.send_analysis(analysis_data, progress_callback)
 
-        assert result["analysis_id"] == "test-123"
-        assert result["status"] == "accepted"
+        assert result["filename"] == "test-scenario.zip"
+        assert result["download_url"] == "/download/test-scenario.zip"
 
         # 요청이 올바르게 호출되었는지 확인
         mock_post.assert_called_once()
         call_args = mock_post.call_args
-        assert call_args[0][0] == "/api/v1/analysis"
+        assert call_args[0][0] == "/api/scenario/v1/generate-from-text"
+        assert call_args[1]["json"] == {"analysis_text": "Test changes"}
 
         # 진행 상황 콜백이 호출되었는지 확인
-        assert progress_callback.call_count > 0
+        progress_callback.assert_any_call(10)
+        progress_callback.assert_any_call(30)
+        progress_callback.assert_any_call(70)
+        progress_callback.assert_any_call(100)
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient.post")
@@ -358,7 +362,7 @@ class TestAPIClient:
         result = await api_client.health_check()
 
         assert result is True
-        mock_get.assert_called_once_with("/api/v1/health")
+        mock_get.assert_called_once_with("/api/health")
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient.get")
