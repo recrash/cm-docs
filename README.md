@@ -130,15 +130,75 @@ pytest -m e2e           # E2E 테스트
 
 ### 빌드
 
+#### 크로스플랫폼 실행파일 빌드
+
 ```bash
-# 실행파일 빌드
+# 전체 빌드 (정리 + 빌드 + 테스트)
 python scripts/build.py
 
-# Windows 설치 프로그램 (Windows에서)
-makensis scripts/setup_win.nsi
+# 정리 없이 빌드
+python scripts/build.py --no-clean
 
-# macOS DMG (macOS에서)
+# 테스트 없이 빌드
+python scripts/build.py --no-test
+
+# 빌드 결과 확인
+ls -la dist/
+```
+
+#### 플랫폼별 패키징
+
+**Windows 설치 프로그램 (Windows 환경에서)**
+```bash
+# 실행파일 빌드 후
+python scripts/build.py
+makensis scripts/setup_win.nsi
+```
+
+**macOS DMG (macOS 환경에서)**
+```bash
+# 실행파일 빌드 후
+python scripts/build.py
 python scripts/create_dmg.py
+```
+
+#### 빌드 시스템 특징
+
+- **견고한 파일 검증**: 필수 파일 존재 여부를 사전 확인하여 빌드 실패 방지
+- **선택적 파일 처리**: config.ini, icon 파일 등이 없어도 빌드 진행
+- **상대경로 기반**: 프로젝트 이식성을 위해 상대경로 구조 유지
+- **상세한 로깅**: 각 빌드 단계별 진행 상황과 오류 상세 표시
+- **자동 복구**: DMG 생성 시 마운트 실패 등에 대한 자동 복구 로직
+
+#### 빌드 문제 해결
+
+**일반적인 빌드 오류:**
+
+```bash
+# PyInstaller 누락 시
+pip install pyinstaller
+
+# 권한 문제 (macOS)
+chmod +x scripts/build.py scripts/create_dmg.py
+
+# 디스크 공간 부족 확인
+df -h
+
+# 임시 파일 정리
+rm -rf build/ dist/ *.spec
+```
+
+**macOS DMG 생성 오류:**
+
+```bash
+# hdiutil 권한 확인
+sudo hdiutil attach --help
+
+# 마운트된 볼륨 강제 해제
+sudo hdiutil detach "/Volumes/TestscenarioMaker CLI*" -force
+
+# 임시 DMG 파일 정리
+rm -f dist/temp.dmg
 ```
 
 ### 코드 품질

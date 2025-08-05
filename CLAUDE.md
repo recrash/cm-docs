@@ -36,14 +36,21 @@ mypy src/
 
 ### Building
 ```bash
-# Build executable
+# Build executable (cross-platform)
 python scripts/build.py
+
+# Build options
+python scripts/build.py --no-clean    # Skip cleanup
+python scripts/build.py --no-test     # Skip testing
 
 # Create Windows installer (Windows only)
 makensis scripts/setup_win.nsi
 
 # Create macOS DMG (macOS only)  
 python scripts/create_dmg.py
+
+# Build troubleshooting
+python scripts/build.py --help
 ```
 
 ### Development Setup
@@ -112,6 +119,68 @@ The codebase uses the Strategy pattern to support multiple VCS systems through a
 - `[cli]`: default_output_format, verbose, show_progress  
 - `[logging]`: level, file_enabled
 
+## Cross-Platform Development Guidelines
+
+### Path Management with pathlib
+**CRITICAL**: Always use `pathlib.Path` for cross-platform compatibility. Never use string concatenation or `os.path.join()` for path operations.
+
+#### ✅ Correct Path Usage
+```python
+from pathlib import Path
+
+# Project structure with relative paths
+project_root = Path(__file__).parent.parent  # Relative to current file
+src_dir = project_root / "src"
+config_file = project_root / "config" / "config.ini"
+
+# Cross-platform file operations
+if config_file.exists():
+    with open(config_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+# Resolve to absolute when needed for external tools
+absolute_path = project_root.resolve()
+subprocess.run(['tool', str(absolute_path)])  # Convert to string for subprocess
+```
+
+#### ❌ Avoid These Patterns
+```python
+# DON'T: String concatenation
+config_path = project_root + "/config/config.ini"
+
+# DON'T: os.path methods
+import os
+config_path = os.path.join(project_root, "config", "config.ini")
+
+# DON'T: Hard-coded separators
+config_path = f"{project_root}/config/config.ini"
+
+# DON'T: Passing Path objects to subprocess without str()
+subprocess.run(['tool', project_root])  # Will fail!
+```
+
+### Build System Path Handling
+The build scripts (`scripts/build.py`, `scripts/create_dmg.py`) demonstrate proper cross-platform path management:
+
+- **Relative Structure**: Maintain project structure using relative paths from project root
+- **String Conversion**: Convert Path objects to strings when interfacing with external tools
+- **File Validation**: Check file existence before operations
+- **Platform Detection**: Use `platform.system()` for platform-specific logic
+
+### Platform-Specific Considerations
+
+#### Windows
+- File paths may contain spaces and special characters
+- Case-insensitive filesystem (usually)
+- Backslash separators (handled automatically by pathlib)
+- `.exe` extension required for executables
+
+#### macOS/Linux
+- Case-sensitive filesystem
+- Forward slash separators
+- No file extension required for executables
+- Different permission model
+
 ## Extension Points
 
 ### Adding New VCS Support
@@ -119,16 +188,71 @@ The codebase uses the Strategy pattern to support multiple VCS systems through a
 2. Implement abstract methods: `validate_repository()`, `get_changes()`, `get_repository_info()`
 3. Add detection logic to `get_analyzer()` factory function
 4. Add comprehensive tests following existing patterns
+5. **IMPORTANT**: Use `pathlib.Path` for all file system operations
 
 ### Adding New Commands
 1. Add Click command in `main.py`
 2. Implement business logic in `cli_handler.py`
 3. Add Korean help text and error messages
 4. Write unit, integration, and E2E tests
+5. **IMPORTANT**: Ensure cross-platform compatibility using pathlib
 
 ## Build System
 
-The project uses PyInstaller for cross-platform executable generation:
-- **Spec File**: Auto-generated with embedded config files
-- **Platform-Specific**: Windows NSIS installer, macOS DMG with app bundle
-- **Version Info**: Extracted from `src/ts_cli/__init__.py`
+The project uses PyInstaller for cross-platform executable generation with robust error handling and path management:
+
+### Build Script Features (`scripts/build.py`)
+- **Automatic File Validation**: Checks for required files before build
+- **Conditional Resource Inclusion**: Optional files (config.ini, icons) included only if present
+- **Cross-Platform Path Handling**: Uses pathlib with proper string conversion for PyInstaller
+- **Detailed Logging**: Progress tracking and error reporting at each step
+- **Build Information**: Generates build metadata in JSON format
+
+### DMG Creation (`scripts/create_dmg.py`)
+- **Robust Mount Point Detection**: Uses regex patterns to parse hdiutil output
+- **Error Recovery**: Automatic cleanup on failures
+- **App Bundle Generation**: Proper macOS app structure with Info.plist
+- **Installation Scripts**: Automated install/uninstall shell scripts
+
+### Key Improvements
+- **Path Object String Conversion**: All Path objects explicitly converted to strings for external tools
+- **File Existence Validation**: Pre-flight checks prevent build failures
+- **Relative Path Preservation**: Maintains project portability across environments
+- **Platform Detection**: Automatic platform-specific handling
+
+### Build Troubleshooting
+Common issues and solutions are documented in README.md build section.
+
+## Development Best Practices
+
+### When Working with File Paths
+1. **Always import pathlib**: `from pathlib import Path`
+2. **Use relative paths for project structure**: `project_root / "src" / "module"`
+3. **Convert to string for external tools**: `str(path)` when calling subprocess
+4. **Check file existence**: `path.exists()` before operations
+5. **Use `.resolve()` sparingly**: Only when absolute paths are required
+
+### Code Quality Standards
+- **Type Hints**: Use pathlib.Path for path parameters
+- **Error Handling**: Provide clear error messages with path information
+- **Testing**: Include cross-platform path tests
+- **Documentation**: Comment platform-specific behavior
+
+### Example Path-Safe Function
+```python
+from pathlib import Path
+from typing import Optional
+
+def find_config_file(project_root: Path) -> Optional[Path]:
+    """Find configuration file using cross-platform path handling."""
+    candidates = [
+        project_root / "config.ini",
+        project_root / "config" / "config.ini",
+    ]
+    
+    for config_path in candidates:
+        if config_path.exists() and config_path.is_file():
+            return config_path
+    
+    return None
+```
