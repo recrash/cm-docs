@@ -147,6 +147,7 @@ Thumbs.db
 # 빌드 결과물
 dist/
 build/
+test-build/
 *.dmg
 *.exe
 *.msi
