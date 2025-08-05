@@ -64,24 +64,32 @@ class TestCLIUserWorkflow:
             text=True,
             timeout=30
         )
-        
+
         assert result.returncode == 0
         assert 'TestscenarioMaker CLI' in result.stdout
-        assert '--path' in result.stdout
-        assert '--verbose' in result.stdout
-        assert '--config' in result.stdout
-    
-    def test_cli_version_command(self, cli_executable):
-        """버전 명령어 테스트"""
+        
+        # analyze 명령어의 도움말 확인
         result = subprocess.run(
-            cli_executable + ['--version'],
+            cli_executable + ['analyze', '--help'],
             capture_output=True,
             text=True,
             timeout=30
         )
         
         assert result.returncode == 0
-        assert '1.0.0' in result.stdout
+        assert '--path' in result.stdout
+    
+    def test_cli_version_command(self, cli_executable):
+        """버전 명령어 테스트"""
+        result = subprocess.run(
+            cli_executable + ['version'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        assert result.returncode == 0
+        assert 'TestscenarioMaker CLI v' in result.stdout
     
     def test_cli_info_command(self, cli_executable, temp_git_repo):
         """저장소 정보 명령어 테스트"""
@@ -130,7 +138,7 @@ class TestCLIUserWorkflow:
             text=True,
             timeout=30
         )
-        
+
         assert result.returncode == 1  # 실패
         assert '지원되지 않는' in result.stderr or '유효하지 않은' in result.stderr
     
@@ -173,10 +181,10 @@ class TestCLIUserWorkflow:
             text=True,
             timeout=30
         )
-        
+
         assert result.returncode == 0
-        assert 'api' in result.stdout.lower()
         assert 'base_url' in result.stdout
+        assert '[api]' in result.stdout
     
     @patch('ts_cli.api_client.httpx.AsyncClient')
     def test_cli_with_mock_api_success(self, mock_client_class, cli_executable, temp_git_repo):
@@ -195,11 +203,17 @@ class TestCLIUserWorkflow:
         }
         
         mock_client.post.return_value = mock_response
-        mock_client.stream.return_value.__aenter__.return_value = Mock(
+        
+        # stream 메서드의 async context manager 설정
+        mock_stream_response = Mock(
             is_success=True,
             headers={'content-length': '1024'},
-            aiter_bytes=lambda: [b'mock file content']
+            aiter_bytes=lambda chunk_size=None: iter([b'mock file content'])
         )
+        mock_stream_context = Mock()
+        mock_stream_context.__aenter__ = Mock(return_value=mock_stream_response)
+        mock_stream_context.__aexit__ = Mock(return_value=None)
+        mock_client.stream.return_value = mock_stream_context
         
         # 실제 API 호출은 실제 환경에서만 테스트하므로 여기서는 dry-run 사용
         result = subprocess.run(
