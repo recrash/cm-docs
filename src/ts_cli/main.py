@@ -54,6 +54,19 @@ def handle_url_protocol() -> None:
         
         console.print(f"[cyan]🔗 URL 프로토콜 처리 중: {raw_url}[/cyan]")
         
+        # 디버깅을 위한 환경 정보 로깅
+        import tempfile
+        debug_file = Path(tempfile.gettempdir()) / "testscenariomaker_debug.log"
+        with open(debug_file, "a", encoding="utf-8") as f:
+            f.write(f"\n=== URL Protocol Debug {__import__('datetime').datetime.now()} ===\n")
+            f.write(f"URL: {raw_url}\n")
+            f.write(f"PATH: {os.environ.get('PATH', 'NOT_SET')}\n")
+            f.write(f"HOME: {os.environ.get('HOME', 'NOT_SET')}\n")
+            f.write(f"USER: {os.environ.get('USER', 'NOT_SET')}\n")
+            f.write(f"PWD: {os.getcwd()}\n")
+            f.write("="*50 + "\n")
+        console.print(f"[dim]🐛 디버그 로그: {debug_file}[/dim]")
+        
         # URL 디코딩 및 파싱
         decoded_url = urllib.parse.unquote(raw_url)
         parsed = urllib.parse.urlparse(decoded_url)

@@ -157,3 +157,6 @@ test-build/
 
 # 설정 파일 (개발용 제외)
 config/config.local.ini
+
+# AppleScript 컴파일된 파일
+*.scpt

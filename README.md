@@ -14,6 +14,7 @@ TestscenarioMaker를 위한 로컬 저장소 분석 CLI 도구입니다.
 - **한국어 UI**: 모든 사용자 인터페이스가 한국어로 제공
 - **풍부한 출력**: 텍스트와 JSON 형식 출력 지원
 - **URL 프로토콜**: `testscenariomaker://` 프로토콜 지원으로 웹에서 직접 실행
+- **macOS 헬퍼 앱**: 브라우저 샌드박스 제약을 우회하는 전용 헬퍼 앱 제공
 
 ## 🚀 빠른 시작
 
@@ -26,6 +27,8 @@ TestscenarioMaker를 위한 로컬 저장소 분석 CLI 도구입니다.
 #### macOS
 1. [최신 릴리스](https://github.com/testscenariomaker/cli/releases)에서 `.dmg` 파일 다운로드
 2. DMG 파일을 마운트하고 `install.sh` 실행
+   - 메인 CLI 앱과 헬퍼 앱이 동시에 설치됩니다
+   - 헬퍼 앱은 웹 브라우저 샌드박스 제약을 우회합니다
 
 #### 개발자 설치 (pip)
 ```bash
@@ -83,6 +86,33 @@ ts-cli "testscenariomaker:///path/to/repository"
 - 크로스플랫폼 경로 처리 (Windows, macOS, Linux)
 - URL 인코딩된 경로 지원 (공백, 특수문자 포함)
 - 자동 브라우저 통합 (설치 시 프로토콜 등록)
+- **macOS 헬퍼 앱**: 브라우저 샌드박스 제약 우회
+
+#### macOS 헬퍼 앱 시스템
+
+macOS에서는 브라우저의 샌드박스 제약으로 인해 CLI가 네트워크 통신을 할 수 없는 문제를 해결하기 위해 전용 헬퍼 앱을 제공합니다:
+
+**작동 원리:**
+1. 브라우저에서 `testscenariomaker://` 링크 클릭
+2. TestscenarioMaker Helper.app이 URL을 수신
+3. 헬퍼 앱이 독립적인 프로세스로 CLI 실행 (샌드박스 제약 우회)
+4. CLI가 정상적으로 API 호출 및 분석 수행
+
+**브라우저 호환성:**
+- **Safari**: 첫 번째 클릭 시 "허용" 선택
+- **Chrome**: 첫 번째 클릭 시 "열기" 선택
+- **Firefox**: 첫 번째 클릭 시 "링크 열기" 선택
+
+**헬퍼 앱 관리:**
+```bash
+# 헬퍼 앱만 별도 설치/업데이트
+sh scripts/install_helper.sh
+
+# 헬퍼 앱 테스트
+python scripts/test_helper_app.py
+
+# URL 스킴 등록 확인
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -dump | grep testscenariomaker
 ```
 
 ## 📁 프로젝트 구조
@@ -107,7 +137,12 @@ testscenariomaker-cli/
 ├── scripts/                # 빌드 및 패키징
 │   ├── build.py           # 빌드 스크립트
 │   ├── setup_win.nsi      # Windows NSIS (URL 프로토콜 등록)
-│   └── create_dmg.py      # macOS DMG (URL 프로토콜 등록)
+│   ├── create_dmg.py      # macOS DMG (헬퍼 앱 포함)
+│   ├── helper_app.applescript    # macOS 헬퍼 앱 소스
+│   ├── helper_app_info.plist     # 헬퍼 앱 설정
+│   ├── build_helper_app.py       # 헬퍼 앱 빌더
+│   ├── install_helper.sh         # 헬퍼 앱 설치 스크립트
+│   └── test_helper_app.py        # 헬퍼 앱 테스트 도구
 ├── config/                # 설정 파일
 │   └── config.ini         # 기본 설정
 └── test_url_protocol.html # URL 프로토콜 E2E 테스트
@@ -150,6 +185,9 @@ pytest -m e2e           # E2E 테스트
 
 # URL 프로토콜 테스트
 pytest tests/test_url_parsing.py
+
+# macOS 헬퍼 앱 종합 테스트 (macOS에서만)
+python scripts/test_helper_app.py
 ```
 
 ### 빌드
@@ -185,7 +223,15 @@ makensis scripts/setup_win.nsi
 # 실행파일 빌드 후
 python scripts/build.py
 python scripts/create_dmg.py
-# testscenariomaker:// URL 프로토콜이 Info.plist에 등록됩니다
+# 메인 CLI 앱과 헬퍼 앱이 포함된 DMG 생성됩니다
+# testscenariomaker:// URL 프로토콜이 헬퍼 앱에 등록됩니다
+
+# 헬퍼 앱만 별도 빌드/테스트
+python scripts/build_helper_app.py
+python scripts/test_helper_app.py
+
+# 헬퍼 앱 없이 DMG 생성
+python scripts/create_dmg.py --no-helper-app
 ```
 
 #### 빌드 시스템 특징
@@ -225,6 +271,27 @@ sudo hdiutil detach "/Volumes/TestscenarioMaker CLI*" -force
 
 # 임시 DMG 파일 정리
 rm -f dist/temp.dmg
+```
+
+**macOS 헬퍼 앱 관련 오류:**
+
+```bash
+# AppleScript 컴파일 오류
+# Xcode Command Line Tools 설치 확인
+xcode-select --install
+
+# osacompile 명령어 확인
+osacompile -l
+
+# 헬퍼 앱 빌드 전 CLI 빌드 필수
+python scripts/build.py
+python scripts/build_helper_app.py
+
+# 헬퍼 앱 테스트 및 문제 진단
+python scripts/test_helper_app.py
+
+# URL 스킴 등록 강제 갱신
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/TestscenarioMaker\ Helper.app
 ```
 
 ### 코드 품질
