@@ -331,16 +331,37 @@ echo "   ✓ $INSTALL_DIR/$APP_NAME 설치 완료"
 {helper_install_section}
 # CLI 링크 생성
 echo "🔗 명령행 도구 링크를 생성하는 중..."
+
+# 기존 링크 제거 (권한 확인)
 if [ -L "$CLI_LINK" ]; then
     echo "   기존 링크를 제거하는 중..."
-    rm "$CLI_LINK"
+    if [ -w "$CLI_LINK" ]; then
+        rm "$CLI_LINK"
+    else
+        echo "   ℹ️  관리자 권한이 필요합니다..."
+        sudo rm "$CLI_LINK"
+    fi
 fi
 
-# /usr/local/bin 디렉토리 생성 (없는 경우)
-mkdir -p /usr/local/bin
+# /usr/local/bin 디렉토리 생성 (권한 확인)
+if [ ! -d "/usr/local/bin" ]; then
+    echo "   /usr/local/bin 디렉토리를 생성하는 중..."
+    if [ -w "/usr/local" ]; then
+        mkdir -p /usr/local/bin
+    else
+        echo "   ℹ️  관리자 권한이 필요합니다..."
+        sudo mkdir -p /usr/local/bin
+    fi
+fi
 
-# 심볼릭 링크 생성
-ln -s "$INSTALL_DIR/$APP_NAME/Contents/MacOS/$CLI_NAME" "$CLI_LINK"
+# 심볼릭 링크 생성 (권한 확인)
+if [ -w "/usr/local/bin" ]; then
+    ln -s "$INSTALL_DIR/$APP_NAME/Contents/MacOS/$CLI_NAME" "$CLI_LINK"
+else
+    echo "   ℹ️  관리자 권한이 필요합니다..."
+    sudo ln -s "$INSTALL_DIR/$APP_NAME/Contents/MacOS/$CLI_NAME" "$CLI_LINK"
+fi
+
 echo "   ✓ $CLI_LINK 링크 생성 완료"
 
 # 실행 권한 확인
@@ -399,7 +420,17 @@ echo "🗑️ TestscenarioMaker CLI 제거를 시작합니다..."
 # CLI 링크 제거
 if [ -L "$CLI_LINK" ]; then
     echo "🔗 명령행 도구 링크를 제거하는 중..."
-    rm "$CLI_LINK"
+    
+    # 링크 소유자 확인
+    if [ -w "$CLI_LINK" ]; then
+        # 쓰기 권한이 있으면 직접 제거
+        rm "$CLI_LINK"
+    else
+        # 권한이 없으면 sudo 사용
+        echo "   ℹ️  관리자 권한이 필요합니다..."
+        sudo rm "$CLI_LINK"
+    fi
+    
     echo "   ✓ $CLI_LINK 제거 완료"
 fi
 
