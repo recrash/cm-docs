@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 import argparse
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 
 class BuildError(Exception):
@@ -79,25 +79,81 @@ class CLIBuilder:
         """빌드 의존성 확인"""
         print("📦 빌드 의존성 확인 중...")
         
-        required_packages = ['pyinstaller']
+        # 패키지명과 실제 import 모듈명 매핑
+        package_mapping = {
+            'pyinstaller': 'PyInstaller'
+        }
         
-        for package in required_packages:
+        for package, import_name in package_mapping.items():
             try:
-                result = subprocess.run(
-                    [sys.executable, '-c', f'import {package}'],
-                    capture_output=True,
-                    check=True
-                )
+                # 실제 import 모듈명으로 확인
+                __import__(import_name)
                 print(f"   ✓ {package} 설치됨")
-            except subprocess.CalledProcessError:
-                raise BuildError(
-                    f"필수 패키지 {package}가 설치되지 않았습니다. "
-                    f"'pip install {package}'로 설치하세요."
-                )
+            except ImportError:
+                # import 실패 시 subprocess로 재확인
+                try:
+                    result = subprocess.run(
+                        [sys.executable, '-c', f'import {import_name}'],
+                        capture_output=True,
+                        check=True
+                    )
+                    print(f"   ✓ {package} 설치됨 (subprocess 확인)")
+                except subprocess.CalledProcessError:
+                    raise BuildError(
+                        f"필수 패키지 {package}가 설치되지 않았습니다. "
+                        f"'pip install {package}'로 설치하세요."
+                    )
+    
+    def _prepare_build_files(self) -> Dict[str, Any]:
+        """빌드에 필요한 파일들 확인 및 경로 준비"""
+        print("📋 빌드 파일 준비 중...")
+        
+        build_info = {
+            'main_script': self.src_dir / "ts_cli" / "main.py",
+            'datas': [],
+            'version_file': None,
+            'icon_file': None
+        }
+        
+        # 필수 파일 확인
+        if not build_info['main_script'].exists():
+            raise BuildError(f"메인 스크립트를 찾을 수 없습니다: {build_info['main_script']}")
+        
+        # 선택적 파일들 확인
+        config_file = self.project_root / "config" / "config.ini"
+        if config_file.exists():
+            build_info['datas'].append((str(config_file), "config"))
+            print(f"   ✓ 설정 파일 포함: {config_file}")
+        else:
+            print(f"   ⚠️ 설정 파일 없음 (선택사항): {config_file}")
+        
+        # Windows 버전 정보 파일
+        if self.platform_name == 'windows':
+            version_file = self.scripts_dir / "version_info.txt"
+            if version_file.exists():
+                build_info['version_file'] = str(version_file)
+                print(f"   ✓ 버전 정보 파일: {version_file}")
+        
+        # 아이콘 파일
+        icon_file = self.scripts_dir / "icon.ico"
+        if icon_file.exists():
+            build_info['icon_file'] = str(icon_file)
+            print(f"   ✓ 아이콘 파일: {icon_file}")
+        
+        return build_info
     
     def create_spec_file(self) -> Path:
         """PyInstaller spec 파일 생성"""
         print("📄 PyInstaller spec 파일 생성 중...")
+        
+        # 빌드 파일 준비
+        build_info = self._prepare_build_files()
+        
+        # datas 배열 구성
+        datas_str = "[\n"
+        for data_item in build_info['datas']:
+            datas_str += f"        {repr(data_item)},\n"
+        datas_str += "    ]"
         
         spec_content = f'''# -*- mode: python ; coding: utf-8 -*-
 
@@ -105,17 +161,15 @@ import sys
 from pathlib import Path
 
 # 프로젝트 경로 설정
-project_root = Path(r"{self.project_root}")
+project_root = Path(r"{str(self.project_root)}")
 src_dir = project_root / "src"
 
 # 분석 설정
 a = Analysis(
-    [str(src_dir / "ts_cli" / "main.py")],
+    [r"{str(build_info['main_script'])}"],
     pathex=[str(src_dir)],
     binaries=[],
-    datas=[
-        (str(project_root / "config" / "config.ini"), "config"),
-    ],
+    datas={datas_str},
     hiddenimports=[
         'ts_cli',
         'ts_cli.vcs',
@@ -164,8 +218,8 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    version=r"{self.scripts_dir / 'version_info.txt' if self.platform_name == 'windows' else None}",
-    icon=r"{self.scripts_dir / 'icon.ico' if (self.scripts_dir / 'icon.ico').exists() else None}",
+    version=r"{build_info['version_file']}",
+    icon=r"{build_info['icon_file']}",
 )
 '''
         

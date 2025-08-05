@@ -206,7 +206,12 @@ class TestAPIClient:
         mock_response = AsyncMock()
         mock_response.is_success = True
         mock_response.headers = {'content-length': '1024'}
-        mock_response.aiter_bytes = AsyncMock(return_value=[b'test data chunk'])
+        
+        # 올바른 async iterator 설정
+        async def mock_aiter_bytes(chunk_size=None):
+            yield b'test data chunk'
+        
+        mock_response.aiter_bytes = mock_aiter_bytes
         
         mock_stream.return_value.__aenter__.return_value = mock_response
         
@@ -224,22 +229,27 @@ class TestAPIClient:
     
     @pytest.mark.asyncio
     @patch('httpx.AsyncClient.stream')
-    async def test_download_result_auto_path(self, mock_stream, api_client):
+    async def test_download_result_auto_path(self, mock_stream, api_client, tmp_path):
         """자동 경로 생성 다운로드 테스트"""
         mock_response = AsyncMock()
         mock_response.is_success = True
         mock_response.headers = {'content-length': '100'}
-        mock_response.aiter_bytes = AsyncMock(return_value=[b'data'])
+        
+        # 올바른 async iterator 설정
+        async def mock_aiter_bytes(chunk_size=None):
+            yield b'data'
+        
+        mock_response.aiter_bytes = mock_aiter_bytes
         
         mock_stream.return_value.__aenter__.return_value = mock_response
         
         with patch('pathlib.Path.cwd') as mock_cwd:
-            mock_cwd.return_value = Path('/test')
+            mock_cwd.return_value = tmp_path
             
             result = await api_client.download_result("https://example.com/result.zip")
             
             assert result is not None
-            assert str(result).startswith('/test/testscenario_result_')
+            assert str(result).startswith(str(tmp_path))
             assert str(result).endswith('.zip')
     
     @pytest.mark.asyncio

@@ -42,7 +42,7 @@ class ConfigLoader:
         Returns:
             최종 설정 파일 경로
         """
-        if config_path and config_path.exists():
+        if config_path:
             return config_path
         
         # 현재 작업 디렉토리의 config.ini 확인
@@ -100,7 +100,7 @@ class ConfigLoader:
         """기본 설정 값 로드"""
         # API 설정
         self.config['api'] = {
-            'base_url': 'https://api.testscenariomaker.com',
+            'base_url': 'http://localhost:8000',
             'timeout': '30',
             'max_retries': '3',
             'retry_delay': '1.0',
@@ -174,18 +174,27 @@ class ConfigLoader:
         설정 값 설정
         
         Args:
-            section: 설정 섹션명
-            key: 설정 키명  
+            section: 섹션명
+            key: 설정 키
             value: 설정 값
         """
+        section_added = False
         try:
             if not self.config.has_section(section):
                 self.config.add_section(section)
+                section_added = True
             
             self.config.set(section, key, str(value))
             
         except Exception as e:
             logger.error(f"설정 값 설정 실패 ({section}.{key}): {e}")
+            # 예외 발생 시 추가된 섹션 제거
+            if section_added:
+                try:
+                    self.config.remove_section(section)
+                except Exception:
+                    pass  # 섹션 제거 실패는 무시
+            return
     
     def save(self) -> bool:
         """
@@ -195,6 +204,9 @@ class ConfigLoader:
             저장 성공 여부
         """
         try:
+            # 디렉토리가 없으면 생성
+            self.config_path.parent.mkdir(parents=True, exist_ok=True)
+            
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 self.config.write(f)
             logger.info(f"설정 파일 저장됨: {self.config_path}")

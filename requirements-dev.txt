@@ -6,7 +6,6 @@ pytest>=7.0.0
 pytest-asyncio>=0.21.0
 pytest-mock>=3.10.0
 pytest-cov>=4.0.0
-httpx-mock>=0.10.0
 
 # 코드 품질 도구
 black>=23.0.0

@@ -167,7 +167,7 @@ mypy src/
 
 ```ini
 [api]
-base_url = https://api.testscenariomaker.com
+base_url = http://localhost:8000
 timeout = 30
 max_retries = 3
 
