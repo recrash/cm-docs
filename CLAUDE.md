@@ -63,6 +63,9 @@ pip install -r requirements-dev.txt
 
 # Test CLI directly
 python -m ts_cli.main --help
+
+# Alternative CLI testing
+ts-cli --help  # After pip install -e .
 ```
 
 ## Architecture Overview
@@ -120,6 +123,19 @@ The codebase uses the Strategy pattern to support multiple VCS systems through a
 - `[cli]`: default_output_format, verbose, show_progress  
 - `[logging]`: level, file_enabled (format uses %% escaping for ConfigParser)
 - `[vcs]`: git_timeout, max_diff_size
+
+### Additional Commands
+- `ts-cli analyze`: Main analysis command with branch comparison support
+- `ts-cli info <path>`: Show repository information without analysis
+- `ts-cli config-show`: Display current configuration
+- `ts-cli version`: Show version information
+
+### CLI Features
+- **Korean UI**: All user interface text is in Korean for better accessibility
+- **Rich Console**: Uses Rich library for enhanced console output with colors and formatting
+- **URL Protocol**: Supports `testscenariomaker://` protocol for integration
+- **Branch Comparison**: Analyzes differences between base and head branches (default: origin/develop → HEAD)
+- **Working State**: Includes uncommitted changes in analysis
 
 ## Cross-Platform Development Guidelines
 
@@ -251,6 +267,21 @@ Common issues and solutions are documented in README.md build section.
 - **Documentation**: Comment platform-specific behavior
 - **ConfigParser**: Use %% escaping for logging format strings to avoid interpolation errors
 
+### PyInstaller Compatibility
+The codebase uses conditional imports to handle PyInstaller's different module resolution:
+
+```python
+# PyInstaller compatibility pattern
+try:
+    from . import __version__
+    from .cli_handler import CLIHandler
+except ImportError:
+    # PyInstaller environment uses absolute imports
+    import ts_cli
+    from ts_cli import __version__
+    from ts_cli.cli_handler import CLIHandler
+```
+
 ### Example Path-Safe Function
 ```python
 from pathlib import Path
@@ -289,3 +320,26 @@ def find_config_file(project_root: Path) -> Optional[Path]:
 - Edge cases: Unicode paths, long paths, special characters, symlinks
 - Mock subprocess testing to verify string conversion
 - Platform-specific path separator validation
+
+## Dependencies and Stack
+
+### Core Dependencies
+- **Click**: Command-line interface framework with Korean support
+- **Rich**: Enhanced console output with colors and formatting
+- **httpx**: Modern async HTTP client with retry support
+- **tenacity**: Retry logic for robust API communication
+
+### Development Dependencies
+- **pytest**: Testing framework with markers (unit/integration/e2e)
+- **pytest-asyncio**: Async test support
+- **pytest-mock**: Mock object support
+- **httpx-mock**: HTTP client mocking for API tests
+- **black**: Code formatting
+- **isort**: Import sorting
+- **flake8**: Linting
+- **mypy**: Type checking
+
+### Build Tools
+- **PyInstaller**: Cross-platform executable generation
+- **NSIS**: Windows installer creation (Windows only)
+- **hdiutil**: macOS DMG creation (macOS only)
