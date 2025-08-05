@@ -64,8 +64,26 @@ def main() -> None:
     help="출력 형식 선택 (기본값: text)",
 )
 @click.option("--dry-run", is_flag=True, help="실제 API 호출 없이 분석만 수행")
+@click.option(
+    "--base-branch",
+    "-b",
+    default="origin/develop",
+    help="기준 브랜치명 (기본값: origin/develop)",
+)
+@click.option(
+    "--head-branch",
+    "-h",
+    default="HEAD",
+    help="대상 브랜치명 (기본값: HEAD)",
+)
 def analyze(
-    path: Path, config: Optional[Path], verbose: bool, output: str, dry_run: bool
+    path: Path, 
+    config: Optional[Path], 
+    verbose: bool, 
+    output: str, 
+    dry_run: bool,
+    base_branch: str,
+    head_branch: str
 ) -> None:
     """
     TestscenarioMaker CLI - 로컬 저장소 분석 도구
@@ -73,10 +91,16 @@ def analyze(
     로컬 Git 저장소를 분석하여 TestscenarioMaker 서버로 전송하고
     분석 결과를 다운로드합니다.
 
+    브랜치 간 비교 분석:
+    - 기준 브랜치(base-branch)와 대상 브랜치(head-branch) 간의 차이점을 분석
+    - 공통 조상부터 대상 브랜치까지의 모든 커밋 메시지와 코드 변경사항을 수집
+    - 현재 작업 디렉토리의 변경사항(Working State)도 포함
+
     예시:
         ts-cli analyze --path /path/to/repo --verbose
         ts-cli analyze -p . -o json
         ts-cli analyze --config custom_config.ini --dry-run
+        ts-cli analyze --base-branch main --head-branch feature/new-feature
     """
     try:
         # 설정 로드
@@ -95,11 +119,12 @@ def analyze(
                 f"[bold blue]TestscenarioMaker CLI v{__version__}[/bold blue]"
             )
             console.print(f"저장소 분석 시작: [green]{path.resolve()}[/green]")
+            console.print(f"브랜치 비교: [cyan]{base_branch}[/cyan] → [cyan]{head_branch}[/cyan]")
 
         # CLI 핸들러 생성 및 실행
         handler = CLIHandler(verbose=verbose, output_format=output, dry_run=dry_run)
 
-        success = handler.analyze_repository(path)
+        success = handler.analyze_repository(path, base_branch, head_branch)
 
         if success:
             if not dry_run:

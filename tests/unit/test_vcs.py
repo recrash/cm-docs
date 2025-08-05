@@ -125,24 +125,35 @@ class TestGitAnalyzer:
         assert result is False
 
     @patch("ts_cli.vcs.git_analyzer.GitAnalyzer.validate_repository")
-    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_latest_commit_info")
-    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_working_directory_changes")
-    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_diff_from_head")
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_branch_comparison_analysis")
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_working_state_analysis")
     def test_get_changes_success(
-        self, mock_diff, mock_working, mock_commit, mock_validate, git_analyzer
+        self, mock_working_state, mock_branch_analysis, mock_validate, git_analyzer
     ):
         """변경사항 분석 성공 케이스"""
         # Mock 설정
         mock_validate.return_value = True
-        mock_commit.return_value = (
-            "커밋: abc123\n작성자: Test User\n메시지: Test commit"
+        mock_branch_analysis.return_value = (
+            "### 커밋 메시지 목록:\n"
+            "- Test commit\n"
+            "- Another commit\n\n"
+            "### 주요 코드 변경 내용 (diff):\n"
+            "--- 파일: test.py ---\n"
+            "+new line"
         )
-        mock_working.return_value = "M  test.py\nA  new_file.py"
-        mock_diff.return_value = "diff --git a/test.py b/test.py\n+new line"
+        mock_working_state.return_value = (
+            "### 작업 디렉토리 변경사항 (Working State):\n"
+            "M  test.py\n"
+            "A  new_file.py\n\n"
+            "### HEAD와의 차이점 (Working State):\n"
+            "diff --git a/test.py b/test.py\n"
+            "+new line"
+        )
 
         result = git_analyzer.get_changes()
 
-        assert "최근 커밋 정보" in result
+        assert "커밋 메시지 목록" in result
+        assert "주요 코드 변경 내용" in result
         assert "작업 디렉토리 변경사항" in result
         assert "HEAD와의 차이점" in result
         assert "Test commit" in result
@@ -157,21 +168,193 @@ class TestGitAnalyzer:
             git_analyzer.get_changes()
 
     @patch("ts_cli.vcs.git_analyzer.GitAnalyzer.validate_repository")
-    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_latest_commit_info")
-    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_working_directory_changes")
-    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_diff_from_head")
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_branch_comparison_analysis")
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_working_state_analysis")
     def test_get_changes_no_changes(
-        self, mock_diff, mock_working, mock_commit, mock_validate, git_analyzer
+        self, mock_working_state, mock_branch_analysis, mock_validate, git_analyzer
     ):
         """변경사항이 없는 경우 테스트"""
         mock_validate.return_value = True
-        mock_commit.return_value = None
-        mock_working.return_value = None
-        mock_diff.return_value = None
+        mock_branch_analysis.return_value = None
+        mock_working_state.return_value = None
 
         result = git_analyzer.get_changes()
 
         assert result == "변경사항이 없습니다. 작업 디렉토리가 깨끗합니다."
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer.validate_repository")
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_branch_comparison_analysis")
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_working_state_analysis")
+    def test_get_changes_with_branch_parameters(
+        self, mock_working_state, mock_branch_analysis, mock_validate, git_analyzer
+    ):
+        """브랜치 파라미터를 사용한 변경사항 분석 테스트"""
+        mock_validate.return_value = True
+        mock_branch_analysis.return_value = "브랜치 분석 결과"
+        mock_working_state.return_value = "작업 상태 분석 결과"
+
+        result = git_analyzer.get_changes("main", "feature/branch")
+
+        assert "브랜치 분석 결과" in result
+        assert "작업 상태 분석 결과" in result
+        mock_branch_analysis.assert_called_once_with("main", "feature/branch")
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._run_git_command")
+    def test_get_merge_base_commit_success(self, mock_run_git, git_analyzer):
+        """공통 조상 커밋 찾기 성공 테스트"""
+        mock_run_git.return_value = "abc123def456"
+
+        result = git_analyzer._get_merge_base_commit("main", "feature/branch")
+
+        assert result == "abc123def456"
+        mock_run_git.assert_called_once_with(["git", "merge-base", "main", "feature/branch"])
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._run_git_command")
+    def test_get_merge_base_commit_failure(self, mock_run_git, git_analyzer):
+        """공통 조상 커밋 찾기 실패 테스트"""
+        mock_run_git.return_value = None
+
+        result = git_analyzer._get_merge_base_commit("main", "feature/branch")
+
+        assert result is None
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._run_git_command")
+    def test_get_commit_messages_success(self, mock_run_git, git_analyzer):
+        """커밋 메시지 수집 성공 테스트"""
+        mock_run_git.return_value = "- 첫 번째 커밋\n- 두 번째 커밋\n- 세 번째 커밋"
+
+        result = git_analyzer._get_commit_messages("abc123", "feature/branch")
+
+        assert result == ["- 첫 번째 커밋", "- 두 번째 커밋", "- 세 번째 커밋"]
+        mock_run_git.assert_called_once_with([
+            "git", "log", 
+            "abc123..feature/branch",
+            "--pretty=format:- %s",
+            "--reverse"
+        ])
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._run_git_command")
+    def test_get_commit_messages_empty(self, mock_run_git, git_analyzer):
+        """커밋 메시지가 없는 경우 테스트"""
+        mock_run_git.return_value = None
+
+        result = git_analyzer._get_commit_messages("abc123", "feature/branch")
+
+        assert result == []
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._run_git_command")
+    def test_get_code_changes_success(self, mock_run_git, git_analyzer):
+        """코드 변경사항 분석 성공 테스트"""
+        mock_run_git.return_value = (
+            "diff --git a/test.py b/test.py\n"
+            "index abc123..def456 100644\n"
+            "--- a/test.py\n"
+            "+++ b/test.py\n"
+            "@@ -1,3 +1,4 @@\n"
+            " line1\n"
+            "+new line\n"
+            " line2\n"
+            " line3\n"
+        )
+
+        result = git_analyzer._get_code_changes("abc123", "feature/branch")
+
+        assert len(result) > 0
+        assert any("test.py" in str(line) for line in result)
+        mock_run_git.assert_called_once_with([
+            "git", "diff", 
+            "abc123", "feature/branch",
+            "--unified=3"
+        ])
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._run_git_command")
+    def test_get_code_changes_empty(self, mock_run_git, git_analyzer):
+        """코드 변경사항이 없는 경우 테스트"""
+        mock_run_git.return_value = None
+
+        result = git_analyzer._get_code_changes("abc123", "feature/branch")
+
+        assert result == []
+
+    def test_parse_diff_files(self, git_analyzer):
+        """git diff 출력 파싱 테스트"""
+        diff_output = (
+            "diff --git a/file1.py b/file1.py\n"
+            "index abc123..def456 100644\n"
+            "--- a/file1.py\n"
+            "+++ b/file1.py\n"
+            "@@ -1,3 +1,4 @@\n"
+            " line1\n"
+            "+new line\n"
+            " line2\n"
+            "diff --git a/file2.py b/file2.py\n"
+            "index ghi789..jkl012 100644\n"
+            "--- a/file2.py\n"
+            "+++ b/file2.py\n"
+            "@@ -1,2 +1,3 @@\n"
+            " old line\n"
+            "+another new line\n"
+        )
+
+        result = git_analyzer._parse_diff_files(diff_output)
+
+        assert len(result) == 2
+        assert any("file1.py" in str(file_lines) for file_lines in result)
+        assert any("file2.py" in str(file_lines) for file_lines in result)
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_working_directory_changes")
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_diff_from_head")
+    def test_get_working_state_analysis_success(self, mock_diff, mock_working, git_analyzer):
+        """작업 상태 분석 성공 테스트"""
+        mock_working.return_value = "M  test.py\nA  new_file.py"
+        mock_diff.return_value = "diff --git a/test.py b/test.py\n+new line"
+
+        result = git_analyzer._get_working_state_analysis()
+
+        assert "작업 디렉토리 변경사항 (Working State)" in result
+        assert "HEAD와의 차이점 (Working State)" in result
+        assert "M  test.py" in result
+        assert "new line" in result
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_working_directory_changes")
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_diff_from_head")
+    def test_get_working_state_analysis_empty(self, mock_diff, mock_working, git_analyzer):
+        """작업 상태가 깨끗한 경우 테스트"""
+        mock_working.return_value = None
+        mock_diff.return_value = None
+
+        result = git_analyzer._get_working_state_analysis()
+
+        assert result is None
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_merge_base_commit")
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_commit_messages")
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_code_changes")
+    def test_get_branch_comparison_analysis_success(
+        self, mock_code_changes, mock_commit_messages, mock_merge_base, git_analyzer
+    ):
+        """브랜치 비교 분석 성공 테스트"""
+        mock_merge_base.return_value = "abc123"
+        mock_commit_messages.return_value = ["- 첫 번째 커밋", "- 두 번째 커밋"]
+        mock_code_changes.return_value = ["--- 파일: test.py ---", "+new line"]
+
+        result = git_analyzer._get_branch_comparison_analysis("main", "feature/branch")
+
+        assert "커밋 메시지 목록" in result
+        assert "주요 코드 변경 내용" in result
+        assert "첫 번째 커밋" in result
+        assert "new line" in result
+
+    @patch("ts_cli.vcs.git_analyzer.GitAnalyzer._get_merge_base_commit")
+    def test_get_branch_comparison_analysis_no_merge_base(
+        self, mock_merge_base, git_analyzer
+    ):
+        """공통 조상을 찾을 수 없는 경우 테스트"""
+        mock_merge_base.return_value = None
+
+        result = git_analyzer._get_branch_comparison_analysis("main", "feature/branch")
+
+        assert result == "오류: 공통 조상을 찾을 수 없습니다."
 
     @patch("ts_cli.vcs.git_analyzer.subprocess.run")
     def test_run_git_command_success(self, mock_run, git_analyzer):

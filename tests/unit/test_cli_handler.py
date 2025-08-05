@@ -170,35 +170,6 @@ class TestCLIHandler:
 
         assert result is None
 
-    @patch("ts_cli.cli_handler.asyncio.run")
-    def test_download_result_success(self, mock_asyncio_run, cli_handler):
-        """결과 다운로드 성공 테스트"""
-        mock_path = Path("/test/result.zip")
-        mock_asyncio_run.return_value = mock_path
-
-        api_response = {"result_url": "https://example.com/result.zip"}
-        result = cli_handler._download_result(api_response)
-
-        assert result is True
-        assert api_response["download_path"] == str(mock_path)
-
-    def test_download_result_no_url(self, cli_handler):
-        """다운로드 URL이 없는 경우 테스트"""
-        api_response = {}
-        result = cli_handler._download_result(api_response)
-
-        assert result is True  # 오류가 아니므로 True
-
-    @patch("ts_cli.cli_handler.asyncio.run")
-    def test_download_result_error(self, mock_asyncio_run, cli_handler):
-        """결과 다운로드 오류 테스트"""
-        mock_asyncio_run.side_effect = APIError("Download failed")
-
-        api_response = {"result_url": "https://example.com/result.zip"}
-        result = cli_handler._download_result(api_response)
-
-        assert result is False
-
     def test_display_dry_run_result_text_format(self, cli_handler, capsys):
         """Dry run 결과 텍스트 형식 출력 테스트"""
         analysis_result = {
@@ -277,8 +248,8 @@ class TestCLIHandler:
 
         assert result is True
         mock_validate.assert_called_once_with(tmp_path)
-        mock_analyze.assert_called_once_with(mock_analyzer)
-        mock_display.assert_called_once()
+        mock_analyze.assert_called_once_with(mock_analyzer, "origin/develop", "HEAD")
+        mock_display.assert_called_once_with({"test": "data"})
 
     @patch("ts_cli.cli_handler.CLIHandler._validate_repository")
     def test_analyze_repository_validation_failure(
@@ -296,7 +267,7 @@ class TestCLIHandler:
     def test_analyze_repository_analysis_failure(
         self, mock_analyze, mock_validate, cli_handler, mock_analyzer, tmp_path
     ):
-        """변경사항 분석 실패 테스트"""
+        """분석 실패 테스트"""
         mock_validate.return_value = mock_analyzer
         mock_analyze.return_value = None
 
@@ -307,12 +278,10 @@ class TestCLIHandler:
     @patch("ts_cli.cli_handler.CLIHandler._validate_repository")
     @patch("ts_cli.cli_handler.CLIHandler._analyze_changes")
     @patch("ts_cli.cli_handler.CLIHandler._send_to_api")
-    @patch("ts_cli.cli_handler.CLIHandler._download_result")
     @patch("ts_cli.cli_handler.CLIHandler._display_final_result")
     def test_analyze_repository_full_success(
         self,
         mock_display,
-        mock_download,
         mock_send,
         mock_analyze,
         mock_validate,
@@ -321,20 +290,17 @@ class TestCLIHandler:
         tmp_path,
     ):
         """전체 워크플로우 성공 테스트"""
-        # Mock 설정
         mock_validate.return_value = mock_analyzer
-        mock_analyze.return_value = {"test": "analysis"}
-        mock_send.return_value = {"analysis_id": "test-123"}
-        mock_download.return_value = True
+        mock_analyze.return_value = {"test": "data"}
+        mock_send.return_value = {"status": "success"}
 
         result = cli_handler.analyze_repository(tmp_path)
 
         assert result is True
-        mock_validate.assert_called_once()
-        mock_analyze.assert_called_once()
-        mock_send.assert_called_once()
-        mock_download.assert_called_once()
-        mock_display.assert_called_once()
+        mock_validate.assert_called_once_with(tmp_path)
+        mock_analyze.assert_called_once_with(mock_analyzer, "origin/develop", "HEAD")
+        mock_send.assert_called_once_with({"test": "data"})
+        mock_display.assert_called_once_with({"status": "success"})
 
     @patch("ts_cli.cli_handler.CLIHandler._validate_repository")
     def test_analyze_repository_keyboard_interrupt(
