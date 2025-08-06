@@ -50,6 +50,186 @@ install(show_locals=True)
 console = Console()
 
 
+def collect_debug_info(raw_url: str) -> dict:
+    """URL 프로토콜 처리를 위한 종합 디버깅 정보 수집"""
+    import tempfile
+    import subprocess
+    import json
+    import datetime
+    
+    debug_info = {
+        'timestamp': datetime.datetime.now().isoformat(),
+        'url': raw_url,
+        'debug_file': Path(tempfile.gettempdir()) / "testscenariomaker_debug.log"
+    }
+    
+    # 1. 기본 시스템 정보
+    debug_info['system'] = {
+        'platform': platform.system(),
+        'platform_release': platform.release(),
+        'platform_version': platform.version(),
+        'architecture': platform.architecture(),
+        'python_version': platform.python_version(),
+        'executable_path': sys.executable,
+        'working_directory': os.getcwd(),
+        'cli_executable': str(Path(sys.executable).parent / "ts-cli.exe") if platform.system() == "Windows" else "ts-cli"
+    }
+    
+    # 2. 환경 변수
+    debug_info['environment'] = {
+        'PATH': os.environ.get('PATH', 'NOT_SET'),
+        'HOME': os.environ.get('HOME', 'NOT_SET'),
+        'USER': os.environ.get('USER', 'NOT_SET'),
+        'USERNAME': os.environ.get('USERNAME', 'NOT_SET'),
+        'USERPROFILE': os.environ.get('USERPROFILE', 'NOT_SET'),
+        'TEMP': os.environ.get('TEMP', 'NOT_SET'),
+        'TMP': os.environ.get('TMP', 'NOT_SET')
+    }
+    
+    # 3. 프로세스 정보
+    try:
+        import psutil
+        current_process = psutil.Process()
+        debug_info['process'] = {
+            'pid': current_process.pid,
+            'ppid': current_process.ppid(),
+            'name': current_process.name(),
+            'exe': current_process.exe(),
+            'cmdline': current_process.cmdline(),
+            'cwd': current_process.cwd(),
+            'username': current_process.username()
+        }
+        
+        # 부모 프로세스 정보 (브라우저 정보 획득)
+        try:
+            parent_process = current_process.parent()
+            if parent_process:
+                debug_info['parent_process'] = {
+                    'pid': parent_process.pid,
+                    'name': parent_process.name(),
+                    'exe': parent_process.exe(),
+                    'cmdline': parent_process.cmdline()
+                }
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            debug_info['parent_process'] = {'error': 'Cannot access parent process'}
+            
+    except ImportError:
+        debug_info['process'] = {'error': 'psutil not available, using basic process info'}
+        debug_info['process'].update({
+            'pid': os.getpid(),
+            'cmdline': sys.argv
+        })
+    except Exception as e:
+        debug_info['process'] = {'error': str(e)}
+    
+    # 4. Windows 레지스트리 정보 (Windows만)
+    if platform.system() == "Windows":
+        debug_info['registry'] = check_windows_registry()
+    
+    # 5. CLI 설치 상태 확인
+    debug_info['cli_status'] = check_cli_installation()
+    
+    return debug_info
+
+
+def check_windows_registry() -> dict:
+    """Windows 레지스트리에서 URL 프로토콜 등록 상태 확인"""
+    try:
+        import winreg
+        registry_info = {}
+        
+        # testscenariomaker 프로토콜 키 확인
+        try:
+            with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, "testscenariomaker") as key:
+                registry_info['protocol_exists'] = True
+                registry_info['protocol_description'] = winreg.QueryValueEx(key, "")[0]
+                
+                # URL Protocol 값 확인
+                try:
+                    registry_info['url_protocol'] = winreg.QueryValueEx(key, "URL Protocol")[0]
+                except FileNotFoundError:
+                    registry_info['url_protocol'] = 'NOT_SET'
+                    
+        except FileNotFoundError:
+            registry_info['protocol_exists'] = False
+            
+        # 명령어 경로 확인
+        try:
+            with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, r"testscenariomaker\shell\open\command") as key:
+                command_path = winreg.QueryValueEx(key, "")[0]
+                registry_info['command_path'] = command_path
+                
+                # 명령어 경로 추출 (따옴표 안의 실행파일 경로만 추출)
+                import shlex
+                try:
+                    # shlex로 명령줄 파싱 (따옴표 처리 포함)
+                    parsed_command = shlex.split(command_path)
+                    executable_path = parsed_command[0] if parsed_command else ""
+                    registry_info['parsed_executable'] = executable_path
+                    registry_info['command_exists'] = Path(executable_path).exists()
+                except Exception as parse_error:
+                    # shlex 파싱 실패시 기본 방식으로 파싱
+                    executable_path = command_path.strip('"').split()[0] if command_path else ""
+                    registry_info['parsed_executable'] = executable_path
+                    registry_info['command_exists'] = Path(executable_path).exists()
+                    registry_info['parse_error'] = str(parse_error)
+        except FileNotFoundError:
+            registry_info['command_path'] = 'NOT_SET'
+            registry_info['command_exists'] = False
+            
+        return registry_info
+        
+    except ImportError:
+        return {'error': 'winreg module not available'}
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def check_cli_installation() -> dict:
+    """CLI 설치 상태 확인"""
+    cli_info = {}
+    
+    # PATH에서 ts-cli 확인
+    import shutil
+    cli_path = shutil.which('ts-cli')
+    cli_info['cli_in_path'] = cli_path is not None
+    cli_info['cli_path'] = cli_path
+    
+    # 일반적인 설치 경로 확인
+    if platform.system() == "Windows":
+        common_paths = [
+            Path(os.environ.get('PROGRAMFILES', 'C:/Program Files')) / "TestscenarioMaker CLI" / "ts-cli.exe",
+            Path(os.environ.get('PROGRAMFILES(X86)', 'C:/Program Files (x86)')) / "TestscenarioMaker CLI" / "ts-cli.exe",
+            Path.cwd() / "dist" / "ts-cli.exe"
+        ]
+        
+        for path in common_paths:
+            if path.exists():
+                cli_info['found_installations'] = cli_info.get('found_installations', []) + [str(path)]
+                
+    return cli_info
+
+
+def log_debug_info(debug_info: dict) -> None:
+    """디버깅 정보를 파일에 로깅"""
+    import json
+    
+    try:
+        with open(debug_info['debug_file'], "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*80}\n")
+            f.write(f"URL Protocol Debug Session: {debug_info['timestamp']}\n")
+            f.write(f"{'='*80}\n")
+            
+            # JSON 형태로 구조화된 정보 저장
+            f.write(json.dumps(debug_info, indent=2, ensure_ascii=False, default=str))
+            f.write(f"\n{'='*80}\n\n")
+            
+        console.print("[green]디버그 정보 수집 완료[/green]")
+        
+    except Exception as e:
+        console.print(f"[red]디버그 로깅 실패: {e}[/red]")
+
+
 def handle_url_protocol() -> None:
     """
     testscenariomaker:// URL 프로토콜 처리
@@ -62,23 +242,15 @@ def handle_url_protocol() -> None:
         raw_url = " ".join(sys.argv[1:])
         
         if not raw_url.startswith('testscenariomaker://'):
-            print("[red]❌ 올바르지 않은 URL 형식입니다.[/red]", file=sys.stderr)
+            print("[red]올바르지 않은 URL 형식입니다.[/red]", file=sys.stderr)
             sys.exit(1)
         
-        console.print(f"[cyan]🔗 URL 프로토콜 처리 중: {raw_url}[/cyan]")
+        console.print(f"[cyan]URL 프로토콜 처리 중: {raw_url}[/cyan]")
         
-        # 디버깅을 위한 환경 정보 로깅
-        import tempfile
-        debug_file = Path(tempfile.gettempdir()) / "testscenariomaker_debug.log"
-        with open(debug_file, "a", encoding="utf-8") as f:
-            f.write(f"\n=== URL Protocol Debug {__import__('datetime').datetime.now()} ===\n")
-            f.write(f"URL: {raw_url}\n")
-            f.write(f"PATH: {os.environ.get('PATH', 'NOT_SET')}\n")
-            f.write(f"HOME: {os.environ.get('HOME', 'NOT_SET')}\n")
-            f.write(f"USER: {os.environ.get('USER', 'NOT_SET')}\n")
-            f.write(f"PWD: {os.getcwd()}\n")
-            f.write("="*50 + "\n")
-        console.print(f"[dim]🐛 디버그 로그: {debug_file}[/dim]")
+        # 종합 디버깅 정보 수집
+        debug_info = collect_debug_info(raw_url)
+        log_debug_info(debug_info)
+        console.print(f"[dim]디버그 로그: {debug_info['debug_file']}[/dim]")
         
         # URL 디코딩 및 파싱
         decoded_url = urllib.parse.unquote(raw_url)
@@ -99,19 +271,19 @@ def handle_url_protocol() -> None:
         # pathlib.Path 객체로 변환
         repository_path = Path(path_str)
         
-        console.print(f"[green]📂 분석 대상 경로: {repository_path.resolve()}[/green]")
+        console.print(f"[green]분석 대상 경로: {repository_path.resolve()}[/green]")
         
         # 경로 존재 여부 확인
         if not repository_path.exists():
             print(
-                f"[red]❌ 경로를 찾을 수 없습니다: {repository_path}[/red]", 
+                f"[red]경로를 찾을 수 없습니다: {repository_path}[/red]", 
                 file=sys.stderr
             )
             sys.exit(1)
         
         if not repository_path.is_dir():
             print(
-                f"[red]❌ 디렉토리가 아닙니다: {repository_path}[/red]", 
+                f"[red]디렉토리가 아닙니다: {repository_path}[/red]", 
                 file=sys.stderr
             )
             sys.exit(1)
@@ -132,12 +304,12 @@ def handle_url_protocol() -> None:
         
         if success:
             console.print(
-                "[bold green]✅ 저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
+                "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
             )
             sys.exit(0)
         else:
             print(
-                "[bold red]❌ 저장소 분석 중 오류가 발생했습니다.[/bold red]",
+                "[bold red]저장소 분석 중 오류가 발생했습니다.[/bold red]",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -266,12 +438,12 @@ def analyze(
         if success:
             if not dry_run:
                 console.print(
-                    "[bold green]✅ 저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
+                    "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
                 )
             sys.exit(0)
         else:
             print(
-                "[bold red]❌ 저장소 분석 중 오류가 발생했습니다.[/bold red]",
+                "[bold red]저장소 분석 중 오류가 발생했습니다.[/bold red]",
                 file=sys.stderr,
             )
             sys.exit(1)

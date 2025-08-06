@@ -129,13 +129,16 @@ Section "Register URL Protocol" SEC05
   WriteRegStr HKCR "testscenariomaker" "" "URL:TestscenarioMaker Protocol"
   WriteRegStr HKCR "testscenariomaker" "URL Protocol" ""
   
-  ; Set the icon for the protocol
+  ; Set the icon for the protocol (using single backslashes to prevent double escaping)
   WriteRegStr HKCR "testscenariomaker\DefaultIcon" "" "$INSTDIR\ts-cli.exe,1"
   
   ; Create the command key structure
   WriteRegStr HKCR "testscenariomaker\shell" "" ""
   WriteRegStr HKCR "testscenariomaker\shell\open" "" ""
-  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" '"$INSTDIR\ts-cli.exe" "%1"'
+  
+  ; Register command for background execution (no console window)
+  ; Using start /b to run process in background without showing console window
+  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'cmd /c start /b "" "$INSTDIR\ts-cli.exe" "%1"'
   
 SectionEnd
 
