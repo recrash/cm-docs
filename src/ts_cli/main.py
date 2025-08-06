@@ -20,12 +20,14 @@ if getattr(sys, 'frozen', False):
 else:
     # 일반 파이썬 스크립트로 실행된 경우
     application_path = os.path.dirname(os.path.abspath(__file__))
+import os
 import platform
 import urllib.parse
 from pathlib import Path
 from typing import Optional
 
 import click
+import requests
 from rich.console import Console
 from rich.traceback import install
 
@@ -48,6 +50,150 @@ install(show_locals=True)
 
 # 콘솔 인스턴스
 console = Console()
+
+
+def load_server_config() -> str:
+    """
+    서버 설정을 로드합니다.
+    
+    1순위: config.ini 파일
+    2순위: TSM_SERVER_URL 환경 변수
+    
+    Returns:
+        서버 URL
+        
+    Raises:
+        SystemExit: 설정을 찾을 수 없는 경우
+    """
+    # 1순위: config.ini 파일에서 로드 시도
+    try:
+        try:
+            from .utils.config_loader import load_config
+        except ImportError:
+            from ts_cli.utils.config_loader import load_config
+            
+        config_loader = load_config()
+        server_url = config_loader.get("api", "base_url")
+        if server_url and server_url.strip():  # 빈 값 체크 추가
+            console.print(f"[green]설정 파일에서 서버 URL 로드: {server_url}[/green]")
+            return server_url
+    except Exception as e:
+        console.print(f"[yellow]설정 파일 로드 실패: {e}[/yellow]")
+    
+    # 2순위: TSM_SERVER_URL 환경 변수에서 로드 시도
+    env_server_url = os.environ.get("TSM_SERVER_URL")
+    if env_server_url and env_server_url.strip():  # 빈 값 체크 추가
+        console.print(f"[green]환경 변수에서 서버 URL 로드: {env_server_url}[/green]")
+        return env_server_url
+    
+    # 모두 실패한 경우
+    console.print("[red]서버 URL을 찾을 수 없습니다.[/red]")
+    console.print("[red]다음 중 하나를 설정해주세요:[/red]")
+    console.print("[red]  1. config.ini 파일의 [api] 섹션에 base_url 설정[/red]")
+    console.print("[red]  2. TSM_SERVER_URL 환경 변수 설정[/red]")
+    sys.exit(1)
+
+
+def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] = None) -> bool:
+    """
+    동기 방식으로 API 요청을 수행합니다.
+    
+    Args:
+        server_url: API 서버 URL
+        repo_path: 저장소 경로
+        client_id: 클라이언트 ID (옵션)
+        
+    Returns:
+        요청 성공 여부
+    """
+    try:
+        # VCS 분석기를 사용해 변경사항 수집
+        try:
+            from .vcs import get_analyzer
+        except ImportError:
+            from ts_cli.vcs import get_analyzer
+            
+        analyzer = get_analyzer(repo_path)
+        if not analyzer or not analyzer.validate_repository():
+            console.print(f"[red]유효하지 않은 저장소입니다: {repo_path}[/red]")
+            return False
+            
+        changes_data = analyzer.get_changes("origin/develop", "HEAD")
+        if not changes_data:
+            console.print("[yellow]변경사항이 없습니다.[/yellow]")
+            return True
+            
+        # API 요청 데이터 준비
+        request_data = {
+            "analysis_text": changes_data.get("changes_text", "")
+        }
+        
+        # API 엔드포인트 URL 구성
+        api_url = f"{server_url.rstrip('/')}/api/v2/generate"
+        
+        console.print("[cyan]API 요청 전송 중...[/cyan]")
+        
+        # requests를 사용한 동기 API 호출
+        with requests.Session() as session:
+            session.headers.update({
+                "Content-Type": "application/json",
+                "User-Agent": f"TestscenarioMaker-CLI/{__version__}"
+            })
+            
+            response = session.post(
+                api_url,
+                json=request_data,
+                timeout=(10, 30)  # (연결 타임아웃, 읽기 타임아웃)
+            )
+            
+            # HTTP 상태 코드 확인
+            response.raise_for_status()
+            
+            # 응답 처리
+            result_data = response.json()
+            download_url = result_data.get("download_url")
+            
+            if download_url:
+                console.print(f"[green]분석 완료. 결과 다운로드 URL: {download_url}[/green]")
+            else:
+                console.print("[green]분석이 완료되었습니다.[/green]")
+                
+            return True
+            
+    except requests.exceptions.ConnectionError:
+        console.print("[red]서버에 연결할 수 없습니다[/red]")
+        console.print("[red]네트워크 연결을 확인하거나 서버 URL이 올바른지 확인해주세요.[/red]")
+        return False
+        
+    except requests.exceptions.Timeout:
+        console.print("[red]요청 시간이 초과되었습니다.[/red]")
+        console.print("[red]서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요.[/red]")
+        return False
+        
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response else "Unknown"
+        console.print(f"[red]HTTP 오류가 발생했습니다: {status_code}[/red]")
+        
+        if status_code == 400:
+            console.print("[red]요청 데이터가 올바르지 않습니다.[/red]")
+        elif status_code == 401:
+            console.print("[red]인증이 필요합니다.[/red]")
+        elif status_code == 403:
+            console.print("[red]접근 권한이 없습니다.[/red]")
+        elif status_code == 404:
+            console.print("[red]API 엔드포인트를 찾을 수 없습니다.[/red]")
+        elif status_code >= 500:
+            console.print("[red]서버 내부 오류가 발생했습니다.[/red]")
+            
+        return False
+        
+    except requests.exceptions.RequestException as e:
+        console.print(f"[red]요청 중 오류가 발생했습니다: {e}[/red]")
+        return False
+        
+    except Exception as e:
+        console.print(f"[red]예상치 못한 오류가 발생했습니다: {e}[/red]")
+        return False
 
 
 def collect_debug_info(raw_url: str) -> dict:
@@ -230,19 +376,94 @@ def log_debug_info(debug_info: dict) -> None:
         console.print(f"[red]디버그 로깅 실패: {e}[/red]")
 
 
+def parse_url_parameters(url: str) -> tuple[Path, Optional[str]]:
+    """
+    URL에서 repoPath와 clientId를 추출합니다.
+    
+    Args:
+        url: testscenariomaker:// 형식의 URL
+        
+    Returns:
+        tuple of (repository_path, client_id)
+        
+    Raises:
+        ValueError: URL 파싱 실패 시
+    """
+    try:
+        # URL 디코딩 및 파싱
+        decoded_url = urllib.parse.unquote(url)
+        parsed = urllib.parse.urlparse(decoded_url)
+        
+        # URL 스키마 검증
+        if parsed.scheme != "testscenariomaker":
+            raise ValueError(f"지원하지 않는 URL 스키마: {parsed.scheme}")
+        
+        # 쿼리 파라미터 파싱
+        query_params = urllib.parse.parse_qs(parsed.query)
+        client_id = query_params.get('clientId', [None])[0]
+        
+        # 경로 추출 및 플랫폼별 처리
+        if platform.system() == "Windows":
+            # Windows: netloc과 path를 합쳐서 전체 경로 구성
+            # 예: testscenariomaker://C:/path/to/repo → C:/path/to/repo
+            path_str = parsed.netloc + parsed.path
+            # Windows 경로 정규화
+            path_str = path_str.rstrip('/"').replace('/', '\\')
+        else:
+            # macOS/Linux: path만 사용 (절대경로 유지)
+            # 예: testscenariomaker:///Users/user/repo → /Users/user/repo
+            path_str = parsed.path
+            # Unix 경로 정규화 (앞쪽 슬래시는 절대경로 표시이므로 유지)
+            path_str = path_str.rstrip('/"')
+        
+        # pathlib.Path 객체로 변환하여 크로스 플랫폼 호환성 보장
+        repository_path = Path(path_str)
+        
+        return repository_path, client_id
+        
+    except Exception as e:
+        raise ValueError(f"URL 파싱 실패: {e}") from e
+
+
+def validate_repository_path(repo_path: Path) -> None:
+    """
+    저장소 경로의 유효성을 검증합니다.
+    
+    Args:
+        repo_path: 검증할 저장소 경로
+        
+    Raises:
+        SystemExit: 경로가 유효하지 않은 경우
+    """
+    if not repo_path.exists():
+        console.print(f"[red]경로를 찾을 수 없습니다: {repo_path}[/red]")
+        sys.exit(1)
+        
+    if not repo_path.is_dir():
+        console.print(f"[red]디렉토리가 아닙니다: {repo_path}[/red]")
+        sys.exit(1)
+        
+    # Git 저장소인지 확인
+    git_dir = repo_path / ".git"
+    if not git_dir.exists():
+        console.print(f"[red]Git 저장소가 아닙니다: {repo_path}[/red]")
+        console.print("[red].git 디렉토리를 찾을 수 없습니다.[/red]")
+        sys.exit(1)
+
+
 def handle_url_protocol() -> None:
     """
     testscenariomaker:// URL 프로토콜 처리
     
     웹 브라우저에서 전달된 URL을 파싱하여 저장소 경로를 추출하고
-    기존 analyze 명령과 동일한 로직으로 분석을 수행합니다.
+    동기 방식으로 API 요청을 수행합니다.
     """
     try:
         # URL 재조합 (sys.argv[1:]을 다시 합쳐서 완전한 URL 복원)
         raw_url = " ".join(sys.argv[1:])
         
         if not raw_url.startswith('testscenariomaker://'):
-            print("[red]올바르지 않은 URL 형식입니다.[/red]", file=sys.stderr)
+            console.print("[red]올바르지 않은 URL 형식입니다.[/red]")
             sys.exit(1)
         
         console.print(f"[cyan]URL 프로토콜 처리 중: {raw_url}[/cyan]")
@@ -252,79 +473,42 @@ def handle_url_protocol() -> None:
         log_debug_info(debug_info)
         console.print(f"[dim]디버그 로그: {debug_info['debug_file']}[/dim]")
         
-        # URL 디코딩 및 파싱
-        decoded_url = urllib.parse.unquote(raw_url)
-        parsed = urllib.parse.urlparse(decoded_url)
-        
-        # 경로 추출 및 플랫폼별 처리
-        if platform.system() == "Windows":
-            # Windows: netloc과 path를 합쳐서 전체 경로 구성
-            path_str = parsed.netloc + parsed.path
-            # Windows 경로 정규화 (뒤쪽 슬래시와 따옴표만 제거)
-            path_str = path_str.rstrip('/"')
-        else:
-            # macOS/Linux: path만 사용 (절대경로 유지)
-            path_str = parsed.path
-            # 뒤쪽 슬래시와 따옴표만 제거 (앞쪽 슬래시는 절대경로 표시이므로 유지)
-            path_str = path_str.rstrip('/"')
-        
-        # pathlib.Path 객체로 변환
-        repository_path = Path(path_str)
-        
-        console.print(f"[green]분석 대상 경로: {repository_path.resolve()}[/green]")
-        
-        # 경로 존재 여부 확인
-        if not repository_path.exists():
-            print(
-                f"[red]경로를 찾을 수 없습니다: {repository_path}[/red]", 
-                file=sys.stderr
-            )
+        # URL에서 repoPath, clientId 추출
+        try:
+            repository_path, client_id = parse_url_parameters(raw_url)
+            console.print(f"[green]분석 대상 경로: {repository_path.resolve()}[/green]")
+            if client_id:
+                console.print(f"[cyan]클라이언트 ID: {client_id}[/cyan]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
             sys.exit(1)
         
-        if not repository_path.is_dir():
-            print(
-                f"[red]디렉토리가 아닙니다: {repository_path}[/red]", 
-                file=sys.stderr
-            )
-            sys.exit(1)
+        # 경로 유효성 검증
+        validate_repository_path(repository_path)
         
-        # 기본 설정으로 분석 실행
+        # 서버 설정 로드
+        server_url = load_server_config()
+        
+        # 동기 API 호출
         console.print(f"[bold blue]TestscenarioMaker CLI v{__version__}[/bold blue]")
         console.print(f"저장소 분석 시작: [green]{repository_path.resolve()}[/green]")
-        console.print(f"브랜치 비교: [cyan]origin/develop[/cyan] → [cyan]HEAD[/cyan]")
         
-        # CLI 핸들러 생성 및 실행 (기본 설정 사용)
-        handler = CLIHandler(verbose=False, output_format="text", dry_run=False)
-        
-        success = handler.analyze_repository(
-            repository_path, 
-            base_branch="origin/develop", 
-            head_branch="HEAD"
-        )
+        success = make_api_request(server_url, repository_path, client_id)
         
         if success:
-            console.print(
-                "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
-            )
+            console.print("[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]")
             sys.exit(0)
         else:
-            print(
-                "[bold red]저장소 분석 중 오류가 발생했습니다.[/bold red]",
-                file=sys.stderr,
-            )
+            console.print("[bold red]저장소 분석 중 오류가 발생했습니다.[/bold red]")
             sys.exit(1)
-        
-        input("디버깅: 작업 완료. Enter 키를 누르면 종료됩니다...")
-        sys.exit(0) # input 다음에 종료되도록 이동
             
     except KeyboardInterrupt:
         console.print("\n[yellow]사용자에 의해 중단되었습니다.[/yellow]")
         sys.exit(130)
         
     except Exception as e:
-        print(f"[red]URL 처리 중 오류가 발생했습니다: {e}[/red]", file=sys.stderr)
+        console.print(f"[red]URL 처리 중 오류가 발생했습니다: {e}[/red]")
         console.print_exception(show_locals=True)
-        input("디버깅: 에러 발생. Enter 키를 누르면 종료됩니다...")
         sys.exit(1)
 
 
