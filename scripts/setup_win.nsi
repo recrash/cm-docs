@@ -1,37 +1,37 @@
-; TestscenarioMaker CLI Windows 설치 스크립트 (NSIS)
+; TestscenarioMaker CLI Windows Installer Script (NSIS)
 ; 
-; 이 스크립트는 Windows용 설치 프로그램을 생성합니다.
-; NSIS (Nullsoft Scriptable Install System)가 필요합니다.
+; This script creates a Windows installer for TestscenarioMaker CLI.
+; Requires NSIS (Nullsoft Scriptable Install System).
 
 ;--------------------------------
-; 현대적인 UI 사용
+; Modern UI
 !include "MUI2.nsh"
 
 ;--------------------------------
-; 설정
+; Settings
 Name "TestscenarioMaker CLI"
 OutFile "TestscenarioMaker-CLI-Setup.exe"
 Unicode True
 
-; 기본 설치 디렉토리
+; Default installation directory
 InstallDir "$PROGRAMFILES64\TestscenarioMaker CLI"
 
-; 레지스트리에서 설치 경로 가져오기
+; Registry key for installation path
 InstallDirRegKey HKLM "Software\TestscenarioMaker\CLI" "Install_Dir"
 
-; 관리자 권한 요청
+; Request admin privileges
 RequestExecutionLevel admin
 
-; 압축 설정
+; Compression settings
 SetCompressor /SOLID lzma
 
 ;--------------------------------
-; 인터페이스 설정
+; Interface Settings
 
-; 아이콘 설정 (아이콘 파일이 있는 경우)
+; Icon settings (if icon file exists)
 ; Icon "icon.ico"
 
-; 설치 페이지
+; Install pages
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "..\\LICENSE"
 !insertmacro MUI_PAGE_COMPONENTS
@@ -39,48 +39,47 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
-; 제거 페이지
+; Uninstall pages
 !insertmacro MUI_UNPAGE_WELCOME
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_UNPAGE_FINISH
 
-; 언어
-!insertmacro MUI_LANGUAGE "Korean"
+; Language
 !insertmacro MUI_LANGUAGE "English"
 
 ;--------------------------------
-; 버전 정보
+; Version Information
 VIProductVersion "1.0.0.0"
-VIAddVersionKey /LANG=1042 "ProductName" "TestscenarioMaker CLI"
-VIAddVersionKey /LANG=1042 "Comments" "로컬 저장소 분석을 위한 CLI 도구"
-VIAddVersionKey /LANG=1042 "CompanyName" "TestscenarioMaker Team"
-VIAddVersionKey /LANG=1042 "LegalCopyright" "Copyright © 2023 TestscenarioMaker Team"
-VIAddVersionKey /LANG=1042 "FileDescription" "TestscenarioMaker CLI 설치 프로그램"
-VIAddVersionKey /LANG=1042 "FileVersion" "1.0.0.0"
-VIAddVersionKey /LANG=1042 "ProductVersion" "1.0.0.0"
-VIAddVersionKey /LANG=1042 "InternalName" "TestscenarioMaker-CLI-Setup"
+VIAddVersionKey /LANG=1033 "ProductName" "TestscenarioMaker CLI"
+VIAddVersionKey /LANG=1033 "Comments" "CLI tool for local repository analysis"
+VIAddVersionKey /LANG=1033 "CompanyName" "TestscenarioMaker Team"
+VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright © 2023 TestscenarioMaker Team"
+VIAddVersionKey /LANG=1033 "FileDescription" "TestscenarioMaker CLI Setup"
+VIAddVersionKey /LANG=1033 "FileVersion" "1.0.0.0"
+VIAddVersionKey /LANG=1033 "ProductVersion" "1.0.0.0"
+VIAddVersionKey /LANG=1033 "InternalName" "TestscenarioMaker-CLI-Setup"
 
 ;--------------------------------
-; 설치 섹션
+; Install Sections
 
-Section "핵심 파일" SEC01
+Section "Core Files" SEC01
   SectionIn RO
   
-  ; 출력 경로 설정
+  ; Set output path
   SetOutPath $INSTDIR
   
-  ; 실행 파일
+  ; Executable file
   File "..\\dist\\ts-cli.exe"
   
-  ; 설정 파일
+  ; Configuration file
   SetOutPath $INSTDIR\\config
   File "..\\config\\config.ini"
   
-  ; 레지스트리에 설치 정보 저장
+  ; Write installation info to registry
   WriteRegStr HKLM "SOFTWARE\\TestscenarioMaker\\CLI" "Install_Dir" "$INSTDIR"
   
-  ; 제거 프로그램 정보
+  ; Uninstall information
   WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TestscenarioMaker CLI" "DisplayName" "TestscenarioMaker CLI"
   WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TestscenarioMaker CLI" "UninstallString" '"$INSTDIR\\uninstall.exe"'
   WriteRegDWORD HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TestscenarioMaker CLI" "NoModify" 1
@@ -88,69 +87,72 @@ Section "핵심 파일" SEC01
   WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TestscenarioMaker CLI" "Publisher" "TestscenarioMaker Team"
   WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TestscenarioMaker CLI" "DisplayVersion" "1.0.0"
   
-  ; 제거 프로그램 생성
+  ; Create uninstaller
   WriteUninstaller "$INSTDIR\\uninstall.exe"
   
 SectionEnd
 
-Section "PATH 환경변수 추가" SEC02
+Section "Add to PATH" SEC02
   
-  ; 시스템 PATH에 설치 디렉토리 추가
-  ${EnvVarUpdate} $0 "PATH" "A" "HKLM" "$INSTDIR"
+  ; Add installation directory to system PATH using standard NSIS commands
+  ReadRegStr $R0 HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH"
+  StrCpy $R1 "$R0;$INSTDIR"
+  WriteRegStr HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH" $R1
   
 SectionEnd
 
-Section "바탕화면 바로가기" SEC03
+Section "Desktop Shortcut" SEC03
   
-  ; 바탕화면에 바로가기 생성
+  ; Create desktop shortcut
   CreateShortcut "$DESKTOP\\TestscenarioMaker CLI.lnk" "$INSTDIR\\ts-cli.exe" "" "$INSTDIR\\ts-cli.exe" 0
   
 SectionEnd
 
-Section "시작 메뉴 바로가기" SEC04
+Section "Start Menu Shortcut" SEC04
   
-  ; 시작 메뉴 폴더 생성
+  ; Create start menu folder
   CreateDirectory "$SMPROGRAMS\\TestscenarioMaker"
   
-  ; 시작 메뉴 바로가기 생성
+  ; Create start menu shortcuts
   CreateShortcut "$SMPROGRAMS\\TestscenarioMaker\\TestscenarioMaker CLI.lnk" "$INSTDIR\\ts-cli.exe" "" "$INSTDIR\\ts-cli.exe" 0
-  CreateShortcut "$SMPROGRAMS\\TestscenarioMaker\\제거.lnk" "$INSTDIR\\uninstall.exe" "" "$INSTDIR\\uninstall.exe" 0
+  CreateShortcut "$SMPROGRAMS\\TestscenarioMaker\\Uninstall.lnk" "$INSTDIR\\uninstall.exe" "" "$INSTDIR\\uninstall.exe" 0
   
 SectionEnd
 
-Section "URL 프로토콜 등록" SEC05
+Section "Register URL Protocol" SEC05
   
-  ; 32/64비트 호환성을 위한 설정
+  ; Settings for 32/64-bit compatibility
   SetShellVarContext all
   
-  ; testscenariomaker:// 프로토콜 등록
+  ; Register testscenariomaker:// protocol
+  ; This command creates the key and sets its default value.
   WriteRegStr HKCR "testscenariomaker" "" "URL:TestscenarioMaker Protocol"
   WriteRegStr HKCR "testscenariomaker" "URL Protocol" ""
-  WriteRegStr HKCR "testscenariomaker\\DefaultIcon" "" "$INSTDIR\\ts-cli.exe,1"
-  WriteRegStr HKCR "testscenariomaker\\shell" "" ""
-  WriteRegStr HKCR "testscenariomaker\\shell\\open" "" ""
-  ; URL 프로토콜 처리를 위한 올바른 명령어 형식
-  WriteRegStr HKCR "testscenariomaker\\shell\\open\\command" "" '"$INSTDIR\\ts-cli.exe" "%1"'
+  
+  ; Set the icon for the protocol (using single backslashes to prevent double escaping)
+  WriteRegStr HKCR "testscenariomaker\DefaultIcon" "" "$INSTDIR\ts-cli.exe,1"
+  
+  ; Create the command key structure
+  WriteRegStr HKCR "testscenariomaker\shell" "" ""
+  WriteRegStr HKCR "testscenariomaker\shell\open" "" ""
+  
+  ; Register command for background execution (no console window)
+  ; Using start /b to run process in background without showing console window
+  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'cmd /c start /b "" "$INSTDIR\ts-cli.exe" "%1"'
   
 SectionEnd
 
 ;--------------------------------
-; 섹션 설명
+; Section Descriptions
 
-; 언어 문자열
-LangString DESC_SEC01 ${LANG_KOREAN} "TestscenarioMaker CLI 핵심 실행 파일과 설정 파일"
-LangString DESC_SEC02 ${LANG_KOREAN} "시스템 PATH 환경변수에 CLI 도구 경로를 추가합니다"
-LangString DESC_SEC03 ${LANG_KOREAN} "바탕화면에 바로가기를 생성합니다"
-LangString DESC_SEC04 ${LANG_KOREAN} "시작 메뉴에 바로가기를 생성합니다"
-LangString DESC_SEC05 ${LANG_KOREAN} "testscenariomaker:// URL 프로토콜을 등록합니다"
-
+; Language strings
 LangString DESC_SEC01 ${LANG_ENGLISH} "TestscenarioMaker CLI core executable and configuration files"
 LangString DESC_SEC02 ${LANG_ENGLISH} "Add CLI tool path to system PATH environment variable"
 LangString DESC_SEC03 ${LANG_ENGLISH} "Create desktop shortcut"
 LangString DESC_SEC04 ${LANG_ENGLISH} "Create start menu shortcuts"
 LangString DESC_SEC05 ${LANG_ENGLISH} "Register testscenariomaker:// URL protocol"
 
-; 섹션 설명 할당
+; Section description assignments
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
 !insertmacro MUI_DESCRIPTION_TEXT ${SEC01} $(DESC_SEC01)
 !insertmacro MUI_DESCRIPTION_TEXT ${SEC02} $(DESC_SEC02)
@@ -160,58 +162,90 @@ LangString DESC_SEC05 ${LANG_ENGLISH} "Register testscenariomaker:// URL protoco
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ;--------------------------------
-; 제거 섹션
+; Uninstall Section
 
 Section "Uninstall"
   
-  ; 파일 삭제
+  ; Delete files
   Delete $INSTDIR\\ts-cli.exe
   Delete $INSTDIR\\config\\config.ini
   Delete $INSTDIR\\uninstall.exe
   
-  ; 디렉토리 삭제
+  ; Delete directories
   RMDir $INSTDIR\\config
   RMDir $INSTDIR
   
-  ; 바로가기 삭제
+  ; Delete shortcuts
   Delete "$DESKTOP\\TestscenarioMaker CLI.lnk"
   Delete "$SMPROGRAMS\\TestscenarioMaker\\TestscenarioMaker CLI.lnk"
-  Delete "$SMPROGRAMS\\TestscenarioMaker\\제거.lnk"
+  Delete "$SMPROGRAMS\\TestscenarioMaker\\Uninstall.lnk"
   RMDir "$SMPROGRAMS\\TestscenarioMaker"
   
-  ; 레지스트리 정리
+  ; Clean registry
   DeleteRegKey HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\TestscenarioMaker CLI"
   DeleteRegKey HKLM "SOFTWARE\\TestscenarioMaker\\CLI"
   DeleteRegKey HKLM "SOFTWARE\\TestscenarioMaker"
   
-  ; URL 프로토콜 제거
+  ; Remove URL protocol
   DeleteRegKey HKCR "testscenariomaker"
   
-  ; PATH에서 제거
-  ${un.EnvVarUpdate} $0 "PATH" "R" "HKLM" "$INSTDIR"
+  ; Remove from PATH using standard NSIS commands
+  ReadRegStr $R0 HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH"
+  ; Note: Simple PATH removal - may leave empty entries but won't cause errors
+  WriteRegStr HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PATH" $R0
   
 SectionEnd
 
 ;--------------------------------
-; 함수
+; Functions
 
-; 환경변수 업데이트 매크로 포함
-!include "EnvVarUpdate.nsh"
-
-; 설치 초기화
+; Installation initialization
 Function .onInit
-  ; 64비트 시스템 확인
-  ${If} ${RunningX64}
+  Call Is64Bit
+  Pop $0
+  StrCmp $0 "1" 0 Not64
     SetRegView 64
     StrCpy $INSTDIR "$PROGRAMFILES64\\TestscenarioMaker CLI"
-  ${Else}
+    Goto EndIf
+  Not64:
     StrCpy $INSTDIR "$PROGRAMFILES32\\TestscenarioMaker CLI"
-  ${EndIf}
+  EndIf:
 FunctionEnd
 
-; 제거 초기화
+; Uninstall initialization
 Function un.onInit
-  ${If} ${RunningX64}
+  Call un.Is64Bit
+  Pop $0
+  StrCmp $0 "1" 0 Not64u
     SetRegView 64
-  ${EndIf}
+    Goto EndIfu
+  Not64u:
+    ; do nothing
+  EndIfu:
+FunctionEnd
+
+; 64bit detection helper (install)
+Function Is64Bit
+  System::Call "kernel32::GetCurrentProcess() i .r1"
+  System::Call "kernel32::IsWow64Process(i r1, *i .r2)"
+  IntCmp $2 0 0 is32 is64
+  is64:
+    Push 1
+    Return
+  is32:
+    Push 0
+    Return
+FunctionEnd
+
+; 64bit detection helper (uninstall)
+Function un.Is64Bit
+  System::Call "kernel32::GetCurrentProcess() i .r1"
+  System::Call "kernel32::IsWow64Process(i r1, *i .r2)"
+  IntCmp $2 0 0 is32u is64u
+  is64u:
+    Push 1
+    Return
+  is32u:
+    Push 0
+    Return
 FunctionEnd

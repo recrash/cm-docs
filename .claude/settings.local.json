@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(reg query:*)",
+      "Bash(python:*)",
+      "Bash(distts-cli.exe \"testscenariomaker://D:\\Workspace\\TestscenarioMaker-CLI\")",
+      "Bash(makensis:*)",
+      "Bash(start scripts/TestscenarioMaker-CLI-Setup.exe)",
+      "mcp__upstash-context-7-mcp__resolve-library-id",
+      "mcp__upstash-context-7-mcp__get-library-docs",
+      "Bash(ts-cli:*)",
+      "Bash(powershell:*)",
+      "Bash(start test_url_protocol.html)"
+    ],
+    "deny": []
+  }
+}
