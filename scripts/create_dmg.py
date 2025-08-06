@@ -84,10 +84,12 @@ class DMGCreator:
         
         print("   🏗️  헬퍼 앱 빌드 중...")
         try:
+            # 실시간 출력을 위해 capture_output=False 사용
+            print(f"   📝 명령어: {sys.executable} {build_script} --project-root {self.project_root}")
             result = subprocess.run([
                 sys.executable, str(build_script),
                 '--project-root', str(self.project_root)
-            ], check=True, capture_output=True, text=True, timeout=120)
+            ], check=True, capture_output=False, text=True, timeout=180)  # 타임아웃을 180초로 증가
             
             print("   ✓ 헬퍼 앱 빌드 완료")
             
@@ -98,8 +100,8 @@ class DMGCreator:
                 raise RuntimeError("헬퍼 앱이 빌드되었지만 예상 위치에서 찾을 수 없습니다")
                 
         except subprocess.TimeoutExpired:
-            print(f"   ❌ 헬퍼 앱 빌드 타임아웃 (120초)")
-            raise RuntimeError("헬퍼 앱 빌드가 120초 내에 완료되지 않았습니다")
+            print(f"   ❌ 헬퍼 앱 빌드 타임아웃 (180초)")
+            raise RuntimeError("헬퍼 앱 빌드가 180초 내에 완료되지 않았습니다")
         except subprocess.CalledProcessError as e:
             print(f"   ❌ 헬퍼 앱 빌드 실패: {e.stderr}")
             raise RuntimeError(f"헬퍼 앱 빌드 실패: {e.stderr}")
@@ -332,35 +334,21 @@ echo "   ✓ $INSTALL_DIR/$APP_NAME 설치 완료"
 # CLI 링크 생성
 echo "🔗 명령행 도구 링크를 생성하는 중..."
 
-# 기존 링크 제거 (권한 확인)
+# 기존 링크 제거
 if [ -L "$CLI_LINK" ]; then
     echo "   기존 링크를 제거하는 중..."
-    if [ -w "$CLI_LINK" ]; then
-        rm "$CLI_LINK"
-    else
-        echo "   ℹ️  관리자 권한이 필요합니다..."
-        sudo rm "$CLI_LINK"
-    fi
+    sudo rm "$CLI_LINK"
 fi
 
 # /usr/local/bin 디렉토리 생성 (권한 확인)
 if [ ! -d "/usr/local/bin" ]; then
     echo "   /usr/local/bin 디렉토리를 생성하는 중..."
-    if [ -w "/usr/local" ]; then
-        mkdir -p /usr/local/bin
-    else
-        echo "   ℹ️  관리자 권한이 필요합니다..."
-        sudo mkdir -p /usr/local/bin
-    fi
+    sudo mkdir -p /usr/local/bin
 fi
 
-# 심볼릭 링크 생성 (권한 확인)
-if [ -w "/usr/local/bin" ]; then
-    ln -s "$INSTALL_DIR/$APP_NAME/Contents/MacOS/$CLI_NAME" "$CLI_LINK"
-else
-    echo "   ℹ️  관리자 권한이 필요합니다..."
-    sudo ln -s "$INSTALL_DIR/$APP_NAME/Contents/MacOS/$CLI_NAME" "$CLI_LINK"
-fi
+# 심볼릭 링크 생성
+echo "   새 링크를 생성하는 중..."
+sudo ln -s "$INSTALL_DIR/$APP_NAME/Contents/MacOS/$CLI_NAME" "$CLI_LINK"
 
 echo "   ✓ $CLI_LINK 링크 생성 완료"
 
@@ -420,17 +408,7 @@ echo "🗑️ TestscenarioMaker CLI 제거를 시작합니다..."
 # CLI 링크 제거
 if [ -L "$CLI_LINK" ]; then
     echo "🔗 명령행 도구 링크를 제거하는 중..."
-    
-    # 링크 소유자 확인
-    if [ -w "$CLI_LINK" ]; then
-        # 쓰기 권한이 있으면 직접 제거
-        rm "$CLI_LINK"
-    else
-        # 권한이 없으면 sudo 사용
-        echo "   ℹ️  관리자 권한이 필요합니다..."
-        sudo rm "$CLI_LINK"
-    fi
-    
+    sudo rm "$CLI_LINK"
     echo "   ✓ $CLI_LINK 제거 완료"
 fi
 
@@ -644,6 +622,11 @@ testscenariomaker:///path/to/your/repository
                 shutil.copy2(install_script, mount_point)
                 shutil.copy2(uninstall_script, mount_point)
                 shutil.copy2(readme_file, mount_point)
+                
+                # DMG에 복사된 스크립트에 실행 권한 재설정
+                (mount_point / install_script.name).chmod(0o755)
+                (mount_point / uninstall_script.name).chmod(0o755)
+                
                 print(f"   ✓ 설치 스크립트 및 문서 복사 완료")
                 
                 # Applications 폴더 링크 생성

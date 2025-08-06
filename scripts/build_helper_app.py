@@ -69,32 +69,70 @@ class HelperAppBuilder:
         print("🔍 필수 조건 검증 중...")
         
         # macOS 플랫폼 확인
+        print("macOS 플랫폼 확인")
         if sys.platform != 'darwin':
             raise RuntimeError("이 스크립트는 macOS에서만 실행할 수 있습니다.")
         
         # AppleScript 소스 파일 확인
+        print("AppleScript 소스 파일 확인")
         if not self.applescript_source.exists():
             raise FileNotFoundError(f"AppleScript 소스를 찾을 수 없습니다: {self.applescript_source}")
         
         # Info.plist 템플릿 확인
+        print("Info.plist 템플릿 확인")
         if not self.plist_template.exists():
             raise FileNotFoundError(f"Info.plist 템플릿을 찾을 수 없습니다: {self.plist_template}")
         
         # CLI 실행파일 확인
+        print("CLI 실행파일 확인")
         if not self.cli_executable.exists():
             raise FileNotFoundError(
                 f"CLI 실행파일을 찾을 수 없습니다: {self.cli_executable}\\n"
                 f"먼저 'python scripts/build.py'를 실행하여 CLI를 빌드하세요."
             )
         
+        print("CLI 실행파일이 올바른 파일인지 확인")
         if not self.cli_executable.is_file():
             raise FileNotFoundError(f"CLI 실행파일이 올바른 파일이 아닙니다: {self.cli_executable}")
         
         # osacompile 명령어 확인
         try:
-            subprocess.run(['osacompile', '-l', 'AppleScript'], capture_output=True, check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            raise RuntimeError("osacompile 명령어를 사용할 수 없습니다. macOS 개발자 도구가 설치되어 있는지 확인하세요.")
+            print("osacompile 명령어 확인")
+            
+            # 실제 AppleScript 파일로 osacompile 테스트
+            test_output = tempfile.mktemp(suffix='.app')
+            result = subprocess.run([
+                'osacompile', 
+                '-o', test_output,
+                str(self.applescript_source)
+            ], capture_output=True, text=True, check=False, timeout=30)
+            
+            # 테스트 파일 정리
+            try:
+                if os.path.exists(test_output):
+                    shutil.rmtree(test_output)
+            except:
+                pass
+            
+            if result.returncode != 0:
+                print(f"⚠️  osacompile 명령어 실행 실패 (종료 코드: {result.returncode})")
+                if result.stderr:
+                    print(f"   오류 메시지: {result.stderr.strip()}")
+                if result.stdout:
+                    print(f"   출력 메시지: {result.stdout.strip()}")
+                raise RuntimeError(f"osacompile 명령어 실행 실패: {result.stderr}")
+            
+            print("   ✓ osacompile 명령어 확인 완료")
+            
+        except subprocess.TimeoutExpired:
+            print("osacompile 명령어 실행 시간 초과")
+            raise RuntimeError("osacompile 명령어 실행 시간 초과")
+        except FileNotFoundError:
+            print("osacompile 명령어를 찾을 수 없습니다. macOS 개발자 도구가 설치되어 있는지 확인하세요.")
+            raise RuntimeError("osacompile 명령어를 찾을 수 없습니다. macOS 개발자 도구를 설치하세요.")
+        except Exception as e:
+            print(f"osacompile 명령어 확인 중 예상치 못한 오류: {e}")
+            raise RuntimeError(f"osacompile 명령어 확인 실패: {e}")
         
         print("   ✓ 모든 필수 조건 확인 완료")
     
