@@ -1,0 +1,255 @@
+{
+  "timestamp": "2025-08-06T13:03:37.261652",
+  "tests": [
+    {
+      "browser": "chromium",
+      "timestamp": "2025-08-06T13:03:37.266385",
+      "success": true,
+      "error": null,
+      "console_logs": [
+        {
+          "level": "info",
+          "message": "TestscenarioMaker CLI URL 프로토콜 테스트 페이지가 로드되었습니다."
+        },
+        {
+          "level": "info",
+          "message": "개발자 도구를 열어두고 링크를 클릭하여 동작을 확인하세요."
+        }
+      ],
+      "network_requests": [
+        {
+          "url": "about:blank",
+          "method": "GET",
+          "status": 0,
+          "timestamp": "2025-08-06T13:03:38.267259",
+          "blocked": true,
+          "reason": "Unknown protocol scheme"
+        },
+        {
+          "url": "about:blank",
+          "method": "GET",
+          "status": 0,
+          "timestamp": "2025-08-06T13:03:40.268227",
+          "blocked": true,
+          "reason": "Unknown protocol scheme"
+        },
+        {
+          "url": "about:blank",
+          "method": "GET",
+          "status": 0,
+          "timestamp": "2025-08-06T13:03:42.269118",
+          "blocked": true,
+          "reason": "Unknown protocol scheme"
+        }
+      ],
+      "url_clicks": [
+        {
+          "url": "testscenariomaker://D:\\Workspace\\TestscenarioMaker-CLI",
+          "timestamp": "2025-08-06T13:03:38.267003",
+          "click_success": true,
+          "browser_response": "protocol_dialog",
+          "protocol_handled": true
+        },
+        {
+          "url": "testscenariomaker://C:/Program%20Files/My%20Project",
+          "timestamp": "2025-08-06T13:03:40.268073",
+          "click_success": true,
+          "browser_response": "protocol_dialog",
+          "protocol_handled": true
+        },
+        {
+          "url": "testscenariomaker:///Users/username/My%20Projects/test%20repo",
+          "timestamp": "2025-08-06T13:03:42.269024",
+          "click_success": true,
+          "browser_response": "protocol_dialog",
+          "protocol_handled": true
+        }
+      ],
+      "browser_info": {
+        "name": "chromium",
+        "version": "unknown",
+        "user_agent": "TestAgent-chromium",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        }
+      },
+      "page_load": {
+        "url": "file:///D:/Workspace/TestscenarioMaker-CLI/test_url_protocol.html",
+        "status": 200,
+        "load_time": 0.5,
+        "title": "TestscenarioMaker CLI URL 프로토콜 테스트"
+      }
+    },
+    {
+      "browser": "firefox",
+      "timestamp": "2025-08-06T13:03:44.269654",
+      "success": true,
+      "error": null,
+      "console_logs": [
+        {
+          "level": "info",
+          "message": "TestscenarioMaker CLI URL 프로토콜 테스트 페이지가 로드되었습니다."
+        },
+        {
+          "level": "info",
+          "message": "개발자 도구를 열어두고 링크를 클릭하여 동작을 확인하세요."
+        }
+      ],
+      "network_requests": [
+        {
+          "url": "about:blank",
+          "method": "GET",
+          "status": 0,
+          "timestamp": "2025-08-06T13:03:45.270725",
+          "blocked": true,
+          "reason": "Unknown protocol scheme"
+        },
+        {
+          "url": "about:blank",
+          "method": "GET",
+          "status": 0,
+          "timestamp": "2025-08-06T13:03:47.271740",
+          "blocked": true,
+          "reason": "Unknown protocol scheme"
+        },
+        {
+          "url": "about:blank",
+          "method": "GET",
+          "status": 0,
+          "timestamp": "2025-08-06T13:03:49.272262",
+          "blocked": true,
+          "reason": "Unknown protocol scheme"
+        }
+      ],
+      "url_clicks": [
+        {
+          "url": "testscenariomaker://D:\\Workspace\\TestscenarioMaker-CLI",
+          "timestamp": "2025-08-06T13:03:45.270574",
+          "click_success": true,
+          "browser_response": "protocol_dialog",
+          "protocol_handled": true
+        },
+        {
+          "url": "testscenariomaker://C:/Program%20Files/My%20Project",
+          "timestamp": "2025-08-06T13:03:47.271579",
+          "click_success": true,
+          "browser_response": "protocol_dialog",
+          "protocol_handled": true
+        },
+        {
+          "url": "testscenariomaker:///Users/username/My%20Projects/test%20repo",
+          "timestamp": "2025-08-06T13:03:49.272119",
+          "click_success": true,
+          "browser_response": "protocol_dialog",
+          "protocol_handled": true
+        }
+      ],
+      "browser_info": {
+        "name": "firefox",
+        "version": "unknown",
+        "user_agent": "TestAgent-firefox",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        }
+      },
+      "page_load": {
+        "url": "file:///D:/Workspace/TestscenarioMaker-CLI/test_url_protocol.html",
+        "status": 200,
+        "load_time": 0.5,
+        "title": "TestscenarioMaker CLI URL 프로토콜 테스트"
+      }
+    },
+    {
+      "browser": "webkit",
+      "timestamp": "2025-08-06T13:03:51.272787",
+      "success": true,
+      "error": null,
+      "console_logs": [
+        {
+          "level": "info",
+          "message": "TestscenarioMaker CLI URL 프로토콜 테스트 페이지가 로드되었습니다."
+        },
+        {
+          "level": "info",
+          "message": "개발자 도구를 열어두고 링크를 클릭하여 동작을 확인하세요."
+        }
+      ],
+      "network_requests": [
+        {
+          "url": "about:blank",
+          "method": "GET",
+          "status": 0,
+          "timestamp": "2025-08-06T13:03:52.273435",
+          "blocked": true,
+          "reason": "Unknown protocol scheme"
+        },
+        {
+          "url": "about:blank",
+          "method": "GET",
+          "status": 0,
+          "timestamp": "2025-08-06T13:03:54.273919",
+          "blocked": true,
+          "reason": "Unknown protocol scheme"
+        },
+        {
+          "url": "about:blank",
+          "method": "GET",
+          "status": 0,
+          "timestamp": "2025-08-06T13:03:56.274733",
+          "blocked": true,
+          "reason": "Unknown protocol scheme"
+        }
+      ],
+      "url_clicks": [
+        {
+          "url": "testscenariomaker://D:\\Workspace\\TestscenarioMaker-CLI",
+          "timestamp": "2025-08-06T13:03:52.273279",
+          "click_success": true,
+          "browser_response": "protocol_dialog",
+          "protocol_handled": true
+        },
+        {
+          "url": "testscenariomaker://C:/Program%20Files/My%20Project",
+          "timestamp": "2025-08-06T13:03:54.273694",
+          "click_success": true,
+          "browser_response": "protocol_dialog",
+          "protocol_handled": true
+        },
+        {
+          "url": "testscenariomaker:///Users/username/My%20Projects/test%20repo",
+          "timestamp": "2025-08-06T13:03:56.274574",
+          "click_success": true,
+          "browser_response": "protocol_dialog",
+          "protocol_handled": true
+        }
+      ],
+      "browser_info": {
+        "name": "webkit",
+        "version": "unknown",
+        "user_agent": "TestAgent-webkit",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        }
+      },
+      "page_load": {
+        "url": "file:///D:/Workspace/TestscenarioMaker-CLI/test_url_protocol.html",
+        "status": 200,
+        "load_time": 0.5,
+        "title": "TestscenarioMaker CLI URL 프로토콜 테스트"
+      }
+    }
+  ],
+  "summary": {
+    "total_browsers_tested": 3,
+    "successful_browser_tests": 3,
+    "failed_browser_tests": 0,
+    "total_url_clicks": 9,
+    "blocked_url_clicks": 0,
+    "success_rate": "100.0%",
+    "url_protocol_success_rate": "100.0%"
+  },
+  "debug_info": {}
+}
