@@ -105,11 +105,14 @@ v2 API 요청 전송 중... [█████████████████
 # 로그 파일 위치 확인
 ts-cli config-show
 
-# 로그 파일 실시간 모니터링 (macOS/Linux)
-tail -f ts-cli.log
+# 로그 파일 실시간 모니터링 (macOS)
+tail -f ~/Library/Logs/testscenariomaker-cli/ts-cli.log
 
 # 로그 파일 실시간 모니터링 (Windows)
-Get-Content ts-cli.log -Wait
+Get-Content "$env:APPDATA\testscenariomaker-cli\ts-cli.log" -Wait
+
+# 로그 파일 실시간 모니터링 (Linux)
+tail -f ~/.local/share/testscenariomaker-cli/ts-cli.log
 ```
 
 **2. 프로세스 상태 확인**
@@ -137,7 +140,11 @@ tasklist | findstr ts-cli
 # config.ini
 [logging]
 file_enabled = true
-file_path = ts-cli.log
+# 플랫폼별 기본 경로 자동 사용 (권장)
+# macOS: ~/Library/Logs/testscenariomaker-cli/ts-cli.log
+# Windows: %APPDATA%/testscenariomaker-cli/ts-cli.log  
+# Linux: ~/.local/share/testscenariomaker-cli/ts-cli.log
+file_path = auto
 level = INFO
 ```
 
@@ -522,8 +529,15 @@ def get_analyzer(path: Path) -> Optional[RepositoryAnalyzer]:
    # 로그 파일 위치 확인
    ts-cli config-show
    
-   # 로그 파일 내용 확인
-   cat ts-cli.log
+   # 로그 파일 내용 확인 (플랫폼별)
+   # macOS
+   cat ~/Library/Logs/testscenariomaker-cli/ts-cli.log
+   
+   # Windows (PowerShell)
+   Get-Content "$env:APPDATA\testscenariomaker-cli\ts-cli.log"
+   
+   # Linux
+   cat ~/.local/share/testscenariomaker-cli/ts-cli.log
    ```
 
 2. **프로세스 실행 확인**
@@ -551,17 +565,21 @@ def get_analyzer(path: Path) -> Optional[RepositoryAnalyzer]:
    # config.ini 수정
    [logging]
    file_enabled = true
-   file_path = ts-cli.log
+   # 플랫폼별 기본 경로 자동 사용
+   file_path = auto
    level = INFO
    ```
 
 2. **실시간 로그 모니터링**
    ```bash
-   # macOS/Linux
-   tail -f ts-cli.log
+   # macOS
+   tail -f ~/Library/Logs/testscenariomaker-cli/ts-cli.log
    
    # Windows PowerShell
-   Get-Content ts-cli.log -Wait
+   Get-Content "$env:APPDATA\testscenariomaker-cli\ts-cli.log" -Wait
+   
+   # Linux
+   tail -f ~/.local/share/testscenariomaker-cli/ts-cli.log
    ```
 
 3. **터미널에서 직접 실행하여 진행상황 확인**

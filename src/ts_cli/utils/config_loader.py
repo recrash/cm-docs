@@ -114,11 +114,14 @@ class ConfigLoader:
         }
 
         # 로깅 설정
+        from .logger import get_default_log_path
+        default_log_path = str(get_default_log_path())
+        
         self.config["logging"] = {
             "level": "INFO",
             "format": "%%(asctime)s - %%(name)s - %%(levelname)s - %%(message)s",
             "file_enabled": "false",
-            "file_path": "ts-cli.log",
+            "file_path": default_log_path,
         }
 
         # VCS 설정
