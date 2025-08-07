@@ -93,13 +93,13 @@ class CLIHandler:
                 self._display_dry_run_result(analysis_result)
                 return True
 
-            # 4. API 서버로 분석 결과 전송
-            api_response = self._send_to_api(analysis_result)
+            # 4. v2 API로 시나리오 생성 요청
+            api_response = self._send_to_api_v2(path)
             if not api_response:
                 return False
 
-            # 5. 결과 출력 (다운로드 제거)
-            self._display_final_result(api_response)
+            # 5. 결과 출력
+            self._display_final_result_v2(api_response)
 
             return True
 
@@ -231,54 +231,82 @@ class CLIHandler:
             )
             return None
 
-    def _send_to_api(self, analysis_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _send_to_api_v2(self, repo_path: Path) -> Optional[Dict[str, Any]]:
         """
-        API 서버로 분석 결과 전송
+        v2 API로 시나리오 생성 요청
 
         Args:
-            analysis_result: 분석 결과
+            repo_path: 저장소 경로
 
         Returns:
             API 응답 또는 None
         """
         try:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TimeElapsedColumn(),
-                console=self.console,
-                transient=True,
-            ) as progress:
-                task = progress.add_task("API 서버로 데이터 전송 중...", total=100)
-
-                # 비동기 API 호출을 동기적으로 실행
-                response = asyncio.run(
-                    self.api_client.send_analysis(
-                        analysis_result,
-                        progress_callback=lambda p: progress.update(task, completed=p),
+            # v2 API 호출을 위한 비동기 함수
+            async def run_v2_generation():
+                client_id = None
+                
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TimeElapsedColumn(),
+                    console=self.console,
+                    transient=False,
+                ) as progress:
+                    # 1단계: v2 API 요청
+                    api_task = progress.add_task("v2 API 요청 전송 중...", total=100)
+                    
+                    def api_progress_callback(message: str, progress_value: int):
+                        progress.update(api_task, description=message, completed=progress_value)
+                    
+                    response = await self.api_client.send_analysis_v2(
+                        repo_path=str(repo_path.resolve()),
+                        use_performance_mode=True,
+                        progress_callback=api_progress_callback,
                     )
-                )
-
-                progress.update(task, completed=100)
+                    
+                    client_id = response.get("client_id")
+                    websocket_url = response.get("websocket_url")
+                    
+                    progress.update(api_task, completed=100, description="v2 API 요청 완료")
+                    
+                    if not websocket_url:
+                        raise APIError("WebSocket URL을 받지 못했습니다.")
+                    
+                    # 2단계: WebSocket으로 진행 상황 모니터링
+                    ws_task = progress.add_task("시나리오 생성 진행 중...", total=100)
+                    
+                    def ws_progress_callback(status: str, message: str, progress_value: int, result: Optional[Dict[str, Any]]):
+                        progress.update(ws_task, description=f"[{status}] {message}", completed=progress_value)
+                    
+                    # WebSocket 연결 및 진행 상황 수신
+                    final_result = await self.api_client.listen_to_progress_v2(
+                        websocket_url=websocket_url,
+                        progress_callback=ws_progress_callback,
+                        timeout=600,
+                    )
+                    
+                    progress.update(ws_task, completed=100, description="시나리오 생성 완료!")
+                    
+                    return final_result
+            
+            # 비동기 함수 실행
+            result = asyncio.run(run_v2_generation())
 
             if self.verbose:
-                self.console.print("[green]✓[/green] API 서버 전송 완료")
-                if response.get("analysis_id"):
-                    self.console.print(
-                        f"  분석 ID: [cyan]{response['analysis_id']}[/cyan]"
-                    )
+                self.console.print("[green]✓[/green] v2 API 시나리오 생성 완료")
 
-            return response
+            return result
 
         except APIError as e:
-            self.logger.error(f"API 호출 오류: {e}")
-            self.console.print(f"[red]API 서버 통신 실패: {str(e)}[/red]")
+            self.logger.error(f"v2 API 호출 오류: {e}")
+            self.console.print(f"[red]v2 API 서버 통신 실패: {str(e)}[/red]")
             return None
 
         except Exception as e:
-            self.logger.error(f"API 전송 중 오류: {e}")
-            self.console.print(f"[red]API 전송 중 오류가 발생했습니다: {str(e)}[/red]")
+            self.logger.error(f"v2 API 전송 중 오류: {e}")
+            self.console.print(f"[red]v2 API 전송 중 오류가 발생했습니다: {str(e)}[/red]")
             return None
 
     def _display_dry_run_result(self, analysis_result: Dict[str, Any]) -> None:
@@ -323,9 +351,40 @@ class CLIHandler:
             else:
                 self.console.print("[yellow]변경사항이 없습니다.[/yellow]")
 
+    def _display_final_result_v2(self, api_response: Dict[str, Any]) -> None:
+        """
+        v2 API 최종 결과 출력
+
+        Args:
+            api_response: v2 API 응답 (result 데이터)
+        """
+        if self.output_format == "json":
+            # JSON 형식으로 출력
+            json_output = json.dumps(api_response, ensure_ascii=False, indent=2)
+            syntax = Syntax(json_output, "json", theme="monokai", line_numbers=True)
+            self.console.print(syntax)
+        else:
+            # 텍스트 형식으로 출력
+            filename = api_response.get('filename', '')
+            description = api_response.get('description', '')
+            download_url = api_response.get('download_url', '')
+
+            result_panel = Panel(
+                f"파일명: {filename}\n"
+                f"설명: {description}\n"
+                f"다운로드 URL: http://localhost:8000{download_url}",
+                title="✅ 시나리오 생성 완료",
+                border_style="green",
+            )
+            self.console.print(result_panel)
+
+            # 추가 안내 메시지
+            self.console.print("\n[bold blue]🎉 테스트 시나리오가 성공적으로 생성되었습니다![/bold blue]")
+            self.console.print(f"[cyan]다운로드 링크: http://localhost:8000{download_url}[/cyan]")
+
     def _display_final_result(self, api_response: Dict[str, Any]) -> None:
         """
-        최종 결과 출력
+        최종 결과 출력 (v1 API 호환성 유지)
 
         Args:
             api_response: API 응답
