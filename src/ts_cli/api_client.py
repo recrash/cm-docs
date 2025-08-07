@@ -6,6 +6,7 @@ TestscenarioMaker API 서버와의 HTTP 통신을 담당합니다.
 
 import json
 import asyncio
+import websockets
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable
 from urllib.parse import urljoin
@@ -110,53 +111,64 @@ class APIClient:
         wait=wait_exponential(multiplier=1, min=1, max=10),
         retry=retry_if_exception_type((httpx.NetworkError, httpx.TimeoutException, NetworkError)),
     )
-    async def send_analysis(
+    async def send_analysis_v2(
         self,
-        analysis_data: Dict[str, Any],
-        progress_callback: Optional[Callable[[int], None]] = None,
+        repo_path: str,
+        client_id: Optional[str] = None,
+        use_performance_mode: bool = True,
+        progress_callback: Optional[Callable[[str, int], None]] = None,
     ) -> Dict[str, Any]:
         """
-        분석 데이터를 API 서버로 전송
+        v2 API로 시나리오 생성 요청을 전송
 
         Args:
-            analysis_data: 분석 데이터
-            progress_callback: 진행 상황 콜백 함수
+            repo_path: Git 저장소 경로
+            client_id: 클라이언트 ID (None이면 자동 생성)
+            use_performance_mode: 성능 모드 사용 여부
+            progress_callback: 진행 상황 콜백 함수 (message, progress)
 
         Returns:
-            API 응답 데이터
+            API 응답 데이터 (client_id, websocket_url 포함)
 
         Raises:
             APIError: API 호출 실패시
         """
         try:
-            self.logger.info("API 서버로 분석 데이터 전송 시작")
+            # 클라이언트 ID 생성
+            if not client_id:
+                import uuid
+                client_id = f"ts_cli_{uuid.uuid4().hex[:8]}"
+
+            self.logger.info(f"v2 API로 시나리오 생성 요청 시작 - client_id: {client_id}")
 
             if progress_callback:
-                progress_callback(10)
+                progress_callback("API 요청 준비 중...", 10)
 
-            # 백엔드 API 스펙에 맞게 요청 데이터 준비
+            # v2 API 스펙에 맞는 요청 데이터 준비
             request_data = {
-                "analysis_text": analysis_data.get("changes_text", "")  # 백엔드에서 요구하는 필드명
+                "client_id": client_id,
+                "repo_path": repo_path,
+                "use_performance_mode": use_performance_mode
             }
 
             if progress_callback:
-                progress_callback(30)
+                progress_callback("서버로 요청 전송 중...", 30)
 
-            # API 호출 - 백엔드 엔드포인트로 수정
-            response = await self.client.post("/api/scenario/v1/generate-from-text", json=request_data)
+            # v2 API 엔드포인트로 요청
+            response = await self.client.post("/api/v2/scenario/generate", json=request_data)
 
             if progress_callback:
-                progress_callback(70)
+                progress_callback("응답 처리 중...", 70)
 
             # 응답 처리
             await self._handle_response(response)
             response_data: Dict[str, Any] = response.json()
 
             if progress_callback:
-                progress_callback(100)
+                progress_callback("v2 API 요청 완료", 100)
 
             self.logger.info(
-                f"분석 데이터 전송 완료. 다운로드 URL: {response_data.get('download_url')}"
+                f"v2 API 요청 완료 - client_id: {client_id}, websocket_url: {response_data.get('websocket_url')}"
             )
             return response_data
 
@@ -171,8 +183,109 @@ class APIClient:
             raise APIError(error_msg) from e
 
         except Exception as e:
-            self.logger.error(f"분석 데이터 전송 중 오류: {e}")
+            self.logger.error(f"v2 API 요청 중 오류: {e}")
             raise APIError(f"예상치 못한 오류가 발생했습니다: {str(e)}") from e
+
+    async def listen_to_progress_v2(
+        self,
+        websocket_url: str,
+        progress_callback: Optional[Callable[[str, str, int, Optional[Dict[str, Any]]], None]] = None,
+        timeout: int = 600,
+    ) -> Dict[str, Any]:
+        """
+        v2 API WebSocket으로부터 진행 상황을 수신
+
+        Args:
+            websocket_url: WebSocket URL
+            progress_callback: 진행 상황 콜백 함수 (status, message, progress, result)
+            timeout: 타임아웃 (초)
+
+        Returns:
+            최종 결과 데이터
+
+        Raises:
+            APIError: WebSocket 연결 실패시
+        """
+        try:
+            self.logger.info(f"WebSocket 연결 시작: {websocket_url}")
+
+            # timeout을 connect_timeout으로 변경 (websockets 라이브러리 호환성)
+            import websockets.client
+            timeout_config = websockets.client.WebSocketClientProtocol
+            
+            async with websockets.connect(
+                websocket_url,
+                open_timeout=30,  # 연결 대기 시간
+                close_timeout=10,  # 종료 대기 시간
+                ping_timeout=20,   # ping 대기 시간
+                ping_interval=None  # ping 간격 (None으로 비활성화)
+            ) as websocket:
+                self.logger.info("WebSocket 연결 완료")
+
+                while True:
+                    try:
+                        # WebSocket으로부터 메시지 수신
+                        message = await asyncio.wait_for(websocket.recv(), timeout=30)
+                        
+                        # JSON 파싱
+                        try:
+                            progress_data = json.loads(message)
+                        except json.JSONDecodeError:
+                            self.logger.error(f"JSON 파싱 실패: {message}")
+                            continue
+                        
+                        if not progress_data:
+                            self.logger.warning("빈 진행 상황 데이터 수신")
+                            continue
+                            
+                        status = progress_data.get("status", "")
+                        message_text = progress_data.get("message", "")
+                        progress_value = progress_data.get("progress", 0)
+                        
+                        # details가 dict인지 확인하고 result 추출
+                        details = progress_data.get("details", {})
+                        result = None
+                        if isinstance(details, dict):
+                            result = details.get("result")
+
+                        self.logger.debug(f"진행 상황 수신: {status} - {message_text} ({progress_value}%)")
+
+                        # 콜백 함수 호출
+                        if progress_callback:
+                            progress_callback(status, message_text, progress_value, result)
+
+                        # 완료 상태 확인
+                        if status == "COMPLETED":
+                            self.logger.info("시나리오 생성 완료")
+                            if result:
+                                return result
+                            # details에서 result를 찾거나 전체 details 반환
+                            details = progress_data.get("details", {})
+                            if isinstance(details, dict) and "result" in details:
+                                return details["result"]
+                            return details
+
+                        # 오류 상태 확인
+                        if status == "ERROR":
+                            error_message = message_text or "시나리오 생성 중 오류가 발생했습니다."
+                            raise APIError(error_message)
+
+                    except asyncio.TimeoutError:
+                        self.logger.debug("WebSocket 메시지 수신 대기 중...")
+                        # 타임아웃이 발생해도 계속 대기
+                        continue
+
+                    except json.JSONDecodeError as e:
+                        self.logger.error(f"WebSocket 메시지 파싱 오류: {e}")
+                        continue
+
+        except websockets.exceptions.WebSocketException as e:
+            self.logger.error(f"WebSocket 연결 오류: {e}")
+            raise APIError(f"WebSocket 연결 실패: {str(e)}") from e
+
+        except Exception as e:
+            self.logger.error(f"WebSocket 통신 중 오류: {e}")
+            raise APIError(f"WebSocket 통신 실패: {str(e)}") from e
 
     @retry(
         stop=stop_after_attempt(3),

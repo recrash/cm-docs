@@ -123,13 +123,19 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
             console.print("[yellow]변경사항이 없습니다.[/yellow]")
             return True
             
-        # API 요청 데이터 준비
+        # v2 API 요청 데이터 준비
+        if not client_id:
+            import uuid
+            client_id = f"ts_cli_{uuid.uuid4().hex[:8]}"
+            
         request_data = {
-            "analysis_text": changes_data.get("changes_text", "")
+            "client_id": client_id,
+            "repo_path": str(repo_path.resolve()),
+            "use_performance_mode": True
         }
         
-        # API 엔드포인트 URL 구성
-        api_url = f"{server_url.rstrip('/')}/api/v2/generate"
+        # v2 API 엔드포인트 URL 구성
+        api_url = f"{server_url.rstrip('/')}/api/v2/scenario/generate"
         
         console.print("[cyan]API 요청 전송 중...[/cyan]")
         
@@ -149,14 +155,14 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
             # HTTP 상태 코드 확인
             response.raise_for_status()
             
-            # 응답 처리
+            # v2 API 응답 처리 (client_id, websocket_url)
             result_data = response.json()
-            download_url = result_data.get("download_url")
+            client_id_response = result_data.get("client_id")
+            websocket_url = result_data.get("websocket_url")
             
-            if download_url:
-                console.print(f"[green]분석 완료. 결과 다운로드 URL: {download_url}[/green]")
-            else:
-                console.print("[green]분석이 완료되었습니다.[/green]")
+            console.print(f"[green]v2 API 요청 완료. Client ID: {client_id_response}[/green]")
+            console.print(f"[cyan]시나리오 생성이 백그라운드에서 진행됩니다.[/cyan]")
+            console.print(f"[yellow]웹 UI에서 진행 상황을 확인하세요: {server_url}[/yellow]")
                 
             return True
             
@@ -402,19 +408,26 @@ def parse_url_parameters(url: str) -> tuple[Path, Optional[str]]:
         query_params = urllib.parse.parse_qs(parsed.query)
         client_id = query_params.get('clientId', [None])[0]
         
-        # 경로 추출 및 플랫폼별 처리
-        if platform.system() == "Windows":
-            # Windows: netloc과 path를 합쳐서 전체 경로 구성
-            # 예: testscenariomaker://C:/path/to/repo → C:/path/to/repo
-            path_str = parsed.netloc + parsed.path
-            # Windows 경로 정규화
-            path_str = path_str.rstrip('/"').replace('/', '\\')
+        # 경로 추출: 쿼리 파라미터에서 repoPath를 우선 확인
+        repo_path_param = query_params.get('repoPath', [None])[0]
+        
+        if repo_path_param:
+            # 쿼리 파라미터에서 경로 추출 (URL 디코딩 적용)
+            path_str = urllib.parse.unquote(repo_path_param)
         else:
-            # macOS/Linux: path만 사용 (절대경로 유지)
-            # 예: testscenariomaker:///Users/user/repo → /Users/user/repo
-            path_str = parsed.path
-            # Unix 경로 정규화 (앞쪽 슬래시는 절대경로 표시이므로 유지)
-            path_str = path_str.rstrip('/"')
+            # 기존 방식: URL path에서 경로 추출
+            if platform.system() == "Windows":
+                # Windows: netloc과 path를 합쳐서 전체 경로 구성
+                # 예: testscenariomaker://C:/path/to/repo → C:/path/to/repo
+                path_str = parsed.netloc + parsed.path
+                # Windows 경로 정규화
+                path_str = path_str.rstrip('/"').replace('/', '\\')
+            else:
+                # macOS/Linux: path만 사용 (절대경로 유지)
+                # 예: testscenariomaker:///Users/user/repo → /Users/user/repo
+                path_str = parsed.path
+                # Unix 경로 정규화 (앞쪽 슬래시는 절대경로 표시이므로 유지)
+                path_str = path_str.rstrip('/"')
         
         # pathlib.Path 객체로 변환하여 크로스 플랫폼 호환성 보장
         repository_path = Path(path_str)
