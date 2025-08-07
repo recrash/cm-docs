@@ -10,7 +10,13 @@
       "mcp__upstash-context-7-mcp__get-library-docs",
       "Bash(ts-cli:*)",
       "Bash(powershell:*)",
-      "Bash(start test_url_protocol.html)"
+      "Bash(start test_url_protocol.html)",
+      "mcp__wonderwhy-er-desktop-commander__read_file",
+      "mcp__wonderwhy-er-desktop-commander__list_directory",
+      "mcp__wonderwhy-er-desktop-commander__edit_block",
+      "Bash(pip install:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }
