@@ -1,6 +1,6 @@
 # TestscenarioMaker CLI
 
-TestscenarioMaker를 위한 로컬 저장소 분석 CLI 도구입니다.
+TestscenarioMaker를 위한 로컬 저장소 분석 CLI 도구입니다. v2 API WebSocket 지원으로 실시간 진행 상황 모니터링과 Custom URL Protocol을 통한 직관적인 워크플로우를 제공합니다.
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -8,12 +8,13 @@ TestscenarioMaker를 위한 로컬 저장소 분석 CLI 도구입니다.
 
 ## 🎯 주요 기능
 
+- **v2 API WebSocket 지원**: 실시간 진행 상황 모니터링으로 향상된 사용자 경험
+- **Custom URL Protocol**: `ts-cli://` 프로토콜을 통한 웹에서 직접 실행
 - **Git 저장소 분석**: 로컬 Git 저장소의 변경사항을 자동으로 분석
 - **전략 패턴 기반**: 향후 SVN, Mercurial 등 다른 VCS 지원 확장 가능
 - **크로스플랫폼**: Windows와 macOS 모두 지원
 - **한국어 UI**: 모든 사용자 인터페이스가 한국어로 제공
 - **풍부한 출력**: 텍스트와 JSON 형식 출력 지원
-- **URL 프로토콜**: `testscenariomaker://` 프로토콜 지원으로 웹에서 직접 실행
 - **macOS 헬퍼 앱**: 브라우저 샌드박스 제약을 우회하는 전용 헬퍼 앱 제공
 
 ## 🚀 빠른 시작
@@ -23,12 +24,14 @@ TestscenarioMaker를 위한 로컬 저장소 분석 CLI 도구입니다.
 #### Windows
 1. [최신 릴리스](https://github.com/testscenariomaker/cli/releases)에서 `TestscenarioMaker-CLI-Setup.exe` 다운로드
 2. 설치 프로그램 실행 후 안내에 따라 설치
+3. `ts-cli://` URL 프로토콜이 자동으로 등록됩니다
 
 #### macOS
 1. [최신 릴리스](https://github.com/testscenariomaker/cli/releases)에서 `.dmg` 파일 다운로드
 2. DMG 파일을 마운트하고 `install.sh` 실행
    - 메인 CLI 앱과 헬퍼 앱이 동시에 설치됩니다
    - 헬퍼 앱은 웹 브라우저 샌드박스 제약을 우회합니다
+   - `ts-cli://` URL 프로토콜이 헬퍼 앱에 등록됩니다
 
 #### 개발자 설치 (pip)
 ```bash
@@ -40,7 +43,7 @@ pip install -e .
 ### 기본 사용법
 
 ```bash
-# 현재 디렉토리 분석
+# 현재 디렉토리 분석 (v2 API 사용)
 ts-cli analyze
 
 # 특정 경로 분석
@@ -56,6 +59,27 @@ ts-cli analyze --path /path/to/repository --output json
 ts-cli analyze --path /path/to/repository --dry-run
 ```
 
+### 실시간 진행 상황 모니터링
+
+v2 API WebSocket 지원으로 시나리오 생성 과정을 실시간으로 확인할 수 있습니다:
+
+```bash
+# 실시간 진행 상황 표시 (기본)
+ts-cli analyze --path /path/to/repository
+
+# 상세 진행 상황 (verbose 모드)
+ts-cli analyze --path /path/to/repository --verbose
+```
+
+**진행 상황 표시 예시:**
+```
+v2 API 요청 전송 중... [████████████████████] 100%
+시나리오 생성 진행 중... [██████████░░░░░░░░░░] 50%
+[ANALYZING] 저장소 분석 중... [████████████████░░] 80%
+[GENERATING] 테스트 시나리오 생성 중... [████████████████████] 100%
+✅ 시나리오 생성 완료!
+```
+
 ### 저장소 정보 확인
 
 ```bash
@@ -69,17 +93,17 @@ ts-cli config-show
 ts-cli --version
 ```
 
-### URL 프로토콜 사용법
+### Custom URL Protocol 사용법
 
-설치 후 웹 브라우저에서 `testscenariomaker://` 링크를 클릭하면 CLI가 자동으로 실행됩니다:
+설치 후 웹 브라우저에서 `ts-cli://` 링크를 클릭하면 CLI가 자동으로 실행됩니다:
 
 ```bash
 # 웹에서 클릭 가능한 링크 예시
-testscenariomaker:///path/to/your/repository
-testscenariomaker://C:/projects/my-repo    # Windows
+ts-cli:///path/to/your/repository
+ts-cli://C:/projects/my-repo    # Windows
 
 # 터미널에서 직접 테스트
-ts-cli "testscenariomaker:///path/to/repository"
+ts-cli "ts-cli:///path/to/repository"
 ```
 
 **지원 기능:**
@@ -93,10 +117,10 @@ ts-cli "testscenariomaker:///path/to/repository"
 macOS에서는 브라우저의 샌드박스 제약으로 인해 CLI가 네트워크 통신을 할 수 없는 문제를 해결하기 위해 전용 헬퍼 앱을 제공합니다:
 
 **작동 원리:**
-1. 브라우저에서 `testscenariomaker://` 링크 클릭
+1. 브라우저에서 `ts-cli://` 링크 클릭
 2. TestscenarioMaker Helper.app이 URL을 수신
 3. 헬퍼 앱이 독립적인 프로세스로 CLI 실행 (샌드박스 제약 우회)
-4. CLI가 정상적으로 API 호출 및 분석 수행
+4. CLI가 정상적으로 v2 API 호출 및 분석 수행
 
 **브라우저 호환성:**
 - **Safari**: 첫 번째 클릭 시 "허용" 선택
@@ -112,7 +136,7 @@ sh scripts/install_helper.sh
 python scripts/test_helper_app.py
 
 # URL 스킴 등록 확인
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -dump | grep testscenariomaker
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -dump | grep ts-cli
 ```
 
 ## 📁 프로젝트 구조
@@ -121,8 +145,8 @@ python scripts/test_helper_app.py
 testscenariomaker-cli/
 ├── src/ts_cli/              # 메인 소스 코드
 │   ├── main.py              # CLI 진입점
-│   ├── cli_handler.py       # 비즈니스 로직
-│   ├── api_client.py        # API 클라이언트
+│   ├── cli_handler.py       # 비즈니스 로직 (v2 API 통합)
+│   ├── api_client.py        # API 클라이언트 (WebSocket 지원)
 │   ├── vcs/                 # VCS 전략 패턴
 │   │   ├── base_analyzer.py # 추상 기반 클래스
 │   │   └── git_analyzer.py  # Git 구현체
@@ -215,7 +239,7 @@ ls -la dist/
 # 실행파일 빌드 후
 python scripts/build.py
 makensis scripts/setup_win.nsi
-# testscenariomaker:// URL 프로토콜이 자동 등록됩니다
+# ts-cli:// URL 프로토콜이 자동 등록됩니다
 ```
 
 **macOS DMG (macOS 환경에서)**
@@ -224,7 +248,7 @@ makensis scripts/setup_win.nsi
 python scripts/build.py
 python scripts/create_dmg.py
 # 메인 CLI 앱과 헬퍼 앱이 포함된 DMG 생성됩니다
-# testscenariomaker:// URL 프로토콜이 헬퍼 앱에 등록됩니다
+# ts-cli:// URL 프로토콜이 헬퍼 앱에 등록됩니다
 
 # 헬퍼 앱만 별도 빌드/테스트
 python scripts/build_helper_app.py
@@ -350,6 +374,24 @@ file_enabled = false
 
 ## 🏗️ 아키텍처
 
+### v2 API WebSocket 통신
+
+새로운 v2 API는 WebSocket을 통한 실시간 통신을 지원합니다:
+
+```python
+# v2 API 요청 및 WebSocket 모니터링
+async def send_analysis_v2(repo_path: str, progress_callback=None):
+    # 1. v2 API로 시나리오 생성 요청
+    response = await client.post("/api/v2/scenario/generate", json=request_data)
+    
+    # 2. WebSocket URL 수신
+    websocket_url = response.json().get("websocket_url")
+    
+    # 3. WebSocket으로 실시간 진행 상황 모니터링
+    result = await listen_to_progress_v2(websocket_url, progress_callback)
+    return result
+```
+
 ### 전략 패턴 (Strategy Pattern)
 
 VCS 지원을 위해 전략 패턴을 사용하여 확장 가능한 구조를 제공합니다:
@@ -402,8 +444,8 @@ def get_analyzer(path: Path) -> Optional[RepositoryAnalyzer]:
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)
 ![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 
 ---
 
-**TestscenarioMaker CLI**는 개발자의 생산성 향상을 위해 지속적으로 발전하고 있습니다. 🚀
+**TestscenarioMaker CLI**는 개발자의 생산성 향상을 위해 지속적으로 발전하고 있습니다. v2 API WebSocket 지원과 Custom URL Protocol로 더욱 직관적이고 효율적인 워크플로우를 제공합니다. 🚀
