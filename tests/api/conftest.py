@@ -93,11 +93,22 @@ def mock_dependencies():
          patch('src.git_analyzer.get_git_analysis_text') as mock_git_analyzer, \
          patch('src.llm_handler.call_ollama_llm') as mock_llm_handler, \
          patch('src.excel_writer.save_results_to_excel') as mock_excel_writer, \
+         patch('src.excel_writer._copy_template') as mock_copy_template, \
+         patch('src.excel_writer._generate_filename') as mock_generate_filename, \
          patch('src.prompt_loader.create_final_prompt') as mock_create_prompt, \
          patch('src.prompt_loader.add_git_analysis_to_rag') as mock_add_rag, \
          patch('src.prompt_loader.get_rag_info') as mock_get_rag_info, \
+         patch('src.prompt_loader.get_rag_manager') as mock_get_rag_manager, \
+         patch('src.prompt_loader.get_feedback_manager') as mock_get_feedback_manager, \
+         patch('src.prompt_loader.get_prompt_enhancer') as mock_get_prompt_enhancer, \
          patch('src.feedback_manager.FeedbackManager') as mock_feedback_manager, \
-         patch('os.path.isdir') as mock_isdir:
+         patch('src.vector_db.rag_manager.RAGManager') as mock_rag_manager_class, \
+         patch('os.path.isdir') as mock_isdir, \
+         patch('pathlib.Path.exists') as mock_path_exists, \
+         patch('pathlib.Path.mkdir') as mock_path_mkdir, \
+         patch('requests.post') as mock_requests_post, \
+         patch('openpyxl.load_workbook') as mock_load_workbook, \
+         patch('shutil.copy') as mock_shutil_copy:
         
         # 기본 Mock 설정
         mock_load_config.return_value = {
@@ -117,29 +128,75 @@ def mock_dependencies():
         }
         </json>
         """
-        mock_excel_writer.return_value = "test_output.xlsx"
-        mock_create_prompt.return_value = "Mock prompt"
+        mock_excel_writer.return_value = "/test/output/20241201_120000_테스트_시나리오_결과.xlsx"
+        mock_create_prompt.return_value = "Mock prompt for testing"
         mock_add_rag.return_value = 5
         mock_get_rag_info.return_value = {"chroma_info": {"count": 10}}
         mock_isdir.return_value = True
+        mock_path_exists.return_value = True
+        mock_path_mkdir.return_value = None
+        mock_copy_template.return_value = True
+        mock_generate_filename.return_value = "/test/output/20241201_120000_테스트_시나리오_결과.xlsx"
+        mock_shutil_copy.return_value = None
         
-        # FeedbackManager Mock
-        mock_manager_instance = MagicMock()
-        mock_feedback_manager.return_value = mock_manager_instance
-        mock_manager_instance.get_feedback_stats.return_value = {
+        # Excel Workbook Mock
+        mock_workbook = MagicMock()
+        mock_sheet = MagicMock()
+        mock_workbook.active = mock_sheet
+        mock_load_workbook.return_value = mock_workbook
+        
+        # Requests Mock
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"response": """
+        <json>
+        {
+            "Scenario Description": "Mock scenario",
+            "Test Scenario Name": "Mock test name",
+            "Test Cases": []
+        }
+        </json>
+        """}
+        mock_response.raise_for_status.return_value = None
+        mock_requests_post.return_value = mock_response
+        
+        # RAG Manager Mock
+        mock_rag_manager_instance = MagicMock()
+        mock_rag_manager_class.return_value = mock_rag_manager_instance
+        mock_get_rag_manager.return_value = mock_rag_manager_instance
+        
+        # Feedback Manager Mock
+        mock_feedback_manager_instance = MagicMock()
+        mock_feedback_manager.return_value = mock_feedback_manager_instance
+        mock_get_feedback_manager.return_value = mock_feedback_manager_instance
+        mock_feedback_manager_instance.get_feedback_stats.return_value = {
             "total_feedback": 0,
             "category_distribution": {},
             "average_scores": {}
         }
+        
+        # Prompt Enhancer Mock
+        mock_prompt_enhancer_instance = MagicMock()
+        mock_get_prompt_enhancer.return_value = mock_prompt_enhancer_instance
         
         yield {
             'load_config': mock_load_config,
             'git_analyzer': mock_git_analyzer,
             'llm_handler': mock_llm_handler,
             'excel_writer': mock_excel_writer,
-            'create_prompt': mock_create_prompt,
+            'create_final_prompt': mock_create_prompt,
             'add_rag': mock_add_rag,
             'get_rag_info': mock_get_rag_info,
+            'get_rag_manager': mock_get_rag_manager,
+            'get_feedback_manager': mock_get_feedback_manager,
+            'get_prompt_enhancer': mock_get_prompt_enhancer,
             'feedback_manager': mock_feedback_manager,
-            'isdir': mock_isdir
+            'rag_manager_class': mock_rag_manager_class,
+            'isdir': mock_isdir,
+            'path_exists': mock_path_exists,
+            'path_mkdir': mock_path_mkdir,
+            'requests_post': mock_requests_post,
+            'load_workbook': mock_load_workbook,
+            'shutil_copy': mock_shutil_copy,
+            'copy_template': mock_copy_template,
+            'generate_filename': mock_generate_filename
         }

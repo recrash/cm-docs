@@ -19,6 +19,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from src.logging_config import setup_logging
 from backend.routers import scenario, feedback, rag, files, logging as logging_router
+from backend.routers.v2.router import v2_router
 
 # 로깅 설정 초기화
 setup_logging()
@@ -120,6 +121,9 @@ app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
 app.include_router(rag.router, prefix="/api/rag", tags=["RAG"])
 app.include_router(files.router, prefix="/api/files", tags=["Files"])
 app.include_router(logging_router.router, prefix="/api", tags=["Logging"])
+
+# v2 API 라우터 등록 (CLI 연동용)
+app.include_router(v2_router, prefix="/api")
 
 # 정적 파일 서빙 (프로덕션용)
 static_dir = Path(__file__).parent.parent / "frontend/dist"

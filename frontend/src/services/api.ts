@@ -199,4 +199,36 @@ export const filesApi = {
   },
 };
 
+// v2 API (CLI 연동용)
+export const v2Api = {
+  /**
+   * CLI에서 시나리오 생성을 요청하는 API
+   */
+  generateScenario: async (clientId: string, repoPath: string, usePerformanceMode: boolean = true) => {
+    const response = await api.post('/v2/scenario/generate', {
+      client_id: clientId,
+      repo_path: repoPath,
+      use_performance_mode: usePerformanceMode
+    });
+    return response.data;
+  },
+
+  /**
+   * 특정 클라이언트의 생성 상태 조회
+   */
+  getGenerationStatus: async (clientId: string) => {
+    const response = await api.get(`/v2/scenario/status/${clientId}`);
+    return response.data;
+  },
+
+  /**
+   * v2 WebSocket URL 생성
+   */
+  getWebSocketUrl: (clientId: string) => {
+    const baseUrl = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = process.env.NODE_ENV === 'development' ? 'localhost:8000' : window.location.host;
+    return `${baseUrl}//${host}/api/v2/ws/progress/${clientId}`;
+  }
+};
+
 export default api;

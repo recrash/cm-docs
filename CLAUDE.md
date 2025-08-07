@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TestscenarioMaker is an AI-powered tool that analyzes Git repository changes and automatically generates Korean test scenarios in Excel format. The project has evolved from a Streamlit-based application to a full-stack React + FastAPI architecture with RAG (Retrieval-Augmented Generation) capabilities and a feedback system for continuous improvement.
 
+**Current Status**: The project is actively being developed on the `feature/CLI` branch with significant enhancements for CLI integration via V2 API endpoints. Recent additions include WebSocket-based progress tracking, background task management, and comprehensive testing infrastructure.
+
+### Git Repository Status
+- **Current branch**: `feature/CLI`
+- **Main branch**: `main` (use for PRs)
+- **Key modified files**: `backend/main.py`, `frontend/src/components/ScenarioGenerationTab.tsx`, `frontend/src/services/api.ts`
+- **New additions**: `backend/routers/v2/`, `frontend/src/services/v2WebSocket.ts`, `tests/api/v2/`, `tests/e2e/v2-workflow.spec.ts`
+- **Recent commits include**: CLI 분석 텍스트 기반 시나리오 생성 API, 피드백 시스템 백업 관리, 로깅 시스템 구현
+
 ## Architecture Overview
 
 ### Full-Stack Architecture
@@ -53,6 +62,10 @@ npm run test:e2e:ui
 npm run test:api
 # OR: pytest tests/api/
 
+# V2 API tests (CLI integration)
+pytest tests/api/v2/test_scenario_v2.py -v
+PYTHONPATH=. python -m pytest tests/api/v2/test_scenario_v2.py::TestV2Models -v
+
 # Single test file
 pytest tests/api/test_scenario_api.py -v
 pytest tests/unit/test_git_analyzer.py::test_function_name -v
@@ -71,6 +84,9 @@ export PYTHONPATH=$(pwd):$PYTHONPATH
 
 # Backend tests with coverage
 pytest --cov=src --cov-report=html
+
+# Linting (frontend)
+npm run lint
 
 # Download Korean embedding model (first-time setup for offline environments)
 python scripts/download_embedding_model.py
@@ -94,16 +110,20 @@ curl http://localhost:8000/api/health
 
 ### WebSocket Integration
 - Scenario generation uses WebSocket for real-time progress updates
-- Frontend connects to `ws://localhost:8000/api/scenario/generate-ws`
+- **Frontend WebSocket**: `ws://localhost:8000/api/scenario/generate-ws`
+- **V2 CLI WebSocket**: `ws://localhost:8000/api/v2/ws/progress/{client_id}`
 - Progress updates show: 10% → 20% → 30% → 80% → 90% → 100%
 - Each step has 1-second delay for user visibility
 - Handle connection states and progress messages appropriately
+- **Client ID system**: V2 API uses unique client IDs for tracking multiple concurrent operations
 
 ### Critical WebSocket Implementation Notes
 - Backend uses `progress.model_dump()` + `json.dumps()` for proper serialization
 - Frontend WebSocket URL adapts to environment (localhost:8000 for development)
 - Connection manager prevents duplicate disconnect errors
 - Progress delays ensure user can see each step during generation
+- **V2 WebSocket**: Uses connection manager pattern with client ID-based routing
+- **V2 Message format**: Includes client_id, status, message, progress, details, and optional result data
 
 ## Code Architecture Details
 
@@ -129,7 +149,13 @@ backend/
 │   ├── scenario.py      # Generation endpoints + WebSocket
 │   ├── feedback.py      # Feedback collection & analysis
 │   ├── rag.py          # RAG system management
-│   └── files.py        # File upload/download/validation
+│   ├── files.py        # File upload/download/validation
+│   ├── logging.py       # Logging endpoints
+│   └── v2/             # V2 API for CLI integration
+│       ├── router.py    # V2 main router
+│       ├── scenario_v2.py  # CLI-compatible generation endpoints
+│       ├── progress_websocket.py  # V2 WebSocket management
+│       └── models.py    # V2-specific Pydantic models
 └── models/             # Pydantic response models
 ```
 
@@ -170,6 +196,14 @@ The original core logic remains in `src/` and is imported by backend routers:
 - Auto-initializes on backend startup if `rag.enabled: true` in config.json
 - Supports DOCX, TXT, PDF document formats with chunk_size=1000, chunk_overlap=200
 
+#### V2 API Integration (CLI Support)
+- **CLI-compatible endpoints**: `/api/v2/scenario/generate` for background processing
+- **Progress tracking**: `/api/v2/ws/progress/{client_id}` for real-time CLI progress updates
+- **Background task management**: Asynchronous generation with client ID tracking
+- **Task lifecycle**: Start → Progress Updates → Completion/Error handling
+- **Client ID system**: Unique identifiers for tracking multiple concurrent CLI operations
+- **Status management**: V2GenerationStatus enum (waiting, processing, completed, error)
+
 ### Testing Architecture
 
 #### E2E Testing (Playwright - Required)
@@ -177,12 +211,17 @@ The original core logic remains in `src/` and is imported by backend routers:
 - Test complete user workflows including file downloads
 - Verify WebSocket real-time updates
 - Cross-browser compatibility testing
+- Playwright config auto-starts both frontend (port 3000) and backend (port 8000) servers
+- Test scenario generation requires ~60 second wait time for completion
 
 #### API Testing (pytest)
 - Located in `tests/api/`
 - Covers all FastAPI endpoints
 - Mock external dependencies (Ollama, file system)
 - Database isolation with test fixtures
+- **V2 API Tests**: `tests/api/v2/` for CLI integration testing
+  - `test_scenario_v2.py`: V2 generation endpoint testing
+  - `test_websocket_v2.py`: WebSocket connection and progress testing
 
 #### Development Guidelines
 - **CRITICAL**: Only perform the functionality requested by the user. NEVER arbitrarily change variable names or delete existing functionality without explicit request
@@ -293,6 +332,12 @@ For closed networks, pre-download the Korean embedding model:
 python scripts/download_embedding_model.py
 ```
 This script downloads the Korean embedding model (~500MB) to `./models/ko-sroberta-multitask/` for offline use.
+
+### Dependencies and Package Management
+- **Frontend dependencies**: Managed via npm, defined in package.json
+- **Backend dependencies**: Managed via pip, defined in requirements.txt
+- **Python dependencies include**: FastAPI, ChromaDB, sentence-transformers, pytest, GitPython
+- **Key frontend libraries**: React 18, TypeScript, Material-UI, Vite, Playwright
 
 ## Recent System Enhancements
 

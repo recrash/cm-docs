@@ -26,7 +26,9 @@ from backend.models.scenario import (
     ScenarioResponse, 
     ScenarioMetadata,
     GenerationProgress, 
-    GenerationStatus
+    GenerationStatus,
+    AnalysisTextRequest,
+    AnalysisTextResponse
 )
 
 router = APIRouter()
@@ -187,3 +189,88 @@ async def get_scenario_config():
     except Exception as e:
         logger.exception("Failed to load scenario configuration.")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/v1/generate-from-text", response_model=AnalysisTextResponse)
+async def generate_scenario_from_text(request: AnalysisTextRequest):
+    """
+    분석 텍스트를 기반으로 테스트 시나리오를 생성합니다.
+    
+    Args:
+        request: 분석 텍스트가 포함된 요청 객체
+    
+    Returns:
+        생성된 Excel 파일의 다운로드 URL과 메타데이터
+    """
+    try:
+        logger.info("분석 텍스트 기반 시나리오 생성 시작")
+        
+        # 설정 로드
+        config = load_config()
+        if not config:
+            raise HTTPException(status_code=500, detail="설정 파일을 로드할 수 없습니다.")
+        
+        # LLM 호출을 위한 프롬프트 생성
+        model_name = config.get("model_name", "qwen3:8b")
+        timeout = config.get("timeout", 600)
+        
+        # 분석 텍스트를 Git 분석 결과로 사용하여 프롬프트 생성
+        final_prompt = create_final_prompt(
+            request.analysis_text, 
+            use_rag=True, 
+            use_feedback_enhancement=True,
+            performance_mode=True  # CLI 요청은 성능 모드로 처리
+        )
+        
+        if not final_prompt:
+            raise HTTPException(status_code=500, detail="프롬프트 생성에 실패했습니다.")
+        
+        # LLM 호출
+        logger.info(f"LLM 모델 '{model_name}' 호출 중...")
+        start_time = time.time()
+        raw_response = call_ollama_llm(final_prompt, model=model_name, timeout=timeout)
+        end_time = time.time()
+        
+        if not raw_response:
+            raise HTTPException(status_code=500, detail="LLM으로부터 응답을 받지 못했습니다.")
+        
+        # JSON 파싱
+        logger.info("LLM 응답 파싱 중...")
+        json_match = re.search(r'<json>(.*?)</json>', raw_response, re.DOTALL)
+        if not json_match:
+            raise HTTPException(status_code=500, detail="LLM 응답에서 JSON 블록을 찾을 수 없습니다.")
+        
+        result_json = json.loads(json_match.group(1).strip())
+        
+        # Excel 파일 생성
+        logger.info("Excel 파일 생성 중...")
+        project_root = Path(__file__).resolve().parents[2]
+        template_path = project_root / "templates" / "template.xlsx"
+        final_filename = save_results_to_excel(result_json, str(template_path))
+        
+        if not final_filename:
+            raise HTTPException(status_code=500, detail="Excel 파일 생성에 실패했습니다.")
+        
+        # 파일명에서 다운로드 URL 생성
+        filename = Path(final_filename).name
+        download_url = f"/api/files/download/excel/{filename}"
+        
+        logger.info(f"시나리오 생성 완료: {filename}")
+        
+        return AnalysisTextResponse(
+            download_url=download_url,
+            filename=filename,
+            message="시나리오가 성공적으로 생성되었습니다."
+        )
+        
+    except HTTPException:
+        # HTTPException은 그대로 재발생
+        raise
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON 파싱 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"JSON 파싱 오류: {str(e)}")
+    except OllamaAPIError as e:
+        logger.error(f"LLM API 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"LLM API 오류: {str(e)}")
+    except Exception as e:
+        logger.exception("분석 텍스트 기반 시나리오 생성 중 예기치 않은 오류 발생")
+        raise HTTPException(status_code=500, detail=f"시나리오 생성 중 오류 발생: {str(e)}")

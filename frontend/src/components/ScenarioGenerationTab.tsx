@@ -17,28 +17,30 @@ import {
   Chip,
   Paper
 } from '@mui/material'
-import { ExpandMore, Rocket, Psychology, Speed } from '@mui/icons-material'
-import { scenarioApi, ragApi, filesApi } from '../services/api'
-import { ScenarioWebSocket } from '../utils/websocket'
+import { ExpandMore, Rocket, Psychology, Speed, Launch } from '@mui/icons-material'
+import { scenarioApi, ragApi, filesApi, v2Api } from '../services/api'
+import { V2ProgressWebSocket, generateClientId, type V2ProgressMessage, V2GenerationStatus, getV2StatusMessage } from '../services/v2WebSocket'
 import ScenarioResultViewer from './ScenarioResultViewer'
 import FeedbackModal from './FeedbackModal'
 import RAGSystemPanel from './RAGSystemPanel'
-import { type ScenarioResponse, type GenerationProgress, type RAGStatus, GenerationStatus } from '../types'
+import { type ScenarioResponse, type RAGStatus } from '../types'
 
 export default function ScenarioGenerationTab() {
   const [repoPath, setRepoPath] = useState('')
   const [performanceMode, setPerformanceMode] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [progress, setProgress] = useState<GenerationProgress | null>(null)
   const [result, setResult] = useState<ScenarioResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ragStatus, setRagStatus] = useState<RAGStatus | null>(null)
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false)
   const [feedbackType, setFeedbackType] = useState<'like' | 'dislike'>('like')
-  const [config, setConfig] = useState<any>(null)
 
-  // WebSocket 인스턴스
-  const [websocket, setWebsocket] = useState<ScenarioWebSocket | null>(null)
+  // v2 CLI 연동 관련 state
+  const [v2Progress, setV2Progress] = useState<V2ProgressMessage | null>(null)
+  const [v2WebSocket, setV2WebSocket] = useState<V2ProgressWebSocket | null>(null)
+  const [isWaitingForCLI, setIsWaitingForCLI] = useState(false)
+  const [currentClientId, setCurrentClientId] = useState<string | null>(null)
+  const [config, setConfig] = useState<any>(null)
 
   useEffect(() => {
     // 컴포넌트 마운트 시 설정과 RAG 상태 로드
@@ -49,11 +51,11 @@ export default function ScenarioGenerationTab() {
   useEffect(() => {
     // 컴포넌트 언마운트 시 WebSocket 정리
     return () => {
-      if (websocket) {
-        websocket.disconnect()
+      if (v2WebSocket) {
+        v2WebSocket.disconnect()
       }
     }
-  }, [websocket])
+  }, [v2WebSocket])
 
   const loadConfig = async () => {
     try {
@@ -99,37 +101,87 @@ export default function ScenarioGenerationTab() {
       return
     }
 
-    setError(null)
-    setResult(null)
-    setIsGenerating(true)
-    setProgress({ status: GenerationStatus.STARTED, message: '시나리오 생성을 시작합니다...', progress: 0 })
-
-    // WebSocket 연결
-    const wsUrl = scenarioApi.getWebSocketUrl()
-    const ws = new ScenarioWebSocket(
-      wsUrl,
-      (progressData) => {
-        setProgress(progressData)
-      },
-      (errorMessage) => {
-        setError(errorMessage)
-        setIsGenerating(false)
-        setProgress(null)
-      },
-      (resultData) => {
-        console.log('🎉 시나리오 생성 완료! 결과:', resultData)
-        setResult(resultData)
-        setIsGenerating(false)
-        setProgress(null)
-      }
-    )
-
-    setWebsocket(ws)
-    ws.connect({
-      repo_path: repoPath,
-      use_performance_mode: performanceMode
-    })
+    // v2 CLI 연동 모드로만 동작
+    await handleV2Generate()
   }
+
+  const handleV2Generate = async () => {
+    try {
+      // 상태 초기화
+      setError(null)
+      setResult(null)
+      setV2Progress(null)
+      setIsGenerating(true)
+      setIsWaitingForCLI(true)
+
+      // 고유한 클라이언트 ID 생성
+      const clientId = generateClientId()
+      setCurrentClientId(clientId)
+
+      console.log('🚀 v2 모드로 시나리오 생성 시작:', { clientId, repoPath })
+
+      // v2 WebSocket 연결 준비
+      const v2WS = new V2ProgressWebSocket(clientId, {
+        onProgress: (progress) => {
+          console.log('📊 v2 진행 상황:', progress)
+          setV2Progress(progress)
+          setIsWaitingForCLI(false) // CLI가 응답하면 대기 상태 해제
+        },
+        onError: (errorMessage) => {
+          console.error('❌ v2 오류:', errorMessage)
+          setError(`v2 시나리오 생성 오류: ${errorMessage}`)
+          setIsGenerating(false)
+          setIsWaitingForCLI(false)
+          setV2Progress(null)
+        },
+        onComplete: (resultData) => {
+          console.log('🎉 v2 시나리오 생성 완료!', resultData)
+          
+          // v1 형식으로 변환하여 기존 컴포넌트와 호환
+          const convertedResult: ScenarioResponse = {
+            scenario_description: resultData.description,
+            test_scenario_name: resultData.test_scenario_name || resultData.filename.replace('.xlsx', ''),
+            test_cases: resultData.test_cases || [], // v2에서 실제 테스트 케이스 데이터 사용
+            metadata: {
+              llm_response_time: resultData.llm_response_time || 0,
+              prompt_size: resultData.prompt_size || 0,
+              added_chunks: resultData.added_chunks || 0,
+              excel_filename: resultData.filename
+            }
+          }
+
+          setResult(convertedResult)
+          setIsGenerating(false)
+          setIsWaitingForCLI(false)
+          setV2Progress(null)
+        }
+      })
+
+      setV2WebSocket(v2WS)
+      v2WS.connect()
+
+      // Custom URL Protocol로 CLI 실행
+      const customUrl = `testscenariomaker://generate?clientId=${clientId}&repoPath=${encodeURIComponent(repoPath)}&performanceMode=${performanceMode}`
+      
+      console.log('🔗 CLI 실행 URL:', customUrl)
+      
+      // CLI 실행 시도
+      try {
+        window.location.href = customUrl
+        console.log('✅ CLI 실행 URL 호출 완료')
+      } catch (urlError) {
+        console.error('❌ CLI URL 호출 실패:', urlError)
+        throw new Error('CLI를 실행할 수 없습니다. CLI가 설치되어 있는지 확인해주세요.')
+      }
+
+    } catch (error) {
+      console.error('❌ v2 생성 처리 오류:', error)
+      setError(error instanceof Error ? error.message : 'v2 시나리오 생성 중 오류가 발생했습니다.')
+      setIsGenerating(false)
+      setIsWaitingForCLI(false)
+    }
+  }
+
 
 
   const handleFeedback = (type: 'like' | 'dislike') => {
@@ -138,9 +190,11 @@ export default function ScenarioGenerationTab() {
   }
 
   const getProgressColor = () => {
-    if (!progress) return 'primary'
-    if (progress.status === 'error') return 'error'
-    if (progress.status === 'completed') return 'success'
+    if (v2Progress) {
+      if (v2Progress.status === V2GenerationStatus.ERROR) return 'error'
+      if (v2Progress.status === V2GenerationStatus.COMPLETED) return 'success'
+      return 'primary'
+    }
     return 'primary'
   }
 
@@ -194,6 +248,7 @@ export default function ScenarioGenerationTab() {
             }}
             helperText="분석할 Git 저장소의 로컬 경로를 입력하세요"
           />
+
 
           <Box 
             sx={{ 
@@ -272,8 +327,21 @@ export default function ScenarioGenerationTab() {
         </CardContent>
       </Card>
 
+      {/* CLI 대기 상태 표시 */}
+      {isWaitingForCLI && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body1" fontWeight={500}>
+            🔗 CLI 애플리케이션을 실행하고 있습니다...
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            CLI가 설치되어 있지 않다면 먼저 설치해주세요. 
+            잠시 후 진행 상황이 업데이트됩니다.
+          </Typography>
+        </Alert>
+      )}
+
       {/* 진행 상황 표시 */}
-      {progress && (
+      {v2Progress && (
         <Card 
           sx={{ 
             mb: 4,
@@ -305,11 +373,11 @@ export default function ScenarioGenerationTab() {
                   생성 진행 상황
                 </Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
-                  {progress.message}
+                  {v2Progress.message}
                 </Typography>
               </Box>
               <Chip
-                label={`${progress.progress.toFixed(0)}%`}
+                label={`${v2Progress.progress.toFixed(0)}%`}
                 color="primary"
                 sx={{
                   fontSize: '1rem',
@@ -323,7 +391,7 @@ export default function ScenarioGenerationTab() {
             <Box sx={{ mb: 2 }}>
               <LinearProgress
                 variant="determinate"
-                value={progress.progress}
+                value={v2Progress.progress}
                 color={getProgressColor()}
                 sx={{ 
                   height: 12,
@@ -337,7 +405,7 @@ export default function ScenarioGenerationTab() {
               />
             </Box>
             
-            {progress.details && (
+            {v2Progress.details && (
               <Box 
                 sx={{ 
                   mt: 3,
@@ -348,26 +416,26 @@ export default function ScenarioGenerationTab() {
                 }}
               >
                 <Grid container spacing={2}>
-                  {progress.details.llm_response_time && (
+                  {v2Progress.details.llm_response_time && (
                     <Grid item xs={12} sm={6}>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2" color="text.secondary">
                           ⏱️ LLM 응답 시간: 
                         </Typography>
                         <Typography variant="body2" fontWeight={600} sx={{ ml: 1 }}>
-                          {progress.details.llm_response_time.toFixed(1)}초
+                          {v2Progress.details.llm_response_time.toFixed(1)}초
                         </Typography>
                       </Box>
                     </Grid>
                   )}
-                  {progress.details.prompt_size && (
+                  {v2Progress.details.prompt_size && (
                     <Grid item xs={12} sm={6}>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2" color="text.secondary">
                           📏 프롬프트 크기: 
                         </Typography>
                         <Typography variant="body2" fontWeight={600} sx={{ ml: 1 }}>
-                          {progress.details.prompt_size.toLocaleString()}자
+                          {v2Progress.details.prompt_size.toLocaleString()}자
                         </Typography>
                       </Box>
                     </Grid>

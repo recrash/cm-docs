@@ -11,6 +11,16 @@ class ScenarioGenerationRequest(BaseModel):
     repo_path: str = Field(..., description="Git 저장소 경로")
     use_performance_mode: bool = Field(default=True, description="성능 최적화 모드 사용 여부")
 
+class AnalysisTextRequest(BaseModel):
+    """분석 텍스트 기반 시나리오 생성 요청 모델"""
+    analysis_text: str = Field(..., description="Git 저장소 분석 텍스트")
+
+class AnalysisTextResponse(BaseModel):
+    """분석 텍스트 기반 시나리오 생성 응답 모델"""
+    download_url: str = Field(..., description="생성된 Excel 파일 다운로드 URL")
+    filename: str = Field(..., description="생성된 파일명")
+    message: str = Field(..., description="처리 결과 메시지")
+
 class TestCase(BaseModel):
     """개별 테스트 케이스 모델"""
     ID: str = Field(..., description="테스트 케이스 ID")
