@@ -6,11 +6,51 @@
 
 import logging
 import logging.handlers
+import os
+import platform
 import sys
 from pathlib import Path
 from typing import Optional
 
 from .config_loader import get_config
+
+
+def get_default_log_path() -> Path:
+    """
+    플랫폼별 기본 로그 파일 경로를 반환합니다.
+    
+    Returns:
+        플랫폼에 맞는 로그 파일 경로
+        - Windows: %APPDATA%/testscenariomaker-cli/ts-cli.log
+        - macOS: ~/Library/Logs/testscenariomaker-cli/ts-cli.log  
+        - Linux: ~/.local/share/testscenariomaker-cli/ts-cli.log
+    """
+    system = platform.system().lower()
+    
+    if system == "windows":
+        # Windows: %APPDATA%/testscenariomaker-cli/ts-cli.log
+        base_dir = Path(os.environ.get("APPDATA", Path.home()))
+        log_dir = base_dir / "testscenariomaker-cli"
+    elif system == "darwin":  # macOS
+        # macOS: ~/Library/Logs/testscenariomaker-cli/ts-cli.log
+        log_dir = Path.home() / "Library" / "Logs" / "testscenariomaker-cli"
+    else:  # Linux and others
+        # Linux: ~/.local/share/testscenariomaker-cli/ts-cli.log
+        xdg_data_home = os.environ.get("XDG_DATA_HOME")
+        if xdg_data_home:
+            base_dir = Path(xdg_data_home)
+        else:
+            base_dir = Path.home() / ".local" / "share"
+        log_dir = base_dir / "testscenariomaker-cli"
+    
+    # 로그 디렉토리 생성
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        # 디렉토리 생성 실패 시 홈 디렉토리 사용
+        log_dir = Path.home()
+    
+    return log_dir / "ts-cli.log"
 
 
 def setup_logger(
@@ -46,8 +86,17 @@ def setup_logger(
         )
         file_enabled = config.get("logging", "file_enabled", False, bool)
         if log_file is None and file_enabled:
-            log_file_path = config.get("logging", "file_path", "ts-cli.log")
-            log_file = Path(log_file_path)
+            log_file_path = config.get("logging", "file_path", "")
+            if not log_file_path or log_file_path == "ts-cli.log" or log_file_path == "auto":
+                # 기본값이거나 레거시 상대경로, 또는 'auto' 키워드인 경우 플랫폼별 경로 사용
+                log_file = get_default_log_path()
+            else:
+                # 사용자가 명시적으로 설정한 경로 사용
+                log_file_path = os.path.expanduser(log_file_path)  # ~ 경로 확장
+                log_file = Path(log_file_path)
+                # 상대경로인 경우 절대경로로 변환
+                if not log_file.is_absolute():
+                    log_file = Path.cwd() / log_file
     except Exception:
         # 설정 로드 실패시 기본값 사용
         level = level or "INFO"
