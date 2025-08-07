@@ -1,374 +1,390 @@
 # TestscenarioMaker
 
-Git 저장소 변경사항을 분석하여 한국어 테스트 시나리오를 Excel 형식으로 자동 생성하는 AI 기반 도구입니다.
+Git 저장소 변경사항을 분석하여 한국어 테스트 시나리오를 Excel 형식으로 자동 생성하는 AI 기반 도구
 
-## 📋 프로젝트 개요
+## 🚀 프로젝트 개요
 
-TestscenarioMaker는 Git 저장소 변경사항을 분석하고 AI를 사용하여 고품질의 한국어 테스트 시나리오를 자동으로 생성하는 풀스택 애플리케이션입니다. 이 프로젝트는 현대적인 React 프론트엔드, FastAPI 백엔드를 특징으로 하며, RAG(Retrieval-Augmented Generation) 기능과 지속적인 개선을 위한 피드백 시스템을 포함합니다.
+TestscenarioMaker는 Git 저장소의 변경사항을 분석하고 AI(LLM)를 활용하여 고품질의 한국어 테스트 시나리오를 자동으로 생성하는 풀스택 웹 애플리케이션입니다. RAG(Retrieval-Augmented Generation) 시스템과 피드백 기반 학습 시스템을 통해 지속적으로 개선되는 테스트 시나리오를 제공합니다.
 
-**현재 상태**: 프로젝트는 `feature/CLI` 브랜치에서 활발히 개발 중이며, CLI 통합을 위한 V2 API 엔드포인트, WebSocket 기반 진행 상황 추적, 백그라운드 작업 관리 등 상당한 개선사항이 추가되었습니다.
+## ✨ 주요 기능
 
-## 🏗️ 아키텍처
-
-### 풀스택 아키텍처
-- **프론트엔드**: React 18 + TypeScript + Material-UI + Vite
-- **백엔드**: FastAPI + Python (모듈형 라우터)
-- **AI/LLM**: Ollama 통합 (qwen3:8b 모델)
-- **벡터 데이터베이스**: RAG 시스템을 위한 ChromaDB
-- **저장소**: 피드백 데이터용 SQLite, 출력용 Excel 파일
-- **테스팅**: Jest + Playwright (E2E) + pytest (백엔드)
-
-### 주요 구성 요소
-- **레거시 `src/` 모듈**: 핵심 분석 로직 (git_analyzer, llm_handler, excel_writer 등)
-- **백엔드 API**: 시나리오 생성, 피드백, RAG, 파일 관리를 위한 FastAPI 라우터
-- **V2 API**: CLI 연동을 위한 새로운 엔드포인트 및 WebSocket 관리
-- **프론트엔드 SPA**: 실시간 WebSocket 업데이트가 있는 React 컴포넌트
-- **RAG 시스템**: 컨텍스트 향상 생성을 위한 벡터 데이터베이스 통합
-
-## 🎯 주요 기능
-
-### 🔍 **AI 기반 시나리오 생성**
-- **Git 분석**: 커밋 메시지 및 코드 diff 자동 추출
-- **LLM 통합**: 지능형 생성을 위한 Ollama 기반 qwen3:8b 모델
-- **Excel 출력**: 템플릿이 있는 표준화된 테스트 시나리오 형식
+### 🔍 AI 기반 시나리오 생성
+- **Git 분석**: 커밋 메시지 및 코드 diff 자동 추출 및 분석
+- **LLM 통합**: Ollama qwen3 모델을 활용한 지능형 시나리오 생성
+- **Excel 출력**: 표준화된 테스트 시나리오 템플릿 기반 Excel 파일 생성
 - **한국어 특화**: 자연스러운 한국어 테스트 시나리오 생성
-- **실시간 업데이트**: 생성 중 WebSocket 기반 진행률 추적
+- **실시간 진행**: WebSocket 기반 실시간 생성 진행상황 표시
 
-### 🖥️ **CLI 연동 (V2 API)**
-- **백그라운드 처리**: 비동기 시나리오 생성 및 클라이언트 ID 기반 추적
-- **실시간 진행 상황**: WebSocket을 통한 CLI 진행률 실시간 모니터링
-- **다중 클라이언트 지원**: 동시 CLI 작업을 위한 고유 클라이언트 ID 시스템
-- **상태 관리**: V2GenerationStatus enum을 통한 작업 상태 추적
-- **Custom URL Protocol**: `testscenariomaker://` 프로토콜을 통한 CLI 실행
+### 🧠 RAG(검색 증강 생성) 시스템
+- **벡터 데이터베이스**: ChromaDB를 활용한 지능형 문서 검색
+- **한국어 임베딩**: ko-sroberta-multitask 모델 기반 정확한 유사도 검색
+- **컨텍스트 향상**: 과거 분석 결과를 활용한 개선된 시나리오 생성
+- **다형식 지원**: DOCX, TXT, PDF 문서 자동 인덱싱 및 검색
+- **오프라인 지원**: 로컬 임베딩 모델을 통한 폐쇄망 환경 지원
 
-### 🧠 **RAG (검색 증강 생성) 시스템**
-- **벡터 데이터베이스**: 지능형 문서 검색을 위한 ChromaDB
-- **한국어 임베딩**: 정확한 유사도 검색을 위한 ko-sroberta-multitask 모델
-- **컨텍스트 향상**: 개선된 시나리오 생성을 위한 과거 분석 결과
-- **문서 인덱싱**: 다양한 형식(DOCX, TXT, PDF)의 자동 처리
-- **동적 컨텍스트**: 생성 중 관련 과거 데이터 검색
+### 📊 피드백 및 분석 시스템
+- **사용자 피드백**: 생성된 시나리오에 대한 5점 척도 평가
+- **자동 개선**: 피드백 기반 프롬프트 및 생성 품질 최적화
+- **분석 대시보드**: 종합적인 통계 분석 및 트렌드 시각화
+- **데이터 관리**: 자동 백업, JSON/Excel 내보내기, 요약 보고서 생성
+- **데이터 무결성**: SQLite 기반 트랜잭션 처리 및 외래키 제약 조건
 
-### 📊 **피드백 시스템**
-- **사용자 평가**: 생성된 시나리오에 대한 5점 척도 평가 시스템
-- **자동 개선**: 피드백 기반 프롬프트 최적화
-- **분석 대시보드**: 통계 분석 및 개선 패턴 시각화
-- **백업 시스템**: 데이터 안전을 위한 자동 데이터 백업
-- **내보내기 기능**: 피드백 데이터의 JSON 및 Excel 내보내기
+### 🌐 현대적인 웹 인터페이스
+- **React SPA**: Material-UI 기반 반응형 단일 페이지 애플리케이션
+- **실시간 업데이트**: WebSocket을 통한 생성 진행상황 실시간 표시
+- **드래그 앤 드롭**: 직관적인 파일 업로드 및 관리
+- **모바일 친화적**: 적응형 레이아웃의 반응형 디자인
+- **접근성**: WCAG 가이드라인 준수 및 키보드 네비게이션 지원
 
-### 🌐 **현대적인 웹 인터페이스**
-- **React SPA**: Material-UI 컴포넌트가 있는 단일 페이지 애플리케이션
-- **실시간 진행률**: 라이브 생성 업데이트를 위한 WebSocket 통합
-- **파일 관리**: 드래그 앤 드롭 파일 업로드 및 다운로드 기능
-- **반응형 디자인**: 적응형 레이아웃이 있는 모바일 친화적 인터페이스
-- **오류 처리**: 사용자 친화적 메시지가 있는 포괄적인 오류 처리
+## 🏗️ 기술 스택
 
-### 🧪 **포괄적인 테스팅**
-- **단위 테스팅**: Testing Library가 있는 Jest 기반 프론트엔드 테스트
-- **API 테스팅**: 모의 지원이 있는 pytest 기반 백엔드 API 테스트
-- **V2 API 테스팅**: CLI 연동을 위한 전용 V2 API 테스트
-- **E2E 테스팅**: 브라우저 간 Playwright 기반 엔드투엔드 테스트
-- **통합 테스팅**: 데이터베이스 격리가 있는 전체 워크플로우 테스트
+### 프론트엔드
+- **React 18** + **TypeScript** - 현대적인 UI 개발
+- **Material-UI (MUI)** - 일관된 디자인 시스템
+- **Vite** - 빠른 개발 환경 및 빌드 도구
+- **Axios** - HTTP 클라이언트 및 API 통신
+- **WebSocket** - 실시간 양방향 통신
+
+### 백엔드
+- **FastAPI** - 고성능 Python 웹 프레임워크
+- **Uvicorn** - ASGI 서버
+- **WebSocket** - 실시간 통신 지원
+- **SQLite** - 피드백 데이터 저장
+- **Pydantic** - 데이터 검증 및 직렬화
+
+### AI/ML
+- **Ollama** - 로컬 LLM 실행 환경
+- **qwen3:8b** - 메인 생성 모델 (백업: qwen3:1.7b)
+- **ChromaDB** - 벡터 데이터베이스
+- **sentence-transformers** - 한국어 텍스트 임베딩
+- **ko-sroberta-multitask** - 한국어 특화 임베딩 모델
+
+### 개발 도구
+- **Jest** - 프론트엔드 유닛 테스트
+- **Playwright** - E2E 테스트 및 브라우저 자동화
+- **pytest** - 백엔드 API 테스트
+- **ESLint** + **TypeScript** - 코드 품질 관리
+
+## 📋 시스템 요구사항
+
+- **Python**: 3.8 이상
+- **Node.js**: 16 이상
+- **Ollama**: qwen3:8b 모델 설치
+- **Git**: 2.0 이상 (저장소 분석용)
+- **메모리**: 최소 8GB RAM (qwen3:8b 모델 실행용)
+- **저장공간**: 최소 2GB (모델 및 의존성 포함)
 
 ## 🚀 빠른 시작
 
-### 사전 요구사항
-- **Python 3.8+** (pip 포함)
-- **Node.js 16+** (npm 포함)
-- **Ollama** (qwen3:8b 모델 설치됨)
-- **Git** (저장소 분석용)
+### 1. 저장소 클론 및 설정
+```bash
+git clone <repository-url>
+cd TestscenarioMaker
 
-### 설치
+# 설정 파일 생성
+cp config.example.json config.json
+```
 
-1. **저장소 클론**:
-   ```bash
-   git clone <repository-url>
-   cd TestscenarioMaker
-   ```
+### 2. 백엔드 설정
+```bash
+# Python 가상환경 생성 (권장)
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-2. **백엔드 설정**:
-   ```bash
-   # Python 의존성 설치
-   pip install -r requirements.txt
-   
-   # 설정 구성
-   cp config.example.json config.json
-   # config.json을 설정에 맞게 편집
-   ```
+# 의존성 설치
+pip install -r requirements.txt
 
-3. **프론트엔드 설정**:
-   ```bash
-   # Node.js 의존성 설치
-   npm install
-   ```
+# 환경변수 설정
+export PYTHONPATH=$(pwd):$PYTHONPATH
+```
 
-4. **한국어 임베딩 모델 다운로드**:
-   ```bash
-   python scripts/download_embedding_model.py
-   ```
+### 3. 프론트엔드 설정
+```bash
+# Node.js 의존성 설치
+npm install
+```
 
-### 애플리케이션 실행
+### 4. Ollama 설정
+```bash
+# Ollama 설치 (https://ollama.com)
+# qwen3 모델 다운로드
+ollama pull qwen3:8b
+# 또는 경량 모델
+ollama pull qwen3:1.7b
+```
+
+### 5. 한국어 임베딩 모델 다운로드
+```bash
+# 온라인 환경
+python scripts/download_embedding_model.py
+
+# 모델이 ./models/ko-sroberta-multitask/ 에 다운로드됩니다
+```
+
+### 6. 애플리케이션 실행
 
 #### 개발 모드
-
-1. **백엔드 서버 시작** (포트 8000):
-   ```bash
-   cd backend
-   python -m uvicorn main:app --reload --port 8000
-   ```
-
-2. **프론트엔드 서버 시작** (포트 3000):
-   ```bash
-   npm run dev
-   ```
-
-3. **애플리케이션 접속**:
-   - 프론트엔드: http://localhost:3000
-   - 백엔드 API: http://localhost:8000
-   - API 문서: http://localhost:8000/docs
-
-#### 프로덕션 모드
-
 ```bash
-# 프론트엔드 빌드
-npm run build
-
-# 프로덕션 서버 시작
+# 터미널 1: 백엔드 서버 (포트 8000)
 cd backend
-uvicorn main:app --host 0.0.0.0 --port 8000
+python -m uvicorn main:app --reload --port 8000
+
+# 터미널 2: 프론트엔드 서버 (포트 3000)
+npm run dev
 ```
 
-### 서버 관리
+#### 웹 인터페이스 접속
+- **프론트엔드**: http://localhost:3000
+- **백엔드 API 문서**: http://localhost:8000/docs
+- **API 대안 문서**: http://localhost:8000/redoc
 
+## 🧪 테스트 실행
+
+### 전체 테스트 스위트
 ```bash
-# 모든 서버 중지
-./stop-dev.sh
+npm run test:all
 ```
 
-**⚠️ 중요**: `./start-dev.sh`를 사용하지 마세요 - 위에서 보여준 대로 수동으로 서버를 시작하세요.
+### 개별 테스트
+```bash
+# 프론트엔드 유닛 테스트
+npm run test
+npm run test:watch
+npm run test:coverage
+
+# E2E 테스트 (기능 검증 필수)
+npm run test:e2e
+npm run test:e2e:ui
+npm run test:e2e:report
+
+# 백엔드 API 테스트
+npm run test:api
+pytest tests/api/ -v
+
+# 커버리지 리포트
+pytest --cov=src --cov-report=html --cov-report=term
+```
+
+### 특정 테스트 파일
+```bash
+pytest tests/api/test_scenario_api.py -v
+pytest tests/unit/test_git_analyzer.py::test_function_name -v
+```
 
 ## 📁 프로젝트 구조
 
 ```
 TestscenarioMaker/
-├── frontend/src/                    # React 프론트엔드
+├── 🌐 frontend/src/                 # React 프론트엔드
 │   ├── components/                  # 재사용 가능한 UI 컴포넌트
-│   │   ├── ScenarioGenerationTab.tsx
-│   │   ├── ScenarioResultViewer.tsx
-│   │   ├── FeedbackModal.tsx
-│   │   ├── RAGSystemPanel.tsx
-│   │   └── FeedbackAnalysisTab.tsx
-│   ├── services/
-│   │   ├── api.ts                   # Axios 기반 API 클라이언트
-│   │   └── v2WebSocket.ts           # V2 WebSocket 클라이언트
-│   ├── types/index.ts               # TypeScript 정의
-│   └── utils/websocket.ts           # 레거시 WebSocket 연결 처리
-├── backend/                         # FastAPI 백엔드
-│   ├── main.py                      # FastAPI 앱 초기화
-│   ├── routers/                     # API 엔드포인트 모듈
-│   │   ├── scenario.py              # 생성 엔드포인트 + WebSocket
+│   │   ├── ScenarioGenerationTab.tsx    # 시나리오 생성 인터페이스
+│   │   ├── ScenarioResultViewer.tsx     # 결과 표시 및 다운로드
+│   │   ├── FeedbackModal.tsx            # 피드백 수집
+│   │   ├── RAGSystemPanel.tsx           # RAG 시스템 관리
+│   │   ├── FeedbackAnalysisTab.tsx      # 피드백 분석 대시보드
+│   │   └── BackupFileManagementModal.tsx # 백업 파일 관리
+│   ├── services/api.ts              # API 클라이언트
+│   ├── utils/websocket.ts           # WebSocket 연결 관리
+│   └── types/index.ts               # TypeScript 타입 정의
+├── ⚙️ backend/                      # FastAPI 백엔드
+│   ├── main.py                      # 애플리케이션 진입점
+│   ├── routers/                     # API 라우터 모듈
+│   │   ├── scenario.py              # 시나리오 생성 + WebSocket
 │   │   ├── feedback.py              # 피드백 수집 및 분석
 │   │   ├── rag.py                   # RAG 시스템 관리
-│   │   ├── files.py                 # 파일 업로드/다운로드/검증
-│   │   ├── logging.py               # 로깅 엔드포인트
-│   │   └── v2/                      # V2 API (CLI 연동용)
-│   │       ├── router.py            # V2 메인 라우터
-│   │       ├── scenario_v2.py       # CLI 호환 생성 엔드포인트
-│   │       ├── progress_websocket.py # V2 WebSocket 관리
-│   │       └── models.py            # V2 전용 Pydantic 모델
-│   └── models/                      # Pydantic 응답 모델
-├── src/                             # 레거시 핵심 모듈
-│   ├── git_analyzer.py              # Git diff 추출 및 분석
+│   │   ├── files.py                 # 파일 업로드/다운로드
+│   │   └── logging.py               # 로깅 시스템
+│   └── models/                      # Pydantic 모델
+├── 🧠 src/                          # 핵심 비즈니스 로직
+│   ├── git_analyzer.py              # Git 분석 및 diff 추출
 │   ├── llm_handler.py               # Ollama LLM 통합
-│   ├── excel_writer.py              # 템플릿 기반 Excel 생성
-│   ├── feedback_manager.py          # SQLite 기반 피드백 저장소
-│   └── vector_db/                   # ChromaDB가 있는 RAG 시스템
-├── tests/                           # 테스트 스위트
-│   ├── unit/                        # 단위 테스트
+│   ├── excel_writer.py              # Excel 템플릿 기반 생성
+│   ├── feedback_manager.py          # 피드백 데이터 관리
+│   ├── config_loader.py             # 설정 파일 로더
+│   ├── logging_config.py            # 구조화된 로깅
+│   └── vector_db/                   # RAG 시스템
+│       ├── rag_manager.py           # RAG 오케스트레이션
+│       ├── chroma_manager.py        # ChromaDB 관리
+│       ├── document_chunker.py      # 문서 청킹
+│       └── document_indexer.py      # 문서 인덱싱
+├── 🧪 tests/                        # 테스트 스위트
+│   ├── unit/                        # 유닛 테스트
 │   ├── api/                         # API 테스트
-│   │   └── v2/                      # V2 API 테스트
-│   │       ├── test_scenario_v2.py  # V2 생성 엔드포인트 테스트
-│   │       └── test_websocket_v2.py # V2 WebSocket 테스트
-│   ├── e2e/                         # 엔드투엔드 테스트
-│   │   └── v2-workflow.spec.ts      # V2 워크플로우 E2E 테스트
+│   ├── e2e/                         # E2E 테스트
 │   └── integration/                 # 통합 테스트
-├── templates/                       # Excel 템플릿
-├── outputs/                         # 생성된 Excel 파일
-├── documents/                       # RAG용 샘플 문서
-└── config.json                      # 애플리케이션 설정
+├── 📊 templates/template.xlsx       # Excel 템플릿
+├── 📂 outputs/                      # 생성된 Excel 파일
+├── 📚 models/ko-sroberta-multitask/ # 한국어 임베딩 모델
+├── 🗄️ logs/                         # 구조화된 로그 파일
+└── 📄 documents/                    # RAG 시스템용 문서
 ```
-
-## 🧪 테스팅
-
-### 테스트 실행
-
-```bash
-# 프론트엔드 단위 테스트
-npm run test
-npm run test:watch
-npm run test:coverage
-
-# E2E 테스트 (기능 테스팅에 필수)
-npm run test:e2e
-npm run test:e2e:ui
-
-# 백엔드 API 테스트
-npm run test:api
-# 또는: pytest tests/api/
-
-# V2 API 테스트 (CLI 연동)
-pytest tests/api/v2/test_scenario_v2.py -v
-PYTHONPATH=. python -m pytest tests/api/v2/test_scenario_v2.py::TestV2Models -v
-
-# 단일 테스트 파일
-pytest tests/api/test_scenario_api.py -v
-pytest tests/unit/test_git_analyzer.py::test_function_name -v
-
-# 모든 테스트
-npm run test:all
-```
-
-### 테스트 커버리지
-- **단위 테스트**: React 컴포넌트, 핵심 비즈니스 로직
-- **API 테스트**: 모의 의존성이 있는 모든 FastAPI 엔드포인트
-- **V2 API 테스트**: CLI 연동을 위한 V2 엔드포인트 및 WebSocket
-- **E2E 테스트**: 파일 다운로드를 포함한 완전한 사용자 워크플로우
-- **통합 테스트**: 데이터베이스 작업이 있는 전체 시스템 워크플로우
 
 ## ⚙️ 설정
 
-### config.json
+### config.json 주요 설정
 ```json
 {
-    "ollama_base_url": "http://localhost:11434",
     "model_name": "qwen3:8b",
-    "timeout_seconds": 600,
-    "max_tokens": 4000,
-    "temperature": 0.7,
-    "rag_enabled": true,
-    "feedback_enabled": true
+    "timeout": 600,
+    "documents_folder": "documents",
+    "rag": {
+        "enabled": true,
+        "persist_directory": "vector_db_data",
+        "embedding_model": "jhgan/ko-sroberta-multitask",
+        "local_embedding_model_path": "./models/ko-sroberta-multitask",
+        "chunk_size": 1000,
+        "chunk_overlap": 200,
+        "search_k": 5
+    }
 }
 ```
 
-### 환경 변수
-- `NODE_OPTIONS="--no-deprecation"`: Node.js 경고 억제
-- `PYTHONPATH`: 모듈 임포트를 위해 프로젝트 루트로 설정
+### 환경변수
+```bash
+# Python 모듈 경로 (필수)
+export PYTHONPATH=$(pwd):$PYTHONPATH
 
-## 🔄 API 통합
+# Node.js 경고 비활성화 (선택)
+export NODE_OPTIONS="--no-deprecation"
+```
 
-### WebSocket 시나리오 생성
-- **프론트엔드 WebSocket**: `ws://localhost:8000/api/scenario/generate-ws`
-- **V2 CLI WebSocket**: `ws://localhost:8000/api/v2/ws/progress/{client_id}`
-- **실시간 진행률 업데이트**: 10% → 20% → 30% → 80% → 90% → 100%
-- **각 진행 단계**: 설명 메시지가 포함됨
-- **최종 결과**: 메타데이터와 Excel 파일명이 포함됨
+## 🔧 주요 API 엔드포인트
 
-### V2 API (CLI 연동)
-- **CLI 호환 엔드포인트**: `/api/v2/scenario/generate` (백그라운드 처리)
-- **진행 상황 추적**: `/api/v2/ws/progress/{client_id}` (실시간 CLI 진행률)
-- **백그라운드 작업 관리**: 비동기 생성 및 클라이언트 ID 추적
-- **작업 생명주기**: 시작 → 진행 업데이트 → 완료/오류 처리
-- **클라이언트 ID 시스템**: 다중 동시 CLI 작업을 위한 고유 식별자
-- **상태 관리**: V2GenerationStatus enum (waiting, processing, completed, error)
+### 시나리오 생성
+- `ws://localhost:8000/api/scenario/generate-ws` - WebSocket 기반 시나리오 생성
 
 ### 파일 관리
-- Excel 파일이 `outputs/` 디렉토리에 생성됨
-- `/api/files/download/excel/{filename}`을 통해 다운로드
-- UTF-8 인코딩으로 한국어 파일명 지원
-- Excel 파일에 대한 적절한 MIME 타입 처리
+- `POST /api/files/validate/repo-path` - Git 저장소 경로 검증
+- `GET /api/files/download/excel/{filename}` - Excel 파일 다운로드
 
-### RAG 시스템 통합
-- `/api/rag/index`를 통한 문서 인덱싱
-- `/api/rag/status`를 통한 상태 모니터링
-- 시나리오 생성에 통합된 컨텍스트 검색
-- 특화된 임베딩으로 한국어 텍스트 처리
+### RAG 시스템
+- `POST /api/rag/index` - 문서 인덱싱
+- `GET /api/rag/status` - RAG 시스템 상태 조회
 
-## 🛠️ 개발 가이드라인
+### 피드백 시스템
+- `POST /api/feedback/submit` - 피드백 제출
+- `GET /api/feedback/analysis` - 피드백 분석 데이터
+- `GET /api/feedback/export` - 피드백 데이터 내보내기
 
-### 중요한 원칙
-- **크로스 플랫폼 호환성**: 상대 경로만 사용 - 프로젝트가 Windows에서 빌드되어야 함
-- **E2E 테스팅 필수**: 기능 테스팅 시 항상 Playwright를 사용하여 E2E 테스트 수행
-- **명확한 지시가 없으면 기존 기능을 삭제하지 말 것**
-- **경로 관리**: `pathlib.Path`와 상대 경로 사용
+### 시스템
+- `GET /api/health` - 헬스체크
+- `GET /api/logs` - 로그 데이터 조회
 
-### WebSocket 구현
-- **백엔드**: 직렬화를 위해 `progress.model_dump()` + `json.dumps()` 사용
-- **프론트엔드**: 환경에 맞게 WebSocket URL 조정
-- **연결 관리자**: 중복 연결 해제 오류 방지
-- **진행률 지연**: 각 단계의 사용자 가시성 보장
-- **V2 WebSocket**: 클라이언트 ID 기반 라우팅이 있는 연결 관리자 패턴
-- **V2 메시지 형식**: client_id, status, message, progress, details, 선택적 결과 데이터 포함
+## 🔄 실시간 시나리오 생성 워크플로우
 
-### V2 API 구현
-- **CLI 호환 엔드포인트**: 백그라운드 처리를 위한 `/api/v2/scenario/generate`
-- **진행 상황 추적**: 실시간 CLI 진행률을 위한 `/api/v2/ws/progress/{client_id}`
-- **백그라운드 작업 관리**: 클라이언트 ID 추적이 있는 비동기 생성
-- **작업 생명주기**: 시작 → 진행 업데이트 → 완료/오류 처리
-- **클라이언트 ID 시스템**: 다중 동시 CLI 작업을 위한 고유 식별자
-- **상태 관리**: V2GenerationStatus enum (waiting, processing, completed, error)
+1. **저장소 검증**: Git 저장소 경로 유효성 확인
+2. **WebSocket 연결**: 실시간 진행상황 스트리밍 연결
+3. **Git 분석**: 변경사항 추출 및 구조화 (10% → 20%)
+4. **RAG 컨텍스트**: 관련 문서 검색 및 컨텍스트 구성 (30%)
+5. **LLM 생성**: AI 모델 기반 시나리오 생성 (80%)
+6. **Excel 출력**: 템플릿 기반 Excel 파일 생성 (90%)
+7. **완료**: 다운로드 가능한 결과 파일 제공 (100%)
 
-### 오류 처리
-- **백엔드**: 상세한 메시지가 있는 FastAPI HTTPException
-- **프론트엔드**: 사용자 친화적 알림이 있는 Try-catch
-- **WebSocket**: 재연결 로직이 있는 전용 오류 콜백
+## 🎯 사용 방법
 
-## 📊 성능 및 모니터링
+### 1. 기본 시나리오 생성
+1. 웹 인터페이스에서 Git 저장소 경로 입력
+2. 필요시 성능 모드 선택 (기본: 활성화)
+3. "테스트 시나리오 생성" 버튼 클릭
+4. 실시간 진행상황 모니터링
+5. 완료 후 Excel 파일 다운로드
 
-### 성능 지표
-- **로드 시간**: 3G에서 <3초, WiFi에서 <1초
-- **번들 크기**: 초기 <500KB, 전체 <2MB
-- **API 응답**: 표준 작업에 <200ms
-- **생성 시간**: 완전한 시나리오에 ~30-60초
+### 2. RAG 시스템 활용
+1. RAG 시스템 패널에서 문서 업로드
+2. 자동 인덱싱 완료 확인
+3. 시나리오 생성 시 관련 컨텍스트 자동 활용
 
-### 모니터링
-- 실시간 WebSocket 진행률 추적
-- 구조화된 형식의 오류 로깅
-- 성능 지표 수집
-- 사용자 피드백 분석
+### 3. 피드백 제공
+1. 생성된 결과에서 만족도 평가
+2. 구체적인 개선 사항 입력
+3. 피드백 제출로 시스템 지속 개선
 
-## 🔒 보안
+## 📊 모니터링 및 로깅
 
-- **입력 검증**: 모든 사용자 입력 검증 및 정제
-- **경로 보안**: 상대 경로만, 디렉토리 순회 없음
-- **CORS 구성**: 개발/프로덕션을 위한 적절한 CORS 설정
-- **오류 처리**: 오류 메시지에 민감한 정보 없음
+### 구조화된 로깅
+- **로그 위치**: `logs/YYYYMMDD_[frontend|backend].log`
+- **로그 레벨**: DEBUG, INFO, WARNING, ERROR
+- **실시간 모니터링**: WebSocket 연결 및 API 호출 추적
+- **성능 메트릭**: 응답 시간 및 리소스 사용량 기록
 
-## 🤝 기여하기
+### 로그 조회
+```bash
+# 실시간 로그 모니터링
+tail -f logs/$(date +%Y%m%d)_backend.log
+tail -f logs/$(date +%Y%m%d)_frontend.log
+```
 
-1. 저장소 포크
-2. 기능 브랜치 생성
-3. 적절한 테스트와 함께 변경사항 작성
-4. 모든 테스트 스위트 실행
-5. 설명과 함께 풀 리퀘스트 제출
+## 🚨 문제 해결
+
+### 일반적인 문제
+- **WebSocket 연결 실패**: 백엔드 서버 포트 8000 실행 상태 확인
+- **생성이 0%에서 멈춤**: Ollama 서버 및 모델 가용성 확인
+- **한국어 텍스트 깨짐**: UTF-8 인코딩 설정 확인
+- **모듈 임포트 오류**: `PYTHONPATH` 환경변수 설정 확인
+
+### 성능 최적화
+- qwen3:1.7b 모델 사용으로 메모리 사용량 감소
+- RAG 시스템 비활성화로 처리 속도 향상
+- 성능 모드 활성화로 빠른 생성
+
+### 서버 관리
+```bash
+# 개발 서버 중지
+./stop-dev.sh
+
+# 헬스체크
+curl http://localhost:8000/api/health
+```
+
+## 🔒 보안 고려사항
+
+- **입력 검증**: 모든 사용자 입력에 대한 검증 및 정제
+- **경로 보안**: 상대 경로만 사용, 디렉터리 순회 공격 방지  
+- **CORS 설정**: 개발/운영 환경별 적절한 CORS 정책
+- **민감정보 보호**: 로그 및 응답에서 민감정보 마스킹
+
+## 🤝 개발 가이드라인
+
+### 중요 원칙
+- **크로스 플랫폼 호환성**: Windows 환경 고려 필수
+- **E2E 테스트 필수**: 기능 변경 시 Playwright 테스트 실행
+- **기존 기능 보존**: 명확한 지시 없이 기능 삭제 금지
+- **한국어 지원**: 모든 사용자 대면 텍스트 한국어 지원
 
 ### 개발 워크플로우
-- 모든 새로운 프론트엔드 코드에 TypeScript 사용
-- 기존 코드 패턴 및 규칙 따르기
-- 새 기능에 대한 테스트 추가
-- 필요에 따라 문서 업데이트
+1. 기능 브랜치 생성
+2. 테스트 기반 개발 (TDD)
+3. 모든 테스트 스위트 통과 확인
+4. 코드 리뷰 및 품질 검사
+5. 문서 업데이트
 
-## 📝 마이그레이션 노트
+## 📈 로드맵
 
-이 프로젝트는 Streamlit에서 React+FastAPI 아키텍처로 성공적으로 마이그레이션되었습니다:
-- ✅ 웹 인터페이스가 Streamlit에서 React SPA로 이동
-- ✅ API 엔드포인트가 FastAPI 백엔드로 중앙화
-- ✅ Streamlit rerun 대신 WebSocket을 통한 실시간 업데이트
-- ✅ E2E 커버리지가 있는 향상된 테스팅 아키텍처
-- ✅ 개선된 파일 관리 및 다운로드 시스템
-- ✅ 레거시 Streamlit 파일 제거 (app.py, main.py, app_streamlit_backup.py)
-- ✅ V2 API 추가로 CLI 연동 지원
+### 단기 계획
+- [ ] 추가 LLM 모델 지원 (Claude, GPT 등)
+- [ ] 시나리오 템플릿 커스터마이제이션
+- [ ] 배치 처리 기능
+
+### 중기 계획
+- [ ] 다국어 지원 확장
+- [ ] 클라우드 배포 지원
+- [ ] API 키 기반 외부 LLM 통합
+
+### 장기 계획
+- [ ] 기업용 SSO 통합
+- [ ] 고급 분석 및 리포팅
+- [ ] AI 모델 파인튜닝 지원
 
 ## 📄 라이선스
 
-이 프로젝트는 MIT 라이선스 하에 라이선스됩니다 - 자세한 내용은 LICENSE 파일을 참조하세요.
+이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 `LICENSE` 파일을 참조하세요.
 
-## 🆘 문제 해결
+## 🙋‍♂️ 지원 및 기여
 
-### 일반적인 문제
-- **WebSocket 연결 실패**: 백엔드 서버가 포트 8000에서 실행 중인지 확인
-- **생성이 0%에서 멈춤**: Ollama가 실행 중이고 모델이 사용 가능한지 확인
-- **파일 다운로드 문제**: outputs 디렉토리 권한 확인
-- **한국어 텍스트 문제**: UTF-8 인코딩이 올바르게 구성되었는지 확인
-- **V2 API 오류**: 클라이언트 ID가 올바르게 생성되었는지 확인
+- **이슈 리포팅**: GitHub Issues를 통한 버그 신고 및 기능 요청
+- **기여 방법**: Pull Request를 통한 코드 기여 환영
+- **문서 개선**: 문서 개선 및 번역 기여 환영
 
-### 지원
-문제와 질문이 있으시면 기존 문서를 확인하거나 저장소에서 이슈를 생성해 주세요.
+---
+
+**TestscenarioMaker** - AI 기반 지능형 테스트 시나리오 자동 생성 도구

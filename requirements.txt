@@ -16,6 +16,9 @@ pytest-cov      # 테스트 커버리지
 httpx           # FastAPI 테스트용 HTTP 클라이언트
 pytest-asyncio  # 비동기 테스트 지원
 
+# File concurrency control
+portalocker>=2.0.0  # 파일 락 기능
+
 # FastAPI Backend
 fastapi         # FastAPI 웹 프레임워크
 uvicorn[standard] # ASGI 서버
