@@ -262,6 +262,7 @@ test_outputs/
 # 캐시 파일
 .cache/
 cache/
+indexed_files_cache.json
 
 # 임시 파일
 temp/
@@ -280,6 +281,10 @@ vector_db_data/
 
 # 설정 파일 (개인별 경로 포함)
 config.json
+
+# Claude Code 설정 파일들
+.claude/settings.local.json
+.claude/session_data/
 
 # 개발 중 생성되는 임시 파일들
 debug_*.py
