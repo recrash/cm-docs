@@ -9,7 +9,8 @@
       "Bash(rm:*)",
       "Bash(git subtree add:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git notes:*)"
     ],
     "deny": [],
     "ask": []
