@@ -1,0 +1,186 @@
+[
+  {
+    "scenario_id": "a963a0af7b57af16",
+    "timestamp": "2025-08-03T17:05:10.233876",
+    "git_analysis_hash": "1bc4b4c669cc651b",
+    "repo_path": "/Users/recrash/Documents/Workspace/CPMES",
+    "scenario_content": {
+      "scenario_description": "GV02 장비의 공정 데이터 반영 및 '공정 데이터 조회' 검색 로직의 변경을 테스트하는 전체 테스트 사례.",
+      "test_scenario_name": "GV02 장비 공정 데이터 반영 및 검색 로직 변경 테스트",
+      "test_cases": [
+        {
+          "ID": "TEST_001",
+          "절차": "1. GV02 장비 공정 데이터 반영 기능 테스트\n2. 반영된 데이터가 TnPosxCoa.java의 gb2Lot, gb2VndrLot, gb2ProdDt 등 새로운 필드에 정확히 반영되는지 확인",
+          "사전조건": "TnPosxCoa.java의 gb2Lot, gb2VndrLot, gb2ProdDt 필드가 정상적으로 설정된 상태",
+          "데이터": "GB2-Lot No.: 12345, GB2-Vendor Lot: ABC123, GB2-Prod Dt: 2023-04-15",
+          "예상결과": "TnPosxCoa.java의 gb2Lot, gb2VndrLot, gb2ProdDt 필드가 12345, ABC123, 2023-04-15로 정상적으로 반영됨",
+          "Unit": "Y",
+          "Integration": "Y",
+          "종류": "Unit"
+        },
+        {
+          "ID": "TEST_002",
+          "절차": "1. '공정 데이터 조회' 검색 로직 변경 테스트\n2. 새로운 필드 gb2Lot, gb2VndrLot, gb2ProdDt을 포함한 검색 결과가 정확한지 확인",
+          "사전조건": "TnPosxCoa.java의 gb2Lot, gb2VndrLot, gb2ProdDt 필드가 정상적으로 설정된 상태",
+          "데이터": "GB2-Lot No.: 67890, GB2-Vendor Lot: XYZ789, GB2-Prod Dt: 2023-04-16",
+          "예상결과": "TnPosxCoa.java의 gb2Lot, gb2VndrLot, gb2ProdDt 필드가 67890, XYZ789, 2023-04-16로 정상적으로 반영됨",
+          "Unit": "Y",
+          "Integration": "Y",
+          "종류": "Integration"
+        }
+      ],
+      "metadata": {
+        "llm_response_time": 32.18907618522644,
+        "prompt_size": 5907,
+        "added_chunks": 6,
+        "excel_filename": "/Users/recrash/Documents/Workspace/TestscenarioMaker/backend/../outputs/20250803_170421_테스트_시나리오_결과.xlsx"
+      }
+    },
+    "scores": {
+      "overall": 2,
+      "usefulness": 2,
+      "accuracy": 2,
+      "completeness": 2
+    },
+    "category": "bad",
+    "comments": "테스트 절차가 불명확하고 실제 데이터와 맞지 않습니다.",
+    "created_at": "2025-08-03 08:05:10"
+  },
+  {
+    "scenario_id": "d6d6b915d1b9816f",
+    "timestamp": "2025-08-02T23:08:05.266938",
+    "git_analysis_hash": "1bc4b4c669cc651b",
+    "repo_path": "/Users/recrash/Documents/Workspace/CPMES",
+    "scenario_content": {
+      "scenario_description": "This test scenario covers the implementation of process data reflection for GV02 equipment and the enhancement of search logic for process data retrieval.",
+      "test_scenario_name": "GV02 Process Data Reflection and Search Logic Test Scenario",
+      "test_cases": [
+        {
+          "ID": "TEST_001",
+          "절차": "1. 검증 테스트: GV02 장비의 공정 데이터 반영 여부 확인.\n2. 데이터 입력 후 반영 여부 확인.",
+          "사전조건": "GV02 장비의 공정 데이터가 적절히 반영된 상태.",
+          "데이터": "공정 데이터 ID: '6100', '1100', '1100-GB-Lot No.', '1100-GB-Vendor Lot', '1100-GB-제조일자'",
+          "예상결과": "공정 데이터가 'gb2Lot', 'gb2VndrLot', 'gb2ProdDt' 필드에 정확히 반영됨.",
+          "Unit": "Y",
+          "Integration": ""
+        },
+        {
+          "ID": "TEST_002",
+          "절차": "1. 검증 테스트: 공정 데이터 검색 로직의 정확성 확인.\n2. 특정 조건 입력 후 데이터 검색 결과 확인.",
+          "사전조건": "공정 데이터 검색 로직이 수정된 상태.",
+          "데이터": "공정 데이터 ID: '6100', '1100', '1100-GB-Lot No.', '1100-GB-Vendor Lot', '1100-GB-제조일자'",
+          "예상결과": "공정 데이터가 'jig2Id6100', 'jig2UseCnt6100' 필드에 정확히 반영됨.",
+          "Unit": "",
+          "Integration": "Y"
+        },
+        {
+          "ID": "TEST_003",
+          "절차": "1. 검증 테스트: 공정 데이터 검색 로직의 성능 및 정확성 확인.",
+          "사전조건": "공정 데이터 검색 로직이 수정된 상태.",
+          "데이터": "공정 데이터 ID: '6100', '1100', '1100-GB-Lot No.', '1100-GB-Vendor Lot', '1100-GB-제조일자'",
+          "예상결과": "공정 데이터가 정확히 검색되고, 'jig2Id6100', 'jig2UseCnt6100' 필드에 반영됨.",
+          "Unit": "",
+          "Integration": "Y"
+        },
+        {
+          "ID": "TEST_004",
+          "절차": "1. 검증 테스트: 공정 데이터 검색 로직의 에러 처리 기능 확인.",
+          "사전조건": "공정 데이터 검색 로직이 수정된 상태.",
+          "데이터": "공정 데이터 ID: '6100', '1100', '1100-GB-Lot No.', '1100-GB-Vendor Lot', '1100-GB-제조일자'",
+          "예상결과": "공정 데이터 검색 시 오류 발생 시 정상적인 처리가 이루어짐.",
+          "Unit": "",
+          "Integration": "Y"
+        }
+      ],
+      "metadata": {
+        "llm_response_time": 28.54618501663208,
+        "prompt_size": 5840,
+        "added_chunks": 6,
+        "excel_filename": "/Users/recrash/Documents/Workspace/TestscenarioMaker/backend/../outputs/20250802_230722_테스트_시나리오_결과.xlsx"
+      }
+    },
+    "scores": {
+      "overall": 2,
+      "usefulness": 2,
+      "accuracy": 2,
+      "completeness": 2
+    },
+    "category": "bad",
+    "comments": "테스트 시나리오와 개요가 영어로 나왔습니다. 시나리오에 해당하는 모든 내용은 한글로 출력되어야 합니다.",
+    "created_at": "2025-08-02 14:08:05"
+  },
+  {
+    "scenario_id": "e87ec778d1044220",
+    "timestamp": "2025-08-03T22:13:23.801188",
+    "git_analysis_hash": "1bc4b4c669cc651b",
+    "repo_path": "/Users/recrash/Documents/Workspace/CPMES",
+    "scenario_content": {
+      "scenario_description": "This test scenario focuses on verifying the reflection of process data for GV02 equipment and the updated search logic for 공정 Data 조회 in the POS system.",
+      "test_scenario_name": "POS Coa Data Reflection and Search Logic Test",
+      "test_cases": [
+        {
+          "ID": "TEST_001",
+          "절차": "1. GV02 equipment process data reflection verified.\n2. Search logic for 공정 Data 조회 validated.",
+          "사전조건": "TnPosxCoa class has gb2Lot, gb2VndrLot, gb2ProdDt fields. SQL query for COA data is updated.",
+          "데이터": "Sample data for GB2 Lot, Vendor Lot, Production Date.",
+          "예상결과": "gb2Lot, gb2VndrLot, gb2ProdDt fields correctly populated and reflected in the database.",
+          "Unit": "Y",
+          "Integration": "",
+          "종류": "Unit"
+        },
+        {
+          "ID": "TEST_002",
+          "절차": "1. Search logic for 공정 Data 조회 validated with sample data.\n2. Data retrieval confirms correct results.",
+          "사전조건": "Search method updated to reflect new logic. Sample data provided.",
+          "데이터": "Sample 공정 Data 조회 request with specific parameters.",
+          "예상결과": "Search returns matching data with correct GB2 Lot, Vendor Lot, and Production Date.",
+          "Unit": "",
+          "Integration": "Y",
+          "종류": "Integration"
+        },
+        {
+          "ID": "TEST_003",
+          "절차": "1. GB2 Lot field validation with edge cases.\n2. Data consistency check for GB2 fields.",
+          "사전조건": "TnPosxCoa class has gb2Lot, gb2VndrLot, gb2ProdDt fields. Data is validated for null/empty values.",
+          "데이터": "Edge case data for GB2 Lot, Vendor Lot, and Production Date.",
+          "예상결과": "gb2Lot, gb2VndrLot, gb2ProdDt fields correctly handle null/empty values without errors.",
+          "Unit": "",
+          "Integration": "Y",
+          "종류": "Integration"
+        }
+      ],
+      "metadata": {
+        "llm_response_time": 22.53227210044861,
+        "prompt_size": 5907,
+        "added_chunks": 6,
+        "excel_filename": "/Users/recrash/Documents/Workspace/TestscenarioMaker/backend/../outputs/20250803_221135_테스트_시나리오_결과.xlsx"
+      }
+    },
+    "scores": {
+      "overall": 2,
+      "usefulness": 2,
+      "accuracy": 2,
+      "completeness": 2
+    },
+    "category": "bad",
+    "comments": "모두 다 영어로 나왔습니다. 테스트 시나리오는 한글로 나와야 합니다.",
+    "created_at": "2025-08-03 13:13:23",
+    "testcase_feedback": [
+      {
+        "testcase_id": "TEST_001",
+        "score": 2,
+        "comments": ""
+      },
+      {
+        "testcase_id": "TEST_002",
+        "score": 2,
+        "comments": ""
+      },
+      {
+        "testcase_id": "TEST_003",
+        "score": 2,
+        "comments": ""
+      }
+    ]
+  }
+]
