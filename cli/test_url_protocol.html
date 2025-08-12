@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TestscenarioMaker CLI URL 프로토콜 테스트</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007acc;
+        }
+        
+        .test-link {
+            display: inline-block;
+            background: #007acc;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .test-link:hover {
+            background: #005a9e;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        
+        code {
+            background: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        
+        .instructions {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔗 TestscenarioMaker CLI URL 프로토콜 테스트</h1>
+    
+    <div class="warning">
+        <h3>⚠️ 테스트 전 준비사항</h3>
+        <ol>
+            <li>TestscenarioMaker CLI가 설치되어 있어야 합니다</li>
+            <li>시크릿/프라이빗 브라우징 모드에서 테스트를 진행하세요</li>
+            <li>아래 경로를 실제 Git 저장소 경로로 변경하세요</li>
+        </ol>
+    </div>
+    
+    <div class="instructions">
+        <h3>📋 테스트 절차</h3>
+        <ol>
+            <li><strong>첫 번째 클릭</strong>: 링크를 클릭하면 실행 허용 창이 나타납니다</li>
+            <li><strong>허용 설정</strong>: "항상 허용" 옵션을 체크하고 허용합니다</li>
+            <li><strong>두 번째 클릭</strong>: 같은 링크를 다시 클릭하여 즉시 실행되는지 확인합니다</li>
+            <li><strong>결과 확인</strong>: CLI가 실행되고 저장소 분석이 진행되는지 확인합니다</li>
+        </ol>
+    </div>
+    
+    <div class="test-section">
+        <h3>🖥️ Windows 테스트</h3>
+        <p>Windows 환경에서 테스트할 수 있는 링크들입니다.</p>
+        
+        <h4>공백이 없는 경로</h4>
+        <a href="testscenariomaker://D:\Workspace\TestscenarioMaker-CLI" class="test-link">
+            testscenariomaker://D:\Workspace\TestscenarioMaker-CLI
+        </a>
+        
+        <h4>공백이 있는 경로 (URL 인코딩)</h4>
+        <a href="testscenariomaker://C:/Program%20Files/My%20Project" class="test-link">
+            C:/Program Files/My Project 분석
+        </a>
+        
+        <h4>실제 경로로 변경해서 테스트</h4>
+        <p>아래 링크의 경로를 실제 Git 저장소 경로로 변경하세요:</p>
+        <code>testscenariomaker://D:\Workspace\TestscenarioMaker-CLI</code>
+    </div>
+    
+    <div class="test-section">
+        <h3>🍎 macOS/Linux 테스트</h3>
+        <p>macOS와 Linux 환경에서 테스트할 수 있는 링크들입니다.</p>
+        
+        <h4>절대 경로</h4>
+        <a href="testscenariomaker:///Users/recrash/Documents/Workspace/CPMES" class="test-link">
+            /Users/recrash/Documents/Workspace/CPMES 분석
+        </a>
+        
+        <h4>공백이 있는 경로 (URL 인코딩)</h4>
+        <a href="testscenariomaker:///Users/username/My%20Projects/test%20repo" class="test-link">
+            /Users/username/My Projects/test repo 분석
+        </a>
+        
+        <h4>실제 경로로 변경해서 테스트</h4>
+        <p>아래 링크의 경로를 실제 Git 저장소 경로로 변경하세요:</p>
+        <code>testscenariomaker:///Users/recrash/Documents/Workspace/CPMES</code>
+    </div>
+    
+    <div class="test-section">
+        <h3>🌐 특수문자 및 유니코드 테스트</h3>
+        <p>특수문자와 유니코드가 포함된 경로 테스트입니다.</p>
+        
+        <h4>한글 경로</h4>
+        <a href="testscenariomaker:///Users/username/%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8/%ED%85%8C%EC%8A%A4%ED%8A%B8" class="test-link">
+            /Users/username/프로젝트/테스트 분석
+        </a>
+        
+        <h4>특수문자 포함</h4>
+        <a href="testscenariomaker:///Users/username/project-name_v2.0" class="test-link">
+            /Users/username/project-name_v2.0 분석
+        </a>
+    </div>
+    
+    <div class="success">
+        <h3>✅ 성공 확인 방법</h3>
+        <ul>
+            <li>링크 클릭 시 TestscenarioMaker CLI가 실행됩니다</li>
+            <li>콘솔에 "🔗 URL 프로토콜 처리 중" 메시지가 표시됩니다</li>
+            <li>"📂 분석 대상 경로" 메시지와 함께 경로가 표시됩니다</li>
+            <li>저장소 분석이 정상적으로 진행됩니다</li>
+            <li>성공 시 "✅ 저장소 분석이 성공적으로 완료되었습니다" 메시지 출력</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h3>🐛 문제 해결</h3>
+        <h4>링크가 작동하지 않는 경우:</h4>
+        <ul>
+            <li>TestscenarioMaker CLI가 올바르게 설치되었는지 확인</li>
+            <li>URL 프로토콜이 등록되었는지 확인</li>
+            <li>경로가 실제로 존재하는 Git 저장소인지 확인</li>
+            <li>브라우저를 재시작해보세요</li>
+        </ul>
+        
+        <h4>수동 테스트 명령어:</h4>
+        <p>터미널에서 직접 테스트해볼 수 있습니다:</p>
+        <code>ts-cli "testscenariomaker:///path/to/your/repository"</code>
+    </div>
+    
+    <script>
+        // 클릭 이벤트 로깅
+        document.querySelectorAll('.test-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                console.log('URL 프로토콜 링크 클릭:', this.href);
+                // 브라우저가 프로토콜을 처리할지 확인하기 위한 작은 지연
+                setTimeout(() => {
+                    console.log('링크 처리 완료');
+                }, 1000);
+            });
+        });
+        
+        // 페이지 로드 시 안내
+        console.log('TestscenarioMaker CLI URL 프로토콜 테스트 페이지가 로드되었습니다.');
+        console.log('개발자 도구를 열어두고 링크를 클릭하여 동작을 확인하세요.');
+    </script>
+</body>
+</html>

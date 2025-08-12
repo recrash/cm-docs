@@ -1,0 +1,13 @@
+# TestscenarioMaker CLI 운영 의존성
+# CLI 인터페이스
+click>=8.0.0
+rich>=13.0.0
+
+# HTTP 클라이언트
+httpx>=0.24.0
+tenacity>=8.0.0
+websockets>=11.0.0
+
+# 유틸리티
+pathlib2>=2.3.0;python_version<"3.4"
+configparser>=3.8.0
