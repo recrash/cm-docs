@@ -67,10 +67,13 @@ cd backend
 pip install -r requirements.txt
 npm install
 
+# PYTHONPATH 설정 (필수 - src/ 모듈 임포트용)
+export PYTHONPATH=$(pwd):$PYTHONPATH
+
 # 백엔드 서버 시작 (포트 8000)
 cd backend && python -m uvicorn main:app --reload --port 8000
 
-# 프론트엔드 개발 서버 시작 (포트 3000)
+# 프론트엔드 개발 서버 시작 (포트 3000) - 프로젝트 루트에서 실행
 npm run dev
 
 # 전체 테스트 실행
@@ -162,6 +165,11 @@ pytest -m e2e           # End-to-End 테스트
 - **CLI**: `cli/requirements.txt` + `cli/requirements-dev.txt`
 - **공통**: 루트 `pyproject.toml` (개발 도구 설정)
 
+### 통합된 설정 관리
+- **개발 가이드**: 루트 `CLAUDE.md` (통합 개발 지침)
+- **Git 무시 설정**: 루트 `.gitignore` (모든 프로젝트 패턴 포괄)
+- **구성 중복 제거**: 각 하위 프로젝트의 개별 설정 파일 통합 완료
+
 ### 코드 품질
 ```bash
 # 코드 포맷팅 (프로젝트 루트에서)
@@ -206,12 +214,18 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 ```bash
 # Backend 프로덕션 배포
 cd backend
-export PYTHONPATH=$(pwd):$PYTHONPATH
+export PYTHONPATH=$(pwd):$PYTHONPATH  # 필수: src/ 모듈 임포트
 python -m uvicorn main:app --host 0.0.0.0 --port 8000
+
+# 한국어 임베딩 모델 다운로드 (오프라인 환경용)
+python scripts/download_embedding_model.py
 
 # CLI 배포 버전 생성
 cd cli
 python scripts/build.py
+
+# macOS 헬퍼 앱 포함 DMG 생성 (macOS)
+python scripts/create_dmg.py
 ```
 
 ## 📊 품질 보증
@@ -247,8 +261,8 @@ MIT License - 각 서브프로젝트의 라이선스 파일 참조
 
 - **Backend Documentation**: [backend/README.md](backend/README.md)
 - **CLI Documentation**: [cli/README.md](cli/README.md)
-- **Backend CLAUDE.md**: [backend/CLAUDE.md](backend/CLAUDE.md)
-- **CLI CLAUDE.md**: [cli/CLAUDE.md](cli/CLAUDE.md)
+- **통합 개발 가이드**: [CLAUDE.md](CLAUDE.md)
+- **Pull Request 히스토리**: [PR_HISTORY.md](PR_HISTORY.md)
 
 ---
 
