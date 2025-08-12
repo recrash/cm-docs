@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "testscenario-monorepo"
+version = "1.0.0"
+description = "TestscenarioMaker 모노레포 - 웹 서비스와 CLI 도구의 통합 프로젝트"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "TestscenarioMaker Team", email = "support@testscenariomaker.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+requires-python = ">=3.8"
+
+[project.urls]
+Homepage = "https://github.com/recrash/testscenario-monorepo"
+Repository = "https://github.com/recrash/testscenario-monorepo"
+Issues = "https://github.com/recrash/testscenario-monorepo/issues"
+
+# 각 서브프로젝트는 독립적으로 관리됩니다
+# backend/: TestscenarioMaker 웹 서비스 (React + FastAPI)
+# cli/: TestscenarioMaker-CLI 도구 (Python CLI)
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests", "cli/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "unit: 단위 테스트",
+    "integration: 통합 테스트",
+    "e2e: End-to-End 테스트",
+]
