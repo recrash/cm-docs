@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__testscenariomakerdocs__fetch_repo_docs",
+      "mcp__testscenariomakercli-docs__fetch_repo_docs",
+      "WebFetch(domain:api.github.com)",
+      "Bash(mkdir:*)",
+      "Bash(git init:*)",
+      "Bash(rm:*)",
+      "Bash(git subtree add:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
