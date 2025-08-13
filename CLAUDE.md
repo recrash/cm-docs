@@ -4,25 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Monorepo Architecture
 
-This is a Git subtree-based monorepo combining two independent projects that share the common goal of AI-powered Korean test scenario generation:
+This is a Git subtree-based monorepo combining three independent projects that share common goals around test automation and document processing:
 
-- **backend/**: TestscenarioMaker web service (React + FastAPI + Pseudo-MSA)
+- **webservice/**: TestscenarioMaker web service (React + FastAPI + Pseudo-MSA)
 - **cli/**: TestscenarioMaker-CLI tool (Python CLI with cross-platform builds)
+- **autodoc_service/**: Document automation service for HTML parsing and template generation
 
 Each subproject maintains independent development cycles, CI/CD pipelines, and deployment strategies while sharing unified issue tracking and development environment.
 
 ### Git Subtree Management
 ```bash
 # Update from upstream repositories
-git subtree pull --prefix=backend https://github.com/recrash/TestscenarioMaker.git main --squash
+git subtree pull --prefix=webservice https://github.com/recrash/TestscenarioMaker.git main --squash
 git subtree pull --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.git main --squash
 
 # Push changes back to upstream
-git subtree push --prefix=backend https://github.com/recrash/TestscenarioMaker.git main
+git subtree push --prefix=webservice https://github.com/recrash/TestscenarioMaker.git main
 git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.git main
 ```
 
-## Backend Development - TestscenarioMaker Web Service
+## Webservice Development - TestscenarioMaker Web Service
 
 ### Technology Stack
 - **Frontend**: React 18 + TypeScript + Material-UI + Vite
@@ -34,7 +35,7 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 
 ### Development Commands
 ```bash
-cd backend
+cd webservice
 
 # Environment setup (CRITICAL: PYTHONPATH required for src/ modules)
 pip install -r requirements.txt
@@ -42,7 +43,7 @@ npm install
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
 # Server management
-cd backend && python -m uvicorn main:app --reload --port 8000  # Backend API
+cd webservice/backend && python -m uvicorn main:app --reload --port 8000  # Backend API
 npm run dev  # Frontend (port 3000) - run from project root
 
 # DO NOT use ./start-dev.sh for starting servers
@@ -93,7 +94,7 @@ frontend/src/
 
 #### Backend Structure
 ```
-backend/
+webservice/backend/
 ├── main.py              # FastAPI app initialization
 ├── routers/             # API endpoint modules
 │   ├── scenario.py      # Generation endpoints + WebSocket
@@ -118,7 +119,7 @@ backend/
 - Auto-initializes on backend startup if `rag.enabled: true` in config.json
 - Offline environment support with local embedding models
 
-### Backend-Specific Development Guidelines
+### Webservice-Specific Development Guidelines
 
 #### Fundamental Principles
 - **명확한 명령이나 지시가 있기 전까지는 기존에 있는 기능을 삭제하지 말아라** (Never delete existing functionality without explicit instructions)
@@ -139,7 +140,7 @@ backend/
 ### Configuration and Environment
 ```bash
 # Configuration files
-backend/config.json  # Main config (based on config.example.json)
+webservice/config.json  # Main config (based on webservice/config.example.json)
 # Key settings: model_name (qwen3:8b), rag.enabled, rag.embedding_model
 
 # Environment variables
@@ -301,44 +302,44 @@ subprocess.run(['git', 'status'], cwd=repo_path)  # Will fail!
 ### Code Quality Commands (from project root)
 ```bash
 # Code formatting
-black backend/src backend/backend cli/src cli/tests
-isort backend/src backend/backend cli/src cli/tests
+black webservice/src webservice/backend cli/src cli/tests
+isort webservice/src webservice/backend cli/src cli/tests
 
 # Linting  
-flake8 backend/src backend/backend cli/src cli/tests
+flake8 webservice/src webservice/backend cli/src cli/tests
 
 # Type checking
-mypy backend/src cli/src
+mypy webservice/src cli/src
 
 # Unified testing (both projects)
-cd backend && npm run test:all
+cd webservice && npm run test:all
 cd cli && pytest --cov=ts_cli --cov-report=html
 ```
 
 ### Development Workflow Guidelines
-1. **Subproject Focus**: Work within specific subproject directories (`cd backend` or `cd cli`)
+1. **Subproject Focus**: Work within specific subproject directories (`cd webservice` or `cd cli`)
 2. **Independent Testing**: Each subproject has its own test suite and quality gates
-3. **Commit Conventions**: Use `[backend]` or `[cli]` prefixes in commit messages  
+3. **Commit Conventions**: Use `[webservice]` or `[cli]` prefixes in commit messages  
 4. **Quality Gates**: Both projects require passing tests before merge
 5. **Korean Documentation**: Technical documentation includes Korean user-facing content
 
 ## Performance and Quality Standards
 
-- **Backend API**: <200ms response time, <1s WebSocket connection
+- **Webservice API**: <200ms response time, <1s WebSocket connection
 - **CLI**: <30s repository analysis, <5s URL protocol processing  
-- **Test Coverage**: Backend ≥80% unit + ≥70% integration, CLI ≥85% overall
+- **Test Coverage**: Webservice ≥80% unit + ≥70% integration, CLI ≥85% overall
 - **Build Time**: Complete monorepo build <10 minutes
 
 ## Critical Configuration Files
 
-- **Backend Config**: `backend/config.json` (based on `backend/config.example.json`)
+- **Webservice Config**: `webservice/config.json` (based on `webservice/config.example.json`)
   - Ollama model settings (`qwen3:8b`), RAG system configuration, offline embedding paths
 - **CLI Config**: Hierarchical loading from current directory, project root, then defaults
 - **Monorepo**: Root `pyproject.toml` for unified development tools (black, isort, pytest)
 
 ## Legacy Migration Notes
 
-**Backend Evolution**: Migrated from Streamlit to React+FastAPI
+**Webservice Evolution**: Migrated from Streamlit to React+FastAPI
 - Web interface moved from `app.py` (Streamlit) to React SPA
 - Real-time updates via WebSocket instead of Streamlit rerun  
 - Enhanced testing with E2E coverage using Playwright

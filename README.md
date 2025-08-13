@@ -60,7 +60,7 @@ cm-docs/
 ### 개발 환경 설정
 
 ```bash
-# Backend 디렉토리로 이동
+# Webservice 디렉토리로 이동
 cd webservice
 
 # 의존성 설치
@@ -71,7 +71,7 @@ npm install
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
 # 백엔드 서버 시작 (포트 8000)
-cd webservice && python -m uvicorn main:app --reload --port 8000
+cd webservice/backend && python -m uvicorn main:app --reload --port 8000
 
 # 프론트엔드 개발 서버 시작 (포트 3000) - 프로젝트 루트에서 실행
 npm run dev
@@ -161,7 +161,7 @@ pytest -m e2e           # End-to-End 테스트
 ## 🛠 공통 개발 환경
 
 ### 의존성 관리
-- **Backend**: `webservice/requirements.txt` + `webservice/package.json`
+- **Webservice**: `webservice/requirements.txt` + `webservice/package.json`
 - **CLI**: `cli/requirements.txt` + `cli/requirements-dev.txt`
 - **공통**: 루트 `pyproject.toml` (개발 도구 설정)
 
@@ -246,10 +246,10 @@ python scripts/create_dmg.py
 1. 해당 서브프로젝트 디렉토리에서 작업
 2. 독립적인 테스트 슈트 실행 및 통과 확인
 3. 코드 품질 도구 실행 (black, isort, flake8)
-4. 커밋 메시지는 서브프로젝트 접두어 사용: `[backend]` 또는 `[cli]`
+4. 커밋 메시지는 서브프로젝트 접두어 사용: `[webservice]` 또는 `[cli]`
 
 ### 이슈 및 PR
-- 서브프로젝트별로 라벨링: `backend`, `cli`, `monorepo`
+- 서브프로젝트별로 라벨링: `webservice`, `cli`, `monorepo`
 - 독립적인 CI/CD 파이프라인 고려사항 명시
 - 크로스플랫폼 호환성 검증 필수
 
