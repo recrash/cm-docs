@@ -6,7 +6,7 @@ Git 저장소 변경사항을 분석하여 한국어 테스트 시나리오를 �
 
 이 모노레포는 TestscenarioMaker 생태계의 두 가지 주요 컴포넌트를 통합합니다:
 
-- **Backend (웹 서비스)**: Pseudo-MSA 아키텍처 기반의 풀스택 웹 애플리케이션
+- **Webservice (웹 서비스)**: Pseudo-MSA 아키텍처 기반의 풀스택 웹 애플리케이션
 - **CLI (명령줄 도구)**: 브라우저 통합 및 URL 프로토콜을 지원하는 크로스플랫폼 CLI 도구
 
 두 프로젝트는 독립적으로 개발되고 배포되지만, 공통된 목표를 가지고 상호 보완적으로 작동합니다.
@@ -14,10 +14,10 @@ Git 저장소 변경사항을 분석하여 한국어 테스트 시나리오를 �
 ## 📁 프로젝트 구조
 
 ```
-testscenario-monorepo/
-├── backend/              # TestscenarioMaker 웹 서비스
-│   ├── frontend/         # React + TypeScript 프론트엔드
-│   ├── backend/          # FastAPI 백엔드 서비스
+cm-docs/
+├── webservice/          # TestscenarioMaker 웹 서비스
+│   ├── frontend/        # React + TypeScript 프론트엔드
+│   ├── backend/         # FastAPI 백엔드 서비스
 │   ├── src/             # 핵심 분석 모듈
 │   └── tests/           # 테스트 슈트 (E2E, API, 단위)
 ├── cli/                 # TestscenarioMaker CLI 도구
@@ -28,7 +28,7 @@ testscenario-monorepo/
 └── pyproject.toml       # 공통 개발 환경 설정
 ```
 
-## 🎯 Backend - TestscenarioMaker 웹 서비스
+## 🎯 Webservice - TestscenarioMaker 웹 서비스
 
 ### 기술 스택
 - **프론트엔드**: React 18 + TypeScript + Material-UI + Vite
@@ -61,7 +61,7 @@ testscenario-monorepo/
 
 ```bash
 # Backend 디렉토리로 이동
-cd backend
+cd webservice
 
 # 의존성 설치
 pip install -r requirements.txt
@@ -71,7 +71,7 @@ npm install
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
 # 백엔드 서버 시작 (포트 8000)
-cd backend && python -m uvicorn main:app --reload --port 8000
+cd webservice && python -m uvicorn main:app --reload --port 8000
 
 # 프론트엔드 개발 서버 시작 (포트 3000) - 프로젝트 루트에서 실행
 npm run dev
@@ -161,7 +161,7 @@ pytest -m e2e           # End-to-End 테스트
 ## 🛠 공통 개발 환경
 
 ### 의존성 관리
-- **Backend**: `backend/requirements.txt` + `backend/package.json`
+- **Backend**: `webservice/requirements.txt` + `webservice/package.json`
 - **CLI**: `cli/requirements.txt` + `cli/requirements-dev.txt`
 - **공통**: 루트 `pyproject.toml` (개발 도구 설정)
 
@@ -173,14 +173,14 @@ pytest -m e2e           # End-to-End 테스트
 ### 코드 품질
 ```bash
 # 코드 포맷팅 (프로젝트 루트에서)
-black backend/src backend/backend cli/src cli/tests
-isort backend/src backend/backend cli/src cli/tests
+black webservice/src webservice/backend cli/src cli/tests
+isort webservice/src webservice/backend cli/src cli/tests
 
 # 린팅
-flake8 backend/src backend/backend cli/src cli/tests
+flake8 webservice/src webservice/backend cli/src cli/tests
 
 # 타입 체크
-mypy backend/src cli/src
+mypy webservice/src cli/src
 ```
 
 ### Git 관리
@@ -188,11 +188,11 @@ mypy backend/src cli/src
 
 ```bash
 # 서브트리 업데이트 (필요시)
-git subtree pull --prefix=backend https://github.com/recrash/TestscenarioMaker.git main --squash
+git subtree pull --prefix=webservice https://github.com/recrash/TestscenarioMaker.git main --squash
 git subtree pull --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.git main --squash
 
 # 서브트리 푸시 (필요시)
-git subtree push --prefix=backend https://github.com/recrash/TestscenarioMaker.git main
+git subtree push --prefix=webservice https://github.com/recrash/TestscenarioMaker.git main
 git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.git main
 ```
 
@@ -201,7 +201,7 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 ### 독립적인 배포 파이프라인
 각 서브프로젝트는 독립적인 CI/CD 파이프라인을 가집니다:
 
-- **Backend**: Pseudo-MSA 서비스별 독립 배포
+- **Webservice**: Pseudo-MSA 서비스별 독립 배포
   - API 테스트, E2E 테스트, 서비스별 배포 검증
   - WebSocket 연결 및 실시간 기능 검증
 
@@ -212,8 +212,8 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 
 ### 환경별 배포
 ```bash
-# Backend 프로덕션 배포
-cd backend
+# Webservice 프로덕션 배포
+cd webservice
 export PYTHONPATH=$(pwd):$PYTHONPATH  # 필수: src/ 모듈 임포트
 python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
@@ -231,12 +231,12 @@ python scripts/create_dmg.py
 ## 📊 품질 보증
 
 ### 테스트 커버리지 목표
-- **Backend**: ≥80% 단위 테스트, ≥70% 통합 테스트
+- **Webservice**: ≥80% 단위 테스트, ≥70% 통합 테스트
 - **CLI**: ≥85% 전체 커버리지
 - **E2E**: 주요 사용자 워크플로우 100% 커버
 
 ### 성능 기준
-- **Backend API**: 응답시간 <200ms, WebSocket 연결 <1초
+- **Webservice API**: 응답시간 <200ms, WebSocket 연결 <1초
 - **CLI**: 저장소 분석 <30초, URL 프로토콜 처리 <5초
 - **빌드**: 전체 빌드 시간 <10분
 
@@ -259,7 +259,7 @@ MIT License - 각 서브프로젝트의 라이선스 파일 참조
 
 ## 🔗 관련 링크
 
-- **Backend Documentation**: [backend/README.md](backend/README.md)
+- **Webservice Documentation**: [webservice/README.md](webservice/README.md)
 - **CLI Documentation**: [cli/README.md](cli/README.md)
 - **통합 개발 가이드**: [CLAUDE.md](CLAUDE.md)
 - **Pull Request 히스토리**: [PR_HISTORY.md](PR_HISTORY.md)
