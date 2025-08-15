@@ -4,10 +4,11 @@
 
 ## 📋 주요 기능
 
-- **변경관리 Word 문서 생성**: 템플릿 기반 `.docx` 파일 생성
+- **변경관리 Word 문서 생성**: 라벨 기반 매핑으로 템플릿 구조 변경에 강건한 `.docx` 파일 생성
 - **테스트 시나리오 Excel 생성**: 템플릿 기반 `.xlsx` 파일 생성  
 - **변경관리 문서 목록 Excel 생성**: 여러 항목을 포함한 목록 파일 생성
 - **HTML → JSON 파서**: IT지원의뢰서 HTML을 구조화된 JSON으로 변환
+- **향상된 필드 매핑**: 신청자 필드에서 부서 자동 추출, 시스템별 배포자 매핑
 
 ## 🏗️ 아키텍처
 
@@ -21,7 +22,11 @@ autodoc_service/
 │   ├── services/              # 비즈니스 로직
 │   │   ├── paths.py          # 경로 관리
 │   │   ├── filename.py       # 파일명 처리
-│   │   ├── word_builder.py   # Word 문서 생성
+│   │   ├── word_builder.py   # Word 문서 생성 (기본)
+│   │   ├── label_based_word_builder.py  # 라벨 기반 Word 생성 (권장)
+│   │   ├── word_payload.py   # Word 데이터 변환 로직
+│   │   ├── font_styler.py    # Word 문서 폰트 스타일링
+│   │   ├── excel_font_styler.py  # Excel 문서 폰트 스타일링
 │   │   ├── excel_test_builder.py    # Excel 테스트 시나리오
 │   │   └── excel_list_builder.py    # Excel 목록 생성
 │   └── tests/                # pytest 테스트 스위트
@@ -75,7 +80,8 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 | 메서드 | 엔드포인트 | 설명 |
 |--------|------------|------|
 | `POST` | `/parse-html` | HTML 파일을 JSON으로 파싱 |
-| `POST` | `/create-cm-word` | Word 변경관리 문서 생성 |
+| `POST` | `/create-cm-word` | Word 변경관리 문서 생성 (라벨 기반) |
+| `POST` | `/create-cm-word-enhanced` | 향상된 Word 문서 생성 (raw_data 지원) |
 | `POST` | `/create-test-excel` | Excel 테스트 시나리오 생성 |
 | `POST` | `/create-cm-list` | Excel 변경관리 목록 생성 |
 | `GET`  | `/download/{filename}` | 생성된 파일 다운로드 |
@@ -100,6 +106,23 @@ curl -X POST "http://localhost:8000/create-cm-word" \
      }'
 ```
 
+#### 향상된 Word 문서 생성 (HTML 파싱 데이터 활용)
+```bash
+curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "change_id": "LIMS_20250814_1",
+       "system": "울산 실험정보(LIMS)",
+       "title": "시스템 구조 개선",
+       "requester": "홍길동",
+       "raw_data": {
+         "신청자": "이대경/Manager/IT운영팀/SK picglobal",
+         "요청사유": "시스템 개선이 필요합니다",
+         "요구사항 상세분석": "현재 시스템의 문제점을 해결하여..."
+       }
+     }'
+```
+
 #### 파일 다운로드
 ```bash
 curl -O "http://localhost:8000/download/[250814 홍길동] 변경관리요청서 LIMS_20250814_1 시스템 구조 개선.docx"
@@ -107,17 +130,16 @@ curl -O "http://localhost:8000/download/[250814 홍길동] 변경관리요청서
 
 ## 📐 템플릿 시스템
 
-### 템플릿 매핑 규칙
+### 라벨 기반 매핑 시스템
 
 #### Word 템플릿 (`template.docx`)
-- **Table(2)**: 
-  - Cell #9 ← 처리자_약칭
-  - Cell #17 ← 작성일 (mm/dd)
-- **Table(3)**: 
-  - Cell #2 ← 제목
-  - Cell #4 ← 변경관리번호
-  - Cell #6 ← 작업일시
-  - *(전체 43개 셀 매핑)*
+- **라벨 기반 매핑**: 셀 인덱스 대신 라벨 텍스트를 찾아서 매핑하는 방식으로 템플릿 구조 변경에 강건
+- **Table 2 특별 처리**: 기안 날짜를 Table 2, Row 3, Cell 1에 정확히 배치
+- **필드 자동 보완**: 
+  - 신청자 필드에서 부서명 자동 추출 (예: `이대경/Manager/IT운영팀/SK picglobal` → 요청부서: `IT운영팀`)
+  - 시스템별 배포자 매핑 지원 (확장 가능한 구조)
+  - 목적/개선내용을 구조화된 형식으로 생성 (`1. 목적\n{요청사유}\n\n2. 주요내용\n{상세분석}`)
+- **주요 매핑 필드**: 제목, 변경관리번호, 작업일시, 배포일시, 고객사, 요청부서, 요청자, 대상시스템, 작업자/배포자, 목적/개선내용
 
 #### Excel 테스트 템플릿 (`template.xlsx`)
 - **C2** ← 시스템
