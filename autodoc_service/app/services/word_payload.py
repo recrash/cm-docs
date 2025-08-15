@@ -9,6 +9,51 @@ from datetime import datetime
 from typing import Dict, Any
 
 
+def get_system_deployer(system: str, system_abbr: str) -> str:
+    """
+    시스템별 배포자 매핑 함수
+    
+    Args:
+        system: 요청시스템 (예: "울산 실험정보(LIMS)")
+        system_abbr: 시스템 약칭 (예: "LIMS")
+        
+    Returns:
+        str: 해당 시스템의 배포자 이름
+        
+    Note:
+        이 함수는 향후 시스템별 배포자를 확장할 수 있도록 설계되었습니다.
+        현재는 기본값을 반환하며, 필요에 따라 매핑 로직을 추가할 수 있습니다.
+    """
+    # 시스템별 배포자 매핑 테이블 (향후 확장 가능)
+    system_deployer_mapping = {
+        # 예시: 시스템 이름 또는 약칭으로 배포자 매핑
+        # "LIMS": "김배포",
+        # "MES": "이배포", 
+        # "ERP": "박배포",
+        # "울산 실험정보(LIMS)": "김배포",
+    }
+    
+    # 1) 시스템 이름으로 직접 매핑 확인
+    if system in system_deployer_mapping:
+        return system_deployer_mapping[system]
+    
+    # 2) 시스템 약칭으로 매핑 확인
+    if system_abbr in system_deployer_mapping:
+        return system_deployer_mapping[system_abbr]
+    
+    # 3) 시스템 이름에 특정 키워드가 포함된 경우 매핑
+    system_lower = system.lower() if system else ""
+    if "lims" in system_lower:
+        # return "LIMS전담배포자"  # 향후 활성화 가능
+        pass
+    elif "mes" in system_lower:
+        # return "MES전담배포자"   # 향후 활성화 가능
+        pass
+    
+    # 4) 기본값: 매핑되지 않은 시스템은 빈 문자열 반환 (기존 로직 유지)
+    return ""
+
+
 def build_word_payload(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Transform parsed data into Word-compatible payload with all required fields.
@@ -39,11 +84,27 @@ def build_word_payload(data: Dict[str, Any]) -> Dict[str, Any]:
             else:
                 customer = applicant
     
+    # 1-1) 요청부서: 신청자에서 세 번째 세그먼트 추출 (부서 정보) - 강제 덮어쓰기
+    # HTML 파서가 마지막 세그먼트를 요청부서로 설정하지만, 실제로는 세 번째가 부서임
+    applicant = data.get("신청자", "")
+    if "/" in applicant:
+        segments = applicant.split("/")
+        if len(segments) >= 3:
+            request_dept = segments[2].strip()  # 세 번째 세그먼트가 실제 부서
+        else:
+            request_dept = data.get("요청부서", "")
+    else:
+        request_dept = data.get("요청부서", "")
+    
     # 2) 작업자-배포자: 포맷 합의 ("처리자_약칭 / 배포자")
     worker_deployer = data.get("작업자-배포자")
     if not worker_deployer:
         worker = data.get("처리자_약칭", "")
         deployer = data.get("배포자", "")
+        
+        # 시스템별 배포자 매핑 (향후 확장 가능)
+        if not deployer:
+            deployer = get_system_deployer(data.get("요청시스템", ""), data.get("시스템_약칭", ""))
         
         # 둘 다 있으면 "worker / deployer" 형식
         if worker and deployer:
@@ -118,6 +179,7 @@ def build_word_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         
         # Word 템플릿 매크로가 기대하는 파생/보정 키들
         "고객사": customer,
+        "요청부서": request_dept,  # 신청자에서 추출된 부서 정보
         "작업자-배포자": worker_deployer, 
         "목적-개선내용": purpose_content,
         "영향도_대상자": impact_targets,
@@ -131,7 +193,7 @@ def build_word_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         "doc_no": data.get("문서번호", ""),
         "work_datetime": data.get("작업일시", ""),
         "deploy_datetime": data.get("배포일시", ""),
-        "request_dept": data.get("요청부서", ""),
+        "request_dept": request_dept,  # 업데이트된 부서 정보
         "requester": data.get("요청자", ""),
         "details": details
     }

@@ -165,10 +165,8 @@ def get_data_cell_for_label(row: _Row, label_cell: _Cell, label_text: str) -> Op
             # 목적/개선내용: Table 3, Row 11, Cell 1 (label) → Cell 2 (data)
             return cells[1] if len(cells) > 1 else None
             
-        elif label_normalized == "기안":
-            # 기안: Table 2, Row 1, Cell 1 (label) → Cell 2 (data)
-            return cells[1] if len(cells) > 1 else None
-            
+        # 기안 필드는 handle_table2_special에서 별도 처리됨
+        
         else:
             # Default: try to find label_cell index and use next cell
             try:
@@ -211,6 +209,35 @@ def set_cell_content(cell: _Cell, content: str):
         cell.text = str(content)
 
 
+def handle_table2_special(table: Table, data: Dict[str, Any], filled_data_keys: set) -> int:
+    """
+    Table 2의 특별한 구조를 처리하는 함수
+    
+    Table 2 구조:
+    - Row 1: 기안 | 검토 | 검토 | 검토 | ERD변경 | IF관리 | 승인 | 의견
+    - Row 2: 이대경 | 김태우 | | | | | 이동호 | 
+    - Row 3: ~ 3/25(3/28) | / | / | / | / | / | / | 
+    
+    기안 날짜는 Row 3, Cell 1에 들어가야 함
+    """
+    filled_count = 0
+    
+    if len(table.rows) >= 3:  # Table 2에 최소 3개 행이 있어야 함
+        # 기안 날짜 처리 (Row 3, Cell 1)
+        date_value = data.get('작성일_mmdd', '')
+        if date_value and '작성일_mmdd' not in filled_data_keys:
+            try:
+                date_cell = table.rows[2].cells[0]  # Row 3, Cell 1 (0-indexed)
+                set_cell_content(date_cell, str(date_value))
+                filled_count += 1
+                filled_data_keys.add('작성일_mmdd')
+                print(f"✅ Table 2, Row 3, Cell 1: '기안 날짜' → '작성일_mmdd': {date_value}...")
+            except Exception as e:
+                print(f"⚠️ Failed to fill Table 2 기안 날짜: {e}")
+    
+    return filled_count
+
+
 def fill_template_by_labels(doc: Document, data: Dict[str, Any]) -> int:
     """
     Fill Word template using label-based mapping
@@ -231,6 +258,11 @@ def fill_template_by_labels(doc: Document, data: Dict[str, Any]) -> int:
     # Process all tables in the document
     for table_idx, table in enumerate(doc.tables):
         print(f"\n📋 Processing Table {table_idx + 1}...")
+        
+        # Special handling for Table 2 (기안 날짜 문제)
+        if table_idx == 1:  # Table 2 (0-indexed)
+            filled_count += handle_table2_special(table, data, filled_data_keys)
+            continue
         
         for row_idx, row in enumerate(table.rows):
             
