@@ -18,11 +18,13 @@ from typing import Dict, Any, Optional
 
 from docx import Document
 from docx.table import Table, _Row, _Cell
+from docx.shared import Pt
 
 from ..models import ChangeRequest
 from .paths import verify_template_exists, get_documents_dir
 from .filename import generate_word_filename, unique_path
 from .word_payload import build_word_payload
+from .font_styler import ensure_malgun_gothic_document
 
 
 def normalize_label(text: str) -> str:
@@ -185,7 +187,8 @@ def set_cell_content(cell: _Cell, content: str):
     """
     Set cell content with proper multiline handling
     
-    Handles both single-line and multiline content properly.
+    Note: Font styling is applied later via ensure_malgun_gothic_document()
+    to ensure document-wide consistency.
     """
     if not content:
         content = ""
@@ -406,6 +409,10 @@ def build_change_request_doc_label_based(
     filled_count = fill_template_by_labels(doc, template_data)
     
     print(f"✅ Successfully filled {filled_count} fields")
+    
+    # Apply 맑은 고딕 font to entire document (ensures consistency)
+    print(f"🎨 Applying consistent font styling to entire document...")
+    ensure_malgun_gothic_document(doc)
     
     # Generate filename
     filename = generate_word_filename(

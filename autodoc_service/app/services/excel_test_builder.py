@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Optional
 
 from openpyxl import load_workbook
+from openpyxl.styles import Font
 
 from ..models import ChangeRequest
 from .paths import verify_template_exists, get_documents_dir
@@ -89,10 +90,15 @@ def build_test_scenario_xlsx(data: ChangeRequest, out_dir: Optional[Path] = None
         'B11': data.title                     # title
     }
     
-    # 매핑 적용
+    # 매핑 적용 (맑은 고딕 폰트와 함께)
+    malgun_gothic_font = Font(name='맑은 고딕')
+    
     for cell_ref, value in cell_mappings.items():
         try:
-            ws[cell_ref] = value
+            cell = ws[cell_ref]
+            cell.value = value
+            # 맑은 고딕 폰트 적용
+            cell.font = malgun_gothic_font
         except Exception as e:
             # 셀 참조 오류는 로그만 남기고 계속 진행
             print(f"Warning: 셀 {cell_ref} 매핑 실패: {e}")

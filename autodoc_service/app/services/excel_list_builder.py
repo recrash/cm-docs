@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional, List, Union, Dict, Any
 
 from openpyxl import load_workbook
+from openpyxl.styles import Font
 
 from ..models import ChangeRequest
 from .paths import verify_template_exists, get_documents_dir
@@ -123,9 +124,13 @@ def build_change_list_xlsx(
             data.get('has_cm_doc', 'O')                            # 11) 변경관리문서유무
         ]
         
-        # 각 열에 데이터 입력 (A, B, C, ... K 열)
+        # 각 열에 데이터 입력 (A, B, C, ... K 열) - 맑은 고딕 폰트와 함께
+        malgun_gothic_font = Font(name='맑은 고딕')
+        
         for col_idx, value in enumerate(columns, 1):
-            ws.cell(row=row_num, column=col_idx, value=value)
+            cell = ws.cell(row=row_num, column=col_idx, value=value)
+            # 맑은 고딕 폰트 적용
+            cell.font = malgun_gothic_font
     
     # 파일명 생성
     filename = generate_excel_list_filename()

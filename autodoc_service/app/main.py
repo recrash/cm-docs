@@ -19,7 +19,6 @@ from .models import (
     HealthResponse
 )
 from .parsers.itsupp_html_parser import parse_itsupp_html
-from .services.word_builder import build_change_request_doc
 from .services.label_based_word_builder import build_change_request_doc_label_based
 from .services.excel_test_builder import build_test_scenario_xlsx
 from .services.excel_list_builder import build_change_list_xlsx
@@ -123,10 +122,10 @@ async def parse_html_endpoint(file: UploadFile = File(...)):
 
 @app.post("/create-cm-word", response_model=CreateDocumentResponse)
 async def create_change_management_word(data: ChangeRequest):
-    """변경관리 Word 문서 생성 엔드포인트"""
+    """변경관리 Word 문서 생성 엔드포인트 (라벨 기반 + 맑은 고딕 폰트 적용)"""
     try:
-        # Word 문서 생성
-        output_path = build_change_request_doc(data)
+        # 라벨 기반 Word 문서 생성 (매핑 시 맑은 고딕 폰트 자동 적용)
+        output_path = build_change_request_doc_label_based(data)
         
         return CreateDocumentResponse(
             ok=True,
