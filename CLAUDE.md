@@ -297,37 +297,165 @@ subprocess.run(['git', 'status'], cwd=repo_path)  # Will fail!
 - **Cross-Platform Tests**: `test_path_compatibility.py` for path handling validation
 - **Helper App Tests**: `test_helper_app.py` for comprehensive macOS helper app validation
 
+## AutoDoc Service Development - Document Automation Service
+
+### Technology Stack
+- **Core**: FastAPI + Python 3.8+ + Pydantic
+- **Document Generation**: python-docx (Word), openpyxl (Excel)
+- **HTML Parsing**: BeautifulSoup4 + lxml
+- **Testing**: pytest with AsyncHTTPX client
+- **Deployment**: Uvicorn ASGI server with cross-platform scripts
+
+### Development Commands
+```bash
+cd autodoc_service
+
+# Automatic startup (recommended)
+python run_autodoc_service.py          # Cross-platform Python script
+./run_autodoc_service.sh              # macOS/Linux
+.\run_autodoc_service.ps1             # Windows PowerShell
+
+# Manual setup
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Testing
+pytest app/tests/ -v                   # All tests
+pytest --cov=app --cov-report=html app/tests/  # With coverage
+
+# API access
+curl http://localhost:8000/health      # Health check
+open http://localhost:8000/docs        # FastAPI auto-generated docs
+```
+
+### Architecture Details
+
+#### Core Service Flow
+1. **HTML Parser** (`app/parsers/itsupp_html_parser.py`) → Extracts structured data from IT지원의뢰서 HTML
+2. **Document Builders** (`app/services/`) → Template-based Word/Excel generation
+3. **Path Management** (`app/services/paths.py`) → Cross-platform file handling with security
+4. **File Management** (`app/main.py`) → Download endpoint with path traversal protection
+
+#### API Endpoints Structure
+```
+/                    # Root info endpoint
+/health             # Health check with template validation
+/parse-html         # HTML file upload and parsing
+/create-cm-word     # Word document generation (ChangeRequest → .docx)
+/create-test-excel  # Excel test scenario generation 
+/create-cm-list     # Excel list generation (multiple items)
+/download/{filename} # Secure file download
+/templates          # Available template listing
+/documents          # Generated document listing
+```
+
+#### Template System Architecture
+- **Word Template** (`templates/template.docx`): Table cell mapping system
+  - Table(2): Cell #9 ← 처리자_약칭, Cell #17 ← 작성일
+  - Table(3): 43-cell comprehensive mapping for change management data
+- **Excel Templates**: 
+  - `template.xlsx`: Test scenarios with predefined cell coordinates
+  - `template_list.xlsx`: 11-column list format for multiple items
+
+#### Security and Validation
+- **Path Traversal Protection**: `file_path.resolve().relative_to(documents_dir.resolve())`
+- **Template Integrity**: SHA-256 verification in tests
+- **Input Sanitization**: Filename cleanup for cross-platform compatibility
+- **Pydantic Validation**: Strict data model enforcement
+
+### AutoDoc Service-Specific Development Guidelines
+
+#### Offline Environment Support
+**Office-less Design**: No Microsoft Office dependency, uses python-docx and openpyxl
+```bash
+# Offline wheel preparation (internet-connected environment)
+pip download -r requirements.txt -d wheels
+
+# Offline installation (air-gapped environment)  
+pip install --no-index --find-links ./wheels -r requirements.txt
+```
+
+#### Template Requirements
+**Critical Template Files** (must exist in `templates/` directory):
+- `template.docx`: Word document template with predefined table structure
+- `template.xlsx`: Excel test scenario template  
+- `template_list.xlsx`: Excel list template for multiple items
+
+**Template Validation**: All templates verified with SHA-256 hashes in test suite
+
+#### Cross-Platform File Handling
+**Always use pathlib.Path for cross-platform compatibility**:
+```python
+from pathlib import Path
+from .services.paths import get_documents_dir, get_templates_dir
+
+# Correct pattern
+templates_dir = get_templates_dir()  
+documents_dir = get_documents_dir()
+file_path = documents_dir / filename
+```
+
+### API Usage Patterns
+
+#### HTML Parsing Workflow
+```bash
+# Upload HTML file and get structured JSON
+curl -X POST "http://localhost:8000/parse-html" \
+     -F "file=@규격_확정일자.html"
+```
+
+#### Document Generation Workflow
+```bash
+# Generate Word document
+curl -X POST "http://localhost:8000/create-cm-word" \
+     -H "Content-Type: application/json" \
+     -d '{"change_id": "LIMS_20250814_1", "system": "울산 실험정보(LIMS)", 
+          "title": "시스템 구조 개선", "requester": "홍길동"}'
+
+# Download generated file
+curl -O "http://localhost:8000/download/[250814 홍길동] 변경관리요청서 LIMS_20250814_1 시스템 구조 개선.docx"
+```
+
+### Testing Strategy
+- **Template Validation**: SHA-256 hash verification ensures template integrity
+- **Parser Accuracy**: Fixture-based HTML parsing validation  
+- **API Integration**: FastAPI TestClient with async support
+- **Cross-Platform**: Path handling and filename sanitization tests
+- **Security**: Path traversal attack prevention tests
+
 ## Monorepo-wide Quality Control
 
 ### Code Quality Commands (from project root)
 ```bash
 # Code formatting
-black webservice/src webservice/backend cli/src cli/tests
-isort webservice/src webservice/backend cli/src cli/tests
+black webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+isort webservice/src webservice/backend cli/src cli/tests autodoc_service/app
 
 # Linting  
-flake8 webservice/src webservice/backend cli/src cli/tests
+flake8 webservice/src webservice/backend cli/src cli/tests autodoc_service/app
 
 # Type checking
-mypy webservice/src cli/src
+mypy webservice/src cli/src autodoc_service/app
 
-# Unified testing (both projects)
+# Unified testing (all three projects)
 cd webservice && npm run test:all
 cd cli && pytest --cov=ts_cli --cov-report=html
+cd autodoc_service && pytest --cov=app --cov-report=html app/tests/
 ```
 
 ### Development Workflow Guidelines
-1. **Subproject Focus**: Work within specific subproject directories (`cd webservice` or `cd cli`)
+1. **Subproject Focus**: Work within specific subproject directories (`cd webservice`, `cd cli`, or `cd autodoc_service`)
 2. **Independent Testing**: Each subproject has its own test suite and quality gates
-3. **Commit Conventions**: Use `[webservice]` or `[cli]` prefixes in commit messages  
-4. **Quality Gates**: Both projects require passing tests before merge
+3. **Commit Conventions**: Use `[webservice]`, `[cli]`, or `[autodoc_service]` prefixes in commit messages  
+4. **Quality Gates**: All projects require passing tests before merge
 5. **Korean Documentation**: Technical documentation includes Korean user-facing content
 
 ## Performance and Quality Standards
 
 - **Webservice API**: <200ms response time, <1s WebSocket connection
 - **CLI**: <30s repository analysis, <5s URL protocol processing  
-- **Test Coverage**: Webservice ≥80% unit + ≥70% integration, CLI ≥85% overall
+- **AutoDoc Service**: <1s HTML parsing, <3s Word generation, <2s Excel generation
+- **Test Coverage**: Webservice ≥80% unit + ≥70% integration, CLI ≥85% overall, AutoDoc Service ≥85% overall
 - **Build Time**: Complete monorepo build <10 minutes
 
 ## Critical Configuration Files
@@ -335,6 +463,8 @@ cd cli && pytest --cov=ts_cli --cov-report=html
 - **Webservice Config**: `webservice/config.json` (based on `webservice/config.example.json`)
   - Ollama model settings (`qwen3:8b`), RAG system configuration, offline embedding paths
 - **CLI Config**: Hierarchical loading from current directory, project root, then defaults
+- **AutoDoc Service Config**: `autodoc_service/requirements.txt` for dependencies
+  - Templates directory must contain: `template.docx`, `template.xlsx`, `template_list.xlsx`
 - **Monorepo**: Root `pyproject.toml` for unified development tools (black, isort, pytest)
 
 ## Legacy Migration Notes
