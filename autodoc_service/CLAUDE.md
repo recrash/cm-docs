@@ -64,7 +64,7 @@ AutoDoc Service is built as an **Office-less document automation system** for ai
 - **Location**: `app/services/word_payload.py` 
 - **Purpose**: Transforms raw HTML parsing data into Word-compatible format
 - **Intelligence**: 
-  - Auto-extracts department from applicant field segments (`이대경/Manager/IT운영팀/SK picglobal` → `IT운영팀`)
+  - Auto-extracts department from applicant field segments (`홍길동/Manager/IT운영팀/SK AX` → `IT운영팀`)
   - System-specific deployer mapping (extensible via `get_system_deployer()`)
   - Structured content generation for purpose/improvement fields
 
