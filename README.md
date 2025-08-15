@@ -24,6 +24,11 @@ cm-docs/
 │   ├── src/ts_cli/      # CLI 핵심 로직
 │   ├── scripts/         # 빌드 및 배포 스크립트
 │   └── tests/           # CLI 테스트 슈트
+├── autodoc_service/     # AutoDoc 문서 자동화 서비스
+│   ├── app/             # FastAPI 애플리케이션
+│   ├── templates/       # 문서 템플릿 (Word, Excel)
+│   ├── documents/       # 생성된 문서 출력
+│   └── testHTML/        # HTML 테스트 파일
 ├── README.md            # 통합 프로젝트 문서
 └── pyproject.toml       # 공통 개발 환경 설정
 ```
@@ -158,11 +163,78 @@ pytest -m integration   # 통합 테스트
 pytest -m e2e           # End-to-End 테스트
 ```
 
+## 📄 AutoDoc Service - 문서 자동화 서비스
+
+Office-less 환경에서 동작하는 HTML 기반 문서 자동화 솔루션입니다.
+
+### 기술 스택
+- **백엔드**: FastAPI + Python 3.8+ + Pydantic
+- **문서 생성**: python-docx (Word) + openpyxl (Excel)
+- **HTML 파싱**: BeautifulSoup4 + lxml
+- **테스팅**: pytest + AsyncHTTPX client
+
+### 주요 기능
+
+#### 📝 자동 문서 생성
+- **변경관리 Word 문서**: 라벨 기반 매핑으로 템플릿 구조 변경에 강건한 `.docx` 생성
+- **Excel 테스트 시나리오**: 템플릿 기반 `.xlsx` 파일 생성
+- **Excel 변경관리 목록**: 여러 항목을 포함한 목록 파일 생성
+- **HTML → JSON 파서**: IT지원의뢰서 HTML을 구조화된 JSON으로 변환
+
+#### 🎨 폰트 일관성 보장
+- **전체 문서 맑은 고딕**: 템플릿 텍스트와 매핑 데이터 모두에 일관된 폰트 적용
+- **향상된 필드 매핑**: 신청자 필드에서 부서 자동 추출, 시스템별 배포자 매핑
+- **구조화된 내용 생성**: 목적/개선내용을 체계적 형식으로 자동 변환
+
+### 빠른 시작
+
+```bash
+# AutoDoc Service 디렉토리로 이동
+cd autodoc_service
+
+# 자동 실행 (권장)
+python run_autodoc_service.py
+
+# 수동 실행
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# 브라우저에서 API 문서 확인
+open http://localhost:8000/docs
+```
+
+### API 사용 예제
+
+```bash
+# HTML 파싱
+curl -X POST "http://localhost:8000/parse-html" \
+     -F "file=@testHTML/규격_확정일자.html"
+
+# Word 문서 생성
+curl -X POST "http://localhost:8000/create-cm-word" \
+     -H "Content-Type: application/json" \
+     -d '{"change_id": "TEST_001", "system": "테스트", "title": "제목", "requester": "작성자"}'
+
+# 생성된 문서 다운로드
+curl -O "http://localhost:8000/download/filename.docx"
+```
+
+### 테스트
+
+```bash
+# 전체 테스트 실행
+pytest app/tests/ -v
+
+# 커버리지 포함 테스트
+pytest --cov=app --cov-report=html app/tests/
+```
+
 ## 🛠 공통 개발 환경
 
 ### 의존성 관리
 - **Webservice**: `webservice/requirements.txt` + `webservice/package.json`
 - **CLI**: `cli/requirements.txt` + `cli/requirements-dev.txt`
+- **AutoDoc Service**: `autodoc_service/requirements.txt`
 - **공통**: 루트 `pyproject.toml` (개발 도구 설정)
 
 ### 통합된 설정 관리
@@ -173,14 +245,14 @@ pytest -m e2e           # End-to-End 테스트
 ### 코드 품질
 ```bash
 # 코드 포맷팅 (프로젝트 루트에서)
-black webservice/src webservice/backend cli/src cli/tests
-isort webservice/src webservice/backend cli/src cli/tests
+black webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+isort webservice/src webservice/backend cli/src cli/tests autodoc_service/app
 
 # 린팅
-flake8 webservice/src webservice/backend cli/src cli/tests
+flake8 webservice/src webservice/backend cli/src cli/tests autodoc_service/app
 
 # 타입 체크
-mypy webservice/src cli/src
+mypy webservice/src cli/src autodoc_service/app
 ```
 
 ### Git 관리

@@ -349,10 +349,46 @@ open http://localhost:8000/docs        # FastAPI auto-generated docs
 /documents          # Generated document listing
 ```
 
-#### Template System Architecture
-- **Word Template** (`templates/template.docx`): Table cell mapping system
-  - Table(2): Cell #9 ← 처리자_약칭, Cell #17 ← 작성일
-  - Table(3): 43-cell comprehensive mapping for change management data
+#### Core Architecture Patterns
+
+##### 1. Label-Based Template Mapping (Primary System)
+- **Location**: `app/services/label_based_word_builder.py`
+- **Purpose**: Maps data to Word templates by finding label text instead of relying on fixed cell indices
+- **Resilience**: Template structure changes don't break the mapping
+- **Special Cases**: Table 2 has custom handling for complex date placement logic
+
+##### 2. Enhanced Payload System
+- **Location**: `app/services/word_payload.py` 
+- **Purpose**: Transforms raw HTML parsing data into Word-compatible format
+- **Intelligence**: 
+  - Auto-extracts department from applicant field segments (`홍길동/Manager/IT운영팀/SK AX` → `IT운영팀`)
+  - System-specific deployer mapping (extensible via `get_system_deployer()`)
+  - Structured content generation for purpose/improvement fields
+
+##### 3. Font Styling System
+- **Word**: `app/services/font_styler.py` - Applies 맑은 고딕 to all Word content
+- **Excel**: `app/services/excel_font_styler.py` - Applies 맑은 고딕 to all Excel content
+- **Integration**: Automatically applied during document generation for 100% font consistency
+
+##### 4. HTML → Structured Data Pipeline
+- **Parser**: `app/parsers/itsupp_html_parser.py` - Extracts specific fields from IT지원의뢰서 HTML
+- **Validation**: Uses CSS selectors with robust fallback patterns
+- **Critical Rule**: Parser logic is fixed and should not be modified without careful testing
+
+#### Document Generation Flow
+
+```
+HTML File → parse_itsupp_html() → Raw Data Dict
+                ↓
+Raw Data → build_word_payload() → Enhanced Payload
+                ↓
+Enhanced Payload → fill_template_by_labels() → Mapped Document
+                ↓
+Document → ensure_malgun_gothic_document() → Final Document
+```
+
+#### Template System Requirements
+- **Word Template** (`templates/template.docx`): Label-based mapping with comprehensive field support
 - **Excel Templates**: 
   - `template.xlsx`: Test scenarios with predefined cell coordinates
   - `template_list.xlsx`: 11-column list format for multiple items
@@ -383,17 +419,27 @@ pip install --no-index --find-links ./wheels -r requirements.txt
 
 **Template Validation**: All templates verified with SHA-256 hashes in test suite
 
-#### Cross-Platform File Handling
-**Always use pathlib.Path for cross-platform compatibility**:
-```python
-from pathlib import Path
-from .services.paths import get_documents_dir, get_templates_dir
+#### Path Management
+- Always use `pathlib.Path` for cross-platform compatibility
+- Use `app.services.paths` functions for consistent directory resolution
+- Templates can be overridden via `AUTODOC_TPL_DIR` environment variable
 
-# Correct pattern
-templates_dir = get_templates_dir()  
-documents_dir = get_documents_dir()
-file_path = documents_dir / filename
-```
+#### Field Mapping Extensions
+To add system-specific deployer mapping:
+1. Edit `get_system_deployer()` in `word_payload.py`
+2. Add entries to `system_deployer_mapping` dictionary
+3. Supports both system names and abbreviations
+
+#### Template Structure Changes
+If Word template structure changes:
+1. Test with `debug_*` scripts in root directory for structure analysis
+2. Update cell mapping in `get_data_cell_for_label()` function
+3. Add special handling functions if needed (like `handle_table2_special()`)
+
+#### Font Consistency Guidelines
+- **Document-wide Application**: Use `ensure_malgun_gothic_document()` for 100% font consistency
+- **Individual Cell Styling**: Use `apply_malgun_gothic_to_cell()` for specific cells
+- **Excel Styling**: Use `Font(name='맑은 고딕')` for Excel cell formatting
 
 ### API Usage Patterns
 
