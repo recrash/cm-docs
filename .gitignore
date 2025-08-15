@@ -340,3 +340,6 @@ dev_tools/
 *.log
 backend/logs/
 cli/logs/
+
+# autodoc_service 문서 폴더
+autodoc_service/documents/
