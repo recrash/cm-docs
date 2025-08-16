@@ -176,7 +176,8 @@ Office-less 환경에서 동작하는 HTML 기반 문서 자동화 솔루션입�
 ### 주요 기능
 
 #### 📝 자동 문서 생성
-- **변경관리 Word 문서**: 라벨 기반 매핑으로 템플릿 구조 변경에 강건한 `.docx` 생성
+- **변경관리 Word 문서**: 라벨 기반 매핑으로 **12개 필드 완전 매핑** 보장하는 `.docx` 생성
+- **Enhanced Payload System**: HTML 파싱 데이터에서 누락 필드 자동 보완
 - **Excel 테스트 시나리오**: 템플릿 기반 `.xlsx` 파일 생성
 - **Excel 변경관리 목록**: 여러 항목을 포함한 목록 파일 생성
 - **HTML → JSON 파서**: IT지원의뢰서 HTML을 구조화된 JSON으로 변환
@@ -184,7 +185,8 @@ Office-less 환경에서 동작하는 HTML 기반 문서 자동화 솔루션입�
 #### 🎨 폰트 일관성 보장
 - **전체 문서 맑은 고딕**: 템플릿 텍스트와 매핑 데이터 모두에 일관된 폰트 적용
 - **향상된 필드 매핑**: 신청자 필드에서 부서 자동 추출, 시스템별 배포자 매핑
-- **구조화된 내용 생성**: 목적/개선내용을 체계적 형식으로 자동 변환
+- **구조화된 내용 생성**: 목적/개선내용을 "1. 목적\n2. 주요 내용" 형식으로 자동 변환
+- **HTML 태그 처리**: `<br>` 태그를 줄바꿈으로 자동 변환하여 올바른 문서 형식 보장
 
 ### 빠른 시작
 
@@ -205,18 +207,49 @@ open http://localhost:8000/docs
 
 ### API 사용 예제
 
+#### 권장 워크플로우 (완전한 필드 매핑)
 ```bash
-# HTML 파싱
+# 1. HTML 파싱하여 구조화된 데이터 추출
 curl -X POST "http://localhost:8000/parse-html" \
-     -F "file=@testHTML/규격_확정일자.html"
+     -F "file=@testHTML/충유오더.html"
 
-# Word 문서 생성
-curl -X POST "http://localhost:8000/create-cm-word" \
+# 2. 향상된 엔드포인트로 완전한 Word 문서 생성 (12개 필드 모두 매핑)
+curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
      -H "Content-Type: application/json" \
-     -d '{"change_id": "TEST_001", "system": "테스트", "title": "제목", "requester": "작성자"}'
+     -d '{
+       "raw_data": {
+         "제목": "[Bug 개선] 시스템 구조 개선",
+         "처리자_약칭": "이대경",
+         "작업일시": "08/06 18:00",
+         "배포일시": "08/07 13:00",
+         "요청사유": "시스템 성능 개선 필요",
+         "요구사항 상세분석": "1. 성능 최적화<br>2. 안정성 향상"
+       },
+       "change_request": {
+         "change_id": "TEST_001",
+         "system": "테스트 시스템", 
+         "title": "시스템 구조 개선",
+         "requester": "이대경"
+       }
+     }'
 
-# 생성된 문서 다운로드
-curl -O "http://localhost:8000/download/filename.docx"
+# 3. 생성된 완전한 문서 다운로드
+curl -O "http://localhost:8000/download/[250816 이대경] 변경관리요청서 TEST_001 시스템 구조 개선.docx"
+```
+
+#### 단순 워크플로우 (기본 정보만)
+```bash
+# 기본 정보로만 문서 생성 (일부 필드 누락 가능)
+curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "change_request": {
+         "change_id": "TEST_001",
+         "system": "테스트",
+         "title": "제목",
+         "requester": "작성자"
+       }
+     }'
 ```
 
 ### 테스트

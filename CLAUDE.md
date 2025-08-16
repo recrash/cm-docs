@@ -338,15 +338,15 @@ open http://localhost:8000/docs        # FastAPI auto-generated docs
 
 #### API Endpoints Structure
 ```
-/                    # Root info endpoint
-/health             # Health check with template validation
-/parse-html         # HTML file upload and parsing
-/create-cm-word     # Word document generation (ChangeRequest → .docx)
-/create-test-excel  # Excel test scenario generation 
-/create-cm-list     # Excel list generation (multiple items)
-/download/{filename} # Secure file download
-/templates          # Available template listing
-/documents          # Generated document listing
+/                         # Root info endpoint
+/health                  # Health check with template validation
+/parse-html              # HTML file upload and parsing
+/create-cm-word-enhanced # Enhanced Word document generation (완전한 12개 필드 매핑)
+/create-test-excel       # Excel test scenario generation 
+/create-cm-list          # Excel list generation (multiple items)
+/download/{filename}     # Secure file download
+/templates               # Available template listing
+/documents               # Generated document listing
 ```
 
 #### Core Architecture Patterns
@@ -380,12 +380,18 @@ open http://localhost:8000/docs        # FastAPI auto-generated docs
 ```
 HTML File → parse_itsupp_html() → Raw Data Dict
                 ↓
-Raw Data → build_word_payload() → Enhanced Payload
+Raw Data → build_word_payload() → Enhanced Payload (12개 필드 보완)
                 ↓
-Enhanced Payload → fill_template_by_labels() → Mapped Document
+Enhanced Payload → fill_template_by_labels() → Fully Mapped Document
                 ↓
 Document → ensure_malgun_gothic_document() → Final Document
 ```
+
+**핵심 개선사항**:
+- **완전한 필드 매핑**: 12개 필드 모두 정상 매핑 (작업일시, 배포일시, 처리자 포함)
+- **Enhanced Payload**: raw_data를 통한 누락 필드 자동 보완
+- **구조화된 내용**: 목적-개선내용을 "1. 목적\n2. 주요 내용" 형식으로 자동 구조화
+- **HTML 태그 변환**: `<br>` 태그를 줄바꿈으로 자동 변환
 
 #### Template System Requirements
 - **Word Template** (`templates/template.docx`): Label-based mapping with comprehensive field support
@@ -451,15 +457,50 @@ curl -X POST "http://localhost:8000/parse-html" \
 ```
 
 #### Document Generation Workflow
-```bash
-# Generate Word document
-curl -X POST "http://localhost:8000/create-cm-word" \
-     -H "Content-Type: application/json" \
-     -d '{"change_id": "LIMS_20250814_1", "system": "울산 실험정보(LIMS)", 
-          "title": "시스템 구조 개선", "requester": "홍길동"}'
 
-# Download generated file
-curl -O "http://localhost:8000/download/[250814 홍길동] 변경관리요청서 LIMS_20250814_1 시스템 구조 개선.docx"
+**권장 워크플로우** (완전한 필드 매핑):
+```bash
+# 1. HTML 파싱하여 구조화된 데이터 추출
+curl -X POST "http://localhost:8000/parse-html" \
+     -F "file=@testHTML/충유오더.html"
+
+# 2. 향상된 엔드포인트로 완전한 Word 문서 생성
+curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "raw_data": {
+         "제목": "[Bug 개선] 시스템 구조 개선",
+         "처리자_약칭": "이대경",
+         "작업일시": "08/06 18:00",
+         "배포일시": "08/07 13:00",
+         "요청사유": "현재 시스템 개선 필요",
+         "요구사항 상세분석": "1. 성능 개선<br>2. 안정성 향상"
+       },
+       "change_request": {
+         "change_id": "LIMS_20250814_1",
+         "system": "울산 실험정보(LIMS)", 
+         "title": "시스템 구조 개선",
+         "requester": "이대경"
+       }
+     }'
+
+# 3. 생성된 완전한 문서 다운로드
+curl -O "http://localhost:8000/download/[250814 이대경] 변경관리요청서 LIMS_20250814_1 시스템 구조 개선.docx"
+```
+
+**단순 워크플로우** (기본 정보만):
+```bash
+# 기본 정보로만 문서 생성 (일부 필드 누락 가능)
+curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "change_request": {
+         "change_id": "LIMS_20250814_1",
+         "system": "울산 실험정보(LIMS)",
+         "title": "시스템 구조 개선",
+         "requester": "홍길동"
+       }
+     }'
 ```
 
 ### Testing Strategy
