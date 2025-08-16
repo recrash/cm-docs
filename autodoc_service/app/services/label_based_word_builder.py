@@ -12,6 +12,7 @@ Key Benefits:
 - Robust against cell merging and table restructuring
 """
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -25,6 +26,10 @@ from .paths import verify_template_exists, get_documents_dir
 from .filename import generate_word_filename, unique_path
 from .word_payload import build_word_payload
 from .font_styler import ensure_malgun_gothic_document
+from ..logging_config import get_logger
+
+# 모듈 로거 설정
+logger = get_logger(__name__)
 
 
 def normalize_label(text: str) -> str:
@@ -343,15 +348,26 @@ def build_change_request_doc_label_based(
     Returns:
         Path: Generated document file path
     """
+    start_time = time.time()
+    
+    logger.info(f"Word 문서 생성 시작: change_id={data.change_id}, title={data.title}, has_raw_data={raw_data is not None}")
+    
     # Validate required data
     if not data.change_id:
+        logger.error("Word 문서 생성 실패: change_id 누락")
         raise ValueError("change_id는 필수입니다")
     if not data.title:
+        logger.error("Word 문서 생성 실패: title 누락")
         raise ValueError("title은 필수입니다")
     
     # Load template
-    template_path = verify_template_exists("template.docx")
-    doc = Document(str(template_path))
+    try:
+        template_path = verify_template_exists("template.docx")
+        logger.info(f"템플릿 로드 성공: {template_path}")
+        doc = Document(str(template_path))
+    except Exception as e:
+        logger.exception(f"템플릿 로드 실패: {str(e)}")
+        raise
     
     # Set output directory
     if out_dir is None:
@@ -360,10 +376,12 @@ def build_change_request_doc_label_based(
     # Prepare data for mapping
     if raw_data:
         # Use enhanced payload with missing field derivation
+        logger.info("향상된 페이로드 사용으로 누락 필드 자동 보완")
         word_payload = build_word_payload(raw_data)
-        print(f"📋 Using enhanced payload with {len(word_payload)} fields")
+        logger.info(f"향상된 페이로드 생성 완료: field_count={len(word_payload)}")
     else:
         # Convert ChangeRequest to dict for compatibility
+        logger.info("기본 ChangeRequest 데이터로 페이로드 생성")
         word_payload = {
             'change_id': data.change_id,
             'title': data.title,
@@ -385,6 +403,8 @@ def build_change_request_doc_label_based(
             word_payload['목적-개선내용'] = data.details.summary
         elif data.details and data.details.plan:
             word_payload['목적-개선내용'] = data.details.plan
+        
+        logger.info(f"기본 페이로드 생성 완료: field_count={len(word_payload)}")
     
     # Map field names to match template labels
     template_data = {
@@ -405,14 +425,16 @@ def build_change_request_doc_label_based(
     }
     
     # Fill template using label-based mapping
-    print(f"🔄 Filling template using label-based mapping...")
+    logger.info("라벨 기반 템플릿 채우기 시작")
+    template_field_count = len(template_data)
     filled_count = fill_template_by_labels(doc, template_data)
     
-    print(f"✅ Successfully filled {filled_count} fields")
+    logger.info(f"템플릿 채우기 완료: filled_fields={filled_count}/{template_field_count}")
     
     # Apply 맑은 고딕 font to entire document (ensures consistency)
-    print(f"🎨 Applying consistent font styling to entire document...")
+    logger.info("맑은 고딕 폰트 일관성 적용 시작")
     ensure_malgun_gothic_document(doc)
+    logger.info("폰트 스타일링 완료")
     
     # Generate filename
     filename = generate_word_filename(
@@ -420,11 +442,21 @@ def build_change_request_doc_label_based(
         title=data.title,
         writer_short=data.writer_short
     )
+    logger.info(f"파일명 생성 완료: {filename}")
     
     # Create unique output path
     output_path = unique_path(out_dir, filename)
+    logger.info(f"출력 경로 설정: {output_path}")
     
     # Save document
-    doc.save(str(output_path))
+    try:
+        doc.save(str(output_path))
+        file_size = output_path.stat().st_size if output_path.exists() else 0
+        processing_time = time.time() - start_time
+        
+        logger.info(f"Word 문서 생성 성공: filename={output_path.name}, size={file_size} bytes, processing_time={processing_time:.3f}s, filled_fields={filled_count}")
+    except Exception as e:
+        logger.exception(f"Word 문서 저장 실패: filename={filename}, error={str(e)}")
+        raise
     
     return output_path

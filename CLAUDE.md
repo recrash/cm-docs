@@ -407,6 +407,14 @@ Document → ensure_malgun_gothic_document() → Final Document
 
 ### AutoDoc Service-Specific Development Guidelines
 
+#### 로깅 및 테스트 표준 (Logging and Testing Standards)
+- **로깅 의무**: 모든 API 엔드포인트와 서비스 모듈에서 로그 기록 필수
+- **로그 위치**: `autodoc_service/logs/YYYYMMDD_autodoc.log` (일별 파일)
+- **로그 형식**: `"%(asctime)s | %(levelname)-8s | %(name)s | %(funcName)s:%(lineno)d | %(message)s"`
+- **로깅 패턴**: 요청 수신 → 처리 과정 → 성공/실패 결과 (처리 시간, 파일 크기 포함)
+- **테스트 완성도**: 기능 변경 시 테스트 코드 함께 작성하여 안정성 확보
+- **디버깅 지원**: 상세한 로그를 통한 문제 상황 추적 및 해결 지원
+
 #### Offline Environment Support
 **Office-less Design**: No Microsoft Office dependency, uses python-docx and openpyxl
 ```bash
@@ -537,6 +545,31 @@ cd autodoc_service && pytest --cov=app --cov-report=html app/tests/
 4. **Quality Gates**: All projects require passing tests before merge
 5. **Korean Documentation**: Technical documentation includes Korean user-facing content
 
+## Pseudo MSA 서비스 개발 원칙 (Pseudo MSA Development Principles)
+
+### 핵심 개발 원칙
+- **로깅 의무화**: 모든 백엔드 서비스는 업무 수행 시마다 로그 기록 필수
+- **테스트 의무화**: 기능 추가/변경 시 테스트 코드 생성 무조건 수반
+- **안정성 우선**: 로깅과 테스트를 통한 유지보수성과 디버깅 용이성 확보
+
+### 로깅 가이드라인
+- **기본 요구사항**: 모든 API 엔드포인트에서 요청 수신, 처리 과정, 결과 로그
+- **오류 처리**: 예외 발생 시 상세한 스택 트레이스와 컨텍스트 정보 로그
+- **성능 메트릭스**: 처리 시간, 리소스 사용량, 데이터 크기 등 기록
+- **상황별 최적화**: 서비스 특성에 맞는 로그 형식, 로테이션, 보관 정책 적용
+
+### 테스트 가이드라인
+- **동시 개발**: 기능 구현과 테스트 코드는 동시에 작성
+- **포괄적 커버리지**: Unit, Integration, E2E 테스트 모두 포함
+- **로깅 테스트**: 로그 생성 및 내용 검증 테스트 포함
+- **품질 게이트**: 테스트 통과 없이는 기능 완성 인정 안함
+
+### 구현 가이드라인
+- **새 서비스 생성 시**: 로깅 시스템 구성을 첫 번째 작업으로 수행
+- **API 엔드포인트**: 요청 수신/처리 성공/실패 로그 필수
+- **예외 처리**: `logger.exception()` 사용하여 스택 트레이스 포함
+- **성능 추적**: 처리 시간 측정 및 로그 기록으로 성능 모니터링
+
 ## Performance and Quality Standards
 
 - **Webservice API**: <200ms response time, <1s WebSocket connection
@@ -544,6 +577,7 @@ cd autodoc_service && pytest --cov=app --cov-report=html app/tests/
 - **AutoDoc Service**: <1s HTML parsing, <3s Word generation, <2s Excel generation
 - **Test Coverage**: Webservice ≥80% unit + ≥70% integration, CLI ≥85% overall, AutoDoc Service ≥85% overall
 - **Build Time**: Complete monorepo build <10 minutes
+- **Logging Coverage**: 모든 API 엔드포인트와 서비스 모듈에서 로그 기록 100%
 
 ## Critical Configuration Files
 

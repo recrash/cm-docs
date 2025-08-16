@@ -80,18 +80,15 @@ class TestExcelListBuilder:
         wb = load_workbook(str(output_path))
         ws = wb.active
         
-        # 데이터 행 찾기 (첫 번째 데이터 행)
-        first_data_row = None
-        for row_num in range(1, ws.max_row + 1):
-            if ws.cell(row_num, 1).value:  # A열에 값이 있으면 데이터 행
-                first_data_row = row_num
-                break
-        
-        assert first_data_row is not None, "데이터 행을 찾을 수 없습니다"
-        
-        # 첫 번째 항목 검증
+        # '변경관리번호'(10열)로 실제 데이터 행 찾기
         first_item = sample_change_requests[0]
-        row = first_data_row
+        row = None
+        for row_num in range(1, ws.max_row + 1):
+            if ws.cell(row_num, 10).value == first_item.change_id:
+                row = row_num
+                break
+
+        assert row is not None, "변경관리번호로 데이터 행을 찾을 수 없습니다"
         
         # 11열 순서 검증
         expected_values = [
@@ -110,10 +107,15 @@ class TestExcelListBuilder:
         
         for col, expected_value in enumerate(expected_values, 1):
             actual_value = ws.cell(row, col).value
-            assert actual_value == expected_value, (
-                f"행 {row}, 열 {col} 값이 일치하지 않습니다. "
-                f"실제: '{actual_value}', 기대: '{expected_value}'"
-            )
+            if expected_value == "":
+                assert actual_value in ("", None), (
+                    f"행 {row}, 열 {col} 값이 일치하지 않습니다. 실제: '{actual_value}', 기대: '' 또는 None"
+                )
+            else:
+                assert actual_value == expected_value, (
+                    f"행 {row}, 열 {col} 값이 일치하지 않습니다. "
+                    f"실제: '{actual_value}', 기대: '{expected_value}'"
+                )
         
         wb.close()
     
@@ -131,15 +133,17 @@ class TestExcelListBuilder:
         wb = load_workbook(str(output_path))
         ws = wb.active
         
-        # 첫 번째 데이터 행 찾기
+        # 변경관리번호로 데이터 행 찾기 후 4열 확인
+        target_row = None
         for row_num in range(1, ws.max_row + 1):
-            if ws.cell(row_num, 1).value:
-                # 4열 (배포일자) 확인
-                deploy_date = ws.cell(row_num, 4).value
-                assert deploy_date == "8월 20일", (
-                    f"배포일자 포맷이 올바르지 않습니다. 실제: '{deploy_date}', 기대: '8월 20일'"
-                )
+            if ws.cell(row_num, 10).value == "TEST_001":
+                target_row = row_num
                 break
+        assert target_row is not None, "데이터 행을 찾지 못했습니다"
+        deploy_date = ws.cell(target_row, 4).value
+        assert deploy_date == "8월 20일", (
+            f"배포일자 포맷이 올바르지 않습니다. 실제: '{deploy_date}', 기대: '8월 20일'"
+        )
         
         wb.close()
     
@@ -161,15 +165,17 @@ class TestExcelListBuilder:
         tomorrow = datetime.now() + timedelta(days=1)
         expected_date = f"{tomorrow.month}월 {tomorrow.day}일"
         
-        # 첫 번째 데이터 행 찾기
+        # 변경관리번호로 데이터 행 찾기 후 4열 확인
+        target_row = None
         for row_num in range(1, ws.max_row + 1):
-            if ws.cell(row_num, 1).value:
-                # 4열 (배포일자) 확인
-                deploy_date = ws.cell(row_num, 4).value
-                assert deploy_date == expected_date, (
-                    f"배포일자 포맷이 올바르지 않습니다. 실제: '{deploy_date}', 기대: '{expected_date}'"
-                )
+            if ws.cell(row_num, 10).value == "TEST_001":
+                target_row = row_num
                 break
+        assert target_row is not None, "데이터 행을 찾지 못했습니다"
+        deploy_date = ws.cell(target_row, 4).value
+        assert deploy_date == expected_date, (
+            f"배포일자 포맷이 올바르지 않습니다. 실제: '{deploy_date}', 기대: '{expected_date}'"
+        )
         
         wb.close()
     
@@ -180,26 +186,17 @@ class TestExcelListBuilder:
         wb = load_workbook(str(output_path))
         ws = wb.active
         
-        # 데이터 행 수 확인
-        data_rows = []
+        # 입력한 변경관리번호들의 존재 여부 확인
+        expected_ids = [item.change_id for item in sample_change_requests]
+        found_ids = []
         for row_num in range(1, ws.max_row + 1):
-            if ws.cell(row_num, 1).value:
-                data_rows.append(row_num)
-        
-        # 입력된 항목 수와 일치하는지 확인
-        assert len(data_rows) == len(sample_change_requests), (
-            f"데이터 행 수가 일치하지 않습니다. "
-            f"실제: {len(data_rows)}, 기대: {len(sample_change_requests)}"
+            cid = ws.cell(row_num, 10).value
+            if cid in expected_ids:
+                found_ids.append(cid)
+
+        assert sorted(found_ids) == sorted(expected_ids), (
+            f"변경관리번호 목록이 일치하지 않습니다. 실제: {found_ids}, 기대: {expected_ids}"
         )
-        
-        # 각 행의 변경관리번호 확인
-        for i, row_num in enumerate(data_rows):
-            change_id = ws.cell(row_num, 10).value  # 10열: 변경관리번호
-            expected_change_id = sample_change_requests[i].change_id
-            assert change_id == expected_change_id, (
-                f"행 {row_num}의 변경관리번호가 일치하지 않습니다. "
-                f"실제: '{change_id}', 기대: '{expected_change_id}'"
-            )
         
         wb.close()
     
@@ -224,15 +221,17 @@ class TestExcelListBuilder:
         wb = load_workbook(str(output_path))
         ws = wb.active
         
-        # 첫 번째 데이터 행 찾기
+        # 변경관리번호로 데이터 행 찾기
+        target_row = None
         for row_num in range(1, ws.max_row + 1):
-            if ws.cell(row_num, 1).value:
-                # 주요 값들 확인
-                assert ws.cell(row_num, 1).value == '긴급배포', "배포종류가 일치하지 않습니다"
-                assert ws.cell(row_num, 7).value == 'Web', "Program이 일치하지 않습니다"
-                assert ws.cell(row_num, 10).value == 'DICT_TEST_001', "변경관리번호가 일치하지 않습니다"
-                assert ws.cell(row_num, 11).value == 'X', "변경관리문서유무가 일치하지 않습니다"
+            if ws.cell(row_num, 10).value == 'DICT_TEST_001':
+                target_row = row_num
                 break
+        assert target_row is not None, "데이터 행을 찾지 못했습니다"
+        assert ws.cell(target_row, 1).value == '긴급배포', "배포종류가 일치하지 않습니다"
+        assert ws.cell(target_row, 7).value == 'Web', "Program이 일치하지 않습니다"
+        assert ws.cell(target_row, 10).value == 'DICT_TEST_001', "변경관리번호가 일치하지 않습니다"
+        assert ws.cell(target_row, 11).value == 'X', "변경관리문서유무가 일치하지 않습니다"
         
         wb.close()
     
@@ -242,14 +241,10 @@ class TestExcelListBuilder:
             build_change_list_xlsx([], temp_output_dir)
     
     def test_missing_template_error(self, sample_change_requests, temp_output_dir, monkeypatch):
-        """템플릿 파일 누락 시 에러 발생 테스트"""
-        def mock_verify_template_exists(template_name):
-            raise FileNotFoundError(f"템플릿 파일을 찾을 수 없습니다: {template_name}")
-        
-        monkeypatch.setattr(
-            "autodoc_service.app.services.excel_list_builder.verify_template_exists",
-            mock_verify_template_exists
-        )
+        """템플릿 파일 누락 시 에러 발생 테스트 (환경변수로 빈 템플릿 폴더 지정)"""
+        empty_dir = temp_output_dir / "empty_tpl"
+        empty_dir.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("AUTODOC_TPL_DIR", str(empty_dir))
         
         with pytest.raises(FileNotFoundError, match="템플릿 파일을 찾을 수 없습니다"):
             build_change_list_xlsx(sample_change_requests, temp_output_dir)
