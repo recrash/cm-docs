@@ -25,8 +25,14 @@
 - *** 해당 로직은 절대 변경하지 말 것 ***
 """
 import re
+import time
 from typing import Dict, Any, Optional
 from bs4 import BeautifulSoup, Tag
+
+from ..logging_config import get_logger
+
+# 모듈 로거 설정
+logger = get_logger(__name__)
 
 
 def clean_text(text: Optional[str]) -> str:
@@ -95,8 +101,19 @@ def parse_itsupp_html(html: str) -> Dict[str, Any]:
     Returns:
         dict: 파싱된 데이터
     """
-    soup = BeautifulSoup(html, 'lxml')
-    result = {}
+    start_time = time.time()
+    html_size = len(html)
+    
+    logger.info(f"HTML 파싱 시작: html_size={html_size} bytes")
+    
+    try:
+        soup = BeautifulSoup(html, 'lxml')
+        result = {}
+        
+        logger.debug("BeautifulSoup 파싱 완료")
+    except Exception as e:
+        logger.exception(f"BeautifulSoup 파싱 실패: error={str(e)}")
+        raise
     
     # 제목 파싱
     title_elem = soup.select_one('.dwp-title[data-xlang-code="comm.title.subject"]')
@@ -336,5 +353,12 @@ def parse_itsupp_html(html: str) -> Dict[str, Any]:
     if '요청자' in result and '처리자_약칭' in result:
         result['배포자'] = result['요청자']
         result['대무자'] = result['처리자_약칭'] if result['처리자_약칭'] != result['요청자'] else "김용진"
+    
+    # 파싱 완료 로그
+    processing_time = time.time() - start_time
+    field_count = len(result)
+    
+    logger.info(f"HTML 파싱 완료: field_count={field_count}, processing_time={processing_time:.3f}s")
+    logger.debug(f"파싱된 필드들: {list(result.keys())}")
     
     return result
