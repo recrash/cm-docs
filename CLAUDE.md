@@ -4,25 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Monorepo Architecture
 
-This is a Git subtree-based monorepo combining two independent projects that share the common goal of AI-powered Korean test scenario generation:
+This is a Git subtree-based monorepo combining three independent projects that share common goals around test automation and document processing:
 
-- **backend/**: TestscenarioMaker web service (React + FastAPI + Pseudo-MSA)
+- **webservice/**: TestscenarioMaker web service (React + FastAPI + Pseudo-MSA)
 - **cli/**: TestscenarioMaker-CLI tool (Python CLI with cross-platform builds)
+- **autodoc_service/**: Document automation service for HTML parsing and template generation
 
 Each subproject maintains independent development cycles, CI/CD pipelines, and deployment strategies while sharing unified issue tracking and development environment.
 
 ### Git Subtree Management
 ```bash
 # Update from upstream repositories
-git subtree pull --prefix=backend https://github.com/recrash/TestscenarioMaker.git main --squash
+git subtree pull --prefix=webservice https://github.com/recrash/TestscenarioMaker.git main --squash
 git subtree pull --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.git main --squash
 
 # Push changes back to upstream
-git subtree push --prefix=backend https://github.com/recrash/TestscenarioMaker.git main
+git subtree push --prefix=webservice https://github.com/recrash/TestscenarioMaker.git main
 git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.git main
 ```
 
-## Backend Development - TestscenarioMaker Web Service
+## Webservice Development - TestscenarioMaker Web Service
 
 ### Technology Stack
 - **Frontend**: React 18 + TypeScript + Material-UI + Vite
@@ -34,7 +35,7 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 
 ### Development Commands
 ```bash
-cd backend
+cd webservice
 
 # Environment setup (CRITICAL: PYTHONPATH required for src/ modules)
 pip install -r requirements.txt
@@ -42,7 +43,7 @@ npm install
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
 # Server management
-cd backend && python -m uvicorn main:app --reload --port 8000  # Backend API
+cd webservice/backend && python -m uvicorn main:app --reload --port 8000  # Backend API
 npm run dev  # Frontend (port 3000) - run from project root
 
 # DO NOT use ./start-dev.sh for starting servers
@@ -93,7 +94,7 @@ frontend/src/
 
 #### Backend Structure
 ```
-backend/
+webservice/backend/
 ├── main.py              # FastAPI app initialization
 ├── routers/             # API endpoint modules
 │   ├── scenario.py      # Generation endpoints + WebSocket
@@ -118,7 +119,7 @@ backend/
 - Auto-initializes on backend startup if `rag.enabled: true` in config.json
 - Offline environment support with local embedding models
 
-### Backend-Specific Development Guidelines
+### Webservice-Specific Development Guidelines
 
 #### Fundamental Principles
 - **명확한 명령이나 지시가 있기 전까지는 기존에 있는 기능을 삭제하지 말아라** (Never delete existing functionality without explicit instructions)
@@ -139,7 +140,7 @@ backend/
 ### Configuration and Environment
 ```bash
 # Configuration files
-backend/config.json  # Main config (based on config.example.json)
+webservice/config.json  # Main config (based on webservice/config.example.json)
 # Key settings: model_name (qwen3:8b), rag.enabled, rag.embedding_model
 
 # Environment variables
@@ -296,49 +297,266 @@ subprocess.run(['git', 'status'], cwd=repo_path)  # Will fail!
 - **Cross-Platform Tests**: `test_path_compatibility.py` for path handling validation
 - **Helper App Tests**: `test_helper_app.py` for comprehensive macOS helper app validation
 
+## AutoDoc Service Development - Document Automation Service
+
+### Technology Stack
+- **Core**: FastAPI + Python 3.8+ + Pydantic
+- **Document Generation**: python-docx (Word), openpyxl (Excel)
+- **HTML Parsing**: BeautifulSoup4 + lxml
+- **Testing**: pytest with AsyncHTTPX client
+- **Deployment**: Uvicorn ASGI server with cross-platform scripts
+
+### Development Commands
+```bash
+cd autodoc_service
+
+# Automatic startup (recommended)
+python run_autodoc_service.py          # Cross-platform Python script
+./run_autodoc_service.sh              # macOS/Linux
+.\run_autodoc_service.ps1             # Windows PowerShell
+
+# Manual setup
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Testing
+pytest app/tests/ -v                   # All tests
+pytest --cov=app --cov-report=html app/tests/  # With coverage
+
+# API access
+curl http://localhost:8000/health      # Health check
+open http://localhost:8000/docs        # FastAPI auto-generated docs
+```
+
+### Architecture Details
+
+#### Core Service Flow
+1. **HTML Parser** (`app/parsers/itsupp_html_parser.py`) → Extracts structured data from IT지원의뢰서 HTML
+2. **Document Builders** (`app/services/`) → Template-based Word/Excel generation
+3. **Path Management** (`app/services/paths.py`) → Cross-platform file handling with security
+4. **File Management** (`app/main.py`) → Download endpoint with path traversal protection
+
+#### API Endpoints Structure
+```
+/                         # Root info endpoint
+/health                  # Health check with template validation
+/parse-html              # HTML file upload and parsing
+/create-cm-word-enhanced # Enhanced Word document generation (완전한 12개 필드 매핑)
+/create-test-excel       # Excel test scenario generation 
+/create-cm-list          # Excel list generation (multiple items)
+/download/{filename}     # Secure file download
+/templates               # Available template listing
+/documents               # Generated document listing
+```
+
+#### Core Architecture Patterns
+
+##### 1. Label-Based Template Mapping (Primary System)
+- **Location**: `app/services/label_based_word_builder.py`
+- **Purpose**: Maps data to Word templates by finding label text instead of relying on fixed cell indices
+- **Resilience**: Template structure changes don't break the mapping
+- **Special Cases**: Table 2 has custom handling for complex date placement logic
+
+##### 2. Enhanced Payload System
+- **Location**: `app/services/word_payload.py` 
+- **Purpose**: Transforms raw HTML parsing data into Word-compatible format
+- **Intelligence**: 
+  - Auto-extracts department from applicant field segments (`홍길동/Manager/IT운영팀/SK AX` → `IT운영팀`)
+  - System-specific deployer mapping (extensible via `get_system_deployer()`)
+  - Structured content generation for purpose/improvement fields
+
+##### 3. Font Styling System
+- **Word**: `app/services/font_styler.py` - Applies 맑은 고딕 to all Word content
+- **Excel**: `app/services/excel_font_styler.py` - Applies 맑은 고딕 to all Excel content
+- **Integration**: Automatically applied during document generation for 100% font consistency
+
+##### 4. HTML → Structured Data Pipeline
+- **Parser**: `app/parsers/itsupp_html_parser.py` - Extracts specific fields from IT지원의뢰서 HTML
+- **Validation**: Uses CSS selectors with robust fallback patterns
+- **Critical Rule**: Parser logic is fixed and should not be modified without careful testing
+
+#### Document Generation Flow
+
+```
+HTML File → parse_itsupp_html() → Raw Data Dict
+                ↓
+Raw Data → build_word_payload() → Enhanced Payload (12개 필드 보완)
+                ↓
+Enhanced Payload → fill_template_by_labels() → Fully Mapped Document
+                ↓
+Document → ensure_malgun_gothic_document() → Final Document
+```
+
+**핵심 개선사항**:
+- **완전한 필드 매핑**: 12개 필드 모두 정상 매핑 (작업일시, 배포일시, 처리자 포함)
+- **Enhanced Payload**: raw_data를 통한 누락 필드 자동 보완
+- **구조화된 내용**: 목적-개선내용을 "1. 목적\n2. 주요 내용" 형식으로 자동 구조화
+- **HTML 태그 변환**: `<br>` 태그를 줄바꿈으로 자동 변환
+
+#### Template System Requirements
+- **Word Template** (`templates/template.docx`): Label-based mapping with comprehensive field support
+- **Excel Templates**: 
+  - `template.xlsx`: Test scenarios with predefined cell coordinates
+  - `template_list.xlsx`: 11-column list format for multiple items
+
+#### Security and Validation
+- **Path Traversal Protection**: `file_path.resolve().relative_to(documents_dir.resolve())`
+- **Template Integrity**: SHA-256 verification in tests
+- **Input Sanitization**: Filename cleanup for cross-platform compatibility
+- **Pydantic Validation**: Strict data model enforcement
+
+### AutoDoc Service-Specific Development Guidelines
+
+#### Offline Environment Support
+**Office-less Design**: No Microsoft Office dependency, uses python-docx and openpyxl
+```bash
+# Offline wheel preparation (internet-connected environment)
+pip download -r requirements.txt -d wheels
+
+# Offline installation (air-gapped environment)  
+pip install --no-index --find-links ./wheels -r requirements.txt
+```
+
+#### Template Requirements
+**Critical Template Files** (must exist in `templates/` directory):
+- `template.docx`: Word document template with predefined table structure
+- `template.xlsx`: Excel test scenario template  
+- `template_list.xlsx`: Excel list template for multiple items
+
+**Template Validation**: All templates verified with SHA-256 hashes in test suite
+
+#### Path Management
+- Always use `pathlib.Path` for cross-platform compatibility
+- Use `app.services.paths` functions for consistent directory resolution
+- Templates can be overridden via `AUTODOC_TPL_DIR` environment variable
+
+#### Field Mapping Extensions
+To add system-specific deployer mapping:
+1. Edit `get_system_deployer()` in `word_payload.py`
+2. Add entries to `system_deployer_mapping` dictionary
+3. Supports both system names and abbreviations
+
+#### Template Structure Changes
+If Word template structure changes:
+1. Test with `debug_*` scripts in root directory for structure analysis
+2. Update cell mapping in `get_data_cell_for_label()` function
+3. Add special handling functions if needed (like `handle_table2_special()`)
+
+#### Font Consistency Guidelines
+- **Document-wide Application**: Use `ensure_malgun_gothic_document()` for 100% font consistency
+- **Individual Cell Styling**: Use `apply_malgun_gothic_to_cell()` for specific cells
+- **Excel Styling**: Use `Font(name='맑은 고딕')` for Excel cell formatting
+
+### API Usage Patterns
+
+#### HTML Parsing Workflow
+```bash
+# Upload HTML file and get structured JSON
+curl -X POST "http://localhost:8000/parse-html" \
+     -F "file=@규격_확정일자.html"
+```
+
+#### Document Generation Workflow
+
+**권장 워크플로우** (완전한 필드 매핑):
+```bash
+# 1. HTML 파싱하여 구조화된 데이터 추출
+curl -X POST "http://localhost:8000/parse-html" \
+     -F "file=@testHTML/충유오더.html"
+
+# 2. 향상된 엔드포인트로 완전한 Word 문서 생성
+curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "raw_data": {
+         "제목": "[Bug 개선] 시스템 구조 개선",
+         "처리자_약칭": "홍길동",
+         "작업일시": "08/06 18:00",
+         "배포일시": "08/07 13:00",
+         "요청사유": "현재 시스템 개선 필요",
+         "요구사항 상세분석": "1. 성능 개선<br>2. 안정성 향상"
+       },
+       "change_request": {
+         "change_id": "LIMS_20250814_1",
+         "system": "울산 실험정보(LIMS)", 
+         "title": "시스템 구조 개선",
+         "requester": "홍길동"
+       }
+     }'
+
+# 3. 생성된 완전한 문서 다운로드
+curl -O "http://localhost:8000/download/[250814 홍길동] 변경관리요청서 LIMS_20250814_1 시스템 구조 개선.docx"
+```
+
+**단순 워크플로우** (기본 정보만):
+```bash
+# 기본 정보로만 문서 생성 (일부 필드 누락 가능)
+curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "change_request": {
+         "change_id": "LIMS_20250814_1",
+         "system": "울산 실험정보(LIMS)",
+         "title": "시스템 구조 개선",
+         "requester": "홍길동"
+       }
+     }'
+```
+
+### Testing Strategy
+- **Template Validation**: SHA-256 hash verification ensures template integrity
+- **Parser Accuracy**: Fixture-based HTML parsing validation  
+- **API Integration**: FastAPI TestClient with async support
+- **Cross-Platform**: Path handling and filename sanitization tests
+- **Security**: Path traversal attack prevention tests
+
 ## Monorepo-wide Quality Control
 
 ### Code Quality Commands (from project root)
 ```bash
 # Code formatting
-black backend/src backend/backend cli/src cli/tests
-isort backend/src backend/backend cli/src cli/tests
+black webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+isort webservice/src webservice/backend cli/src cli/tests autodoc_service/app
 
 # Linting  
-flake8 backend/src backend/backend cli/src cli/tests
+flake8 webservice/src webservice/backend cli/src cli/tests autodoc_service/app
 
 # Type checking
-mypy backend/src cli/src
+mypy webservice/src cli/src autodoc_service/app
 
-# Unified testing (both projects)
-cd backend && npm run test:all
+# Unified testing (all three projects)
+cd webservice && npm run test:all
 cd cli && pytest --cov=ts_cli --cov-report=html
+cd autodoc_service && pytest --cov=app --cov-report=html app/tests/
 ```
 
 ### Development Workflow Guidelines
-1. **Subproject Focus**: Work within specific subproject directories (`cd backend` or `cd cli`)
+1. **Subproject Focus**: Work within specific subproject directories (`cd webservice`, `cd cli`, or `cd autodoc_service`)
 2. **Independent Testing**: Each subproject has its own test suite and quality gates
-3. **Commit Conventions**: Use `[backend]` or `[cli]` prefixes in commit messages  
-4. **Quality Gates**: Both projects require passing tests before merge
+3. **Commit Conventions**: Use `[webservice]`, `[cli]`, or `[autodoc_service]` prefixes in commit messages  
+4. **Quality Gates**: All projects require passing tests before merge
 5. **Korean Documentation**: Technical documentation includes Korean user-facing content
 
 ## Performance and Quality Standards
 
-- **Backend API**: <200ms response time, <1s WebSocket connection
+- **Webservice API**: <200ms response time, <1s WebSocket connection
 - **CLI**: <30s repository analysis, <5s URL protocol processing  
-- **Test Coverage**: Backend ≥80% unit + ≥70% integration, CLI ≥85% overall
+- **AutoDoc Service**: <1s HTML parsing, <3s Word generation, <2s Excel generation
+- **Test Coverage**: Webservice ≥80% unit + ≥70% integration, CLI ≥85% overall, AutoDoc Service ≥85% overall
 - **Build Time**: Complete monorepo build <10 minutes
 
 ## Critical Configuration Files
 
-- **Backend Config**: `backend/config.json` (based on `backend/config.example.json`)
+- **Webservice Config**: `webservice/config.json` (based on `webservice/config.example.json`)
   - Ollama model settings (`qwen3:8b`), RAG system configuration, offline embedding paths
 - **CLI Config**: Hierarchical loading from current directory, project root, then defaults
+- **AutoDoc Service Config**: `autodoc_service/requirements.txt` for dependencies
+  - Templates directory must contain: `template.docx`, `template.xlsx`, `template_list.xlsx`
 - **Monorepo**: Root `pyproject.toml` for unified development tools (black, isort, pytest)
 
 ## Legacy Migration Notes
 
-**Backend Evolution**: Migrated from Streamlit to React+FastAPI
+**Webservice Evolution**: Migrated from Streamlit to React+FastAPI
 - Web interface moved from `app.py` (Streamlit) to React SPA
 - Real-time updates via WebSocket instead of Streamlit rerun  
 - Enhanced testing with E2E coverage using Playwright

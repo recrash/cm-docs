@@ -24,6 +24,11 @@ cm-docs/
 │   ├── src/ts_cli/      # CLI 핵심 로직
 │   ├── scripts/         # 빌드 및 배포 스크립트
 │   └── tests/           # CLI 테스트 슈트
+├── autodoc_service/     # AutoDoc 문서 자동화 서비스
+│   ├── app/             # FastAPI 애플리케이션
+│   ├── templates/       # 문서 템플릿 (Word, Excel)
+│   ├── documents/       # 생성된 문서 출력
+│   └── testHTML/        # HTML 테스트 파일
 ├── README.md            # 통합 프로젝트 문서
 └── pyproject.toml       # 공통 개발 환경 설정
 ```
@@ -60,7 +65,7 @@ cm-docs/
 ### 개발 환경 설정
 
 ```bash
-# Backend 디렉토리로 이동
+# Webservice 디렉토리로 이동
 cd webservice
 
 # 의존성 설치
@@ -71,7 +76,7 @@ npm install
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
 # 백엔드 서버 시작 (포트 8000)
-cd webservice && python -m uvicorn main:app --reload --port 8000
+cd webservice/backend && python -m uvicorn main:app --reload --port 8000
 
 # 프론트엔드 개발 서버 시작 (포트 3000) - 프로젝트 루트에서 실행
 npm run dev
@@ -158,11 +163,111 @@ pytest -m integration   # 통합 테스트
 pytest -m e2e           # End-to-End 테스트
 ```
 
+## 📄 AutoDoc Service - 문서 자동화 서비스
+
+Office-less 환경에서 동작하는 HTML 기반 문서 자동화 솔루션입니다.
+
+### 기술 스택
+- **백엔드**: FastAPI + Python 3.8+ + Pydantic
+- **문서 생성**: python-docx (Word) + openpyxl (Excel)
+- **HTML 파싱**: BeautifulSoup4 + lxml
+- **테스팅**: pytest + AsyncHTTPX client
+
+### 주요 기능
+
+#### 📝 자동 문서 생성
+- **변경관리 Word 문서**: 라벨 기반 매핑으로 **12개 필드 완전 매핑** 보장하는 `.docx` 생성
+- **Enhanced Payload System**: HTML 파싱 데이터에서 누락 필드 자동 보완
+- **Excel 테스트 시나리오**: 템플릿 기반 `.xlsx` 파일 생성
+- **Excel 변경관리 목록**: 여러 항목을 포함한 목록 파일 생성
+- **HTML → JSON 파서**: IT지원의뢰서 HTML을 구조화된 JSON으로 변환
+
+#### 🎨 폰트 일관성 보장
+- **전체 문서 맑은 고딕**: 템플릿 텍스트와 매핑 데이터 모두에 일관된 폰트 적용
+- **향상된 필드 매핑**: 신청자 필드에서 부서 자동 추출, 시스템별 배포자 매핑
+- **구조화된 내용 생성**: 목적/개선내용을 "1. 목적\n2. 주요 내용" 형식으로 자동 변환
+- **HTML 태그 처리**: `<br>` 태그를 줄바꿈으로 자동 변환하여 올바른 문서 형식 보장
+
+### 빠른 시작
+
+```bash
+# AutoDoc Service 디렉토리로 이동
+cd autodoc_service
+
+# 자동 실행 (권장)
+python run_autodoc_service.py
+
+# 수동 실행
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# 브라우저에서 API 문서 확인
+open http://localhost:8000/docs
+```
+
+### API 사용 예제
+
+#### 권장 워크플로우 (완전한 필드 매핑)
+```bash
+# 1. HTML 파싱하여 구조화된 데이터 추출
+curl -X POST "http://localhost:8000/parse-html" \
+     -F "file=@testHTML/충유오더.html"
+
+# 2. 향상된 엔드포인트로 완전한 Word 문서 생성 (12개 필드 모두 매핑)
+curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "raw_data": {
+         "제목": "[Bug 개선] 시스템 구조 개선",
+         "처리자_약칭": "홍길동",
+         "작업일시": "08/06 18:00",
+         "배포일시": "08/07 13:00",
+         "요청사유": "시스템 성능 개선 필요",
+         "요구사항 상세분석": "1. 성능 최적화<br>2. 안정성 향상"
+       },
+       "change_request": {
+         "change_id": "TEST_001",
+         "system": "테스트 시스템", 
+         "title": "시스템 구조 개선",
+         "requester": "홍길동"
+       }
+     }'
+
+# 3. 생성된 완전한 문서 다운로드
+curl -O "http://localhost:8000/download/[250816 홍길동] 변경관리요청서 TEST_001 시스템 구조 개선.docx"
+```
+
+#### 단순 워크플로우 (기본 정보만)
+```bash
+# 기본 정보로만 문서 생성 (일부 필드 누락 가능)
+curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "change_request": {
+         "change_id": "TEST_001",
+         "system": "테스트",
+         "title": "제목",
+         "requester": "작성자"
+       }
+     }'
+```
+
+### 테스트
+
+```bash
+# 전체 테스트 실행
+pytest app/tests/ -v
+
+# 커버리지 포함 테스트
+pytest --cov=app --cov-report=html app/tests/
+```
+
 ## 🛠 공통 개발 환경
 
 ### 의존성 관리
-- **Backend**: `webservice/requirements.txt` + `webservice/package.json`
+- **Webservice**: `webservice/requirements.txt` + `webservice/package.json`
 - **CLI**: `cli/requirements.txt` + `cli/requirements-dev.txt`
+- **AutoDoc Service**: `autodoc_service/requirements.txt`
 - **공통**: 루트 `pyproject.toml` (개발 도구 설정)
 
 ### 통합된 설정 관리
@@ -173,14 +278,14 @@ pytest -m e2e           # End-to-End 테스트
 ### 코드 품질
 ```bash
 # 코드 포맷팅 (프로젝트 루트에서)
-black webservice/src webservice/backend cli/src cli/tests
-isort webservice/src webservice/backend cli/src cli/tests
+black webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+isort webservice/src webservice/backend cli/src cli/tests autodoc_service/app
 
 # 린팅
-flake8 webservice/src webservice/backend cli/src cli/tests
+flake8 webservice/src webservice/backend cli/src cli/tests autodoc_service/app
 
 # 타입 체크
-mypy webservice/src cli/src
+mypy webservice/src cli/src autodoc_service/app
 ```
 
 ### Git 관리
@@ -246,10 +351,10 @@ python scripts/create_dmg.py
 1. 해당 서브프로젝트 디렉토리에서 작업
 2. 독립적인 테스트 슈트 실행 및 통과 확인
 3. 코드 품질 도구 실행 (black, isort, flake8)
-4. 커밋 메시지는 서브프로젝트 접두어 사용: `[backend]` 또는 `[cli]`
+4. 커밋 메시지는 서브프로젝트 접두어 사용: `[webservice]` 또는 `[cli]`
 
 ### 이슈 및 PR
-- 서브프로젝트별로 라벨링: `backend`, `cli`, `monorepo`
+- 서브프로젝트별로 라벨링: `webservice`, `cli`, `monorepo`
 - 독립적인 CI/CD 파이프라인 고려사항 명시
 - 크로스플랫폼 호환성 검증 필수
 
