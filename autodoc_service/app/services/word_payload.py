@@ -77,7 +77,7 @@ def build_word_payload(data: Dict[str, Any]) -> Dict[str, Any]:
     if not customer:
         customer = data.get("요청부서")
         if not customer:
-            # 신청자에서 마지막 세그먼트 추출 (예: "이대경/Manager/IT운영팀/SK picglobal" → "SK picglobal")
+            # 신청자에서 마지막 세그먼트 추출 (예: "홍길동/Manager/IT운영팀/SK picglobal" → "SK picglobal")
             applicant = data.get("신청자", "")
             if "/" in applicant:
                 customer = applicant.split("/")[-1].strip()

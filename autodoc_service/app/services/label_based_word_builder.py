@@ -218,7 +218,7 @@ def handle_table2_special(table: Table, data: Dict[str, Any], filled_data_keys: 
     
     Table 2 구조:
     - Row 1: 기안 | 검토 | 검토 | 검토 | ERD변경 | IF관리 | 승인 | 의견
-    - Row 2: 이대경 | 김태우 | | | | | 이동호 | 
+    - Row 2: 홍길동 | 김태우 | | | | | 이동호 | 
     - Row 3: ~ 3/25(3/28) | / | / | / | / | / | / | 
     
     기안 날짜는 Row 3, Cell 1에 들어가야 함

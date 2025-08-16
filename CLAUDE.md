@@ -470,7 +470,7 @@ curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
      -d '{
        "raw_data": {
          "제목": "[Bug 개선] 시스템 구조 개선",
-         "처리자_약칭": "이대경",
+         "처리자_약칭": "홍길동",
          "작업일시": "08/06 18:00",
          "배포일시": "08/07 13:00",
          "요청사유": "현재 시스템 개선 필요",
@@ -480,12 +480,12 @@ curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
          "change_id": "LIMS_20250814_1",
          "system": "울산 실험정보(LIMS)", 
          "title": "시스템 구조 개선",
-         "requester": "이대경"
+         "requester": "홍길동"
        }
      }'
 
 # 3. 생성된 완전한 문서 다운로드
-curl -O "http://localhost:8000/download/[250814 이대경] 변경관리요청서 LIMS_20250814_1 시스템 구조 개선.docx"
+curl -O "http://localhost:8000/download/[250814 홍길동] 변경관리요청서 LIMS_20250814_1 시스템 구조 개선.docx"
 ```
 
 **단순 워크플로우** (기본 정보만):

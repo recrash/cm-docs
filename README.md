@@ -219,7 +219,7 @@ curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
      -d '{
        "raw_data": {
          "제목": "[Bug 개선] 시스템 구조 개선",
-         "처리자_약칭": "이대경",
+         "처리자_약칭": "홍길동",
          "작업일시": "08/06 18:00",
          "배포일시": "08/07 13:00",
          "요청사유": "시스템 성능 개선 필요",
@@ -229,12 +229,12 @@ curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
          "change_id": "TEST_001",
          "system": "테스트 시스템", 
          "title": "시스템 구조 개선",
-         "requester": "이대경"
+         "requester": "홍길동"
        }
      }'
 
 # 3. 생성된 완전한 문서 다운로드
-curl -O "http://localhost:8000/download/[250816 이대경] 변경관리요청서 TEST_001 시스템 구조 개선.docx"
+curl -O "http://localhost:8000/download/[250816 홍길동] 변경관리요청서 TEST_001 시스템 구조 개선.docx"
 ```
 
 #### 단순 워크플로우 (기본 정보만)
