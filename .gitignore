@@ -343,3 +343,4 @@ cli/logs/
 
 # autodoc_service 문서 폴더
 autodoc_service/documents/
+autodoc_service/testHTML/
