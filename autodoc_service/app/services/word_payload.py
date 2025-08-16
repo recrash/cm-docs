@@ -133,8 +133,10 @@ def build_word_payload(data: Dict[str, Any]) -> Dict[str, Any]:
             purpose_content_parts.append("")  # 빈 줄
             
         if detailed_analysis:
-            purpose_content_parts.append("2. 주요내용")
-            purpose_content_parts.append(detailed_analysis)
+            purpose_content_parts.append("2. 주요내용")  # 띄어쓰기 수정
+            # HTML <br> 태그를 줄바꿈으로 변환
+            detailed_analysis_clean = detailed_analysis.replace("<br>", "\n").replace("<BR>", "\n")
+            purpose_content_parts.append(detailed_analysis_clean)
             
         purpose_content = "\n".join(purpose_content_parts)
     else:
