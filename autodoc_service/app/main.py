@@ -171,7 +171,7 @@ async def parse_html_endpoint(request: Request, file: UploadFile = File(...)):
 @app.post("/create-cm-word-enhanced", response_model=CreateDocumentResponse)
 async def create_change_management_word_enhanced(http_request: Request, request: dict):
     """
-    향상된 변경관리 Word 문서 생성 엔드포인트
+    향상된 변경관리 Word 문서 생성 엔드포인트   
     
     Raw 파싱 데이터를 받아서 누락 필드를 자동으로 보완하여 Word 문서를 생성합니다.
     """

@@ -12,6 +12,12 @@ This is a Git subtree-based monorepo combining three independent projects that s
 
 Each subproject maintains independent development cycles, CI/CD pipelines, and deployment strategies while sharing unified issue tracking and development environment.
 
+### Inter-Service Data Flow
+- **CLI → Webservice**: Repository analysis data via HTTP API (`/api/v2/scenario/generate`)
+- **Webservice → Files**: Generated Excel scenarios with Korean filenames in `outputs/`
+- **AutoDoc Service**: Standalone HTML→Document conversion (no direct integration with other services)
+- **RAG System**: Independent document indexing within webservice for enhanced scenario generation
+
 ### Git Subtree Management
 ```bash
 # Update from upstream repositories
@@ -37,10 +43,12 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 ```bash
 cd webservice
 
-# Environment setup (CRITICAL: PYTHONPATH required for src/ modules)
+# Environment setup (CRITICAL: Activate independent Python 3.13 environment first)
+source .venv/bin/activate
+python --version  # Verify Python 3.13.5
 pip install -r requirements.txt
 npm install
-export PYTHONPATH=$(pwd):$PYTHONPATH
+export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ modules
 
 # Server management
 cd webservice/backend && python -m uvicorn main:app --reload --port 8000  # Backend API
@@ -162,6 +170,10 @@ python scripts/download_embedding_model.py  # Downloads ~500MB Korean model
 ### Development Commands
 ```bash
 cd cli
+
+# Environment setup (CRITICAL: Activate independent Python 3.13 environment first)
+source .venv/bin/activate
+python --version  # Verify Python 3.13.5
 
 # Development setup
 pip install -e .
@@ -300,7 +312,7 @@ subprocess.run(['git', 'status'], cwd=repo_path)  # Will fail!
 ## AutoDoc Service Development - Document Automation Service
 
 ### Technology Stack
-- **Core**: FastAPI + Python 3.8+ + Pydantic
+- **Core**: FastAPI + Python 3.12 + Pydantic (Python 3.12 for document generation stability)
 - **Document Generation**: python-docx (Word), openpyxl (Excel)
 - **HTML Parsing**: BeautifulSoup4 + lxml
 - **Testing**: pytest with AsyncHTTPX client
@@ -309,6 +321,10 @@ subprocess.run(['git', 'status'], cwd=repo_path)  # Will fail!
 ### Development Commands
 ```bash
 cd autodoc_service
+
+# Environment setup (CRITICAL: Activate independent Python 3.12 environment first)
+source .venv312/bin/activate
+python --version  # Verify Python 3.12.11
 
 # Automatic startup (recommended)
 python run_autodoc_service.py          # Cross-platform Python script
@@ -587,6 +603,109 @@ cd autodoc_service && pytest --cov=app --cov-report=html app/tests/
 - **AutoDoc Service Config**: `autodoc_service/requirements.txt` for dependencies
   - Templates directory must contain: `template.docx`, `template.xlsx`, `template_list.xlsx`
 - **Monorepo**: Root `pyproject.toml` for unified development tools (black, isort, pytest)
+
+## Python 환경 관리 (Claude 작업 지침)
+
+### MSA 기반 서비스별 독립 환경 구조
+
+이 모노래포는 **Pseudo MSA 아키텍처**를 따르므로 각 서비스가 완전히 독립된 가상환경을 사용합니다.
+
+```
+cm-docs/
+├── webservice/
+│   ├── .venv/          # Python 3.13 + AI/ML 의존성
+│   └── requirements.txt
+├── cli/
+│   ├── .venv/          # Python 3.13 + CLI 도구 의존성  
+│   └── requirements.txt
+└── autodoc_service/
+    ├── .venv312/       # Python 3.12 + 문서처리 의존성 (안정성 보장)
+    └── requirements.txt
+```
+
+### 작업 전 필수 체크리스트
+
+**모든 개발/테스트 작업 전에 다음을 반드시 수행:**
+
+1. **프로젝트 디렉토리 확인**
+2. **올바른 가상환경 활성화** 
+3. **Python 버전 검증**
+
+### 서비스별 환경 활성화 명령어
+
+#### Webservice 작업 시
+```bash
+cd webservice
+source .venv/bin/activate
+python --version  # 3.13.5 확인
+# AI/ML 최신 기능 및 성능 활용
+# 이후 개발/테스트 명령 수행
+```
+
+#### CLI 작업 시
+```bash
+cd cli
+source .venv/bin/activate
+python --version  # 3.13.5 확인
+# 크로스플랫폼 도구 최신 기능 활용
+# 이후 개발/테스트 명령 수행
+```
+
+#### AutoDoc Service 작업 시
+```bash
+cd autodoc_service
+source .venv312/bin/activate
+python --version  # 3.12.11 확인 (문서 생성 안정성을 위한 고정 버전)
+# python-docx, openpyxl 호환성 보장
+# 이후 개발/테스트 명령 수행
+```
+
+### 신규 서비스 추가 가이드라인
+
+새로운 서비스를 모노래포에 추가할 때:
+
+1. **Python 3.13 기본 정책**: 특별한 호환성 이슈가 없는 한 Python 3.13 사용
+2. **독립 가상환경**: `{service_name}/.venv` 구조로 생성
+3. **독립 의존성**: 서비스별 최소 필요 패키지만 포함
+4. **MSA 원칙**: 다른 서비스와 의존성 공유 금지
+
+### 개발 워크플로 예시
+
+```bash
+# 잘못된 방법 ❌
+python -m pytest  # 어떤 환경인지 불명확
+
+# 올바른 방법 ✅
+cd webservice
+source .venv/bin/activate
+python --version  # 3.13.5 확인
+npm run test:all
+
+cd ../cli  
+source .venv/bin/activate
+python --version  # 3.13.5 확인
+pytest --cov=ts_cli
+
+cd ../autodoc_service
+source .venv312/bin/activate  
+python --version  # 3.12.11 확인
+pytest app/tests/ -v
+```
+
+### AutoDoc Service 특별 고려사항
+
+**Python 3.12 고정 이유:**
+- `python-docx 1.1.0`, `openpyxl 3.1.2`의 Python 3.13 호환성 미검증
+- 워드/엑셀 문서 생성의 안정성이 비즈니스 크리티컬
+- 향후 라이브러리 업데이트 후 3.13 마이그레이션 고려
+
+### Template System Architecture (Cross-Service)
+
+**Webservice Excel Templates**: Uses coordinate-based cell mapping for test scenario generation
+**AutoDoc Service Templates**: Uses label-based mapping for robust Word document generation
+- **Key Difference**: AutoDoc's label-based system is more resilient to template structure changes
+- **Template Dependencies**: Both services require specific template files in their respective `templates/` directories
+- **Font Consistency**: Both enforce 맑은 고딕 font across all generated documents
 
 ## Legacy Migration Notes
 

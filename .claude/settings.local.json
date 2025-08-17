@@ -19,7 +19,19 @@
       "mcp__wonderwhy-er-desktop-commander__start_process",
       "mcp__wonderwhy-er-desktop-commander__read_file",
       "mcp__wonderwhy-er-desktop-commander__interact_with_process",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(source:*)",
+      "WebSearch",
+      "Bash(/opt/homebrew/bin/python3.12:*)",
+      "Bash(deactivate)",
+      "Bash(echo:*)",
+      "Bash(/Users/recrash/Documents/Workspace/cm-docs/autodoc_service/.venv312/bin/pip install -r requirements.txt)",
+      "Bash(/Users/recrash/Documents/Workspace/cm-docs/autodoc_service/.venv312/bin/pip list)",
+      "Bash(/Users/recrash/Documents/Workspace/cm-docs/autodoc_service/.venv312/bin/python -c \"from docx import Document; import openpyxl; import fastapi; print(''✅ autodoc_service 핵심 의존성 확인 완료 (Python 3.12.11)'')\")",
+      "Bash(/Users/recrash/Documents/Workspace/cm-docs/webservice/.venv/bin/python --version)",
+      "Bash(/Users/recrash/Documents/Workspace/cm-docs/webservice/.venv/bin/python -c \"import fastapi; import chromadb; import sentence_transformers; print(''✅ webservice 핵심 의존성 확인 완료 (Python 3.13.5)'')\")",
+      "Bash(/Users/recrash/Documents/Workspace/cm-docs/cli/.venv/bin/python --version)",
+      "Bash(/Users/recrash/Documents/Workspace/cm-docs/cli/.venv/bin/python -c \"import click; import rich; import httpx; print(''✅ cli 핵심 의존성 확인 완료 (Python 3.13.5)'')\")"
     ],
     "deny": [],
     "ask": []
