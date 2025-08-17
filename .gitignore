@@ -115,6 +115,11 @@ ENV/
 env.bak/
 venv.bak/
 
+# MSA 서비스별 독립 가상환경
+webservice/.venv/
+cli/.venv/
+autodoc_service/.venv312/
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -150,10 +155,10 @@ yarn-error.log*
 .yarn-integrity
 
 # React build outputs
-/backend/frontend/dist/
-/backend/dist/
-/backend/build/
-/backend/coverage/
+/webservice/frontend/dist/
+/webservice/dist/
+/webservice/build/
+/webservice/coverage/
 
 # TypeScript
 *.tsbuildinfo
@@ -165,17 +170,17 @@ yarn-error.log*
 .env.production.local
 
 # Package manager locks (선택적으로 주석해제)
-# backend/package-lock.json
-# backend/yarn.lock
+# webservice/package-lock.json
+# webservice/yarn.lock
 
 # ===================================
 # 테스팅 관련
 # ===================================
-# Playwright test results (Backend E2E)
-/backend/test-results/
-/backend/playwright-report/
-/backend/blob-report/
-/backend/playwright/.cache/
+# Playwright test results (Webservice E2E)
+/webservice/test-results/
+/webservice/playwright-report/
+/webservice/blob-report/
+/webservice/playwright/.cache/
 
 # 테스트 결과 파일
 test_results/
@@ -248,13 +253,17 @@ $RECYCLE.BIN/
 # ===================================
 # 프로젝트별 설정 및 데이터 파일
 # ===================================
-# Backend 설정 파일 (민감한 정보 포함 가능)
-backend/config.json
-backend/config.ini
-backend/settings.json
+# Webservice 설정 파일 (민감한 정보 포함 가능)
+webservice/config.json
+webservice/config.ini
+webservice/settings.json
 
 # CLI 설정 파일 (개발용 제외)
 cli/config/config.local.ini
+
+# AutoDoc Service 설정 파일
+autodoc_service/config.json
+autodoc_service/config.ini
 
 # Claude Code 설정 파일들
 .claude/settings.local.json
@@ -263,13 +272,17 @@ cli/config/config.local.ini
 # ===================================
 # 출력 및 생성 파일들
 # ===================================
-# Backend: 생성된 엑셀 파일들
-backend/outputs/*.xlsx
-backend/outputs/*.xls
-backend/outputs/result temp/
+# Webservice: 생성된 엑셀 파일들
+webservice/outputs/*.xlsx
+webservice/outputs/*.xls
+webservice/outputs/result temp/
 
-# Backend: 피드백 백업 파일들
-backend/backups/
+# Webservice: 피드백 백업 파일들
+webservice/backups/
+
+# AutoDoc Service: 생성된 문서 파일들
+autodoc_service/documents/*.docx
+autodoc_service/documents/*.xlsx
 
 # CLI: 빌드 결과물
 cli/dist/
@@ -290,13 +303,13 @@ cli/*.scpt
 # ===================================
 # AI/ML 및 데이터베이스 관련
 # ===================================
-# RAG & Vector Database (Backend)
-backend/vector_db_data/
+# RAG & Vector Database (Webservice)
+webservice/vector_db_data/
 *.sqlite3
 *.db
 
 # 한국어 임베딩 모델 (대용량 파일, 스크립트로 다운로드 가능)
-backend/models/
+webservice/models/
 cli/models/
 
 # ML 모델 파일들
@@ -310,7 +323,7 @@ cli/models/
 ~/.cache/huggingface/
 
 # 문서 폴더 내 항목들
-backend/documents/
+webservice/documents/
 
 # ===================================
 # 캐시 및 임시 파일
@@ -318,7 +331,7 @@ backend/documents/
 # 캐시 파일
 .cache/
 cache/
-backend/indexed_files_cache.json
+webservice/indexed_files_cache.json
 
 # 임시 파일
 temp/
@@ -338,8 +351,9 @@ dev_tools/
 # 로그 파일
 # ===================================
 *.log
-backend/logs/
+webservice/logs/
 cli/logs/
+autodoc_service/logs/
 
 # autodoc_service 문서 폴더
 autodoc_service/documents/
