@@ -64,11 +64,33 @@ cm-docs/
 
 ### 개발 환경 설정
 
-```bash
-# Webservice 디렉토리로 이동
-cd webservice
+#### 🔧 MSA 기반 독립 환경 구성
 
-# 의존성 설치
+각 서비스는 독립된 Python 가상환경을 사용합니다:
+
+```bash
+# Webservice (Python 3.13 환경)
+cd webservice
+source .venv/bin/activate
+python --version  # Python 3.13.5
+
+# CLI (Python 3.13 환경) 
+cd cli
+source .venv/bin/activate  
+python --version  # Python 3.13.5
+
+# AutoDoc Service (Python 3.12 환경 - 문서 생성 안정성)
+cd autodoc_service
+source .venv312/bin/activate
+python --version  # Python 3.12.11
+```
+
+#### 📦 서비스별 개발 시작
+
+```bash
+# Webservice 개발 환경
+cd webservice
+source .venv/bin/activate
 pip install -r requirements.txt
 npm install
 
@@ -129,6 +151,9 @@ npm run test:all
 # CLI 디렉토리로 이동
 cd cli
 
+# 독립 환경 활성화
+source .venv/bin/activate
+
 # 개발 모드 설치
 pip install -e .
 
@@ -168,7 +193,7 @@ pytest -m e2e           # End-to-End 테스트
 Office-less 환경에서 동작하는 HTML 기반 문서 자동화 솔루션입니다.
 
 ### 기술 스택
-- **백엔드**: FastAPI + Python 3.8+ + Pydantic
+- **백엔드**: FastAPI + Python 3.12 + Pydantic (문서 생성 안정성 위해 3.12 사용)
 - **문서 생성**: python-docx (Word) + openpyxl (Excel)
 - **HTML 파싱**: BeautifulSoup4 + lxml
 - **테스팅**: pytest + AsyncHTTPX client
@@ -193,6 +218,9 @@ Office-less 환경에서 동작하는 HTML 기반 문서 자동화 솔루션입�
 ```bash
 # AutoDoc Service 디렉토리로 이동
 cd autodoc_service
+
+# 독립 환경 활성화 (Python 3.12)
+source .venv312/bin/activate
 
 # 자동 실행 (권장)
 python run_autodoc_service.py
@@ -264,10 +292,10 @@ pytest --cov=app --cov-report=html app/tests/
 
 ## 🛠 공통 개발 환경
 
-### 의존성 관리
-- **Webservice**: `webservice/requirements.txt` + `webservice/package.json`
-- **CLI**: `cli/requirements.txt` + `cli/requirements-dev.txt`
-- **AutoDoc Service**: `autodoc_service/requirements.txt`
+### MSA 기반 독립 환경 관리
+- **Webservice**: Python 3.13 환경 (`webservice/.venv/`) + `requirements.txt` + `package.json`
+- **CLI**: Python 3.13 환경 (`cli/.venv/`) + `requirements.txt` + `requirements-dev.txt`  
+- **AutoDoc Service**: Python 3.12 환경 (`autodoc_service/.venv312/`) + `requirements.txt`
 - **공통**: 루트 `pyproject.toml` (개발 도구 설정)
 
 ### 통합된 설정 관리
@@ -316,47 +344,63 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
   - Linux AppImage 또는 패키지
 
 ### 환경별 배포
+
+#### 🚀 MSA 기반 독립 배포
+
 ```bash
-# Webservice 프로덕션 배포
+# Webservice 프로덕션 배포 (Python 3.13)
 cd webservice
+source .venv/bin/activate
 export PYTHONPATH=$(pwd):$PYTHONPATH  # 필수: src/ 모듈 임포트
 python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 # 한국어 임베딩 모델 다운로드 (오프라인 환경용)
 python scripts/download_embedding_model.py
 
-# CLI 배포 버전 생성
+# CLI 배포 버전 생성 (Python 3.13)
 cd cli
+source .venv/bin/activate
 python scripts/build.py
 
 # macOS 헬퍼 앱 포함 DMG 생성 (macOS)
 python scripts/create_dmg.py
+
+# AutoDoc Service 배포 (Python 3.12)
+cd autodoc_service
+source .venv312/bin/activate
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## 📊 품질 보증
 
 ### 테스트 커버리지 목표
-- **Webservice**: ≥80% 단위 테스트, ≥70% 통합 테스트
-- **CLI**: ≥85% 전체 커버리지
+- **Webservice**: ≥80% 단위 테스트, ≥70% 통합 테스트 (Python 3.13 환경)
+- **CLI**: ≥85% 전체 커버리지 (Python 3.13 환경)
+- **AutoDoc Service**: ≥85% 전체 커버리지 (Python 3.12 환경)
 - **E2E**: 주요 사용자 워크플로우 100% 커버
 
 ### 성능 기준
-- **Webservice API**: 응답시간 <200ms, WebSocket 연결 <1초
-- **CLI**: 저장소 분석 <30초, URL 프로토콜 처리 <5초
+- **Webservice API**: 응답시간 <200ms, WebSocket 연결 <1초 (Python 3.13)
+- **CLI**: 저장소 분석 <30초, URL 프로토콜 처리 <5초 (Python 3.13)
+- **AutoDoc Service**: HTML 파싱 <1초, Word 생성 <3초, Excel 생성 <2초 (Python 3.12)
 - **빌드**: 전체 빌드 시간 <10분
 
 ## 🤝 기여 가이드라인
 
 ### 개발 워크플로우
-1. 해당 서브프로젝트 디렉토리에서 작업
+1. 해당 서브프로젝트 디렉토리에서 독립 환경 활성화
+   - `cd webservice && source .venv/bin/activate` (Python 3.13)
+   - `cd cli && source .venv/bin/activate` (Python 3.13)
+   - `cd autodoc_service && source .venv312/bin/activate` (Python 3.12)
 2. 독립적인 테스트 슈트 실행 및 통과 확인
 3. 코드 품질 도구 실행 (black, isort, flake8)
-4. 커밋 메시지는 서브프로젝트 접두어 사용: `[webservice]` 또는 `[cli]`
+4. 커밋 메시지는 서브프로젝트 접두어 사용: `[webservice]`, `[cli]`, 또는 `[autodoc_service]`
 
 ### 이슈 및 PR
-- 서브프로젝트별로 라벨링: `webservice`, `cli`, `monorepo`
-- 독립적인 CI/CD 파이프라인 고려사항 명시
+- 서브프로젝트별로 라벨링: `webservice`, `cli`, `autodoc_service`, `monorepo`
+- 독립적인 Python 환경 및 CI/CD 파이프라인 고려사항 명시
 - 크로스플랫폼 호환성 검증 필수
+- MSA 원칙 준수: 서비스별 독립성 보장
 
 ## 📝 라이선스
 
