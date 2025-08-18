@@ -23,15 +23,25 @@ jobs:
             3.12
             3.13
       
-      - name: "백엔드 의존성 설치"
+      - name: "AutoDoc Service 의존성 설치 및 테스트"
         run: |
-          python3.12 -m venv .venv312 && source .venv312/bin/activate && pip install -r autodoc_service/requirements.txt
-          python3.13 -m venv .venv && source .venv/bin/activate && pip install -r webservice/requirements.txt && pip install -r cli/requirements.txt
+          python3.12 -m venv .venv312
+          source .venv312/bin/activate
+          pip install -r autodoc_service/requirements.txt
+          pytest autodoc_service/app/tests/ -v
       
-      - name: "백엔드 테스트 실행"
+      - name: "Webservice 의존성 설치 및 테스트"
         run: |
-          source .venv312/bin/activate && pytest autodoc_service/app/tests/
-          source .venv/bin/activate && pytest webservice/tests/
+          python3.13 -m venv .venv
+          source .venv/bin/activate
+          pip install -r webservice/requirements.txt
+          pytest webservice/tests/ -v
+          
+      - name: "CLI 의존성 설치 및 테스트"
+        run: |
+          source .venv/bin/activate
+          pip install -r cli/requirements.txt
+          pytest cli/tests/ -v
 
   # 2단계: CD (개발 서버 자동 배포) 작업
   deploy_to_dev:
