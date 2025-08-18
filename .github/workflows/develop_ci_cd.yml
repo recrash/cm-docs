@@ -66,4 +66,4 @@ jobs:
             cd C:/Users/recrash1325/Documents/cm-docs
             git checkout develop
             git pull origin develop
-            pwsh.exe -File ./scripts/restart_services.ps1
+            pwsh.exe -ExecutionPolicy Bypass -File ./scripts/restart_services.ps1
