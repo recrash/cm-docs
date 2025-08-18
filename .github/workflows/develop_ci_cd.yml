@@ -48,7 +48,7 @@ jobs:
           key: ${{ secrets.GCP_SSH_KEY }}          # GitHub Secrets에서 SSH 개인키 가져오기
           port: 22
           script: |
-            cd C:/경로/cm-docs
+            cd C:/Users/recrash1325/Documents/cm-docs
             git checkout develop
             git pull origin develop
             pwsh.exe -File ./scripts/restart_services.ps1
