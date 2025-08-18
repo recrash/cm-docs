@@ -1,0 +1,54 @@
+# .github/workflows/develop_ci_cd.yml
+
+name: Develop Branch CI/CD Pipeline
+
+on:
+  push:
+    branches: [ develop ] # develop 브랜치에 코드를 푸시할 때만 실행!
+
+jobs:
+  # 1단계: CI (코드 검증) 작업
+  ci_checks:
+    name: "CI - 코드 자동 검증"
+    runs-on: ubuntu-latest # GitHub이 제공하는 가상 리눅스 환경에서 실행
+
+    steps:
+      - name: "코드 가져오기"
+        uses: actions/checkout@v4
+
+      - name: "Python 3.12, 3.13 버전 설치"
+        uses: actions/setup-python@v5
+        with:
+          python-version: |
+            3.12
+            3.13
+      
+      - name: "백엔드 의존성 설치"
+        run: |
+          python3.12 -m venv .venv312 && source .venv312/bin/activate && pip install -r autodoc_service/requirements.txt
+          python3.13 -m venv .venv && source .venv/bin/activate && pip install -r webservice/requirements.txt && pip install -r cli/requirements.txt
+      
+      - name: "백엔드 테스트 실행"
+        run: |
+          source .venv312/bin/activate && pytest autodoc_service/app/tests/
+          source .venv/bin/activate && pytest webservice/tests/
+
+  # 2단계: CD (개발 서버 자동 배포) 작업
+  deploy_to_dev:
+    name: "CD - GCP 개발 서버에 배포"
+    needs: ci_checks # ci_checks 작업이 성공해야만 실행됨!
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "GCP 서버에 접속해서 배포 스크립트 실행"
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.GCP_SERVER_IP }}        # GitHub Secrets에서 IP 주소 가져오기
+          username: ${{ secrets.GCP_USERNAME }}      # GitHub Secrets에서 사용자 이름 가져오기
+          key: ${{ secrets.GCP_SSH_KEY }}          # GitHub Secrets에서 SSH 개인키 가져오기
+          port: 22
+          script: |
+            cd C:/경로/cm-docs
+            git checkout develop
+            git pull origin develop
+            pwsh.exe -File ./scripts/restart_services.ps1
