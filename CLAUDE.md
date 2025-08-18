@@ -586,6 +586,32 @@ cd autodoc_service && pytest --cov=app --cov-report=html app/tests/
 - **예외 처리**: `logger.exception()` 사용하여 스택 트레이스 포함
 - **성능 추적**: 처리 시간 측정 및 로그 기록으로 성능 모니터링
 
+## 로깅 시스템 가이드라인 (중요)
+
+### Unicode 및 Emoji 사용 금지 (필수)
+**Windows 환경에서 콘솔 출력 시 Unicode 인코딩 오류(UnicodeEncodeError)를 방지하기 위해 다음을 반드시 준수:**
+
+- **이모지 사용 금지**: 로그 메시지에서 🚀, ✅, ❌, ⚠️, 💡, 📊, 🔍, 🎯 등 모든 이모지 제거
+- **Unicode 특수문자 최소화**: 기본 ASCII 문자 사용 권장
+- **한국어는 허용**: 한국어 텍스트는 사용 가능하나 이모지는 제거
+
+#### 올바른 로깅 예시
+```python
+# ❌ 잘못된 예시 (이모지 포함)
+logger.info("🚀 서비스 시작...")
+logger.error("❌ 처리 실패")
+
+# ✅ 올바른 예시 (이모지 제거)
+logger.info("서비스 시작...")
+logger.error("처리 실패")
+```
+
+### 적용 범위
+- **webservice/**: 모든 backend 로깅 시스템
+- **cli/**: CLI 출력 및 로깅 시스템
+- **autodoc_service/**: FastAPI 로깅 시스템
+- **테스트 코드**: 테스트 출력 메시지에서도 이모지 제거
+
 ## Performance and Quality Standards
 
 - **Webservice API**: <200ms response time, <1s WebSocket connection

@@ -41,11 +41,11 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     """AutoDoc Service 라이프사이클 매니저"""
     # 시작 시 실행
-    logger.info("🚀 AutoDoc Service 시작")
-    logger.info("📄 문서 자동화 서비스가 활성화되었습니다")
+    logger.info("AutoDoc Service 시작")
+    logger.info("문서 자동화 서비스가 활성화되었습니다")
     yield
     # 종료 시 실행
-    logger.info("🛑 AutoDoc Service 종료")
+    logger.info("AutoDoc Service 종료")
 
 # FastAPI 앱 초기화
 app = FastAPI(

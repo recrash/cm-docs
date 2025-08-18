@@ -373,13 +373,13 @@ class CLIHandler:
                 f"파일명: {filename}\n"
                 f"설명: {description}\n"
                 f"다운로드 URL: http://localhost:8000{download_url}",
-                title="✅ 시나리오 생성 완료",
+                title="시나리오 생성 완료",
                 border_style="green",
             )
             self.console.print(result_panel)
 
             # 추가 안내 메시지
-            self.console.print("\n[bold blue]🎉 테스트 시나리오가 성공적으로 생성되었습니다![/bold blue]")
+            self.console.print("\n[bold blue]테스트 시나리오가 성공적으로 생성되었습니다![/bold blue]")
             self.console.print(f"[cyan]다운로드 링크: http://localhost:8000{download_url}[/cyan]")
 
     def _display_final_result(self, api_response: Dict[str, Any]) -> None:
@@ -404,13 +404,13 @@ class CLIHandler:
                 f"파일명: {filename}\n"
                 f"메시지: {message}\n"
                 f"웹 UI 다운로드: http://localhost:8000{download_url}",
-                title="✅ 시나리오 생성 완료",
+                title="시나리오 생성 완료",
                 border_style="green",
             )
             self.console.print(result_panel)
 
             # 추가 안내 메시지
-            self.console.print("\n[bold blue] 웹 UI에서 결과를 확인하고 다운로드하세요:[/bold blue]")
+            self.console.print("\n[bold blue]웹 UI에서 결과를 확인하고 다운로드하세요:[/bold blue]")
             self.console.print(f"[cyan]http://localhost:8000{download_url}[/cyan]")
 
     def _get_current_timestamp(self) -> str:

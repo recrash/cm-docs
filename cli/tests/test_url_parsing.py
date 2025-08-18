@@ -53,7 +53,7 @@ class TestURLParsing:
             
             # 성공적인 분석 완료 메시지 확인
             mock_console.print.assert_any_call(
-                "[bold green]✅ 저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
+                "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
             )
             mock_exit.assert_called_with(0)
 
@@ -77,7 +77,7 @@ class TestURLParsing:
             handle_url_protocol()
             
             mock_console.print.assert_any_call(
-                "[bold green]✅ 저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
+                "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
             )
             mock_exit.assert_called_with(0)
 
@@ -96,7 +96,7 @@ class TestURLParsing:
             handle_url_protocol()
             
             mock_console.print.assert_any_call(
-                "[bold green]✅ 저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
+                "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
             )
             mock_exit.assert_called_with(0)
 
@@ -121,7 +121,7 @@ class TestURLParsing:
             handle_url_protocol()
             
             mock_console.print.assert_any_call(
-                "[bold green]✅ 저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
+                "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
             )
             mock_exit.assert_called_with(0)
 
@@ -137,7 +137,7 @@ class TestURLParsing:
             
             # URL 형식 오류 메시지가 출력되는지 확인
             mock_print.assert_any_call(
-                "[red]❌ 올바르지 않은 URL 형식입니다.[/red]", 
+                "[red]올바르지 않은 URL 형식입니다.[/red]", 
                 file=sys.stderr
             )
             mock_exit.assert_called_with(1)
@@ -154,7 +154,7 @@ class TestURLParsing:
             
             # 경로를 찾을 수 없다는 메시지 확인 (절대경로로 처리됨)
             mock_print.assert_any_call(
-                f"[red]❌ 경로를 찾을 수 없습니다: {Path('/nonexistent/path')}[/red]",
+                f"[red]경로를 찾을 수 없습니다: {Path('/nonexistent/path')}[/red]",
                 file=sys.stderr
             )
             mock_exit.assert_called_with(1)
@@ -178,7 +178,7 @@ class TestURLParsing:
             
             # 디렉토리가 아니라는 메시지 확인
             mock_print.assert_any_call(
-                f"[red]❌ 디렉토리가 아닙니다: {test_file}[/red]",
+                f"[red]디렉토리가 아닙니다: {test_file}[/red]",
                 file=sys.stderr
             )
             mock_exit.assert_called_with(1)
@@ -200,7 +200,7 @@ class TestURLParsing:
             handle_url_protocol()
             
             mock_print.assert_any_call(
-                "[bold red]❌ 저장소 분석 중 오류가 발생했습니다.[/bold red]",
+                "[bold red]저장소 분석 중 오류가 발생했습니다.[/bold red]",
                 file=sys.stderr
             )
             mock_exit.assert_called_with(1)
@@ -236,6 +236,6 @@ class TestURLParsing:
             handle_url_protocol()
             
             mock_console.print.assert_any_call(
-                "[bold green]✅ 저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
+                "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
             )
             mock_exit.assert_called_with(0)
