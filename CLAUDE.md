@@ -52,7 +52,7 @@ export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ modules
 
 # Server management
 cd webservice/backend && python -m uvicorn main:app --reload --port 8000  # Backend API
-cd webservice/frontend && npm run dev  # Frontend (port 3000)
+cd webservice/frontend && npm run dev  # Frontend (dev 3000, deploy 80)
 
 # DO NOT use ./start-dev.sh for starting servers
 ./stop-dev.sh  # Server shutdown
@@ -158,6 +158,68 @@ export NODE_OPTIONS="--no-deprecation"  # Optional: suppress Node.js warnings
 # Offline environment setup
 python scripts/download_embedding_model.py  # Downloads ~500MB Korean model
 ```
+
+### Nginx 기반 프론트엔드 배포
+
+- 운영 환경에서는 프론트엔드를 Node.js 개발 서버가 아닌 nginx로 서빙합니다.
+- 기본 포트는 80이며, 개발 모드에서는 여전히 Vite 개발 서버(포트 3000)를 사용합니다.
+- Jenkins 파이프라인(`webservice/Jenkinsfile.frontend`)이 `npm run build`로 생성된 `dist/` 결과물을 zip으로 패키징하여 `NGINX_ROOT`(기본값: `C:\nginx\html`)에 전개하고, `FRONTEND_URL`(`http://localhost`)로 배포 검증을 수행합니다.
+
+예시 nginx 설정(Windows 경로 기준):
+
+```nginx
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    # ⭐️ 여기가 핵심 설정 부분!
+    server {
+        listen       80; # 사용자의 요청을 80 포트에서 받는다
+        server_name  localhost;
+
+        # 1. 프론트엔드(React) 처리 규칙
+        # React 빌드 결과물(dist 폴더 안의 내용)이 위치할 폴더
+        root   C:/nginx/html;
+
+        location / {
+            # 이 설정은 React Router 같은 SPA 라우팅을 위한 필수 설정!
+            try_files $uri $uri/ /index.html;
+        }
+
+        # 2. webservice 백엔드(API) 처리 규칙
+        # 주소에 /api/webservice/ 가 포함되면 백엔드로 넘겨준다
+        location /api/webservice/ {
+            # 백엔드가 실행 중인 8000 포트로 요청을 전달
+            proxy_pass http://127.0.0.1:8000/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # 3. autodoc_service 백엔드(API) 처리 규칙
+        # 주소에 /api/autodoc/ 가 포함되면 백엔드로 넘겨준다
+        location /api/autodoc/ {
+            # autodoc 서비스가 실행 중인 8001 포트로 요청을 전달
+            proxy_pass http://127.0.0.1:8001/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}
+```
+
+참고:
+- Linux 환경에서는 `root /usr/share/nginx/html;` 등 환경에 맞는 경로로 변경하세요.
+- 방화벽/보안그룹에서 80 포트가 허용되어야 외부 접속이 가능합니다.
 
 ## CLI Development - TestscenarioMaker CLI Tool
 
@@ -536,65 +598,234 @@ curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
 
 ## CI/CD Pipeline (Jenkins)
 
-### Smart Deployment Architecture
-The project uses Jenkins with intelligent change detection for efficient CI/CD:
+### Enterprise-Grade Pseudo MSA CI/CD Architecture
+The project implements a sophisticated Jenkins-based CI/CD system designed specifically for Pseudo MSA architecture with NSSM service management:
 
-#### Pipeline Features
-- **Change Detection**: Automatically detects changes per service (webservice/, cli/, autodoc_service/)
-- **Independent Environments**: Python 3.13 for webservice/cli, Python 3.12 for autodoc_service
-- **Parallel Building**: Only builds and deploys services with detected changes
-- **Smart Deployment**: Selective deployment to development server based on changes
-- **E2E Testing**: Automated Playwright testing for webservice changes
+#### NSSM Service Integration
+**Windows Service Management**: All Python applications run as native Windows services through NSSM (Non-Sucking Service Manager)
+
+**Service Configuration**:
+- **webservice**: NSSM-managed service on port 8000 (Backend) 
+- **autodoc_service**: NSSM-managed service on port 8001
+- **Frontend**: nginx-served static files on port 80
+
+**Service Control Commands**:
+```bash
+# Service management via Jenkins
+nssm stop webservice && nssm start webservice     # Backend deployment
+nssm stop autodoc_service && nssm start autodoc_service  # AutoDoc deployment
+# Frontend: Direct nginx file replacement
+```
+
+#### Advanced Pipeline Features
+
+##### 1. **Intelligent Change Detection & Routing**
+- **Git-based Analysis**: Compares `HEAD~1` vs `HEAD` for precise change detection
+- **Service-Specific Triggers**: Only builds/deploys modified services
+- **Dependency-Aware**: Root config changes trigger full system rebuild
+- **Parallel Optimization**: Independent services build simultaneously
+
+##### 2. **Dependency Management & Validation**
+- **Smart Dependency Updates**: Detects `requirements.txt`/`package.json` changes
+- **Compatibility Verification**: Python version-specific validation (3.12 vs 3.13)
+- **Conflict Detection**: `pip check` and `npm audit` integration
+- **Template Integrity**: SHA-256 verification for critical template files
+
+##### 3. **Multi-Layer Testing Strategy**
+```bash
+# Testing Hierarchy
+├── Unit Tests: pytest/Jest individual component testing
+├── Integration Tests: FastAPI TestClient + cross-service validation
+├── API Tests: Full endpoint validation with health checks
+├── E2E Tests: Playwright browser automation
+├── Security Tests: npm audit + dependency vulnerability scanning
+└── Document Generation Tests: Real-world template processing
+```
+
+##### 4. **Production-Ready Deployment**
+- **Blue-Green Strategy**: Backup creation before deployment
+- **Automatic Rollback**: Failed deployments trigger immediate previous version restoration
+- **Health Check Validation**: Multi-endpoint verification with retry logic
+- **Service Verification**: Real document generation testing post-deployment
+
+#### Pipeline Architecture
+
+##### **통합 멀티브랜치 파이프라인** (`Jenkinsfile`)
+**Master orchestration pipeline** that coordinates all service deployments:
+
+```groovy
+// Change Detection Logic
+AUTODOC_CHANGED = changedFiles.contains('autodoc_service/')
+WEBSERVICE_CHANGED = changedFiles.contains('webservice/')  
+CLI_CHANGED = changedFiles.contains('cli/')
+ROOT_CHANGED = changedFiles.contains('Jenkinsfile') || changedFiles.contains('README.md')
+
+// Parallel Service Deployment
+parallel {
+    stage('Backend') { build job: 'webservice-backend-pipeline' }
+    stage('Frontend') { build job: 'webservice-frontend-pipeline' }
+}
+```
+
+##### **Service-Specific Pipelines**
+
+**Webservice Backend** (`webservice/Jenkinsfile.backend`):
+```bash
+Stage 1: Dependency Check (requirements.txt change detection)
+Stage 2: Test (pytest tests/api/ -v --tb=short)
+Stage 3: Build Validation (PYTHONPATH + module import verification)
+Stage 4: Create Backup (current service state preservation)
+Stage 5: Build (python -m build)
+Stage 6: Deploy (NSSM service restart with new wheel)
+Stage 7: Health Check (5-retry API validation)
+```
+
+**Webservice Frontend** (`webservice/Jenkinsfile.frontend`):
+```bash
+Stage 1: Dependency Check (npm cache optimization)
+Stage 2: Security Check (npm audit with auto-fix)
+Stage 3: Lint & Type Check (ESLint + TypeScript validation)
+Stage 4: Test (npm run test -- --run --reporter=verbose)
+Stage 5: Create Backup (nginx file backup)
+Stage 6: Build & Package (npm run build + zip creation)
+Stage 7: Deploy (nginx static file replacement)
+Stage 8: Deployment Verification (HTTP response validation)
+```
+
+**AutoDoc Service** (`autodoc_service/Jenkinsfile`):
+```bash
+Stage 1: Template Validation (SHA-256 integrity + existence check)
+Stage 2: Dependency Check (Python 3.12 specific validation)
+Stage 3: Test (pytest with coverage + document generation testing)
+Stage 4: Integration Test (FastAPI + logging system validation)
+Stage 5: Create Backup (service state preservation)
+Stage 6: Build (python -m build with validation)
+Stage 7: Deploy (NSSM service restart)
+Stage 8: API Health Check (multi-endpoint validation)
+Stage 9: Document Generation Test (real Word document creation)
+```
 
 #### Development Server Environment
 - **Server**: `34.64.173.97` (GCP VM T4 instance: vCPU:4, RAM:15GB)
-- **Open Ports**: 
-  - `8000`: Webservice Backend (FastAPI)
-  - `8001`: AutoDoc Service
-  - `3000`: Webservice Frontend (React)
-- **Pipeline Strategy**: Only build/deploy services with detected changes
-- **Health Checks**: Automatic service validation post-deployment
+- **Service Ports**: 
+  - `8000`: Webservice Backend (FastAPI with NSSM)
+  - `8001`: AutoDoc Service (FastAPI with NSSM)
+  - `80`: Webservice Frontend (nginx static)
+- **OS**: Windows Server with PowerShell-based automation
+- **Service Management**: NSSM for reliable service lifecycle management
 
-#### Jenkins Workflow
+#### Enhanced Jenkins Workflow
 ```bash
-# Pipeline Stages
+# Complete Pipeline Flow
 1. 📥 소스코드 체크아웃 및 변경 감지
+   └── Git diff analysis + service-specific change detection
+
 2. 🔧 AutoDoc Service CI/CD (Python 3.12)
-3. 🌐 Webservice CI/CD (Python 3.13 + React) - Parallel Frontend/Backend
+   ├── Template integrity validation (SHA-256)
+   ├── Python-docx/openpyxl compatibility check
+   ├── Comprehensive testing (unit/integration/API)
+   ├── NSSM service deployment
+   └── Real document generation verification
+
+3. 🌐 Webservice CI/CD (Python 3.13 + React) - Parallel Execution
+   ├── Backend Pipeline:
+   │   ├── API testing with pytest
+   │   ├── PYTHONPATH validation
+   │   ├── NSSM service deployment  
+   │   └── Health check validation
+   └── Frontend Pipeline:
+       ├── npm security audit
+       ├── ESLint + TypeScript validation
+       ├── React build optimization
+       ├── nginx deployment
+       └── Static file verification
+
 4. ⚡ CLI CI/CD (Python 3.13)
-5. 🔍 통합 테스트 (E2E with Playwright)
-6. 🚀 스마트 배포 (변경된 서비스만)
-7. 🔍 배포 상태 확인 (Health checks)
+   ├── Cross-platform testing
+   ├── Build executable creation
+   └── Artifact archival
+
+5. 🔍 통합 테스트
+   ├── E2E testing with Playwright
+   ├── Service communication validation
+   └── End-to-end workflow verification
+
+6. 🚀 스마트 배포 상태 확인
+   ├── Deployment success confirmation
+   ├── Service health validation
+   └── Performance metric collection
+
+7. 📊 배포 리포트 및 알림
+   ├── Detailed deployment summary
+   ├── Service status reporting
+   └── Failure notification (Slack integration ready)
 ```
 
-#### Change Detection Logic
-```groovy
-// Jenkins automatically detects changes in:
-AUTODOC_CHANGED = changedFiles.contains('autodoc_service/')
-WEBSERVICE_CHANGED = changedFiles.contains('webservice/')
-CLI_CHANGED = changedFiles.contains('cli/')
-ROOT_CHANGED = changedFiles.contains('Jenkinsfile') || changedFiles.contains('README.md')
+#### Advanced Error Handling & Recovery
+
+##### **Automatic Rollback System**
+```bash
+# Deployment Failure Recovery
+try {
+    nssm stop service && deploy_new_version && nssm start service
+} catch (Exception) {
+    nssm stop service && restore_backup_version && nssm start service
+    throw "Deployment failed - automatically rolled back"
+}
 ```
+
+##### **Multi-Retry Health Checks**
+```bash
+# Health Validation with Exponential Backoff
+for (int i = 0; i < 5; i++) {
+    response = curl -s -w "%{http_code}" ${HEALTH_URL}
+    if (response == "200") break
+    sleep(5 * (i + 1))  # 5s, 10s, 15s, 20s, 25s
+}
+```
+
+#### Jenkins Project Structure
+```
+Jenkins Projects:
+├── cm-docs-integration          # Master orchestration pipeline
+├── webservice-backend-pipeline  # Backend-specific CI/CD
+├── webservice-frontend-pipeline # Frontend-specific CI/CD
+└── autodoc-service-pipeline     # AutoDoc-specific CI/CD
+```
+
+#### Performance Optimizations
+- **Parallel Pipeline Execution**: Backend/Frontend build simultaneously
+- **npm Cache Management**: Aggressive caching with offline fallback
+- **Incremental Building**: Only changed services are rebuilt
+- **Resource Management**: Memory and CPU usage optimization
+- **Artifact Caching**: Wheel files and build artifacts preserved
+
+#### Quality Gates & Validation
+- **Code Quality**: ESLint, Black, isort, mypy integration
+- **Security Scanning**: npm audit, pip vulnerability checks  
+- **Test Coverage**: Minimum 80% coverage requirements
+- **Performance Testing**: Response time validation
+- **Integration Testing**: Cross-service communication validation
 
 #### Manual Pipeline Testing
 ```bash
-# Test locally before Jenkins deployment
-cd webservice && source .venv/bin/activate && npm run test:all  # Test webservice
-cd cli && source .venv/bin/activate && pytest --cov=ts_cli     # Test CLI
-cd autodoc_service && source .venv312/bin/activate && pytest app/tests/ -v  # Test autodoc
+# Pre-deployment validation commands
+cd webservice && source .venv/bin/activate && npm run test:all
+cd cli && source .venv/bin/activate && pytest --cov=ts_cli
+cd autodoc_service && source .venv312/bin/activate && pytest app/tests/ -v
 ```
 
 #### Deployment URLs (Development Server)
-- **AutoDoc Service**: `http://34.64.173.97:8001`
-- **Webservice Backend**: `http://34.64.173.97:8000`
-- **Webservice Frontend**: `http://34.64.173.97:3000`
+- **AutoDoc Service**: `http://34.64.173.97:8001` (NSSM-managed)
+- **Webservice Backend**: `http://34.64.173.97:8000` (NSSM-managed)
+- **Webservice Frontend**: `http://34.64.173.97` (nginx-served)
 
-#### Critical Jenkins Configuration
-- **Windows Environment**: Uses PowerShell and `py -3.12`/`py -3.13` commands
-- **PYTHONPATH Setup**: Required for webservice src/ module imports
-- **Parallel Execution**: Frontend/Backend builds run simultaneously
-- **Artifact Management**: Preserves build results and test reports
-- **Smart Cleanup**: Removes virtual environments after deployment
+#### Enterprise Features
+- **Audit Trail**: Complete deployment history with rollback capability
+- **Monitoring Integration**: Ready for Prometheus/Grafana integration
+- **Notification System**: Slack/Email alerts for deployment status
+- **Resource Monitoring**: CPU/Memory usage tracking during deployment
+- **Security Compliance**: Vulnerability scanning and dependency validation
 
 ## Monorepo-wide Quality Control
 
