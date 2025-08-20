@@ -15,30 +15,6 @@ from pathlib import Path
 import datetime
 
 
-def setup_windows_utf8():
-    """Windows 환경에서 UTF-8 강제 설정"""
-    if sys.platform.startswith('win'):
-        try:
-            # 1단계: 환경변수 설정
-            os.environ['PYTHONIOENCODING'] = 'utf-8'
-            
-            # 2단계: 스트림 재설정  
-            if hasattr(sys.stdout, 'reconfigure'):
-                sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-                sys.stderr.reconfigure(encoding='utf-8', errors='replace')
-                
-            # 3단계: 콘솔 코드페이지 설정 시도
-            try:
-                import subprocess
-                subprocess.run(['chcp', '65001'], 
-                             capture_output=True, shell=True, check=False)
-            except:
-                pass
-                
-            return True
-        except Exception:
-            return False
-    return True
 
 
 class AutoDocRotatingFileHandler(TimedRotatingFileHandler):
@@ -85,14 +61,11 @@ def setup_autodoc_logging():
     """
     AutoDoc Service 로깅 설정 초기화
     
-    - 일별 로그 파일 생성
-    - 콘솔과 파일 동시 출력
+    - 일별 로그 파일 생성 (UTF-8 인코딩)
+    - 콘솔 출력 비활성화 (한글 인코딩 에러 방지)
     - AutoDoc Service에 최적화된 로그 형식
-    - Windows 환경 한글 지원
+    - 모든 플랫폼에서 안정적인 파일 기반 로깅
     """
-    # Windows UTF-8 환경 설정
-    utf8_success = setup_windows_utf8()
-    
     # 로그 디렉토리 생성
     log_dir = Path(__file__).resolve().parents[1] / "logs"
     log_dir.mkdir(exist_ok=True)
@@ -106,15 +79,7 @@ def setup_autodoc_logging():
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
     
-    # 콘솔 핸들러 설정
-    console_handler = None
-    if utf8_success:
-        # UTF-8 설정 성공 시 콘솔 출력 활성화
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        console_handler.setLevel(logging.INFO)
-    
-    # 루트 로거 설정
+    # 루트 로거 설정 (콘솔 핸들러 제외, 파일 핸들러만 사용)
     root_logger = logging.getLogger()
     
     # 기존 핸들러 제거 (중복 방지)
@@ -124,17 +89,11 @@ def setup_autodoc_logging():
     root_logger.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
     
-    # 콘솔 핸들러가 유효한 경우에만 추가
-    if console_handler:
-        root_logger.addHandler(console_handler)
-    
-    # AutoDoc Service 로거 초기화 메시지
+    # AutoDoc Service 로거 초기화 메시지 (파일에만 기록)
     logger = logging.getLogger(__name__)
     logger.info("AutoDoc Service 로깅 시스템 초기화 완료")
     logger.info(f"로그 파일 위치: {log_dir}")
-    
-    if not utf8_success and sys.platform.startswith('win'):
-        logger.warning("Windows UTF-8 설정 실패 - 파일 로그만 사용됩니다")
+    logger.info("안정성을 위해 파일 로깅만 활성화됨 (콘솔 출력 비활성화)")
 
 
 def get_logger(name: str) -> logging.Logger:
