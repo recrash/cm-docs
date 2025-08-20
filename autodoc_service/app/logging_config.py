@@ -5,6 +5,7 @@ AutoDoc Service에 특화된 로깅 시스템 구성
 - 일별 로그 파일 생성
 - 적절한 로그 레벨 설정
 - 서비스 특성에 맞는 로그 형식
+- Windows 환경 한글 지원
 """
 import logging
 import sys
@@ -12,6 +13,32 @@ import os
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 import datetime
+
+
+def setup_windows_utf8():
+    """Windows 환경에서 UTF-8 강제 설정"""
+    if sys.platform.startswith('win'):
+        try:
+            # 1단계: 환경변수 설정
+            os.environ['PYTHONIOENCODING'] = 'utf-8'
+            
+            # 2단계: 스트림 재설정  
+            if hasattr(sys.stdout, 'reconfigure'):
+                sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+                sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+                
+            # 3단계: 콘솔 코드페이지 설정 시도
+            try:
+                import subprocess
+                subprocess.run(['chcp', '65001'], 
+                             capture_output=True, shell=True, check=False)
+            except:
+                pass
+                
+            return True
+        except Exception:
+            return False
+    return True
 
 
 class AutoDocRotatingFileHandler(TimedRotatingFileHandler):
@@ -61,7 +88,11 @@ def setup_autodoc_logging():
     - 일별 로그 파일 생성
     - 콘솔과 파일 동시 출력
     - AutoDoc Service에 최적화된 로그 형식
+    - Windows 환경 한글 지원
     """
+    # Windows UTF-8 환경 설정
+    utf8_success = setup_windows_utf8()
+    
     # 로그 디렉토리 생성
     log_dir = Path(__file__).resolve().parents[1] / "logs"
     log_dir.mkdir(exist_ok=True)
@@ -70,25 +101,18 @@ def setup_autodoc_logging():
     log_format = "%(asctime)s | %(levelname)-8s | %(name)s | %(funcName)s:%(lineno)d | %(message)s"
     formatter = logging.Formatter(log_format)
     
-    # 파일 핸들러 설정 (일별 로테이션, 7일 백업)
+    # 파일 핸들러 설정 (일별 로테이션, 7일 백업, UTF-8 인코딩)
     file_handler = AutoDocRotatingFileHandler(backupCount=7)
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
     
-    # 콘솔 핸들러 설정 (Windows 인코딩 문제 해결)
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    console_handler.setLevel(logging.INFO)
-    
-    # Windows 환경에서 인코딩 문제 해결
-    if sys.platform.startswith('win'):
-        try:
-            # UTF-8 인코딩 강제 설정
-            if hasattr(sys.stdout, 'reconfigure'):
-                sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-        except Exception:
-            # 인코딩 설정 실패 시 콘솔 출력 비활성화
-            console_handler = None
+    # 콘솔 핸들러 설정
+    console_handler = None
+    if utf8_success:
+        # UTF-8 설정 성공 시 콘솔 출력 활성화
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        console_handler.setLevel(logging.INFO)
     
     # 루트 로거 설정
     root_logger = logging.getLogger()
@@ -104,10 +128,13 @@ def setup_autodoc_logging():
     if console_handler:
         root_logger.addHandler(console_handler)
     
-    # AutoDoc Service 로거 초기화 메시지 (Windows 호환성)
+    # AutoDoc Service 로거 초기화 메시지
     logger = logging.getLogger(__name__)
-    logger.info("AutoDoc Service logging system initialized")
-    logger.info(f"Log file location: {log_dir}")
+    logger.info("AutoDoc Service 로깅 시스템 초기화 완료")
+    logger.info(f"로그 파일 위치: {log_dir}")
+    
+    if not utf8_success and sys.platform.startswith('win'):
+        logger.warning("Windows UTF-8 설정 실패 - 파일 로그만 사용됩니다")
 
 
 def get_logger(name: str) -> logging.Logger:

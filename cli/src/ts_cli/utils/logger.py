@@ -15,6 +15,32 @@ from typing import Optional
 from .config_loader import get_config
 
 
+def setup_windows_utf8():
+    """Windows 환경에서 UTF-8 강제 설정"""
+    if sys.platform.startswith('win'):
+        try:
+            # 1단계: 환경변수 설정
+            os.environ['PYTHONIOENCODING'] = 'utf-8'
+            
+            # 2단계: 스트림 재설정  
+            if hasattr(sys.stdout, 'reconfigure'):
+                sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+                sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+                
+            # 3단계: 콘솔 코드페이지 설정 시도
+            try:
+                import subprocess
+                subprocess.run(['chcp', '65001'], 
+                             capture_output=True, shell=True, check=False)
+            except:
+                pass
+                
+            return True
+        except Exception:
+            return False
+    return True
+
+
 def get_default_log_path() -> Path:
     """
     플랫폼별 기본 로그 파일 경로를 반환합니다.
@@ -112,22 +138,30 @@ def setup_logger(
 
     # 콘솔 핸들러 설정
     if console_output:
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(numeric_level)
-        console_handler.setFormatter(formatter)
+        # Windows UTF-8 환경 설정
+        utf8_success = setup_windows_utf8()
+        
+        if utf8_success:
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.setLevel(numeric_level)
+            console_handler.setFormatter(formatter)
 
-        # 콘솔용 컬러 포매터 (rich가 있는 경우)
-        try:
-            from rich.logging import RichHandler
+            # 콘솔용 컬러 포매터 (rich가 있는 경우)
+            try:
+                from rich.logging import RichHandler
 
-            rich_handler = RichHandler(
-                show_time=True, show_path=False, enable_link_path=False, markup=True
-            )
-            rich_handler.setLevel(numeric_level)
-            logger.addHandler(rich_handler)
-        except ImportError:
-            # rich가 없으면 기본 핸들러 사용
-            logger.addHandler(console_handler)
+                rich_handler = RichHandler(
+                    show_time=True, show_path=False, enable_link_path=False, markup=True
+                )
+                rich_handler.setLevel(numeric_level)
+                logger.addHandler(rich_handler)
+            except ImportError:
+                # rich가 없으면 기본 핸들러 사용
+                logger.addHandler(console_handler)
+        else:
+            # UTF-8 설정 실패 시 경고 (파일 로그가 있으면 파일로만 출력)
+            if log_file:
+                logger.warning("Windows UTF-8 설정 실패 - 파일 로그만 사용됩니다")
 
     # 파일 핸들러 설정
     if log_file:
