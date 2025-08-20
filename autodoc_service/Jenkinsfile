@@ -29,6 +29,11 @@ pipeline {
                     script {
                         echo "Jenkins Workspace에서 테스트 환경 구축"
                         
+                        // Python 설치 위치 확인
+                        bat 'where py || echo py 명령어를 찾을 수 없습니다'
+                        bat 'where python || echo python 명령어를 찾을 수 없습니다'
+                        bat 'dir "C:\\Python*" /b 2>nul || echo C드라이브 Python 폴더를 찾을 수 없습니다'
+                        
                         // Python 3.12 가상환경 생성
                         bat 'py -3.12 -m venv .venv312'
                         
