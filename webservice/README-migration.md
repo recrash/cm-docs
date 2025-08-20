@@ -78,7 +78,6 @@ TestscenarioMaker/
 ├── start-dev.sh           # 개발 서버 시작 스크립트
 ├── stop-dev.sh            # 개발 서버 중지 스크립트
 ├── requirements.txt       # Python 의존성
-├── package.json           # Node.js 의존성 (루트)
 └── README.md              # 메인 README
 ```
 

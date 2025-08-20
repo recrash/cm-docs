@@ -1,29 +1,29 @@
 # Core dependencies
-openpyxl        # .xlsx 파일 읽기/쓰기
-python-docx     # .docx 파일 읽기
-GitPython       # Git 저장소 분석용
-requests        # HTTP 통신
-pandas          # 데이터 처리 및 엑셀 읽기
+openpyxl==3.1.5        # .xlsx 파일 읽기/쓰기
+python-docx==1.2.0     # .docx 파일 읽기
+GitPython==3.1.45      # Git 저장소 분석용
+requests==2.32.4       # HTTP 통신
+pandas==2.3.1          # 데이터 처리 및 엑셀 읽기
 
 # RAG & Vector DB
-chromadb        # 로컬 Vector DB
-sentence-transformers # 한국어 임베딩 모델
+chromadb==1.0.17       # 로컬 Vector DB
+sentence-transformers==5.1.0 # 한국어 임베딩 모델
 
 # Testing dependencies
-pytest          # 테스트 프레임워크
-pytest-mock     # Mock 객체 지원
-pytest-cov      # 테스트 커버리지
-httpx           # FastAPI 테스트용 HTTP 클라이언트
-pytest-asyncio  # 비동기 테스트 지원
+pytest==8.4.1          # 테스트 프레임워크
+pytest-mock==3.14.1    # Mock 객체 지원
+pytest-cov==6.2.1      # 테스트 커버리지
+httpx==0.28.1          # FastAPI 테스트용 HTTP 클라이언트
+pytest-asyncio==1.1.0  # 비동기 테스트 지원
 
 # File concurrency control
-portalocker>=2.0.0  # 파일 락 기능
+portalocker==3.2.0  # 파일 락 기능
 
 # FastAPI Backend
-fastapi         # FastAPI 웹 프레임워크
-uvicorn[standard] # ASGI 서버
-python-multipart # 파일 업로드 지원
-websockets      # WebSocket 지원
+fastapi==0.116.1         # FastAPI 웹 프레임워크
+uvicorn[standard]==0.35.0 # ASGI 서버
+python-multipart==0.0.20 # 파일 업로드 지원
+websockets==15.0.1      # WebSocket 지원
 
 # Optional (commented out to reduce dependencies)
 # langchain

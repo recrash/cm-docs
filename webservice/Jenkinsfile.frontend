@@ -1,0 +1,248 @@
+// webservice/Jenkinsfile.frontend
+pipeline {
+    agent any
+    environment {
+        PROJECT_PATH = 'C:\\deploys\\cm-docs\\webservice'
+        NGINX_ROOT = 'C:\\nginx\\html'
+        NPM_CACHE_DIR = "${PROJECT_PATH}\\frontend\\.npm"
+        BACKUP_DIR = 'C:\\deploys\\backup\\webservice\\frontend'
+        FRONTEND_URL = 'http://localhost'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "소스코드 체크아웃 완료"
+            }
+        }
+        
+        stage('Dependency Check') {
+            steps {
+                dir("${env.PROJECT_PATH}\\frontend") {
+                    script {
+                        // package.json 또는 package-lock.json 변경 감지
+                        def packageChanged = bat(
+                            script: 'git diff HEAD~1 HEAD --name-only | findstr /C:"package.json" /C:"package-lock.json"',
+                            returnStatus: true
+                        ) == 0
+                        
+                        if (packageChanged) {
+                            echo "패키지 파일 변경 감지됨 - 의존성 업데이트 실행"
+                            // 캐시 디렉토리 생성
+                            bat "if not exist \"${env.NPM_CACHE_DIR}\" mkdir \"${env.NPM_CACHE_DIR}\""
+                            // clean install with cache
+                            bat "npm ci --cache \"${env.NPM_CACHE_DIR}\""
+                        } else {
+                            echo "패키지 변경 없음 - 기존 node_modules 사용"
+                            bat "npm ci --cache \"${env.NPM_CACHE_DIR}\" --offline || npm ci --cache \"${env.NPM_CACHE_DIR}\""
+                        }
+                        
+                        echo "의존성 설치 완료"
+                    }
+                }
+            }
+        }
+        
+        stage('Security Check') {
+            steps {
+                dir("${env.PROJECT_PATH}\\frontend") {
+                    script {
+                        // npm audit 실행 (moderate 이상 취약점 검사)
+                        def auditResult = bat(
+                            script: 'npm audit --audit-level=moderate',
+                            returnStatus: true
+                        )
+                        
+                        if (auditResult != 0) {
+                            echo "보안 취약점 발견 - 자동 수정 시도"
+                            bat 'npm audit fix --force'
+                            
+                            // 다시 검사
+                            def secondAudit = bat(
+                                script: 'npm audit --audit-level=high',
+                                returnStatus: true
+                            )
+                            
+                            if (secondAudit != 0) {
+                                echo "경고: 고위험 보안 취약점이 남아있습니다. 수동 검토가 필요합니다."
+                            }
+                        }
+                        
+                        echo "보안 검사 완료"
+                    }
+                }
+            }
+        }
+        
+        stage('Lint & Type Check') {
+            steps {
+                dir("${env.PROJECT_PATH}\\frontend") {
+                    bat 'npm run lint'
+                    // TypeScript 타입 체크 (있는 경우)
+                    script {
+                        def tsconfigExists = bat(
+                            script: 'if exist tsconfig.json echo found',
+                            returnStdout: true
+                        ).contains('found')
+                        
+                        if (tsconfigExists) {
+                            bat 'npx tsc --noEmit'
+                            echo "TypeScript 타입 체크 완료"
+                        }
+                    }
+                    echo "코드 품질 검사 완료"
+                }
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                dir("${env.PROJECT_PATH}\\frontend") {
+                    bat 'npm run test -- --run --reporter=verbose'
+                    echo "프론트엔드 테스트 완료"
+                }
+            }
+        }
+        
+        stage('Create Backup') {
+            steps {
+                script {
+                    // 현재 nginx 파일들을 중앙화된 백업 디렉토리에 백업
+                    bat """
+                        if not exist "${env.BACKUP_DIR}" mkdir "${env.BACKUP_DIR}"
+                        if exist "${env.NGINX_ROOT}\\*" (
+                            powershell -Command "Remove-Item -Path '${env.BACKUP_DIR}\\*' -Recurse -Force -ErrorAction SilentlyContinue"
+                            powershell -Command "Copy-Item -Path '${env.NGINX_ROOT}\\*' -Destination '${env.BACKUP_DIR}' -Recurse -Force -ErrorAction SilentlyContinue"
+                        )
+                    """
+                    echo "기존 웹 파일을 중앙화된 백업 디렉토리에 백업 완료"
+                }
+            }
+        }
+        
+        stage('Build & Package') {
+            steps {
+                dir("${env.PROJECT_PATH}\\frontend") {
+                    script {
+                        try {
+                            // React 앱 빌드
+                            bat 'npm run build'
+                            echo "React 빌드 완료"
+                            
+                            // 빌드 결과 검증
+                            def distExists = bat(
+                                script: 'if exist dist\\index.html echo found',
+                                returnStdout: true
+                            ).contains('found')
+                            
+                            if (!distExists) {
+                                error("빌드 실패: dist/index.html이 생성되지 않았습니다")
+                            }
+                            
+                            // zip 파일 생성
+                            powershell 'Compress-Archive -Path .\\dist\\* -DestinationPath ..\\frontend.zip -Force'
+                            echo "빌드 패키징 완료"
+                            
+                        } catch (Exception e) {
+                            echo "빌드 실패: ${e.getMessage()}"
+                            throw e
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                script {
+                    try {
+                        // nginx 디렉토리 정리 및 배포
+                        powershell """
+                            # 기존 파일 제거 (백업 제외)
+                            if (Test-Path '${env.NGINX_ROOT}') {
+                                Get-ChildItem -Path '${env.NGINX_ROOT}' -Exclude 'backup' | Remove-Item -Recurse -Force
+                            }
+                            
+                            # 새 파일 배포
+                            Expand-Archive -Path '${env.PROJECT_PATH}\\frontend.zip' -DestinationPath '${env.NGINX_ROOT}' -Force
+                            Write-Host "프론트엔드 배포 완료"
+                        """
+                        
+                    } catch (Exception e) {
+                        echo "배포 실패: ${e.getMessage()}"
+                        // 중앙화된 백업에서 롤백 시도
+                        powershell """
+                            if (Test-Path "${env.BACKUP_DIR}\\*") {
+                                Write-Host "중앙화된 백업에서 롤백 실행 중..."
+                                Remove-Item -Path '${env.NGINX_ROOT}\\*' -Recurse -Force -ErrorAction SilentlyContinue
+                                Copy-Item -Path '${env.BACKUP_DIR}\\*' -Destination '${env.NGINX_ROOT}' -Recurse -Force
+                                Write-Host "롤백 완료"
+                            }
+                        """
+                        throw e
+                    }
+                }
+            }
+        }
+        
+        stage('Deployment Verification') {
+            steps {
+                script {
+                    // 정적 파일 서빙 확인
+                    sleep(time: 5, unit: 'SECONDS')
+                    
+                    def verificationPassed = false
+                    for (int i = 0; i < 3; i++) {
+                        try {
+                            // index.html 접근 확인
+                            def response = bat(
+                                script: "curl -s -o nul -w \"%{http_code}\" ${env.FRONTEND_URL}",
+                                returnStdout: true
+                            ).trim()
+                            
+                            if (response == "200") {
+                                verificationPassed = true
+                                echo "배포 검증 성공 (${i+1}번째 시도)"
+                                break
+                            } else {
+                                echo "배포 검증 실패 - HTTP ${response} (${i+1}번째 시도)"
+                            }
+                        } catch (Exception e) {
+                            echo "배포 검증 오류: ${e.getMessage()} (${i+1}번째 시도)"
+                        }
+                        
+                        if (i < 2) sleep(time: 3, unit: 'SECONDS')
+                    }
+                    
+                    if (!verificationPassed) {
+                        echo "경고: 배포 검증 실패 - 수동으로 확인이 필요합니다"
+                    } else {
+                        echo "배포 검증 완료 - 정적 파일이 정상적으로 서빙되고 있습니다"
+                    }
+                }
+            }
+        }
+        
+        stage('Archive Artifact') {
+            steps {
+                archiveArtifacts artifacts: "${env.PROJECT_PATH}/frontend.zip", followSymlinks: false
+                echo "아티팩트 보관 완료"
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "Webservice Frontend 배포 성공"
+        }
+        failure {
+            echo "Webservice Frontend 배포 실패 - 로그를 확인하세요"
+        }
+        always {
+            // npm 캐시 정리 (용량 관리)
+            dir("${env.PROJECT_PATH}\\frontend") {
+                bat 'npm cache clean --force'
+            }
+        }
+    }
+}

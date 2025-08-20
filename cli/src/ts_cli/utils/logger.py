@@ -15,6 +15,8 @@ from typing import Optional
 from .config_loader import get_config
 
 
+
+
 def get_default_log_path() -> Path:
     """
     플랫폼별 기본 로그 파일 경로를 반환합니다.
@@ -61,12 +63,15 @@ def setup_logger(
 ) -> logging.Logger:
     """
     로거 설정
+    
+    Windows 환경에서는 한글 인코딩 에러 방지를 위해 콘솔 출력을 비활성화하고
+    파일 로깅만 사용합니다.
 
     Args:
         name: 로거 이름
         level: 로그 레벨 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_file: 로그 파일 경로
-        console_output: 콘솔 출력 여부
+        console_output: 콘솔 출력 여부 (Windows에서는 무시됨)
 
     Returns:
         설정된 로거 인스턴스
@@ -110,8 +115,9 @@ def setup_logger(
     # 포매터 생성
     formatter = logging.Formatter(log_format)
 
-    # 콘솔 핸들러 설정
-    if console_output:
+    # 콘솔 핸들러 설정 (Windows에서는 비활성화)
+    if console_output and not sys.platform.startswith('win'):
+        # Windows가 아닌 환경에서만 콘솔 출력 활성화
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(numeric_level)
         console_handler.setFormatter(formatter)
@@ -128,6 +134,9 @@ def setup_logger(
         except ImportError:
             # rich가 없으면 기본 핸들러 사용
             logger.addHandler(console_handler)
+    elif console_output and sys.platform.startswith('win') and log_file:
+        # Windows 환경에서 콘솔 출력 요청 시 파일 로깅으로 안내
+        logger.info("안정성을 위해 Windows 환경에서는 파일 로깅만 사용됩니다")
 
     # 파일 핸들러 설정
     if log_file:

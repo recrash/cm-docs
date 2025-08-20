@@ -100,7 +100,7 @@ export PYTHONPATH=$(pwd):$PYTHONPATH
 # 백엔드 서버 시작 (포트 8000)
 cd webservice/backend && python -m uvicorn main:app --reload --port 8000
 
-# 프론트엔드 개발 서버 시작 (포트 3000) - 프로젝트 루트에서 실행
+# 프론트엔드 개발 서버 시작 (개발: 3000, 배포: 80) - 프로젝트 루트에서 실행
 npm run dev
 
 # 전체 테스트 실행
@@ -370,6 +370,40 @@ cd autodoc_service
 source .venv312/bin/activate
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+
+### Nginx로 프론트엔드 배포
+
+- 운영 배포에서는 프론트엔드를 nginx가 포트 80에서 서빙합니다. 개발 시에는 Vite 개발 서버(포트 3000)를 사용합니다.
+- Jenkins 파이프라인(`webservice/Jenkinsfile.frontend`)이 `dist/` 산출물을 `NGINX_ROOT`(기본: `C:\nginx\html`)로 전개하고, 배포 검증을 수행합니다.
+
+예시 nginx 서버 블록:
+
+```nginx
+server {
+    listen 80;
+    server_name _;
+
+    root C:/nginx/html;  # Linux의 경우 /usr/share/nginx/html 등으로 변경
+    index index.html;
+
+    location / {
+        try_files $uri /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    gzip on;
+    gzip_types text/plain application/javascript application/json text/css image/svg+xml;
+}
+```
+
+참고: 방화벽/보안그룹에서 80 포트를 허용해야 외부에서 접속할 수 있습니다.
 
 ## 📊 품질 보증
 

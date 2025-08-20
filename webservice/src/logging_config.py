@@ -6,6 +6,8 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 import datetime
 
+
+
 class DatedRotatingFileHandler(TimedRotatingFileHandler):
     """
     Custom handler to create log files with date at the beginning of the filename.
@@ -53,7 +55,12 @@ class DatedRotatingFileHandler(TimedRotatingFileHandler):
 
 def setup_logging():
     """
-    Sets up the logging configuration for the entire application.
+    전체 애플리케이션의 로깅 설정을 초기화합니다.
+    
+    - 일별 로그 파일 생성 (backend, frontend 분리)
+    - 콘솔 출력 비활성화 (한글 인코딩 에러 방지)
+    - UTF-8 인코딩으로 파일 로깅
+    - 모든 플랫폼에서 안정적인 동작
     """
     log_dir = Path(__file__).resolve().parents[1] / "logs"
     log_dir.mkdir(exist_ok=True)
@@ -61,30 +68,26 @@ def setup_logging():
     log_format = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     formatter = logging.Formatter(log_format)
 
-    # --- Handlers ---
+    # --- 파일 핸들러 설정 ---
     backend_handler = DatedRotatingFileHandler("backend", backupCount=7)
     frontend_handler = DatedRotatingFileHandler("frontend", backupCount=7)
     
     backend_handler.setFormatter(formatter)
     frontend_handler.setFormatter(formatter)
 
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-
-    # --- Configure Loggers ---
+    # --- 로거 설정 (콘솔 핸들러 제외, 파일 핸들러만 사용) ---
     root_logger = logging.getLogger()
     if not root_logger.handlers:
         root_logger.setLevel(logging.INFO)
         root_logger.addHandler(backend_handler)
-        root_logger.addHandler(console_handler)
 
     frontend_logger = logging.getLogger("frontend")
     if not frontend_logger.handlers:
         frontend_logger.setLevel(logging.INFO)
         frontend_logger.propagate = False
         frontend_logger.addHandler(frontend_handler)
-        frontend_logger.addHandler(console_handler)
 
-    # Use a generic logger for the initial message to avoid duplicate setup logs
+    # 로깅 시스템 초기화 메시지 (파일에만 기록)
     initial_logger = logging.getLogger(__name__)
-    initial_logger.info("Logging configured with date-prefixed file names.")
+    initial_logger.info("로깅 시스템이 날짜 접두어 파일명으로 설정되었습니다.")
+    initial_logger.info("안정성을 위해 파일 로깅만 활성화됨 (콘솔 출력 비활성화)")
