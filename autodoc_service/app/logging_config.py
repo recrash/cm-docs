@@ -75,10 +75,20 @@ def setup_autodoc_logging():
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
     
-    # 콘솔 핸들러 설정
+    # 콘솔 핸들러 설정 (Windows 인코딩 문제 해결)
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     console_handler.setLevel(logging.INFO)
+    
+    # Windows 환경에서 인코딩 문제 해결
+    if sys.platform.startswith('win'):
+        try:
+            # UTF-8 인코딩 강제 설정
+            if hasattr(sys.stdout, 'reconfigure'):
+                sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            # 인코딩 설정 실패 시 콘솔 출력 비활성화
+            console_handler = None
     
     # 루트 로거 설정
     root_logger = logging.getLogger()
@@ -89,12 +99,15 @@ def setup_autodoc_logging():
     
     root_logger.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
     
-    # AutoDoc Service 로거 초기화 메시지
+    # 콘솔 핸들러가 유효한 경우에만 추가
+    if console_handler:
+        root_logger.addHandler(console_handler)
+    
+    # AutoDoc Service 로거 초기화 메시지 (Windows 호환성)
     logger = logging.getLogger(__name__)
-    logger.info("AutoDoc Service 로깅 시스템 초기화 완료")
-    logger.info(f"로그 파일 위치: {log_dir}")
+    logger.info("AutoDoc Service logging system initialized")
+    logger.info(f"Log file location: {log_dir}")
 
 
 def get_logger(name: str) -> logging.Logger:
