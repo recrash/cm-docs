@@ -39,8 +39,8 @@ pipeline {
                         bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
                         bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt\""
                         
-                        // 핵심 의존성 검증 (한글 인코딩 문제 해결)
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c 'from docx import Document; import openpyxl; import pytest; print(\\\"Dependencies verified successfully\\\")'\""
+                        // 핵심 의존성 검증 (따옴표 이스케이프 문제 해결)
+                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from docx import Document; import openpyxl; import pytest; print('Dependencies verified successfully')\\\"\""
                         
                         echo "Jenkins Workspace 테스트 환경 구축 완료"
                     }
