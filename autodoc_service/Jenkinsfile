@@ -30,12 +30,13 @@ pipeline {
                         echo "Jenkins Workspace에서 테스트 환경 구축"
                         
                         // Python 설치 위치 확인
-                        bat 'where py || echo py 명령어를 찾을 수 없습니다'
+                        bat 'dir "C:\\Windows\\py.exe" || echo py.exe를 C:\\Windows에서 찾을 수 없습니다'
                         bat 'where python || echo python 명령어를 찾을 수 없습니다'
                         bat 'dir "C:\\Python*" /b 2>nul || echo C드라이브 Python 폴더를 찾을 수 없습니다'
+                        bat 'dir "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Python\\Python*" /b 2>nul || echo 사용자 Python 폴더를 찾을 수 없습니다'
                         
-                        // Python 3.12 가상환경 생성
-                        bat 'py -3.12 -m venv .venv312'
+                        // Python 3.12 가상환경 생성 (절대경로 사용)
+                        bat 'C:\\Windows\\py.exe -3.12 -m venv .venv312 || echo py.exe 실행 실패'
                         
                         // Python 버전 확인
                         bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' --version\""
