@@ -7,6 +7,8 @@ import pytest
 import tempfile
 from pathlib import Path
 from datetime import datetime, timedelta
+import gc
+import time
 
 from openpyxl import load_workbook
 
@@ -45,9 +47,12 @@ class TestExcelListBuilder:
     
     @pytest.fixture
     def temp_output_dir(self):
-        """임시 출력 디렉터리"""
+        """임시 출력 디렉터리 (Windows 파일 핸들 정리 포함)"""
         with tempfile.TemporaryDirectory() as temp_dir:
             yield Path(temp_dir)
+            # Windows에서 파일 핸들 완전 해제를 위한 강제 정리
+            gc.collect()
+            time.sleep(0.2)
     
     def test_build_excel_list_success(self, sample_change_requests, temp_output_dir):
         """Excel 목록 파일 생성 성공 테스트"""
@@ -119,6 +124,9 @@ class TestExcelListBuilder:
                     )
         finally:
             wb.close()
+            # Windows에서 파일 핸들 해제를 위한 강제 정리
+            gc.collect()
+            time.sleep(0.1)
     
     def test_deploy_date_formatting_with_datetime(self, temp_output_dir):
         """deploy_datetime가 있는 경우 배포일자 포맷팅 테스트"""
