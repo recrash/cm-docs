@@ -40,12 +40,12 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """AutoDoc Service 라이프사이클 매니저"""
-    # 시작 시 실행
-    logger.info("AutoDoc Service 시작")
-    logger.info("문서 자동화 서비스가 활성화되었습니다")
+    # 시작 시 실행 (Windows 호환성을 위해 ASCII 로그 메시지 사용)
+    logger.info("AutoDoc Service startup")
+    logger.info("Document automation service activated")
     yield
     # 종료 시 실행
-    logger.info("AutoDoc Service 종료")
+    logger.info("AutoDoc Service shutdown")
 
 # FastAPI 앱 초기화
 app = FastAPI(

@@ -11,7 +11,7 @@ from typing import Optional
 def sanitize(name: str) -> str:
     """파일명 sanitize 처리
     
-    금지문자(\ / : * ? " < > |)만 '_'로 치환
+    금지문자(\\ / : * ? " < > |)만 '_'로 치환
     대괄호/괄호는 허용
     
     Args:
