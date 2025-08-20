@@ -29,8 +29,7 @@ pipeline {
                     script {
                         echo "Jenkins Workspace에서 테스트 환경 구축"
                         
-                        // Python Launcher 확인 및 Python 3.12 가상환경 생성
-                        bat 'dir "%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" || echo py.exe를 찾을 수 없습니다'
+                        // Python 3.12 가상환경 생성
                         bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.12 -m venv .venv312'
                         
                         // Python 버전 확인
@@ -40,8 +39,8 @@ pipeline {
                         bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
                         bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt\""
                         
-                        // 핵심 의존성 검증
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c 'from docx import Document; import openpyxl; import pytest; print(\\\"테스트 환경 의존성 확인 완료\\\")'\""
+                        // 핵심 의존성 검증 (한글 인코딩 문제 해결)
+                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c 'from docx import Document; import openpyxl; import pytest; print(\\\"Dependencies verified successfully\\\")'\""
                         
                         echo "Jenkins Workspace 테스트 환경 구축 완료"
                     }
