@@ -36,8 +36,8 @@ pipeline {
                         // Python 버전 확인
                         bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' --version\""
                         
-                        // 의존성 설치
-                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --upgrade pip\""
+                        // 의존성 설치 (Windows pip 업그레이드 이슈 해결)
+                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
                         bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt\""
                         
                         // 핵심 의존성 검증
