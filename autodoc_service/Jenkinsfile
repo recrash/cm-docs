@@ -202,8 +202,15 @@ pipeline {
                         
                         for (int i = 0; i < 3; i++) {
                             try {
-                                def response = bat(
-                                    script: "curl -s -o nul -w \"%{http_code}\" \"${url}\"",
+                                def response = powershell(
+                                    script: """
+                                        try {
+                                            \$result = Invoke-WebRequest -Uri '${url}' -UseBasicParsing -TimeoutSec 10
+                                            Write-Output \$result.StatusCode
+                                        } catch {
+                                            Write-Output "500"
+                                        }
+                                    """,
                                     returnStdout: true
                                 ).trim()
                                 
