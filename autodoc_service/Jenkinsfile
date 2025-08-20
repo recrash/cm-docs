@@ -77,8 +77,8 @@ pipeline {
         stage('Test') {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
-                    // 전체 테스트 실행 (Jenkins Workspace에서 실행)
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v\""
+                    // 전체 테스트 실행 (Windows 콘솔 인코딩 및 파일 핸들 문제 해결)
+                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v -x --tb=short --disable-warnings\""
                     
                     // 특별히 중요한 문서 생성 테스트 개별 실행
                     bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_word_label.py -v\""
@@ -286,6 +286,10 @@ pipeline {
                 bat 'if exist "*.tmp" del /f /q *.tmp'
                 // 테스트로 생성된 문서 정리
                 bat 'if exist "documents\\*TEST_*" del /f /q "documents\\*TEST_*"'
+                // pytest 캐시 정리
+                bat 'if exist ".pytest_cache" rmdir /s /q ".pytest_cache"'
+                // 임시 파일 강제 정리
+                bat 'for /f "tokens=*" %%i in (\'dir /s /b *.xlsx *.docx 2^>nul\') do del /f /q "%%i" 2>nul || echo "Skipping locked file: %%i"'
             }
             
             // 배포 환경 정리

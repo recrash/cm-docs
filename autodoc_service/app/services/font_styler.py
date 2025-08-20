@@ -17,7 +17,7 @@ def apply_malgun_gothic_to_document(doc: Document) -> None:
     Args:
         doc: python-docx Document 객체
     """
-    print("🎨 Applying 맑은 고딕 font to entire document...")
+    print("Applying 맑은 고딕 font to entire document...")
     
     # 1. 문서의 모든 단락(Paragraph)에 폰트 적용
     for paragraph in doc.paragraphs:
@@ -42,7 +42,7 @@ def apply_malgun_gothic_to_document(doc: Document) -> None:
             for paragraph in section.footer.paragraphs:
                 apply_malgun_gothic_to_paragraph(paragraph)
     
-    print("✅ Document font styling completed")
+    print("Document font styling completed")
 
 
 def apply_malgun_gothic_to_paragraph(paragraph) -> None:

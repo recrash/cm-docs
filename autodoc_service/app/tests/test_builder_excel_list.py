@@ -78,46 +78,47 @@ class TestExcelListBuilder:
         output_path = build_change_list_xlsx(sample_change_requests, temp_output_dir)
         
         wb = load_workbook(str(output_path))
-        ws = wb.active
-        
-        # '변경관리번호'(10열)로 실제 데이터 행 찾기
-        first_item = sample_change_requests[0]
-        row = None
-        for row_num in range(1, ws.max_row + 1):
-            if ws.cell(row_num, 10).value == first_item.change_id:
-                row = row_num
-                break
+        try:
+            ws = wb.active
+            
+            # '변경관리번호'(10열)로 실제 데이터 행 찾기
+            first_item = sample_change_requests[0]
+            row = None
+            for row_num in range(1, ws.max_row + 1):
+                if ws.cell(row_num, 10).value == first_item.change_id:
+                    row = row_num
+                    break
 
-        assert row is not None, "변경관리번호로 데이터 행을 찾을 수 없습니다"
-        
-        # 11열 순서 검증
-        expected_values = [
-            first_item.deploy_type or "정기배포",        # 1) 배포종류
-            first_item.system_short or first_item.system,  # 2) 시스템
-            first_item.biz_test_date or "",               # 3) 현업 테스트 일자
-            "8월 15일",                                   # 4) 배포일자 (08/15 13:00 → 8월 15일)
-            first_item.requester or "",                   # 5) 요청자
-            "",                                           # 6) IT 지원의뢰서 (없음)
-            first_item.program or "Appl.",               # 7) Program
-            "",                                          # 8) 소스명 (외부 입력)
-            first_item.deployer or "",                   # 9) 배포자
-            first_item.change_id,                        # 10) 변경관리번호
-            first_item.has_cm_doc or "O"                 # 11) 변경관리문서유무
-        ]
-        
-        for col, expected_value in enumerate(expected_values, 1):
-            actual_value = ws.cell(row, col).value
-            if expected_value == "":
-                assert actual_value in ("", None), (
-                    f"행 {row}, 열 {col} 값이 일치하지 않습니다. 실제: '{actual_value}', 기대: '' 또는 None"
-                )
-            else:
-                assert actual_value == expected_value, (
-                    f"행 {row}, 열 {col} 값이 일치하지 않습니다. "
-                    f"실제: '{actual_value}', 기대: '{expected_value}'"
-                )
-        
-        wb.close()
+            assert row is not None, "변경관리번호로 데이터 행을 찾을 수 없습니다"
+            
+            # 11열 순서 검증
+            expected_values = [
+                first_item.deploy_type or "정기배포",        # 1) 배포종류
+                first_item.system_short or first_item.system,  # 2) 시스템
+                first_item.biz_test_date or "",               # 3) 현업 테스트 일자
+                "8월 15일",                                   # 4) 배포일자 (08/15 13:00 → 8월 15일)
+                first_item.requester or "",                   # 5) 요청자
+                "",                                           # 6) IT 지원의뢰서 (없음)
+                first_item.program or "Appl.",               # 7) Program
+                "",                                          # 8) 소스명 (외부 입력)
+                first_item.deployer or "",                   # 9) 배포자
+                first_item.change_id,                        # 10) 변경관리번호
+                first_item.has_cm_doc or "O"                 # 11) 변경관리문서유무
+            ]
+            
+            for col, expected_value in enumerate(expected_values, 1):
+                actual_value = ws.cell(row, col).value
+                if expected_value == "":
+                    assert actual_value in ("", None), (
+                        f"행 {row}, 열 {col} 값이 일치하지 않습니다. 실제: '{actual_value}', 기대: '' 또는 None"
+                    )
+                else:
+                    assert actual_value == expected_value, (
+                        f"행 {row}, 열 {col} 값이 일치하지 않습니다. "
+                        f"실제: '{actual_value}', 기대: '{expected_value}'"
+                    )
+        finally:
+            wb.close()
     
     def test_deploy_date_formatting_with_datetime(self, temp_output_dir):
         """deploy_datetime가 있는 경우 배포일자 포맷팅 테스트"""
