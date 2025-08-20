@@ -16,6 +16,39 @@ pipeline {
             }
         }
         
+        stage('Dependency Check') {
+            steps {
+                dir(env.PROJECT_PATH) {
+                    script {
+                        // requirements.txt 변경 감지
+                        def reqChanged = bat(
+                            script: 'git diff HEAD~1 HEAD --name-only | findstr requirements.txt',
+                            returnStatus: true
+                        ) == 0
+                        
+                        if (reqChanged || !fileExists("${env.PROJECT_PATH}\\.venv312\\Scripts\\pytest.exe")) {
+                            echo "의존성 설치 필요 - Python 3.12 환경 설정"
+                            
+                            // Python 버전 확인
+                            bat "powershell -Command \"& '${env.PYTHON_CMD}' --version\""
+                            
+                            // 의존성 설치 (항상 실행하여 pytest 등 확보)
+                            bat "powershell -Command \"& '${env.PIP_CMD}' install -r requirements.txt\""
+                            
+                            // python-docx, openpyxl 특별 검증
+                            bat "powershell -Command \"& '${env.PYTHON_CMD}' -c 'from docx import Document; import openpyxl; print(\\\"핵심 의존성 확인 완료\\\")'\""
+                        } else {
+                            echo "기존 의존성 사용 - pytest 및 핵심 패키지 확인"
+                        }
+                        
+                        // 의존성 충돌 검사
+                        bat "powershell -Command \"& '${env.PIP_CMD}' check\""
+                        echo "의존성 검사 완료"
+                    }
+                }
+            }
+        }
+        
         stage('Template Validation') {
             steps {
                 dir(env.PROJECT_PATH) {
@@ -37,37 +70,6 @@ pipeline {
                         // 템플릿 무결성 검사 (pytest를 통한 SHA-256 검증)
                         bat "powershell -Command \"& '${env.PYTHON_CMD}' -m pytest app/tests/test_templates_present.py -v\""
                         echo "템플릿 검증 완료"
-                    }
-                }
-            }
-        }
-        
-        stage('Dependency Check') {
-            steps {
-                dir(env.PROJECT_PATH) {
-                    script {
-                        // requirements.txt 변경 감지
-                        def reqChanged = bat(
-                            script: 'git diff HEAD~1 HEAD --name-only | findstr requirements.txt',
-                            returnStatus: true
-                        ) == 0
-                        
-                        if (reqChanged) {
-                            echo "requirements.txt 변경 감지됨 - Python 3.12 호환성 체크"
-                            
-                            // Python 버전 확인
-                            bat "powershell -Command \"& '${env.PYTHON_CMD}' --version\""
-                            
-                            // 의존성 업데이트
-                            bat "powershell -Command \"& '${env.PIP_CMD}' install -r requirements.txt\""
-                            
-                            // python-docx, openpyxl 특별 검증
-                            bat "powershell -Command \"& '${env.PYTHON_CMD}' -c 'from docx import Document; import openpyxl; print(\\\"핵심 의존성 확인 완료\\\")'\""
-                        }
-                        
-                        // 의존성 충돌 검사
-                        bat "powershell -Command \"& '${env.PIP_CMD}' check\""
-                        echo "의존성 검사 완료"
                     }
                 }
             }
