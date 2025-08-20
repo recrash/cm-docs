@@ -2,9 +2,11 @@
 pipeline {
     agent any
     environment {
-        PROJECT_PATH = 'C:\\Users\\recrash1325\\Documents\\deploys\\cm-docs\\webservice'
+        PROJECT_PATH = 'C:\\deploys\\cm-docs\\webservice'
         HEALTH_CHECK_URL = 'http://localhost:8000/api/health'
-        BACKUP_DIR = "${PROJECT_PATH}\\backup"
+        BACKUP_DIR = 'C:\\deploys\\backup\\webservice'
+        PYTHON_CMD = "${PROJECT_PATH}\\.venv\\Scripts\\python.exe"
+        PIP_CMD = "${PROJECT_PATH}\\.venv\\Scripts\\pip.exe"
     }
     stages {
         stage('Checkout') {
@@ -26,11 +28,11 @@ pipeline {
                         
                         if (reqChanged) {
                             echo "requirements.txt 변경 감지됨 - 의존성 업데이트 실행"
-                            bat 'powershell -Command "& .\\.venv\\Scripts\\pip.exe install -r requirements.txt"'
+                            bat "powershell -Command \"& '${env.PIP_CMD}' install -r requirements.txt\""
                         }
                         
                         // 의존성 충돌 검사
-                        bat 'powershell -Command "& .\\.venv\\Scripts\\pip.exe check"'
+                        bat "powershell -Command \"& '${env.PIP_CMD}' check\""
                         echo "의존성 검사 완료"
                     }
                 }
@@ -40,7 +42,7 @@ pipeline {
         stage('Test') {
             steps {
                 dir(env.PROJECT_PATH) {
-                    bat 'powershell -Command "& .\\.venv\\Scripts\\python.exe -m pytest tests/api/ -v --tb=short"'
+                    bat "powershell -Command \"& '${env.PYTHON_CMD}' -m pytest tests/api/ -v --tb=short\""
                     echo "API 테스트 완료"
                 }
             }
@@ -50,7 +52,7 @@ pipeline {
             steps {
                 dir(env.PROJECT_PATH) {
                     // PYTHONPATH 설정 및 빌드 전 검증
-                    bat 'powershell -Command "$env:PYTHONPATH=\\"$(Get-Location);$env:PYTHONPATH\\"; & .\\.venv\\Scripts\\python.exe -c \\"import src.config_loader; print(\'모듈 임포트 검증 완료\')\\"'
+                    bat "powershell -Command \"\$env:PYTHONPATH=\\\"$(Get-Location);$env:PYTHONPATH\\\"; & '${env.PYTHON_CMD}' -c \\\"import src.config_loader; print('모듈 임포트 검증 완료')\\\"\""
                     echo "빌드 전 검증 완료"
                 }
             }
@@ -76,7 +78,7 @@ pipeline {
         stage('Build') {
             steps {
                 dir(env.PROJECT_PATH) {
-                    bat 'powershell -Command "& .\\.venv\\Scripts\\python.exe -m build"'
+                    bat "powershell -Command \"& '${env.PYTHON_CMD}' -m build\""
                     echo "빌드 완료"
                 }
             }
@@ -91,12 +93,15 @@ pipeline {
                             bat 'nssm stop webservice'
                             echo "웹서비스 중지 완료"
                             
+                            // 10초 대기 (사용자 요구사항)
+                            sleep(time: 10, unit: 'SECONDS')
+                            
                             // 새 버전 설치
-                            powershell '''
-                                $latestWhl = Get-ChildItem -Path ".\\dist\\webservice-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                                Write-Host "새 버전 설치: $($latestWhl.Name)"
-                                & ".\\.venv\\Scripts\\pip.exe" install $latestWhl.FullName --force-reinstall
-                            '''
+                            powershell """
+                                \$latestWhl = Get-ChildItem -Path ".\\dist\\webservice-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                                Write-Host "새 버전 설치: \$(\$latestWhl.Name)"
+                                & "${env.PIP_CMD}" install \$latestWhl.FullName --force-reinstall
+                            """
                             
                             // 서비스 시작
                             bat 'nssm start webservice'
@@ -110,7 +115,7 @@ pipeline {
                                 if (Test-Path "${env.BACKUP_DIR}\\*.whl") {
                                     \$backupWhl = Get-ChildItem -Path "${env.BACKUP_DIR}\\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
                                     Write-Host "롤백 실행: \$(\$backupWhl.Name)"
-                                    & ".\\.venv\\Scripts\\pip.exe" install \$backupWhl.FullName --force-reinstall
+                                    & "${env.PIP_CMD}" install \$backupWhl.FullName --force-reinstall
                                 }
                             """
                             bat 'nssm start webservice'

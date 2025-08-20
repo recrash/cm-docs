@@ -5,7 +5,7 @@ pipeline {
     
     environment {
         // 프로젝트 경로
-        CM_DOCS_ROOT = 'C:\\Users\\recrash1325\\Documents\\deploys\\cm-docs'
+        CM_DOCS_ROOT = 'C:\\deploys\\cm-docs'
         WEBSERVICE_PATH = "${CM_DOCS_ROOT}\\webservice"
         AUTODOC_PATH = "${CM_DOCS_ROOT}\\autodoc_service"
         

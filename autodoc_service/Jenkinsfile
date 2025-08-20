@@ -2,9 +2,9 @@
 pipeline {
     agent any
     environment {
-        PROJECT_PATH = 'C:\\Users\\recrash1325\\Documents\\deploys\\cm-docs\\autodoc_service'
+        PROJECT_PATH = 'C:\\deploys\\cm-docs\\autodoc_service'
         HEALTH_CHECK_URL = 'http://localhost:8001/health'
-        BACKUP_DIR = "${PROJECT_PATH}\\backup"
+        BACKUP_DIR = 'C:\\deploys\\backup\\autodoc_service'
         PYTHON_CMD = "${PROJECT_PATH}\\.venv312\\Scripts\\python.exe"
         PIP_CMD = "${PROJECT_PATH}\\.venv312\\Scripts\\pip.exe"
     }
@@ -149,6 +149,9 @@ pipeline {
                             // 서비스 중지
                             bat 'nssm stop autodoc_service'
                             echo "AutoDoc Service 중지 완료"
+                            
+                            // 10초 대기 (사용자 요구사항)
+                            sleep(time: 10, unit: 'SECONDS')
                             
                             // 새 버전 설치
                             powershell """

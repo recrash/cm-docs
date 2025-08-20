@@ -2,10 +2,10 @@
 pipeline {
     agent any
     environment {
-        PROJECT_PATH = 'C:\\Users\\recrash1325\\Documents\\deploys\\cm-docs\\webservice'
+        PROJECT_PATH = 'C:\\deploys\\cm-docs\\webservice'
         NGINX_ROOT = 'C:\\nginx\\html'
         NPM_CACHE_DIR = "${PROJECT_PATH}\\frontend\\.npm"
-        BACKUP_DIR = "${env.NGINX_ROOT}\\backup"
+        BACKUP_DIR = 'C:\\deploys\\backup\\webservice\\frontend'
         FRONTEND_URL = 'http://localhost'
     }
     stages {
@@ -107,7 +107,7 @@ pipeline {
         stage('Create Backup') {
             steps {
                 script {
-                    // 현재 nginx 파일들 백업
+                    // 현재 nginx 파일들을 중앙화된 백업 디렉토리에 백업
                     bat """
                         if not exist "${env.BACKUP_DIR}" mkdir "${env.BACKUP_DIR}"
                         if exist "${env.NGINX_ROOT}\\*" (
@@ -115,7 +115,7 @@ pipeline {
                             powershell -Command "Copy-Item -Path '${env.NGINX_ROOT}\\*' -Destination '${env.BACKUP_DIR}' -Recurse -Force -ErrorAction SilentlyContinue"
                         )
                     """
-                    echo "기존 웹 파일 백업 완료"
+                    echo "기존 웹 파일을 중앙화된 백업 디렉토리에 백업 완료"
                 }
             }
         }
@@ -170,11 +170,11 @@ pipeline {
                         
                     } catch (Exception e) {
                         echo "배포 실패: ${e.getMessage()}"
-                        // 롤백 시도
+                        // 중앙화된 백업에서 롤백 시도
                         powershell """
                             if (Test-Path "${env.BACKUP_DIR}\\*") {
-                                Write-Host "롤백 실행 중..."
-                                Remove-Item -Path '${env.NGINX_ROOT}\\*' -Exclude 'backup' -Recurse -Force -ErrorAction SilentlyContinue
+                                Write-Host "중앙화된 백업에서 롤백 실행 중..."
+                                Remove-Item -Path '${env.NGINX_ROOT}\\*' -Recurse -Force -ErrorAction SilentlyContinue
                                 Copy-Item -Path '${env.BACKUP_DIR}\\*' -Destination '${env.NGINX_ROOT}' -Recurse -Force
                                 Write-Host "롤백 완료"
                             }
