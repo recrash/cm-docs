@@ -203,7 +203,7 @@ pipeline {
                         for (int i = 0; i < 3; i++) {
                             try {
                                 def response = bat(
-                                    script: "curl -s -o nul -w \"%{http_code}\" ${url}",
+                                    script: "curl -s -o nul -w \"%{http_code}\" \"${url}\"",
                                     returnStdout: true
                                 ).trim()
                                 
