@@ -77,8 +77,8 @@ pipeline {
         stage('Test') {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
-                    // 전체 테스트 실행 (Jenkins Workspace에서 커버리지 포함)
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v --cov=app --cov-report=term\""
+                    // 전체 테스트 실행 (Jenkins Workspace에서 실행)
+                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v\""
                     
                     // 특별히 중요한 문서 생성 테스트 개별 실행
                     bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_word_label.py -v\""
