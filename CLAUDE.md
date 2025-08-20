@@ -47,24 +47,24 @@ cd webservice
 source .venv/bin/activate
 python --version  # Verify Python 3.13.5
 pip install -r requirements.txt
-npm install
+cd webservice/frontend && npm install
 export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ modules
 
 # Server management
 cd webservice/backend && python -m uvicorn main:app --reload --port 8000  # Backend API
-npm run dev  # Frontend (port 3000) - run from project root
+cd webservice/frontend && npm run dev  # Frontend (port 3000)
 
 # DO NOT use ./start-dev.sh for starting servers
 ./stop-dev.sh  # Server shutdown
 
 # Testing (E2E testing is MANDATORY for functionality verification)
-npm run test:all        # Complete test suite
-npm run test:e2e        # Playwright E2E tests (required for functionality verification)
-npm run test:e2e:ui     # Playwright UI mode
-npm run test:api        # pytest API tests
-npm run test            # Jest frontend tests
-npm run test:watch      # Jest watch mode
-npm run test:coverage   # Jest coverage report
+cd webservice/frontend && npm run test:all        # Complete test suite
+cd webservice/frontend && npm run test:e2e        # Playwright E2E tests (required for functionality verification)
+cd webservice/frontend && npm run test:e2e:ui     # Playwright UI mode
+cd webservice/frontend && npm run test:api        # pytest API tests
+cd webservice/frontend && npm run test            # Jest frontend tests
+cd webservice/frontend && npm run test:watch      # Jest watch mode
+cd webservice/frontend && npm run test:coverage   # Jest coverage report
 
 # Single test execution
 pytest tests/api/test_scenario_api.py -v
@@ -72,8 +72,8 @@ pytest tests/unit/test_git_analyzer.py::test_function_name -v
 pytest --cov=src --cov-report=html --cov-report=term
 
 # Building and utilities
-npm run build           # Frontend production build
-npm run lint           # Frontend linting
+cd webservice/frontend && npm run build           # Frontend production build
+cd webservice/frontend && npm run lint           # Frontend linting
 python scripts/download_embedding_model.py  # Korean embedding model for offline
 curl http://localhost:8000/api/health       # Application health check
 ```
@@ -534,6 +534,68 @@ curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
 - **Cross-Platform**: Path handling and filename sanitization tests
 - **Security**: Path traversal attack prevention tests
 
+## CI/CD Pipeline (Jenkins)
+
+### Smart Deployment Architecture
+The project uses Jenkins with intelligent change detection for efficient CI/CD:
+
+#### Pipeline Features
+- **Change Detection**: Automatically detects changes per service (webservice/, cli/, autodoc_service/)
+- **Independent Environments**: Python 3.13 for webservice/cli, Python 3.12 for autodoc_service
+- **Parallel Building**: Only builds and deploys services with detected changes
+- **Smart Deployment**: Selective deployment to development server based on changes
+- **E2E Testing**: Automated Playwright testing for webservice changes
+
+#### Development Server Environment
+- **Server**: `34.64.173.97` (GCP VM T4 instance: vCPU:4, RAM:15GB)
+- **Open Ports**: 
+  - `8000`: Webservice Backend (FastAPI)
+  - `8001`: AutoDoc Service
+  - `3000`: Webservice Frontend (React)
+- **Pipeline Strategy**: Only build/deploy services with detected changes
+- **Health Checks**: Automatic service validation post-deployment
+
+#### Jenkins Workflow
+```bash
+# Pipeline Stages
+1. 📥 소스코드 체크아웃 및 변경 감지
+2. 🔧 AutoDoc Service CI/CD (Python 3.12)
+3. 🌐 Webservice CI/CD (Python 3.13 + React) - Parallel Frontend/Backend
+4. ⚡ CLI CI/CD (Python 3.13)
+5. 🔍 통합 테스트 (E2E with Playwright)
+6. 🚀 스마트 배포 (변경된 서비스만)
+7. 🔍 배포 상태 확인 (Health checks)
+```
+
+#### Change Detection Logic
+```groovy
+// Jenkins automatically detects changes in:
+AUTODOC_CHANGED = changedFiles.contains('autodoc_service/')
+WEBSERVICE_CHANGED = changedFiles.contains('webservice/')
+CLI_CHANGED = changedFiles.contains('cli/')
+ROOT_CHANGED = changedFiles.contains('Jenkinsfile') || changedFiles.contains('README.md')
+```
+
+#### Manual Pipeline Testing
+```bash
+# Test locally before Jenkins deployment
+cd webservice && source .venv/bin/activate && npm run test:all  # Test webservice
+cd cli && source .venv/bin/activate && pytest --cov=ts_cli     # Test CLI
+cd autodoc_service && source .venv312/bin/activate && pytest app/tests/ -v  # Test autodoc
+```
+
+#### Deployment URLs (Development Server)
+- **AutoDoc Service**: `http://34.64.173.97:8001`
+- **Webservice Backend**: `http://34.64.173.97:8000`
+- **Webservice Frontend**: `http://34.64.173.97:3000`
+
+#### Critical Jenkins Configuration
+- **Windows Environment**: Uses PowerShell and `py -3.12`/`py -3.13` commands
+- **PYTHONPATH Setup**: Required for webservice src/ module imports
+- **Parallel Execution**: Frontend/Backend builds run simultaneously
+- **Artifact Management**: Preserves build results and test reports
+- **Smart Cleanup**: Removes virtual environments after deployment
+
 ## Monorepo-wide Quality Control
 
 ### Code Quality Commands (from project root)
@@ -697,25 +759,71 @@ python --version  # 3.12.11 확인 (문서 생성 안정성을 위한 고정 버
 
 ### 개발 워크플로 예시
 
+#### 시나리오 1: Webservice 기능 개발
 ```bash
-# 잘못된 방법 ❌
-python -m pytest  # 어떤 환경인지 불명확
-
-# 올바른 방법 ✅
+# 1. 환경 설정 및 서버 시작
 cd webservice
 source .venv/bin/activate
 python --version  # 3.13.5 확인
-npm run test:all
+export PYTHONPATH=$(pwd):$PYTHONPATH
 
-cd ../cli  
+# 2. 개발 서버 시작 (터미널 2개 필요)
+cd backend && python -m uvicorn main:app --reload --port 8000  # 터미널 1
+cd frontend && npm run dev  # 터미널 2
+
+# 3. 기능 개발 후 테스트
+cd webservice/frontend && npm run test:all  # 전체 테스트
+cd webservice/frontend && npm run test:e2e  # E2E 테스트 (필수)
+pytest tests/api/test_scenario_api.py -v    # 특정 API 테스트
+```
+
+#### 시나리오 2: CLI 도구 개발
+```bash
+# 1. 환경 설정 및 개발 설치
+cd cli
 source .venv/bin/activate
 python --version  # 3.13.5 확인
-pytest --cov=ts_cli
+pip install -e .
 
-cd ../autodoc_service
-source .venv312/bin/activate  
-python --version  # 3.12.11 확인
-pytest app/tests/ -v
+# 2. 기능 개발 후 테스트
+pytest tests/unit/test_vcs.py -v            # 단위 테스트
+pytest -m integration                       # 통합 테스트
+ts-cli analyze --help                       # CLI 동작 확인
+
+# 3. 크로스플랫폼 빌드
+python scripts/build.py                     # 실행파일 빌드
+```
+
+#### 시나리오 3: AutoDoc Service 개발
+```bash
+# 1. 환경 설정 및 서버 시작
+cd autodoc_service
+source .venv312/bin/activate
+python --version  # 3.12.11 확인 (안정성을 위한 고정 버전)
+python run_autodoc_service.py              # 서버 시작
+
+# 2. 기능 개발 후 테스트
+pytest app/tests/ -v                        # 전체 테스트
+pytest --cov=app --cov-report=html app/tests/  # 커버리지 확인
+curl http://localhost:8000/health           # 헬스체크
+```
+
+#### 시나리오 4: 모노레포 전체 품질 관리
+```bash
+# 코드 포매팅 (프로젝트 루트에서)
+black webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+isort webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+
+# 린팅
+flake8 webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+
+# 타입 체킹
+mypy webservice/src cli/src autodoc_service/app
+
+# 전체 테스트 실행
+cd webservice && npm run test:all
+cd ../cli && pytest --cov=ts_cli --cov-report=html
+cd ../autodoc_service && pytest --cov=app --cov-report=html app/tests/
 ```
 
 ### AutoDoc Service 특별 고려사항
