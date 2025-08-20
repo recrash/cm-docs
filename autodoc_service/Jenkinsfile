@@ -274,7 +274,7 @@ pipeline {
         
         stage('Archive Artifact') {
             steps {
-                archiveArtifacts artifacts: "${WORKSPACE}/autodoc_service/dist/*.whl", followSymlinks: false
+                archiveArtifacts artifacts: "autodoc_service/dist/*.whl", followSymlinks: false
                 echo "Jenkins Workspace에서 빌드된 Wheel 아티팩트 보관 완료"
             }
         }
