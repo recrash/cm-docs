@@ -105,17 +105,29 @@ pipeline {
         
         stage('Create Backup') {
             steps {
-                dir(env.DEPLOY_PATH) {
-                    script {
-                        // 현재 배포 환경의 서비스 백업
-                        bat """
-                            if not exist "${env.BACKUP_DIR}" mkdir "${env.BACKUP_DIR}"
-                            if exist "dist" (
-                                powershell -Command "Copy-Item -Path 'dist\\*' -Destination '${env.BACKUP_DIR}' -Force -ErrorAction SilentlyContinue"
-                            )
-                        """
-                        echo "기존 배포 서비스 백업 완료"
-                    }
+                script {
+                    // 백업 디렉토리 생성
+                    bat "if not exist \"${env.BACKUP_DIR}\" mkdir \"${env.BACKUP_DIR}\""
+                    
+                    // 타겟 폴더의 기존 wheel 파일들을 백업
+                    powershell """
+                        if (Test-Path "${env.DEPLOY_PATH}") {
+                            \$existingWheels = Get-ChildItem -Path "${env.DEPLOY_PATH}" -Filter "*.whl" -ErrorAction SilentlyContinue
+                            if (\$existingWheels.Count -gt 0) {
+                                Write-Host "기존 wheel 파일 백업 중..."
+                                foreach (\$wheel in \$existingWheels) {
+                                    Copy-Item -Path \$wheel.FullName -Destination "${env.BACKUP_DIR}" -Force
+                                    Write-Host "백업 완료: \$(\$wheel.Name)"
+                                }
+                            } else {
+                                Write-Host "백업할 wheel 파일이 없습니다"
+                            }
+                        } else {
+                            Write-Host "배포 경로가 존재하지 않습니다: ${env.DEPLOY_PATH}"
+                            New-Item -Path "${env.DEPLOY_PATH}" -ItemType Directory -Force
+                        }
+                    """
+                    echo "기존 wheel 파일 백업 완료"
                 }
             }
         }
@@ -154,11 +166,28 @@ pipeline {
                         // 10초 대기 (사용자 요구사항)
                         sleep(time: 10, unit: 'SECONDS')
                         
-                        // Jenkins Workspace에서 빌드된 wheel을 배포 환경에 설치
+                        // 1단계: Jenkins Workspace에서 빌드된 wheel을 타겟 폴더로 복사
                         powershell """
                             \$latestWhl = Get-ChildItem -Path "${WORKSPACE}\\autodoc_service\\dist\\autodoc_service-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                            Write-Host "새 버전 배포: \$(\$latestWhl.Name)"
-                            & "${env.DEPLOY_PIP_CMD}" install \$latestWhl.FullName --force-reinstall
+                            if (\$latestWhl) {
+                                Write-Host "새 wheel 파일 복사: \$(\$latestWhl.Name)"
+                                Copy-Item -Path \$latestWhl.FullName -Destination "${env.DEPLOY_PATH}" -Force
+                                Write-Host "복사 완료: ${env.DEPLOY_PATH}\\\$(\$latestWhl.Name)"
+                            } else {
+                                throw "빌드된 wheel 파일을 찾을 수 없습니다"
+                            }
+                        """
+                        
+                        // 2단계: 타겟 폴더의 wheel 파일로 설치
+                        powershell """
+                            \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\autodoc_service-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                            if (\$deployWhl) {
+                                Write-Host "타겟 폴더에서 설치: \$(\$deployWhl.Name)"
+                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --force-reinstall
+                                Write-Host "설치 완료"
+                            } else {
+                                throw "타겟 폴더에 wheel 파일이 없습니다"
+                            }
                         """
                         
                         // 서비스 시작
@@ -167,13 +196,16 @@ pipeline {
                         
                     } catch (Exception e) {
                         echo "배포 실패: ${e.getMessage()}"
-                        // 중앙화된 백업에서 롤백 시도
+                        // 백업에서 롤백 시도
                         bat 'nssm stop autodoc_service'
                         powershell """
                             if (Test-Path "${env.BACKUP_DIR}\\*.whl") {
                                 \$backupWhl = Get-ChildItem -Path "${env.BACKUP_DIR}\\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                                Write-Host "중앙화된 백업에서 롤백 실행: \$(\$backupWhl.Name)"
-                                & "${env.DEPLOY_PIP_CMD}" install \$backupWhl.FullName --force-reinstall
+                                Write-Host "백업에서 롤백 실행: \$(\$backupWhl.Name)"
+                                # 백업을 타겟 폴더로 복사
+                                Copy-Item -Path \$backupWhl.FullName -Destination "${env.DEPLOY_PATH}" -Force
+                                # 타겟 폴더에서 설치
+                                & "${env.DEPLOY_PIP_CMD}" install "${env.DEPLOY_PATH}\\\$(\$backupWhl.Name)" --force-reinstall
                             }
                         """
                         bat 'nssm start autodoc_service'
