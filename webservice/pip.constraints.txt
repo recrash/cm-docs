@@ -1,5 +1,4 @@
-# jsonschema/referencing 호환성 이슈 해결
-# jsonschema 4.18부터 구조가 바뀌면서 draft-03 미포함 이슈 회피
-jsonschema<4.18
-# referencing도 구버전으로 고정 (신규 조합 충돌 방지)  
-referencing<0.30
+# jsonschema & referencing 세트: 오프라인에서도 Draft-03 인식
+jsonschema>=4.19,<5
+jsonschema-specifications>=2023.7.1
+referencing>=0.30,<0.36

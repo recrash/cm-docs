@@ -29,21 +29,25 @@ pipeline {
                     script {
                         echo "Jenkins Workspace에서 테스트 환경 구축"
                         
-                        // Python 3.13 가상환경 생성
+                        // 기존 venv 정리 후 Python 3.13 가상환경 재생성 (의존성 충돌 방지)
+                        bat 'if exist ".venv" rmdir /s /q .venv'
                         bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
                         
                         // Python 버전 확인
                         bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' --version\""
                         
-                        // 의존성 설치 (constraints 파일로 호환성 이슈 해결)
+                        // 의존성 설치 (constraints 파일로 호환성 이슈 해결, prefer-binary로 최적화)
                         bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt -c pip.constraints.txt\""
+                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt -c pip.constraints.txt --prefer-binary\""
                         
-                        // 핵심 의존성 검증 (ChromaDB는 네트워크 의존성으로 인해 제외)
+                        // 핵심 의존성 검증
                         bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import fastapi; import sentence_transformers; print('Core dependencies verified successfully')\\\"\""
                         
-                        // ChromaDB는 런타임에서만 검증 (설치 여부만 확인)
+                        // ChromaDB 설치 여부 확인
                         bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' show chromadb | findstr Name\""
+                        
+                        // Draft-03 메타스키마 로컬 레지스트리 검증 (오프라인 호환성 확인)
+                        bat \"\"\"powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from jsonschema.validators import Draft3Validator; from jsonschema_specifications import REGISTRY; print('Draft3 \\$id =', Draft3Validator.META_SCHEMA.get('\\$id')); REGISTRY.contents('http://json-schema.org/draft-03/schema#'); print('Draft-03 registry: OK')\\\"\"\"\""""
                         
                         echo "Jenkins Workspace 테스트 환경 구축 완료"
                     }
@@ -258,8 +262,8 @@ pipeline {
                         // 휠 다운로드 디렉토리 생성
                         bat 'if not exist ".pip-wheelhouse" mkdir ".pip-wheelhouse"'
                         
-                        // 모든 의존성 휠 다운로드
-                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' download -r requirements.txt -c pip.constraints.txt -d .pip-wheelhouse\""
+                        // 모든 의존성 휠 다운로드 (폐쇄망 대비)
+                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' download -r requirements.txt -c pip.constraints.txt -d .pip-wheelhouse --prefer-binary\""
                         
                         // 다운로드된 휠 목록 확인
                         bat 'dir /b ".pip-wheelhouse\\*.whl" | find /c ".whl"'
