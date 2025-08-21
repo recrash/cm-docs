@@ -10,7 +10,15 @@ from unittest.mock import patch, MagicMock
 
 def test_get_scenario_config(client):
     """시나리오 설정 조회 테스트"""
-    response = client.get("/api/scenario/config")
+    # Jenkins에서는 config.json이 없을 수 있으므로 라우터 네임스페이스에서 설정 주입
+    mock_config = {
+        "model_name": "qwen3:8b",
+        "timeout": 600,
+        "repo_path": "/test/repo",
+        "rag": {"enabled": False}
+    }
+    with patch('backend.routers.scenario.load_config', return_value=mock_config):
+        response = client.get("/api/scenario/config")
     
     assert response.status_code == 200
     data = response.json()
