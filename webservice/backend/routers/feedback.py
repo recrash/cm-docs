@@ -128,7 +128,14 @@ async def get_prompt_enhancement_info():
         enhancement_summary = prompt_enhancer.get_enhancement_summary()
         
         logger.info(f"프롬프트 개선 정보 조회 성공: enhancement_count={len(enhancement_summary.get('enhancements', []))}")
-        return enhancement_summary
+        
+        # 테스트 호환성을 위해 enhancement_summary 필드를 포함한 응답 구조 생성
+        response_data = {
+            "enhancement_summary": enhancement_summary,
+            **enhancement_summary  # 기존 필드들도 포함 (is_active 등)
+        }
+        
+        return response_data
         
     except Exception as e:
         logger.error(f"프롬프트 개선 정보 조회 실패: error={str(e)}")
