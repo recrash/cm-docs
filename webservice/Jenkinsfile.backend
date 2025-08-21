@@ -45,8 +45,14 @@ pipeline {
                         // ChromaDB 설치 여부 확인
                         bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' show chromadb | findstr Name\""
                         
-                        // Draft-03 메타스키마 로컬 레지스트리 검증 (오프라인 호환성 확인)
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from jsonschema.validators import Draft3Validator; from jsonschema_specifications import REGISTRY; print('Draft3 schema verification: OK'); REGISTRY.contents('http://json-schema.org/draft-03/schema#')\\\"\""
+                        // jsonschema 관련 패키지 설치 확인 (임포트는 테스트에서 검증)
+                        powershell """
+                            Write-Host "설치된 jsonschema 관련 패키지:"
+                            & '${env.WORKSPACE_PIP_CMD}' show jsonschema | Select-String "Name:|Version:"
+                            & '${env.WORKSPACE_PIP_CMD}' show jsonschema-specifications | Select-String "Name:|Version:"
+                            & '${env.WORKSPACE_PIP_CMD}' show referencing | Select-String "Name:|Version:"
+                            Write-Host "jsonschema 패키지 설치 확인 완료 (실제 동작은 테스트에서 검증)"
+                        """
                         
                         echo "Jenkins Workspace 테스트 환경 구축 완료"
                     }
