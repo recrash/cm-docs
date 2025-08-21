@@ -85,13 +85,25 @@ source .venv312/bin/activate
 python --version  # Python 3.12.11
 ```
 
+#### ⚠️ ChromaDB 의존성 주의사항
+
+**중요**: Webservice는 ChromaDB의 jsonschema 의존성 충돌 문제로 인해 **제약조건 파일을 반드시 사용**해야 합니다.
+
+```bash
+# ✅ 올바른 설치 방법
+pip install -r requirements.txt -c pip.constraints.txt
+
+# ❌ 잘못된 설치 방법 (의존성 충돌 발생)
+pip install -r requirements.txt
+```
+
 #### 📦 서비스별 개발 시작
 
 ```bash
 # Webservice 개발 환경
 cd webservice
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -c pip.constraints.txt  # 제약조건 파일 필수!
 npm install
 
 # PYTHONPATH 설정 (필수 - src/ 모듈 임포트용)

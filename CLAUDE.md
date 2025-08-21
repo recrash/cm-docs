@@ -123,11 +123,28 @@ mypy webservice/src cli/src autodoc_service/app
 - **Storage**: SQLite for feedback data, Excel files for output
 - **Testing**: Jest + Playwright (E2E) + pytest (backend)
 
+### ChromaDB 의존성 관리
+
+**제약조건 파일 필수 사용**: ChromaDB의 jsonschema 의존성 충돌 문제로 인해 `pip.constraints.txt` 파일을 반드시 사용해야 합니다.
+
+```bash
+# 올바른 설치 방법 (제약조건 파일 포함)
+pip install -r requirements.txt -c pip.constraints.txt
+
+# 잘못된 설치 방법 (의존성 충돌 발생 가능)
+pip install -r requirements.txt  # ❌ 사용 금지
+```
+
+**제약조건 파일 내용** (`webservice/pip.constraints.txt`):
+- `jsonschema>=4.19,<5`: Draft-03 스키마 지원
+- `jsonschema-specifications>=2023.7.1`: 최신 스키마 사양
+- `referencing>=0.30,<0.36`: 호환성 보장
+
 ### Development Commands
 ```bash
 # Environment setup (see Common Guidelines above)
 cd webservice && source .venv/bin/activate && python --version
-pip install -r requirements.txt
+pip install -r requirements.txt -c pip.constraints.txt
 cd webservice/frontend && npm install
 
 # Server management
@@ -443,7 +460,7 @@ python run_autodoc_service.py          # Cross-platform Python script
 .\run_autodoc_service.ps1             # Windows PowerShell
 
 # Manual setup
-pip install -r requirements.txt
+pip install -r requirements.txt -c pip.constraints.txt
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # Testing
