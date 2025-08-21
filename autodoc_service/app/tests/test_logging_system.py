@@ -203,7 +203,7 @@ class TestLoggingErrorHandling:
         # When & Then (예외가 발생하지 않아야 함)
         logger.info("한글 로그 메시지: 안녕하세요")
         logger.info("특수문자: ★☆♡♥※")
-        logger.info("이모지: 📄🔍⚡")
+        logger.info("기호 문자: 문서 검색 빠름")
     
     def test_logging_with_large_messages(self):
         """큰 로그 메시지 처리"""

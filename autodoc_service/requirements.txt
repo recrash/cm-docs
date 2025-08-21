@@ -1,5 +1,6 @@
 annotated-types==0.7.0
 anyio==4.10.0
+build==1.2.1
 beautifulsoup4==4.12.3
 certifi==2025.8.3
 click==8.2.1
@@ -28,6 +29,7 @@ pydantic_core==2.18.1
 Pygments==2.19.2
 pytest==8.2.2
 pytest-asyncio==0.23.7
+pytest-cov==5.0.0
 python-docx==1.1.0
 python-dotenv==1.1.1
 python-multipart==0.0.7

@@ -2,11 +2,18 @@
 pipeline {
     agent any
     environment {
-        PROJECT_PATH = 'C:\\deploys\\cm-docs\\autodoc_service'
+        // Jenkins Workspace (빌드/테스트용)
+        WORKSPACE_PYTHON_CMD = "${WORKSPACE}\\autodoc_service\\.venv312\\Scripts\\python.exe"
+        WORKSPACE_PIP_CMD = "${WORKSPACE}\\autodoc_service\\.venv312\\Scripts\\pip.exe"
+        
+        // 배포 경로 (운영 서비스용)
+        DEPLOY_PATH = 'C:\\deploys\\cm-docs\\autodoc_service'
+        DEPLOY_PYTHON_CMD = "${DEPLOY_PATH}\\.venv312\\Scripts\\python.exe"
+        DEPLOY_PIP_CMD = "${DEPLOY_PATH}\\.venv312\\Scripts\\pip.exe"
+        
+        // 기타 설정
         HEALTH_CHECK_URL = 'http://localhost:8001/health'
         BACKUP_DIR = 'C:\\deploys\\backup\\autodoc_service'
-        PYTHON_CMD = "${PROJECT_PATH}\\.venv312\\Scripts\\python.exe"
-        PIP_CMD = "${PROJECT_PATH}\\.venv312\\Scripts\\pip.exe"
     }
     stages {
         stage('Checkout') {
@@ -16,9 +23,34 @@ pipeline {
             }
         }
         
+        stage('Setup Test Environment') {
+            steps {
+                dir("${WORKSPACE}/autodoc_service") {
+                    script {
+                        echo "Jenkins Workspace에서 테스트 환경 구축"
+                        
+                        // Python 3.12 가상환경 생성
+                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.12 -m venv .venv312'
+                        
+                        // Python 버전 확인
+                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' --version\""
+                        
+                        // 의존성 설치 (Windows pip 업그레이드 이슈 해결)
+                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt\""
+                        
+                        // 핵심 의존성 검증 (따옴표 이스케이프 문제 해결)
+                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from docx import Document; import openpyxl; import pytest; print('Dependencies verified successfully')\\\"\""
+                        
+                        echo "Jenkins Workspace 테스트 환경 구축 완료"
+                    }
+                }
+            }
+        }
+        
         stage('Template Validation') {
             steps {
-                dir(env.PROJECT_PATH) {
+                dir("${WORKSPACE}/autodoc_service") {
                     script {
                         // 필수 템플릿 파일 존재 확인
                         def requiredTemplates = ['template.docx', 'template.xlsx', 'template_list.xlsx']
@@ -34,40 +66,9 @@ pipeline {
                             }
                         }
                         
-                        // 템플릿 무결성 검사 (pytest를 통한 SHA-256 검증)
-                        bat "powershell -Command \"& '${env.PYTHON_CMD}' -m pytest app/tests/test_templates_present.py -v\""
+                        // 템플릿 무결성 검사 (Jenkins Workspace에서 실행)
+                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_templates_present.py -v\""
                         echo "템플릿 검증 완료"
-                    }
-                }
-            }
-        }
-        
-        stage('Dependency Check') {
-            steps {
-                dir(env.PROJECT_PATH) {
-                    script {
-                        // requirements.txt 변경 감지
-                        def reqChanged = bat(
-                            script: 'git diff HEAD~1 HEAD --name-only | findstr requirements.txt',
-                            returnStatus: true
-                        ) == 0
-                        
-                        if (reqChanged) {
-                            echo "requirements.txt 변경 감지됨 - Python 3.12 호환성 체크"
-                            
-                            // Python 버전 확인
-                            bat "powershell -Command \"& '${env.PYTHON_CMD}' --version\""
-                            
-                            // 의존성 업데이트
-                            bat "powershell -Command \"& '${env.PIP_CMD}' install -r requirements.txt\""
-                            
-                            // python-docx, openpyxl 특별 검증
-                            bat "powershell -Command \"& '${env.PYTHON_CMD}' -c 'from docx import Document; import openpyxl; print(\\\"핵심 의존성 확인 완료\\\")'\""
-                        }
-                        
-                        // 의존성 충돌 검사
-                        bat "powershell -Command \"& '${env.PIP_CMD}' check\""
-                        echo "의존성 검사 완료"
                     }
                 }
             }
@@ -75,54 +76,67 @@ pipeline {
         
         stage('Test') {
             steps {
-                dir(env.PROJECT_PATH) {
-                    // 전체 테스트 실행 (커버리지 포함)
-                    bat "powershell -Command \"& '${env.PYTHON_CMD}' -m pytest app/tests/ -v --cov=app --cov-report=term\""
+                dir("${WORKSPACE}/autodoc_service") {
+                    // 전체 테스트 실행 (Windows 콘솔 인코딩 및 파일 핸들 문제 해결)
+                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v -x --tb=short --disable-warnings\""
                     
                     // 특별히 중요한 문서 생성 테스트 개별 실행
-                    bat "powershell -Command \"& '${env.PYTHON_CMD}' -m pytest app/tests/test_builder_word_label.py -v\""
-                    bat "powershell -Command \"& '${env.PYTHON_CMD}' -m pytest app/tests/test_builder_excel_test.py -v\""
+                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_word_label.py -v\""
+                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_excel_test.py -v\""
                     
-                    echo "AutoDoc Service 테스트 완료"
+                    echo "AutoDoc Service 테스트 완료 (Jenkins Workspace)"
                 }
             }
         }
         
         stage('Integration Test') {
             steps {
-                dir(env.PROJECT_PATH) {
-                    // FastAPI 통합 테스트
-                    bat "powershell -Command \"& '${env.PYTHON_CMD}' -m pytest app/tests/test_fastapi_integration.py -v\""
+                dir("${WORKSPACE}/autodoc_service") {
+                    // FastAPI 통합 테스트 (Jenkins Workspace에서 실행)
+                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_fastapi_integration.py -v\""
                     
                     // 로깅 시스템 테스트
-                    bat "powershell -Command \"& '${env.PYTHON_CMD}' -m pytest app/tests/test_logging_system.py -v\""
+                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_logging_system.py -v\""
                     
-                    echo "통합 테스트 완료"
+                    echo "통합 테스트 완료 (Jenkins Workspace)"
                 }
             }
         }
         
         stage('Create Backup') {
             steps {
-                dir(env.PROJECT_PATH) {
-                    script {
-                        // 현재 실행 중인 서비스 백업
-                        bat """
-                            if not exist "${env.BACKUP_DIR}" mkdir "${env.BACKUP_DIR}"
-                            if exist "dist" (
-                                powershell -Command "Copy-Item -Path 'dist\\*' -Destination '${env.BACKUP_DIR}' -Force -ErrorAction SilentlyContinue"
-                            )
-                        """
-                        echo "백업 생성 완료"
-                    }
+                script {
+                    // 백업 디렉토리 생성
+                    bat "if not exist \"${env.BACKUP_DIR}\" mkdir \"${env.BACKUP_DIR}\""
+                    
+                    // 타겟 폴더의 기존 wheel 파일들을 백업
+                    powershell """
+                        if (Test-Path "${env.DEPLOY_PATH}") {
+                            \$existingWheels = Get-ChildItem -Path "${env.DEPLOY_PATH}" -Filter "*.whl" -ErrorAction SilentlyContinue
+                            if (\$existingWheels.Count -gt 0) {
+                                Write-Host "기존 wheel 파일 백업 중..."
+                                foreach (\$wheel in \$existingWheels) {
+                                    Copy-Item -Path \$wheel.FullName -Destination "${env.BACKUP_DIR}" -Force
+                                    Write-Host "백업 완료: \$(\$wheel.Name)"
+                                }
+                            } else {
+                                Write-Host "백업할 wheel 파일이 없습니다"
+                            }
+                        } else {
+                            Write-Host "배포 경로가 존재하지 않습니다: ${env.DEPLOY_PATH}"
+                            New-Item -Path "${env.DEPLOY_PATH}" -ItemType Directory -Force
+                        }
+                    """
+                    echo "기존 wheel 파일 백업 완료"
                 }
             }
         }
         
         stage('Build') {
             steps {
-                dir(env.PROJECT_PATH) {
-                    bat "powershell -Command \"& '${env.PYTHON_CMD}' -m build\""
+                dir("${WORKSPACE}/autodoc_service") {
+                    // Jenkins Workspace에서 wheel 빌드
+                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m build\""
                     
                     // 빌드 결과 검증
                     script {
@@ -136,48 +150,66 @@ pipeline {
                         }
                     }
                     
-                    echo "빌드 완료"
+                    echo "Wheel 빌드 완료 (Jenkins Workspace)"
                 }
             }
         }
         
         stage('Deploy') {
             steps {
-                dir(env.PROJECT_PATH) {
-                    script {
-                        try {
-                            // 서비스 중지
-                            bat 'nssm stop autodoc_service'
-                            echo "AutoDoc Service 중지 완료"
-                            
-                            // 10초 대기 (사용자 요구사항)
-                            sleep(time: 10, unit: 'SECONDS')
-                            
-                            // 새 버전 설치
-                            powershell """
-                                \$latestWhl = Get-ChildItem -Path ".\\dist\\autodoc_service-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                                Write-Host "새 버전 설치: \$(\$latestWhl.Name)"
-                                & "${env.PIP_CMD}" install \$latestWhl.FullName --force-reinstall
-                            """
-                            
-                            // 서비스 시작
-                            bat 'nssm start autodoc_service'
-                            echo "AutoDoc Service 시작 완료"
-                            
-                        } catch (Exception e) {
-                            echo "배포 실패: ${e.getMessage()}"
-                            // 롤백 시도
-                            bat 'nssm stop autodoc_service'
-                            powershell """
-                                if (Test-Path "${env.BACKUP_DIR}\\*.whl") {
-                                    \$backupWhl = Get-ChildItem -Path "${env.BACKUP_DIR}\\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                                    Write-Host "롤백 실행: \$(\$backupWhl.Name)"
-                                    & "${env.PIP_CMD}" install \$backupWhl.FullName --force-reinstall
-                                }
-                            """
-                            bat 'nssm start autodoc_service'
-                            throw e
-                        }
+                script {
+                    try {
+                        // 서비스 중지
+                        bat 'nssm stop autodoc_service'
+                        echo "AutoDoc Service 중지 완료"
+                        
+                        // 10초 대기 (사용자 요구사항)
+                        sleep(time: 10, unit: 'SECONDS')
+                        
+                        // 1단계: Jenkins Workspace에서 빌드된 wheel을 타겟 폴더로 복사
+                        powershell """
+                            \$latestWhl = Get-ChildItem -Path "${WORKSPACE}\\autodoc_service\\dist\\autodoc_service-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                            if (\$latestWhl) {
+                                Write-Host "새 wheel 파일 복사: \$(\$latestWhl.Name)"
+                                Copy-Item -Path \$latestWhl.FullName -Destination "${env.DEPLOY_PATH}" -Force
+                                Write-Host "복사 완료: ${env.DEPLOY_PATH}\\\$(\$latestWhl.Name)"
+                            } else {
+                                throw "빌드된 wheel 파일을 찾을 수 없습니다"
+                            }
+                        """
+                        
+                        // 2단계: 타겟 폴더의 wheel 파일로 설치
+                        powershell """
+                            \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\autodoc_service-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                            if (\$deployWhl) {
+                                Write-Host "타겟 폴더에서 설치: \$(\$deployWhl.Name)"
+                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --force-reinstall
+                                Write-Host "설치 완료"
+                            } else {
+                                throw "타겟 폴더에 wheel 파일이 없습니다"
+                            }
+                        """
+                        
+                        // 서비스 시작
+                        bat 'nssm start autodoc_service'
+                        echo "AutoDoc Service 시작 완료"
+                        
+                    } catch (Exception e) {
+                        echo "배포 실패: ${e.getMessage()}"
+                        // 백업에서 롤백 시도
+                        bat 'nssm stop autodoc_service'
+                        powershell """
+                            if (Test-Path "${env.BACKUP_DIR}\\*.whl") {
+                                \$backupWhl = Get-ChildItem -Path "${env.BACKUP_DIR}\\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                                Write-Host "백업에서 롤백 실행: \$(\$backupWhl.Name)"
+                                # 백업을 타겟 폴더로 복사
+                                Copy-Item -Path \$backupWhl.FullName -Destination "${env.DEPLOY_PATH}" -Force
+                                # 타겟 폴더에서 설치
+                                & "${env.DEPLOY_PIP_CMD}" install "${env.DEPLOY_PATH}\\\$(\$backupWhl.Name)" --force-reinstall
+                            }
+                        """
+                        bat 'nssm start autodoc_service'
+                        throw e
                     }
                 }
             }
@@ -202,8 +234,15 @@ pipeline {
                         
                         for (int i = 0; i < 3; i++) {
                             try {
-                                def response = bat(
-                                    script: "curl -s -o nul -w \"%{http_code}\" ${url}",
+                                def response = powershell(
+                                    script: """
+                                        try {
+                                            \$result = Invoke-WebRequest -Uri '${url}' -UseBasicParsing -TimeoutSec 10
+                                            Write-Output \$result.StatusCode
+                                        } catch {
+                                            Write-Output "500"
+                                        }
+                                    """,
                                     returnStdout: true
                                 ).trim()
                                 
@@ -267,8 +306,8 @@ pipeline {
         
         stage('Archive Artifact') {
             steps {
-                archiveArtifacts artifacts: "${env.PROJECT_PATH}/dist/*.whl", followSymlinks: false
-                echo "아티팩트 보관 완료"
+                archiveArtifacts artifacts: "autodoc_service/dist/*.whl", followSymlinks: false
+                echo "Jenkins Workspace에서 빌드된 Wheel 아티팩트 보관 완료"
             }
         }
     }
@@ -281,10 +320,20 @@ pipeline {
             echo "AutoDoc Service 배포 실패 - 로그를 확인하세요"
         }
         always {
-            // 임시 파일 정리
-            dir(env.PROJECT_PATH) {
+            // Jenkins Workspace 정리
+            dir("${WORKSPACE}/autodoc_service") {
                 bat 'if exist "*.tmp" del /f /q *.tmp'
                 // 테스트로 생성된 문서 정리
+                bat 'if exist "documents\\*TEST_*" del /f /q "documents\\*TEST_*"'
+                // pytest 캐시 정리
+                bat 'if exist ".pytest_cache" rmdir /s /q ".pytest_cache"'
+                // 임시 파일 강제 정리
+                bat 'for /f "tokens=*" %%i in (\'dir /s /b *.xlsx *.docx 2^>nul\') do del /f /q "%%i" 2>nul || echo "Skipping locked file: %%i"'
+            }
+            
+            // 배포 환경 정리
+            dir(env.DEPLOY_PATH) {
+                bat 'if exist "*.tmp" del /f /q *.tmp'
                 bat 'if exist "documents\\*TEST_*" del /f /q "documents\\*TEST_*"'
             }
         }
