@@ -35,9 +35,9 @@ pipeline {
                         // Python 버전 확인
                         bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' --version\""
                         
-                        // 의존성 설치 (Windows pip 업그레이드 이슈 해결)
+                        // 의존성 설치 (constraints 파일로 호환성 이슈 해결)
                         bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt\""
+                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt -c pip.constraints.txt\""
                         
                         // 핵심 의존성 검증 (ChromaDB는 네트워크 의존성으로 인해 제외)
                         bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import fastapi; import sentence_transformers; print('Core dependencies verified successfully')\\\"\""
@@ -249,10 +249,32 @@ pipeline {
             }
         }
         
+        stage('Download Wheels for Offline') {
+            steps {
+                dir("${WORKSPACE}/webservice") {
+                    script {
+                        echo "폐쇄망 환경 대비 휠 번들 다운로드"
+                        
+                        // 휠 다운로드 디렉토리 생성
+                        bat 'if not exist ".pip-wheelhouse" mkdir ".pip-wheelhouse"'
+                        
+                        // 모든 의존성 휠 다운로드
+                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' download -r requirements.txt -c pip.constraints.txt -d .pip-wheelhouse\""
+                        
+                        // 다운로드된 휠 목록 확인
+                        bat 'dir /b ".pip-wheelhouse\\*.whl" | find /c ".whl"'
+                        
+                        echo "오프라인 설치용 휠 번들 준비 완료"
+                    }
+                }
+            }
+        }
+        
         stage('Archive Artifact') {
             steps {
-                archiveArtifacts artifacts: "webservice/dist/*.whl", followSymlinks: false
-                echo "Jenkins Workspace에서 빌드된 Wheel 아티팩트 보관 완료"
+                // 빌드된 휠과 다운로드된 휠 번들 모두 보관
+                archiveArtifacts artifacts: "webservice/dist/*.whl, webservice/.pip-wheelhouse/*.whl", followSymlinks: false
+                echo "Jenkins Workspace에서 빌드된 Wheel 아티팩트 및 의존성 휠 번들 보관 완료"
             }
         }
     }
