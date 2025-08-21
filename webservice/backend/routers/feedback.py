@@ -132,7 +132,7 @@ async def get_prompt_enhancement_info():
         # 테스트 호환성을 위해 enhancement_summary 필드를 포함한 응답 구조 생성
         response_data = {
             "enhancement_summary": enhancement_summary,
-            **enhancement_summary  # 기존 필드들도 포함 (is_active 등)
+            **enhancement_summary  # 기존 필드들도 포함
         }
         
         return response_data

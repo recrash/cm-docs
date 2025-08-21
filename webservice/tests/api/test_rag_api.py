@@ -5,7 +5,7 @@ RAG 시스템 API 테스트
 import pytest
 from unittest.mock import patch, MagicMock
 
-def test_get_rag_system_info(client, mock_dependencies):
+def test_get_rag_system_info(client):
     """RAG 시스템 정보 조회 테스트"""
     
     mock_rag_info = {
@@ -23,15 +23,16 @@ def test_get_rag_system_info(client, mock_dependencies):
         }
     }
     
-    mock_dependencies['get_rag_info'].return_value = mock_rag_info
-    
-    response = client.get("/api/rag/info")
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert "chroma_info" in data
-    assert "chunk_size" in data
-    assert "documents" in data
+    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info:
+        mock_get_rag_info.return_value = mock_rag_info
+        
+        response = client.get("/api/rag/info")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "chroma_info" in data
+        assert "chunk_size" in data
+        assert "documents" in data
 
 def test_index_documents_success(client):
     """문서 인덱싱 성공 테스트"""
@@ -126,7 +127,7 @@ def test_clear_vector_database_failure(client):
         assert response.status_code == 500
         assert "벡터 데이터베이스 초기화 중 오류" in response.json()["detail"]
 
-def test_get_documents_info(client, mock_dependencies):
+def test_get_documents_info(client):
     """문서 정보 조회 테스트"""
     
     mock_rag_info = {
@@ -139,18 +140,19 @@ def test_get_documents_info(client, mock_dependencies):
         }
     }
     
-    mock_dependencies['get_rag_info'].return_value = mock_rag_info
-    
-    response = client.get("/api/rag/documents/info")
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert data["enabled"] is True
-    assert data["folder_path"] == "/documents"
-    assert data["supported_files"] == 8
-    assert data["total_files"] == 15
+    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info:
+        mock_get_rag_info.return_value = mock_rag_info
+        
+        response = client.get("/api/rag/documents/info")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["enabled"] is True
+        assert data["folder_path"] == "/documents"
+        assert data["supported_files"] == 8
+        assert data["total_files"] == 15
 
-def test_get_rag_status_active(client, mock_dependencies):
+def test_get_rag_status_active(client):
     """RAG 시스템 활성 상태 테스트"""
     
     mock_rag_info = {
@@ -161,9 +163,10 @@ def test_get_rag_status_active(client, mock_dependencies):
         "chunk_size": 1000
     }
     
-    mock_dependencies['get_rag_info'].return_value = mock_rag_info
-    
-    with patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
+    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info, \
+         patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
+        
+        mock_get_rag_info.return_value = mock_rag_info
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
         
@@ -172,11 +175,11 @@ def test_get_rag_status_active(client, mock_dependencies):
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "active"
-        assert "정상적으로 작동" in data["message"]
+        assert "자동으로 활성화되었습니다" in data["message"]
         assert data["document_count"] == 50
         assert data["embedding_model"] == "jhgan/ko-sroberta-multitask"
 
-def test_get_rag_status_inactive(client, mock_dependencies):
+def test_get_rag_status_inactive(client):
     """RAG 시스템 비활성 상태 테스트"""
     
     mock_rag_info = {
@@ -184,26 +187,28 @@ def test_get_rag_status_inactive(client, mock_dependencies):
         "chunk_size": 0
     }
     
-    mock_dependencies['get_rag_info'].return_value = mock_rag_info
-    
-    with patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
+    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info, \
+         patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
+        
+        mock_get_rag_info.return_value = mock_rag_info
         mock_get_manager.return_value = None
         
         response = client.get("/api/rag/status")
         
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "inactive"
-        assert "비활성화" in data["message"]
+        assert data["status"] == "ready"
+        assert "자동으로 로드됩니다" in data["message"]
 
-def test_get_rag_status_error(client, mock_dependencies):
+def test_get_rag_status_error(client):
     """RAG 시스템 오류 상태 테스트"""
     
-    mock_dependencies['get_rag_info'].side_effect = Exception("RAG 오류")
-    
-    response = client.get("/api/rag/status")
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "error"
-    assert "오류가 발생했습니다" in data["message"]
+    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info:
+        mock_get_rag_info.side_effect = Exception("RAG 오류")
+        
+        response = client.get("/api/rag/status")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "error"
+        assert "오류가 발생했습니다" in data["message"]
