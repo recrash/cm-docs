@@ -29,6 +29,90 @@ git subtree push --prefix=webservice https://github.com/recrash/TestscenarioMake
 git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.git main
 ```
 
+## Common Development Guidelines
+
+### Python Environment Management
+**MSA-based Independent Environment Structure**: Each service uses completely independent virtual environments following Pseudo MSA architecture.
+
+```
+cm-docs/
+├── webservice/
+│   ├── .venv/          # Python 3.13 + AI/ML dependencies
+│   └── requirements.txt
+├── cli/
+│   ├── .venv/          # Python 3.13 + CLI tool dependencies
+│   └── requirements.txt
+└── autodoc_service/
+    ├── .venv312/       # Python 3.12 + document processing dependencies (stability guaranteed)
+    └── requirements.txt
+```
+
+#### Service Environment Activation
+**Before any development/testing work, perform the following:**
+
+**Webservice**:
+```bash
+cd webservice && source .venv/bin/activate && python --version  # 3.13.5
+export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ modules
+```
+
+**CLI**:
+```bash
+cd cli && source .venv/bin/activate && python --version  # 3.13.5
+```
+
+**AutoDoc Service**:
+```bash
+cd autodoc_service && source .venv312/bin/activate && python --version  # 3.12.11
+```
+
+### Cross-Platform Path Management
+**ALWAYS use `pathlib.Path` for cross-platform compatibility across all services**
+
+✅ **Correct Usage**:
+```python
+from pathlib import Path
+project_root = Path(__file__).parent.parent
+config_file = project_root / "config" / "config.ini"
+# CRITICAL: Convert Path to string for subprocess cwd parameter
+subprocess.run(['git', 'status'], cwd=str(repo_path), capture_output=True)
+```
+
+❌ **Avoid**:
+```python
+# DON'T: String concatenation or os.path methods
+config_path = project_root + "/config/config.ini"
+# DON'T: Path object as cwd parameter (causes cross-platform issues)
+subprocess.run(['git', 'status'], cwd=repo_path)  # Will fail!
+```
+
+### Universal Testing Commands
+**Service-specific testing with unified approach**:
+```bash
+# Webservice
+cd webservice/frontend && npm run test:all        # Complete test suite
+cd webservice/frontend && npm run test:e2e        # E2E tests (MANDATORY)
+
+# CLI
+cd cli && pytest --cov=ts_cli --cov-report=html   # All tests with coverage
+
+# AutoDoc Service
+cd autodoc_service && pytest app/tests/ -v       # All tests
+```
+
+### Code Quality Standards (Monorepo-wide)
+```bash
+# Code formatting (from project root)
+black webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+isort webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+
+# Linting
+flake8 webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+
+# Type checking
+mypy webservice/src cli/src autodoc_service/app
+```
+
 ## Webservice Development - TestscenarioMaker Web Service
 
 ### Technology Stack
@@ -41,14 +125,10 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 
 ### Development Commands
 ```bash
-cd webservice
-
-# Environment setup (CRITICAL: Activate independent Python 3.13 environment first)
-source .venv/bin/activate
-python --version  # Verify Python 3.13.5
+# Environment setup (see Common Guidelines above)
+cd webservice && source .venv/bin/activate && python --version
 pip install -r requirements.txt
 cd webservice/frontend && npm install
-export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ modules
 
 # Server management
 cd webservice/backend && python -m uvicorn main:app --reload --port 8000  # Backend API
@@ -231,11 +311,8 @@ http {
 
 ### Development Commands
 ```bash
-cd cli
-
-# Environment setup (CRITICAL: Activate independent Python 3.13 environment first)
-source .venv/bin/activate
-python --version  # Verify Python 3.13.5
+# Environment setup (see Common Guidelines above)
+cd cli && source .venv/bin/activate && python --version
 
 # Development setup
 pip install -e .
@@ -320,31 +397,6 @@ Solves macOS browser sandbox restrictions that prevent CLI network communication
 
 ### CLI-Specific Development Guidelines
 
-#### Critical Cross-Platform Path Management
-**ALWAYS use `pathlib.Path` for cross-platform compatibility**
-
-✅ **Correct Usage**:
-```python
-from pathlib import Path
-
-# Project structure with relative paths
-project_root = Path(__file__).parent.parent
-config_file = project_root / "config" / "config.ini"
-
-# CRITICAL: Convert Path to string for subprocess cwd parameter
-subprocess.run(['git', 'status'], cwd=str(repo_path), capture_output=True)
-```
-
-❌ **Avoid These Patterns**:
-```python
-# DON'T: String concatenation or os.path methods
-config_path = project_root + "/config/config.ini"
-config_path = os.path.join(project_root, "config", "config.ini")
-
-# DON'T: Path object as cwd parameter (causes cross-platform issues)
-subprocess.run(['git', 'status'], cwd=repo_path)  # Will fail!
-```
-
 #### Configuration System
 **Hierarchical Config Loading** (first found wins):
 1. Current directory `config.ini`
@@ -382,11 +434,8 @@ subprocess.run(['git', 'status'], cwd=repo_path)  # Will fail!
 
 ### Development Commands
 ```bash
-cd autodoc_service
-
-# Environment setup (CRITICAL: Activate independent Python 3.12 environment first)
-source .venv312/bin/activate
-python --version  # Verify Python 3.12.11
+# Environment setup (see Common Guidelines above)
+cd autodoc_service && source .venv312/bin/activate && python --version
 
 # Automatic startup (recommended)
 python run_autodoc_service.py          # Cross-platform Python script
@@ -512,8 +561,7 @@ pip install --no-index --find-links ./wheels -r requirements.txt
 **Template Validation**: All templates verified with SHA-256 hashes in test suite
 
 #### Path Management
-- Always use `pathlib.Path` for cross-platform compatibility
-- Use `app.services.paths` functions for consistent directory resolution
+- Use `app.services.paths` functions for consistent directory resolution (follows Common Guidelines)
 - Templates can be overridden via `AUTODOC_TPL_DIR` environment variable
 
 #### Field Mapping Extensions
@@ -829,27 +877,12 @@ cd autodoc_service && source .venv312/bin/activate && pytest app/tests/ -v
 
 ## Monorepo-wide Quality Control
 
-### Code Quality Commands (from project root)
-```bash
-# Code formatting
-black webservice/src webservice/backend cli/src cli/tests autodoc_service/app
-isort webservice/src webservice/backend cli/src cli/tests autodoc_service/app
-
-# Linting  
-flake8 webservice/src webservice/backend cli/src cli/tests autodoc_service/app
-
-# Type checking
-mypy webservice/src cli/src autodoc_service/app
-
-# Unified testing (all three projects)
-cd webservice && npm run test:all
-cd cli && pytest --cov=ts_cli --cov-report=html
-cd autodoc_service && pytest --cov=app --cov-report=html app/tests/
-```
+### Quality Control Commands
+**Refer to Common Development Guidelines section for complete code quality commands and testing procedures.**
 
 ### Development Workflow Guidelines
 1. **Subproject Focus**: Work within specific subproject directories (`cd webservice`, `cd cli`, or `cd autodoc_service`)
-2. **Independent Testing**: Each subproject has its own test suite and quality gates
+2. **Independent Testing**: Each subproject has its own test suite and quality gates (see Common Guidelines)
 3. **Commit Conventions**: Use `[webservice]`, `[cli]`, or `[autodoc_service]` prefixes in commit messages  
 4. **Quality Gates**: All projects require passing tests before merge
 5. **Korean Documentation**: Technical documentation includes Korean user-facing content
@@ -923,61 +956,9 @@ logger.error("처리 실패")
   - Templates directory must contain: `template.docx`, `template.xlsx`, `template_list.xlsx`
 - **Monorepo**: Root `pyproject.toml` for unified development tools (black, isort, pytest)
 
-## Python 환경 관리 (Claude 작업 지침)
+## Python 환경 관리 상세 가이드
 
-### MSA 기반 서비스별 독립 환경 구조
-
-이 모노래포는 **Pseudo MSA 아키텍처**를 따르므로 각 서비스가 완전히 독립된 가상환경을 사용합니다.
-
-```
-cm-docs/
-├── webservice/
-│   ├── .venv/          # Python 3.13 + AI/ML 의존성
-│   └── requirements.txt
-├── cli/
-│   ├── .venv/          # Python 3.13 + CLI 도구 의존성  
-│   └── requirements.txt
-└── autodoc_service/
-    ├── .venv312/       # Python 3.12 + 문서처리 의존성 (안정성 보장)
-    └── requirements.txt
-```
-
-### 작업 전 필수 체크리스트
-
-**모든 개발/테스트 작업 전에 다음을 반드시 수행:**
-
-1. **프로젝트 디렉토리 확인**
-2. **올바른 가상환경 활성화** 
-3. **Python 버전 검증**
-
-### 서비스별 환경 활성화 명령어
-
-#### Webservice 작업 시
-```bash
-cd webservice
-source .venv/bin/activate
-python --version  # 3.13.5 확인
-# AI/ML 최신 기능 및 성능 활용
-# 이후 개발/테스트 명령 수행
-```
-
-#### CLI 작업 시
-```bash
-cd cli
-source .venv/bin/activate
-python --version  # 3.13.5 확인
-# 크로스플랫폼 도구 최신 기능 활용
-# 이후 개발/테스트 명령 수행
-```
-
-#### AutoDoc Service 작업 시
-```bash
-cd autodoc_service
-source .venv312/bin/activate
-python --version  # 3.12.11 확인 (문서 생성 안정성을 위한 고정 버전)
-# python-docx, openpyxl 호환성 보장
-# 이후 개발/테스트 명령 수행
-```
+**기본 환경 관리는 Common Development Guidelines 섹션을 참조하세요.**
 
 ### 신규 서비스 추가 가이드라인
 
@@ -989,36 +970,29 @@ python --version  # 3.12.11 확인 (문서 생성 안정성을 위한 고정 버
 4. **MSA 원칙**: 다른 서비스와 의존성 공유 금지
 
 ### 개발 워크플로 예시
+**환경 설정은 Common Development Guidelines 섹션 참조**
 
 #### 시나리오 1: Webservice 기능 개발
 ```bash
-# 1. 환경 설정 및 서버 시작
-cd webservice
-source .venv/bin/activate
-python --version  # 3.13.5 확인
+# 1. 환경 설정 (공통 가이드라인 참조)
+cd webservice && source .venv/bin/activate && python --version
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
 # 2. 개발 서버 시작 (터미널 2개 필요)
 cd backend && python -m uvicorn main:app --reload --port 8000  # 터미널 1
 cd frontend && npm run dev  # 터미널 2
 
-# 3. 기능 개발 후 테스트
-cd webservice/frontend && npm run test:all  # 전체 테스트
-cd webservice/frontend && npm run test:e2e  # E2E 테스트 (필수)
+# 3. 테스트 (공통 가이드라인의 Universal Testing Commands 참조)
 pytest tests/api/test_scenario_api.py -v    # 특정 API 테스트
 ```
 
 #### 시나리오 2: CLI 도구 개발
 ```bash
-# 1. 환경 설정 및 개발 설치
-cd cli
-source .venv/bin/activate
-python --version  # 3.13.5 확인
+# 1. 환경 설정 (공통 가이드라인 참조)
+cd cli && source .venv/bin/activate && python --version
 pip install -e .
 
-# 2. 기능 개발 후 테스트
-pytest tests/unit/test_vcs.py -v            # 단위 테스트
-pytest -m integration                       # 통합 테스트
+# 2. 테스트 (공통 가이드라인 참조)
 ts-cli analyze --help                       # CLI 동작 확인
 
 # 3. 크로스플랫폼 빌드
@@ -1027,35 +1001,16 @@ python scripts/build.py                     # 실행파일 빌드
 
 #### 시나리오 3: AutoDoc Service 개발
 ```bash
-# 1. 환경 설정 및 서버 시작
-cd autodoc_service
-source .venv312/bin/activate
-python --version  # 3.12.11 확인 (안정성을 위한 고정 버전)
+# 1. 환경 설정 (공통 가이드라인 참조)
+cd autodoc_service && source .venv312/bin/activate && python --version
 python run_autodoc_service.py              # 서버 시작
 
-# 2. 기능 개발 후 테스트
-pytest app/tests/ -v                        # 전체 테스트
-pytest --cov=app --cov-report=html app/tests/  # 커버리지 확인
+# 2. 테스트 (공통 가이드라인 참조)
 curl http://localhost:8000/health           # 헬스체크
 ```
 
 #### 시나리오 4: 모노레포 전체 품질 관리
-```bash
-# 코드 포매팅 (프로젝트 루트에서)
-black webservice/src webservice/backend cli/src cli/tests autodoc_service/app
-isort webservice/src webservice/backend cli/src cli/tests autodoc_service/app
-
-# 린팅
-flake8 webservice/src webservice/backend cli/src cli/tests autodoc_service/app
-
-# 타입 체킹
-mypy webservice/src cli/src autodoc_service/app
-
-# 전체 테스트 실행
-cd webservice && npm run test:all
-cd ../cli && pytest --cov=ts_cli --cov-report=html
-cd ../autodoc_service && pytest --cov=app --cov-report=html app/tests/
-```
+**Common Development Guidelines 섹션의 Code Quality Standards 참조**
 
 ### AutoDoc Service 특별 고려사항
 

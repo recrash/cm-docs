@@ -66,7 +66,7 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/webservice") {
                     // PYTHONPATH 설정 및 통합 테스트 실행
-                    bat "powershell -Command \"\$env:PYTHONPATH='$(Get-Location);$env:PYTHONPATH'; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import src.config_loader; print('모듈 임포트 검증 완료')\\\"\""
+                    bat "powershell -Command \"\\\$env:PYTHONPATH='\$(Get-Location);\\\$env:PYTHONPATH'; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import src.config_loader; print('모듈 임포트 검증 완료')\\\"\""
                     
                     // 추가 통합 테스트가 있다면 여기서 실행
                     echo "통합 테스트 완료 (Jenkins Workspace)"
