@@ -14,8 +14,13 @@ def test_validate_repo_path_valid(client):
     
     with patch('os.path.exists') as mock_exists, \
          patch('os.path.isdir') as mock_isdir:
-        
-        mock_exists.side_effect = lambda path: path in ["/test/repo", "/test/repo/.git"]
+
+        # 경로를 정규화하여 Windows/Posix 모두에서 일관되게 비교
+        valid_paths = {
+            os.path.normpath("/test/repo"),
+            os.path.normpath(os.path.join("/test/repo", ".git"))
+        }
+        mock_exists.side_effect = lambda path: os.path.normpath(path) in valid_paths
         mock_isdir.return_value = True
         
         response = client.post("/api/files/validate/repo-path", json={"repo_path": "/test/repo"})
@@ -59,8 +64,10 @@ def test_validate_repo_path_not_git_repo(client):
     
     with patch('os.path.exists') as mock_exists, \
          patch('os.path.isdir') as mock_isdir:
-        
-        mock_exists.side_effect = lambda path: path != "/test/repo/.git"
+
+        # .git 경로만 존재하지 않는 것으로 시뮬레이션 (정규화 비교)
+        git_dir = os.path.normpath(os.path.join("/test/repo", ".git"))
+        mock_exists.side_effect = lambda path: os.path.normpath(path) != git_dir
         mock_isdir.return_value = True
         
         response = client.post("/api/files/validate/repo-path", json={"repo_path": "/test/repo"})
