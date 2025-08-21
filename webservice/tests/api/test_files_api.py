@@ -18,7 +18,7 @@ def test_validate_repo_path_valid(client):
         mock_exists.side_effect = lambda path: path in ["/test/repo", "/test/repo/.git"]
         mock_isdir.return_value = True
         
-        response = client.post("/api/files/validate/repo-path", json="/test/repo")
+        response = client.post("/api/files/validate/repo-path", json={"repo_path": "/test/repo"})
         
         assert response.status_code == 200
         data = response.json()
@@ -31,7 +31,7 @@ def test_validate_repo_path_not_exists(client):
     with patch('os.path.exists') as mock_exists:
         mock_exists.return_value = False
         
-        response = client.post("/api/files/validate/repo-path", json="/nonexistent/repo")
+        response = client.post("/api/files/validate/repo-path", json={"repo_path": "/nonexistent/repo"})
         
         assert response.status_code == 200
         data = response.json()
@@ -47,7 +47,7 @@ def test_validate_repo_path_not_directory(client):
         mock_exists.return_value = True
         mock_isdir.return_value = False
         
-        response = client.post("/api/files/validate/repo-path", json="/test/file.txt")
+        response = client.post("/api/files/validate/repo-path", json={"repo_path": "/test/file.txt"})
         
         assert response.status_code == 200
         data = response.json()
@@ -63,7 +63,7 @@ def test_validate_repo_path_not_git_repo(client):
         mock_exists.side_effect = lambda path: path != "/test/repo/.git"
         mock_isdir.return_value = True
         
-        response = client.post("/api/files/validate/repo-path", json="/test/repo")
+        response = client.post("/api/files/validate/repo-path", json={"repo_path": "/test/repo"})
         
         assert response.status_code == 200
         data = response.json()
@@ -73,7 +73,7 @@ def test_validate_repo_path_not_git_repo(client):
 def test_validate_repo_path_empty(client):
     """빈 경로 검증 테스트"""
     
-    response = client.post("/api/files/validate/repo-path", json="")
+    response = client.post("/api/files/validate/repo-path", json={"repo_path": ""})
     
     assert response.status_code == 200
     data = response.json()
@@ -185,9 +185,11 @@ def test_delete_output_file_success(client):
     filename = "test_scenario.xlsx"
     
     with patch('os.path.exists') as mock_exists, \
+         patch('os.path.getsize') as mock_getsize, \
          patch('os.remove') as mock_remove:
         
         mock_exists.return_value = True
+        mock_getsize.return_value = 1024
         
         response = client.delete(f"/api/files/outputs/{filename}")
         
