@@ -155,6 +155,67 @@ pipeline {
             }
         }
         
+        stage('Download Wheels for Offline') {
+            steps {
+                dir("${WORKSPACE}/autodoc_service") {
+                    script {
+                        echo "폐쇄망 환경 대비 휠 번들 다운로드 (스마트 캐싱 적용)"
+                        
+                        // 휠 다운로드 디렉토리 생성
+                        bat 'if not exist ".pip-wheelhouse" mkdir ".pip-wheelhouse"'
+                        
+                        // requirements.txt 변경 감지를 위한 해시 계산
+                        def currentHash = powershell(
+                            script: 'Get-FileHash requirements.txt -Algorithm MD5 | Select-Object -ExpandProperty Hash',
+                            returnStdout: true
+                        ).trim()
+                        
+                        def cacheFile = ".pip-wheelhouse/.requirements-hash"
+                        def cachedHash = ""
+                        
+                        // 기존 캐시 해시 확인
+                        if (fileExists(cacheFile)) {
+                            cachedHash = readFile(cacheFile).trim()
+                        }
+                        
+                        // 의존성 변경 여부 확인
+                        if (currentHash == cachedHash) {
+                            echo "의존성 변경 없음 - 기존 휠 캐시 재사용 (빌드 속도 최적화)"
+                            
+                            // 캐시된 휠 파일 개수 확인
+                            def wheelCount = bat(
+                                script: 'dir /b ".pip-wheelhouse\\*.whl" 2>nul | find /c ".whl" || echo 0',
+                                returnStdout: true
+                            ).trim()
+                            
+                            if (wheelCount.toInteger() > 0) {
+                                echo "캐시된 휠 파일 ${wheelCount}개 발견 - 다운로드 스킵"
+                            } else {
+                                echo "캐시 파일이 없어 전체 다운로드 실행"
+                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' download -r requirements.txt -d .pip-wheelhouse --prefer-binary\""
+                            }
+                        } else {
+                            echo "의존성 변경 감지 - 새로운 휠 번들 다운로드"
+                            
+                            // 기존 휠 파일 정리
+                            bat 'if exist ".pip-wheelhouse\\*.whl" del /f /q ".pip-wheelhouse\\*.whl"'
+                            
+                            // 모든 의존성 휠 다운로드 (폐쇄망 대비, autodoc_service는 제약조건 파일 없음)
+                            bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' download -r requirements.txt -d .pip-wheelhouse --prefer-binary\""
+                            
+                            // 새 해시 저장
+                            writeFile file: cacheFile, text: currentHash
+                        }
+                        
+                        // 다운로드된 휠 목록 확인
+                        bat 'dir /b ".pip-wheelhouse\\*.whl" | find /c ".whl"'
+                        
+                        echo "오프라인 설치용 휠 번들 준비 완료 (캐싱 최적화 적용)"
+                    }
+                }
+            }
+        }
+        
         stage('Deploy') {
             steps {
                 script {
@@ -306,8 +367,23 @@ pipeline {
         
         stage('Archive Artifact') {
             steps {
-                archiveArtifacts artifacts: "autodoc_service/dist/*.whl", followSymlinks: false
-                echo "Jenkins Workspace에서 빌드된 Wheel 아티팩트 보관 완료"
+                // 빌드된 휠과 다운로드된 휠 번들 모두 보관
+                archiveArtifacts artifacts: "autodoc_service/dist/*.whl, autodoc_service/.pip-wheelhouse/*.whl", followSymlinks: false
+                echo "Jenkins Workspace에서 빌드된 Wheel 아티팩트 및 의존성 휠 번들 보관 완료"
+                
+                // 폐쇄망 환경 오프라인 설치 가이드
+                echo """
+                =========================================
+                폐쇄망 환경 오프라인 설치 가이드:
+                
+                1. 아티팩트 다운로드 후 폐쇄망 서버로 전송
+                2. 가상환경 생성: py -3.12 -m venv .venv312
+                3. 가상환경 활성화: .venv312\\Scripts\\activate
+                4. 오프라인 설치: pip install --no-index --find-links="./.pip-wheelhouse" autodoc_service-*.whl
+                
+                주의: Python 3.12 환경에서 문서 생성 안정성을 보장합니다.
+                =========================================
+                """
             }
         }
     }
