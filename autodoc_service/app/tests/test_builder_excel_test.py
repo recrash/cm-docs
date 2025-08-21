@@ -8,6 +8,8 @@ import pytest
 import tempfile
 from pathlib import Path
 from datetime import datetime
+import gc
+import time
 
 from openpyxl import load_workbook
 
@@ -38,9 +40,12 @@ class TestExcelTestBuilder:
     
     @pytest.fixture
     def temp_output_dir(self):
-        """임시 출력 디렉터리"""
+        """임시 출력 디렉터리 (Windows 파일 핸들 정리 포함)"""
         with tempfile.TemporaryDirectory() as temp_dir:
             yield Path(temp_dir)
+            # Windows에서 파일 핸들 완전 해제를 위한 강제 정리
+            gc.collect()
+            time.sleep(0.2)
     
     def test_build_excel_file_success(self, sample_change_request, temp_output_dir):
         """Excel 파일 생성 성공 테스트"""

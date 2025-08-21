@@ -68,18 +68,22 @@ def setup_logging():
     log_format = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     formatter = logging.Formatter(log_format)
 
-    # --- 파일 핸들러 설정 ---
-    backend_handler = DatedRotatingFileHandler("backend", backupCount=7)
-    frontend_handler = DatedRotatingFileHandler("frontend", backupCount=7)
+    # --- 파일 핸들러 설정 (UTF-8 인코딩 추가) ---
+    backend_handler = DatedRotatingFileHandler("backend", backupCount=7, encoding='utf-8')
+    frontend_handler = DatedRotatingFileHandler("frontend", backupCount=7, encoding='utf-8')
     
     backend_handler.setFormatter(formatter)
     frontend_handler.setFormatter(formatter)
 
-    # --- 로거 설정 (콘솔 핸들러 제외, 파일 핸들러만 사용) ---
+    # --- 로거 설정 (콘솔 핸들러 제거, 파일 핸들러만 사용) ---
     root_logger = logging.getLogger()
-    if not root_logger.handlers:
-        root_logger.setLevel(logging.INFO)
-        root_logger.addHandler(backend_handler)
+    
+    # 기존 핸들러 제거 (한글 인코딩 에러 방지를 위해 콘솔 핸들러 제거)
+    if root_logger.handlers:
+        root_logger.handlers.clear()
+    
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(backend_handler)
 
     frontend_logger = logging.getLogger("frontend")
     if not frontend_logger.handlers:

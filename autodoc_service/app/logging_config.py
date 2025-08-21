@@ -75,7 +75,7 @@ def setup_autodoc_logging():
     formatter = logging.Formatter(log_format)
     
     # 파일 핸들러 설정 (일별 로테이션, 7일 백업, UTF-8 인코딩)
-    file_handler = AutoDocRotatingFileHandler(backupCount=7)
+    file_handler = AutoDocRotatingFileHandler(backupCount=7, encoding='utf-8')
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
     
