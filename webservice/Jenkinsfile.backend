@@ -77,8 +77,8 @@ pipeline {
         stage('Integration Test') {
             steps {
                 dir("${WORKSPACE}/webservice") {
-                    // PYTHONPATH 설정 및 통합 테스트 실행
-                    bat "powershell -Command \"\\\$env:PYTHONPATH='\$(Get-Location);\\\$env:PYTHONPATH'; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import src.config_loader; print('모듈 임포트 검증 완료')\\\"\""
+                    // PYTHONPATH 설정 및 통합 테스트 실행 (UTF-8 설정 + ASCII 출력)
+                    bat "powershell -NoProfile -Command \"\$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -c 'import src.config_loader; print(\\\"Module import OK\\\")'\""
                     
                     // 추가 통합 테스트가 있다면 여기서 실행
                     echo "통합 테스트 완료 (Jenkins Workspace)"
