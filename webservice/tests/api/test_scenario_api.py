@@ -10,15 +10,7 @@ from unittest.mock import patch, MagicMock
 
 def test_get_scenario_config(client):
     """시나리오 설정 조회 테스트"""
-    # Jenkins에서는 config.json이 없을 수 있으므로 라우터 네임스페이스에서 설정 주입
-    mock_config = {
-        "model_name": "qwen3:8b",
-        "timeout": 600,
-        "repo_path": "/test/repo",
-        "rag": {"enabled": False}
-    }
-    with patch('backend.routers.scenario.load_config', return_value=mock_config):
-        response = client.get("/api/scenario/config")
+    response = client.get("/api/scenario/config")
     
     assert response.status_code == 200
     data = response.json()
@@ -73,9 +65,8 @@ def test_generate_scenario_success(client, mock_dependencies):
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config_data, f, ensure_ascii=False, indent=2)
         
-        # config 로드 및 Git 분석 Mock 대신 실제 모듈 사용
-        with patch('src.config_loader.load_config', return_value=config_data), \
-             patch('src.git_analyzer.get_git_analysis_text', return_value="Mock Git analysis for testing"), \
+        # Git 분석/엑셀 저장만 Mock
+        with patch('src.git_analyzer.get_git_analysis_text', return_value="Mock Git analysis for testing"), \
              patch('src.excel_writer.save_results_to_excel', return_value=str(temp_outputs_path / "test_result.xlsx")):
             
             # WebSocket 연결 테스트
@@ -184,14 +175,8 @@ def test_generate_scenario_json_parse_error(client, mock_dependencies):
     # 잘못된 JSON 응답 Mock (외부 HTTP 요청만 Mock)
     mock_dependencies['requests_post'].return_value.json.return_value = {"response": "Invalid JSON response without tags"}
     
-    # Jenkins 환경: config 및 Git 분석을 라우터 네임스페이스로 패치
-    config_data = {
-        "model_name": "qwen3:8b",
-        "timeout": 600,
-        "rag": {"enabled": False}
-    }
-    with patch('backend.routers.scenario.load_config', return_value=config_data), \
-         patch('backend.routers.scenario.get_git_analysis_text', return_value="Mock Git analysis"), \
+    # Git 경로 검증 우회 및 Git 분석만 Mock
+    with patch('backend.routers.scenario.get_git_analysis_text', return_value="Mock Git analysis"), \
          patch('pathlib.Path.is_dir', return_value=True):
         with client.websocket_connect("/api/scenario/generate-ws") as websocket:
             request_data = {

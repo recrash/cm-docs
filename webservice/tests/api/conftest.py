@@ -5,6 +5,7 @@ FastAPI 테스트를 위한 공통 설정
 import pytest
 import os
 import sys
+import json
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from pathlib import Path
@@ -22,6 +23,43 @@ from backend.main import app
 def client():
     """FastAPI 테스트 클라이언트"""
     return TestClient(app)
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_config_json():
+    """테스트 세션 동안 webservice/config.json이 없으면 생성하고 종료 시 정리.
+
+    Jenkins/Windows 환경에서 기본 config.json 부재로 인한 실패를 방지한다.
+    실제 파일이 존재하면 유지한다.
+    """
+    webservice_root = Path(__file__).resolve().parents[1]
+    config_path = webservice_root / "config.json"
+    created = False
+
+    if not config_path.exists():
+        example_path = webservice_root / "config.example.json"
+        try:
+            if example_path.exists():
+                contents = example_path.read_text(encoding="utf-8")
+            else:
+                minimal = {
+                    "model_name": "qwen3:8b",
+                    "timeout": 600,
+                    "repo_path": "",
+                    "rag": {"enabled": False}
+                }
+                contents = json.dumps(minimal, ensure_ascii=False, indent=2)
+            config_path.write_text(contents, encoding="utf-8")
+            created = True
+        except Exception:
+            pass
+
+    yield
+
+    if created:
+        try:
+            config_path.unlink()
+        except Exception:
+            pass
 
 @pytest.fixture
 def mock_config():

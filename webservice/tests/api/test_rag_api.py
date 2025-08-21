@@ -163,8 +163,7 @@ def test_get_rag_status_active(client):
         "chunk_size": 1000
     }
     
-    with patch('src.config_loader.load_config', return_value={"rag": {"enabled": True}}), \
-         patch('backend.routers.rag.get_rag_info') as mock_get_rag_info, \
+    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info, \
          patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
         
         mock_get_rag_info.return_value = mock_rag_info
@@ -188,8 +187,7 @@ def test_get_rag_status_inactive(client):
         "chunk_size": 0
     }
     
-    with patch('src.config_loader.load_config', return_value={"rag": {"enabled": True}}), \
-         patch('backend.routers.rag.get_rag_info') as mock_get_rag_info, \
+    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info, \
          patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
         
         mock_get_rag_info.return_value = mock_rag_info
@@ -205,8 +203,7 @@ def test_get_rag_status_inactive(client):
 def test_get_rag_status_error(client):
     """RAG 시스템 오류 상태 테스트"""
     
-    with patch('src.config_loader.load_config', return_value={"rag": {"enabled": True}}), \
-         patch('backend.routers.rag.get_rag_info') as mock_get_rag_info:
+    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info:
         mock_get_rag_info.side_effect = Exception("RAG 오류")
         
         response = client.get("/api/rag/status")

@@ -204,7 +204,6 @@ class TestV2BackgroundGeneration:
         with patch('backend.routers.v2.scenario_v2.v2_connection_manager.send_progress') as mock_send, \
              patch('pathlib.Path.exists', return_value=True), \
              patch('pathlib.Path.is_dir', return_value=True), \
-             patch('src.config_loader.load_config', return_value={"model_name": "test_model", "timeout": 60}), \
              patch('src.git_analyzer.get_git_analysis_text', return_value="test git analysis"), \
              patch('src.prompt_loader.add_git_analysis_to_rag', return_value=5), \
              patch('src.prompt_loader.create_final_prompt', return_value="test prompt"), \
