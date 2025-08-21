@@ -29,8 +29,7 @@ pipeline {
                     script {
                         echo "Jenkins Workspace에서 테스트 환경 구축"
                         
-                        // 기존 venv 정리 후 Python 3.13 가상환경 재생성 (의존성 충돌 방지)
-                        bat 'if exist ".venv" rmdir /s /q .venv'
+                        // Python 3.13 가상환경 생성
                         bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
                         
                         // Python 버전 확인
