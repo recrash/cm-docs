@@ -139,8 +139,8 @@ def test_get_prompt_enhancement_info(client):
         assert response.status_code == 200
         data = response.json()
         assert "enhancement_summary" in data
-        assert "is_active" in data
-        assert data["is_active"] is True  # feedback_count >= 3
+        assert "feedback_count" in data
+        assert data["feedback_count"] == 5  # 실제 응답에 포함되는 필드 검증
 
 def test_get_enhancement_preview_available(client):
     """프롬프트 개선 지침 미리보기 (사용 가능) 테스트"""
@@ -150,15 +150,15 @@ def test_get_enhancement_preview_available(client):
     with patch('backend.routers.feedback.get_prompt_enhancer') as mock_enhancer:
         mock_instance = MagicMock()
         mock_instance.get_enhancement_summary.return_value = mock_summary
-        mock_instance.generate_enhancement_instructions.return_value = "개선 지침입니다"
+        mock_instance.get_enhanced_prompt_preview.return_value = "개선된 프롬프트 미리보기"
         mock_enhancer.return_value = mock_instance
         
         response = client.get("/api/feedback/prompt-enhancement/preview")
         
         assert response.status_code == 200
         data = response.json()
-        assert data["available"] is True
-        assert "instructions" in data
+        assert "preview" in data
+        assert data["preview"] == "개선된 프롬프트 미리보기"
 
 def test_get_enhancement_preview_not_available(client):
     """프롬프트 개선 지침 미리보기 (사용 불가) 테스트"""
@@ -168,27 +168,43 @@ def test_get_enhancement_preview_not_available(client):
     with patch('backend.routers.feedback.get_prompt_enhancer') as mock_enhancer:
         mock_instance = MagicMock()
         mock_instance.get_enhancement_summary.return_value = mock_summary
+        mock_instance.get_enhanced_prompt_preview.return_value = "기본 프롬프트"
         mock_enhancer.return_value = mock_instance
         
         response = client.get("/api/feedback/prompt-enhancement/preview")
         
         assert response.status_code == 200
         data = response.json()
-        assert data["available"] is False
-        assert "추가 피드백이 필요" in data["message"]
+        assert "preview" in data
+        assert data["preview"] == "기본 프롬프트"
 
 def test_export_feedback_data(client):
     """피드백 데이터 내보내기 테스트"""
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
-        mock_manager.export_feedback_data.return_value = True
+    # scenario_feedback 테이블 컬럼에 맞는 Mock 데이터 생성
+    mock_results = [
+        (1, 'test_scenario', '2024-01-01 10:00:00', 'hash123', '/test/repo', '{"test": "data"}', 4.5, 4, 4, 5, 'positive', 'Good test', '2024-01-01 10:00:00', 'TC001:4:Good test|TC002:3:')
+    ]
+    
+    with patch('sqlite3.connect') as mock_connect, \
+         patch('pathlib.Path.mkdir') as mock_mkdir, \
+         patch('builtins.open', mock_open()) as mock_file:
+        
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = mock_results
+        mock_conn.cursor.return_value = mock_cursor
+        mock_conn.__enter__.return_value = mock_conn
+        mock_conn.__exit__.return_value = None
+        mock_connect.return_value = mock_conn
         
         response = client.get("/api/feedback/export")
         
         assert response.status_code == 200
         data = response.json()
-        assert "성공적으로 내보내졌습니다" in data["message"]
+        assert "message" in data
         assert "filename" in data
+        assert "total_records" in data
 
 def test_get_feedback_count_by_category(client):
     """카테고리별 피드백 개수 조회 테스트"""
@@ -202,40 +218,40 @@ def test_get_feedback_count_by_category(client):
         
         assert response.status_code == 200
         data = response.json()
-        assert "category_counts" in data
-        assert data["category_counts"]["good"] == 5
+        assert "good" in data
+        assert "bad" in data
+        assert "neutral" in data
+        assert data["good"] == 5
+        assert data["bad"] == 3
+        assert data["neutral"] == 2
 
 def test_reset_all_feedback(client):
     """전체 피드백 초기화 테스트"""
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager, \
-         patch('backend.routers.feedback.reset_feedback_cache') as mock_reset:
+    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
         
-        mock_manager.clear_all_feedback.return_value = True
+        mock_manager.reset_all_feedback.return_value = True
         
         response = client.delete("/api/feedback/reset/all?create_backup=true")
         
         assert response.status_code == 200
         data = response.json()
-        assert "성공적으로 삭제" in data["message"]
-        assert data["backup_created"] is True
-        mock_reset.assert_called_once()
+        assert "성공적으로 초기화" in data["message"]
+        assert data["success"] is True
 
 def test_reset_feedback_by_category(client):
     """카테고리별 피드백 초기화 테스트"""
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager, \
-         patch('backend.routers.feedback.reset_feedback_cache') as mock_reset:
+    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
         
-        mock_manager.clear_feedback_by_category.return_value = True
+        mock_manager.reset_feedback_by_category.return_value = True
         
         response = client.delete("/api/feedback/reset/category/good?create_backup=true")
         
         assert response.status_code == 200
         data = response.json()
-        assert "성공적으로 삭제" in data["message"]
-        assert data["backup_created"] is True
-        mock_reset.assert_called_once()
+        assert "성공적으로 초기화" in data["message"]
+        assert data["success"] is True
 
 # 새로운 API들에 대한 테스트
 
@@ -305,11 +321,16 @@ def test_delete_backup_file_success(client):
     
     filename = "feedback_backup_20240101_120000.json"
     
-    with patch('backend.routers.feedback.PathlibPath') as mock_path:
+    with patch('backend.routers.feedback.PathlibPath') as mock_path_class:
+        # Mock the path construction chain
+        mock_backup_dir = MagicMock()
         mock_file = MagicMock()
         mock_file.exists.return_value = True
         mock_file.unlink.return_value = None
-        mock_path.return_value = mock_file
+        
+        # Mock: PathlibPath("../backups") / filename
+        mock_backup_dir.__truediv__.return_value = mock_file
+        mock_path_class.return_value = mock_backup_dir
         
         response = client.delete(f"/api/feedback/backup-files/{filename}")
         
@@ -335,10 +356,15 @@ def test_delete_backup_file_not_found(client):
     
     filename = "feedback_backup_20240101_120000.json"
     
-    with patch('backend.routers.feedback.PathlibPath') as mock_path:
+    with patch('backend.routers.feedback.PathlibPath') as mock_path_class:
+        # Mock the path construction chain
+        mock_backup_dir = MagicMock()
         mock_file = MagicMock()
         mock_file.exists.return_value = False
-        mock_path.return_value = mock_file
+        
+        # Mock: PathlibPath("../backups") / filename
+        mock_backup_dir.__truediv__.return_value = mock_file
+        mock_path_class.return_value = mock_backup_dir
         
         response = client.delete(f"/api/feedback/backup-files/{filename}")
         

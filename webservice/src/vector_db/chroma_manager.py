@@ -1,6 +1,16 @@
-import chromadb
 from typing import List, Dict, Any
 from sentence_transformers import SentenceTransformer
+
+# 임포트 타이밍 지연 + 실패는 나중에 사용 시점에 에러 처리
+try:
+    import chromadb  # type: ignore
+except Exception as _chroma_err:
+    chromadb = None  # noqa
+
+def _ensure_chromadb():
+    """ChromaDB 임포트 상태 확인 및 오류 처리"""
+    if chromadb is None:
+        raise RuntimeError(f"ChromaDB import failed: {_chroma_err}")
 
 class ChromaManager:
     """ChromaDB를 사용한 벡터 데이터베이스 관리 클래스"""
@@ -14,6 +24,9 @@ class ChromaManager:
             embedding_model: 한국어 임베딩 모델 (HuggingFace 모델명)
             local_model_path: 로컬 모델 경로 (우선 사용)
         """
+        # ChromaDB 임포트 상태 확인
+        _ensure_chromadb()
+        
         import os
         
         self.persist_directory = persist_directory

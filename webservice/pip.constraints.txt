@@ -1,0 +1,4 @@
+# jsonschema & referencing 세트: 오프라인에서도 Draft-03 인식
+jsonschema>=4.19,<5
+jsonschema-specifications>=2023.7.1
+referencing>=0.30,<0.36
