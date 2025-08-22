@@ -213,9 +213,16 @@ pipeline {
                     def verificationPassed = false
                     for (int i = 0; i < 3; i++) {
                         try {
-                            // index.html 접근 확인
-                            def response = bat(
-                                script: "curl -s -o nul -w \"%{http_code}\" ${env.FRONTEND_URL}",
+                            // PowerShell을 사용한 HTTP 요청 확인 (Windows 호환)
+                            def response = powershell(
+                                script: """
+                                    try {
+                                        \$response = Invoke-WebRequest -Uri 'http://localhost' -Method GET -TimeoutSec 10 -ErrorAction Stop
+                                        Write-Output \$response.StatusCode
+                                    } catch {
+                                        Write-Output "ERROR"
+                                    }
+                                """,
                                 returnStdout: true
                             ).trim()
                             
