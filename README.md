@@ -331,15 +331,20 @@ pytest --cov=app --cov-report=html app/tests/
 
 ### 환경변수 기반 데이터 경로 시스템
 
-**프로덕션 환경변수**:
+**프로덕션 배포 구조**:
 ```bash
-# Windows 프로덕션 환경 (Jenkins에서 설정)
+C:\deploys\
+├── apps\                    # 애플리케이션 실행 공간 (가상환경 & 코드)
+│   ├── webservice\         
+│   └── autodoc_service\    
+├── data\                   # 영구 데이터 저장소 (업데이트 시 유지)
+│   ├── webservice\
+│   └── autodoc_service\
+└── packages\               # 빌드 아티팩트 (.whl 파일)
+
+# 프로덕션 환경변수 (Jenkins에서 설정)
 WEBSERVICE_DATA_PATH=C:\deploys\data\webservice
 AUTODOC_DATA_PATH=C:\deploys\data\autodoc_service
-
-# Linux 프로덕션 환경
-WEBSERVICE_DATA_PATH=/opt/data/webservice
-AUTODOC_DATA_PATH=/opt/data/autodoc_service
 ```
 
 **개발 환경 기본값** (환경변수 미설정시):

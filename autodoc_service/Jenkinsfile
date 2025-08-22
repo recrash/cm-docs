@@ -6,8 +6,8 @@ pipeline {
         WORKSPACE_PYTHON_CMD = "${WORKSPACE}\\autodoc_service\\.venv312\\Scripts\\python.exe"
         WORKSPACE_PIP_CMD = "${WORKSPACE}\\autodoc_service\\.venv312\\Scripts\\pip.exe"
         
-        // 배포 경로 (운영 서비스용)
-        DEPLOY_PATH = 'C:\\deploys\\cm-docs\\autodoc_service'
+        // 배포 경로 (운영 서비스용) - 새 폴더 구조 반영
+        DEPLOY_PATH = 'C:\\deploys\\apps\\autodoc_service'
         DEPLOY_PYTHON_CMD = "${DEPLOY_PATH}\\.venv312\\Scripts\\python.exe"
         DEPLOY_PIP_CMD = "${DEPLOY_PATH}\\.venv312\\Scripts\\pip.exe"
         
@@ -16,7 +16,7 @@ pipeline {
         
         // 기타 설정
         HEALTH_CHECK_URL = 'http://localhost:8001/health'
-        BACKUP_DIR = 'C:\\deploys\\backup\\autodoc_service'
+        BACKUP_DIR = 'C:\\deploys\\backup\\apps\\autodoc_service'
     }
     stages {
         stage('Checkout') {

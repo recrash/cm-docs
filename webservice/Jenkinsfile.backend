@@ -6,8 +6,8 @@ pipeline {
         WORKSPACE_PYTHON_CMD = "${WORKSPACE}\\webservice\\.venv\\Scripts\\python.exe"
         WORKSPACE_PIP_CMD = "${WORKSPACE}\\webservice\\.venv\\Scripts\\pip.exe"
         
-        // 배포 경로 (운영 서비스용)
-        DEPLOY_PATH = 'C:\\deploys\\cm-docs\\webservice'
+        // 배포 경로 (운영 서비스용) - 새 폴더 구조 반영
+        DEPLOY_PATH = 'C:\\deploys\\apps\\webservice'
         DEPLOY_PYTHON_CMD = "${DEPLOY_PATH}\\.venv\\Scripts\\python.exe"
         DEPLOY_PIP_CMD = "${DEPLOY_PATH}\\.venv\\Scripts\\pip.exe"
         
@@ -16,7 +16,7 @@ pipeline {
         
         // 기타 설정
         HEALTH_CHECK_URL = 'http://localhost:8000/api/health'
-        BACKUP_DIR = 'C:\\deploys\\backup\\webservice'
+        BACKUP_DIR = 'C:\\deploys\\backup\\apps\\webservice'
     }
     stages {
         stage('Checkout') {

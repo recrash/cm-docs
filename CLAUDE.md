@@ -41,11 +41,21 @@ subprocess.run(['git', 'status'], cwd=str(repo_path), capture_output=True)
 ```
 
 ### Environment Variable-Based Path System
-**Production Data Path Management** (커밋 f57efef에서 도입):
+**Production Deployment Architecture** (커밋 f57efef에서 도입):
 ```bash
 # Production environment variables
 export WEBSERVICE_DATA_PATH="C:/deploys/data/webservice"     # Windows
 export AUTODOC_DATA_PATH="C:/deploys/data/autodoc_service"   # Windows
+
+# Production deployment structure
+C:\deploys\
+├── apps\                    # Application execution space (virtual environments & code)
+│   ├── webservice\         
+│   └── autodoc_service\    
+├── data\                   # Persistent data storage (survives updates)
+│   ├── webservice\
+│   └── autodoc_service\
+└── packages\               # Build artifacts (.whl files)
 
 # Development fallback (environment variables 없으면 자동 사용)
 # webservice/data/    - webservice 개발환경 기본값
