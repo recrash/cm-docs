@@ -12,8 +12,14 @@ def load_config(path="config.json"):
             project_root = os.path.dirname(current_dir)  # src/ 상위 디렉토리
             path = os.path.join(project_root, path)
         
+        print(f"DEBUG: 설정 파일 경로: {path}")
+        print(f"DEBUG: 현재 작업 디렉토리: {os.getcwd()}")
+        print(f"DEBUG: 파일 존재 여부: {os.path.exists(path)}")
+        
         with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            config_data = json.load(f)
+            print(f"DEBUG: RAG enabled 값: {config_data.get('rag', {}).get('enabled', False)}")
+            return config_data
     except FileNotFoundError:
         print(f"오류: 설정 파일('{path}')을 찾을 수 없습니다.")
         return None
