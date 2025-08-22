@@ -212,7 +212,7 @@ pipeline {
                             } catch {
                                 Write-Host "서비스 제어 중 오류: \$(\$_.Exception.Message)"
                                 # 강제 중지 시도
-                                sc stop "autodoc_service" 2>\\$null
+                                sc stop "autodoc_service" 2>\$null
                             }
                         """
                         echo "AutoDoc Service 중지 완료"
@@ -286,7 +286,7 @@ pipeline {
                                 }
                                 nssm stop autodoc_service
                             } catch {
-                                sc stop "autodoc_service" 2>\\$null
+                                sc stop "autodoc_service" 2>\$null
                             }
                         """
                         powershell """
