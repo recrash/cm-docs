@@ -200,9 +200,12 @@ pipeline {
                         if (currentHash == cachedHash) {
                             echo "의존성 변경 없음 - 기존 휠 캐시 재사용 (빌드 속도 최적화)"
                             
-                            // 캐시된 휠 파일 개수 확인
-                            def wheelCount = bat(
-                                script: 'dir /b ".pip-wheelhouse\\*.whl" 2>nul | find /c ".whl" || echo 0',
+                            // 캐시된 휠 파일 개수 확인 (PowerShell로 안전하게 처리)
+                            def wheelCount = powershell(
+                                script: '''
+                                    $count = (Get-ChildItem -Path ".pip-wheelhouse\\*.whl" -ErrorAction SilentlyContinue | Measure-Object).Count
+                                    Write-Output $count
+                                ''',
                                 returnStdout: true
                             ).trim()
                             
@@ -226,7 +229,10 @@ pipeline {
                         }
                         
                         // 다운로드된 휠 목록 확인
-                        bat 'dir /b ".pip-wheelhouse\\*.whl" | find /c ".whl"'
+                        powershell '''
+                            $count = (Get-ChildItem -Path ".pip-wheelhouse\\*.whl" -ErrorAction SilentlyContinue | Measure-Object).Count
+                            Write-Host "다운로드된 휠 파일 개수: $count"
+                        '''
                         
                         echo "오프라인 설치용 휠 번들 준비 완료 (캐싱 최적화 적용)"
                     }
