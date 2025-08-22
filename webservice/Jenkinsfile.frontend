@@ -6,8 +6,7 @@ pipeline {
         WORKSPACE_NPM_DIR = "${WORKSPACE}\\webservice\\frontend"
         WORKSPACE_CACHE_DIR = "${WORKSPACE}\\webservice\\frontend\\.npm"
         
-        // 배포 경로 (운영 서비스용)
-        DEPLOY_PATH = 'C:\\deploys\\cm-docs\\webservice\\frontend'
+        // nginx 배포 경로 (Frontend는 nginx로 직접 서빙)
         NGINX_ROOT = 'C:\\nginx\\html'
         BACKUP_DIR = 'C:\\deploys\\backup\\webservice\\frontend'
         FRONTEND_URL = 'http://localhost'
