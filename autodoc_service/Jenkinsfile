@@ -189,8 +189,32 @@ pipeline {
             steps {
                 script {
                     try {
-                        // 서비스 무조건 중지
-                        bat 'nssm stop autodoc_service || echo "이미 중지됨"'
+                        // 서비스 상태 확인 후 적절한 중지
+                        powershell """
+                            try {
+                                \$status = nssm status autodoc_service
+                                Write-Host "현재 서비스 상태: \$status"
+                                
+                                if (\$status -eq "SERVICE_PAUSED") {
+                                    Write-Host "일시중지 상태 감지 - CONTINUE 후 중지"
+                                    nssm continue autodoc_service
+                                    Start-Sleep -Seconds 3
+                                }
+                                
+                                Write-Host "서비스 중지 시작"
+                                nssm stop autodoc_service
+                                Start-Sleep -Seconds 2
+                                
+                                # 중지 확인
+                                \$finalStatus = nssm status autodoc_service
+                                Write-Host "최종 상태: \$finalStatus"
+                                
+                            } catch {
+                                Write-Host "서비스 제어 중 오류: \$(\$_.Exception.Message)"
+                                # 강제 중지 시도
+                                sc stop "autodoc_service" 2>\\$null
+                            }
+                        """
                         echo "AutoDoc Service 중지 완료"
                         
                         // 10초 대기 (사용자 요구사항)
@@ -228,14 +252,43 @@ pipeline {
                             }
                         """
                         
-                        // 서비스 시작
-                        bat 'nssm start autodoc_service'
+                        // 서비스 시작 (상태 확인 포함)
+                        powershell """
+                            try {
+                                Write-Host "AutoDoc Service 시작 중..."
+                                nssm start autodoc_service
+                                Start-Sleep -Seconds 3
+                                
+                                # 시작 상태 확인
+                                \$status = nssm status autodoc_service
+                                Write-Host "서비스 시작 후 상태: \$status"
+                                
+                                if (\$status -ne "SERVICE_RUNNING") {
+                                    Write-Host "경고: 서비스가 정상 실행 상태가 아닙니다"
+                                }
+                                
+                            } catch {
+                                Write-Host "서비스 시작 중 오류: \$(\$_.Exception.Message)"
+                                throw
+                            }
+                        """
                         echo "AutoDoc Service 시작 완료"
                         
                     } catch (Exception e) {
                         echo "배포 실패: ${e.getMessage()}"
-                        // 백업에서 롤백 시도 - 서비스 무조건 중지
-                        bat 'nssm stop autodoc_service || echo "이미 중지됨"'
+                        // 백업에서 롤백 시도 - 서비스 적절한 중지
+                        powershell """
+                            try {
+                                \$status = nssm status autodoc_service
+                                if (\$status -eq "SERVICE_PAUSED") {
+                                    nssm continue autodoc_service
+                                    Start-Sleep -Seconds 2
+                                }
+                                nssm stop autodoc_service
+                            } catch {
+                                sc stop "autodoc_service" 2>\\$null
+                            }
+                        """
                         powershell """
                             if (Test-Path "${env.BACKUP_DIR}\\*.whl") {
                                 \$backupWhl = Get-ChildItem -Path "${env.BACKUP_DIR}\\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
