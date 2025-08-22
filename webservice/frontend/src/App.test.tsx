@@ -1,6 +1,5 @@
 import { render, screen } from '@testing-library/react'
 import { vi } from 'vitest'
-import React from 'react'
 import App from './App'
 
 // Mock MainPage
@@ -12,9 +11,9 @@ vi.mock('./pages/MainPage', () => ({
 
 // Mock router to render MainPage
 vi.mock('react-router-dom', () => ({
-  BrowserRouter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Routes: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Route: ({ element }: { element: React.ReactNode }) => element,
+  BrowserRouter: ({ children }: { children: any }) => <div>{children}</div>,
+  Routes: ({ children }: { children: any }) => <div>{children}</div>,
+  Route: ({ element }: { element: any }) => element,
 }))
 
 describe('App', () => {

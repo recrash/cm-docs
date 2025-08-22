@@ -244,3 +244,4 @@ logger.info("서비스 시작...")
 - **Korean Content**: All user-facing text in Korean
 - **E2E Testing**: Mandatory for webservice functionality verification
 - **NSSM Services**: Windows service management for production deployment
+- React 17+에서는 JSX Transform이 자동으로 처리되어서 명시적으로 React를 import할 필요가 없음. 관련 내용을 인지할 것.
