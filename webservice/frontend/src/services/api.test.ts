@@ -1,20 +1,46 @@
+import { vi } from 'vitest'
+
+// Mock axios completely before any imports
+vi.mock('axios', () => {
+  const mockAxiosInstance = {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+    interceptors: {
+      request: {
+        use: vi.fn(),
+        eject: vi.fn(),
+        clear: vi.fn(),
+        forEach: vi.fn()
+      },
+      response: {
+        use: vi.fn(),
+        eject: vi.fn(), 
+        clear: vi.fn(),
+        forEach: vi.fn()
+      }
+    }
+  }
+
+  return {
+    default: {
+      create: vi.fn(() => mockAxiosInstance),
+      ...mockAxiosInstance
+    }
+  }
+})
+
+// Now import everything after mocking
 import axios from 'axios'
 import { scenarioApi, feedbackApi, ragApi, filesApi } from './api'
 
-jest.mock('axios')
-const mockedAxios = axios as jest.Mocked<typeof axios>
-
-// Mock axios.create
-mockedAxios.create = jest.fn(() => mockedAxios)
-mockedAxios.interceptors = {
-  response: {
-    use: jest.fn()
-  }
-} as any
+// Get the mock instance for tests
+const mockAxiosInstance = (axios as any).create()
 
 describe('API Services', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('scenarioApi', () => {
@@ -26,7 +52,7 @@ describe('API Services', () => {
           test_cases: []
         }
       }
-      mockedAxios.post.mockResolvedValue(mockResponse)
+      mockAxiosInstance.post.mockResolvedValue(mockResponse)
 
       const request = {
         repo_path: '/test/repo',
@@ -35,7 +61,7 @@ describe('API Services', () => {
 
       const result = await scenarioApi.generate(request)
       
-      expect(mockedAxios.post).toHaveBeenCalledWith('/scenario/generate', request)
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/scenario/generate', request)
       expect(result).toEqual(mockResponse.data)
     })
 
@@ -46,33 +72,37 @@ describe('API Services', () => {
           timeout: 600
         }
       }
-      mockedAxios.get.mockResolvedValue(mockConfig)
+      mockAxiosInstance.get.mockResolvedValue(mockConfig)
 
       const result = await scenarioApi.getConfig()
       
-      expect(mockedAxios.get).toHaveBeenCalledWith('/scenario/config')
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/scenario/config')
       expect(result).toEqual(mockConfig.data)
     })
 
     it('should generate WebSocket URL', () => {
-      // Mock window.location
+      // Mock window.location with hostname property
       Object.defineProperty(window, 'location', {
         value: {
           protocol: 'http:',
-          host: 'localhost:3000'
+          hostname: 'localhost',
+          port: '3000'
         },
         writable: true
       })
 
+      // Mock import.meta.env.DEV for development mode
+      vi.stubEnv('DEV', true)
+
       const url = scenarioApi.getWebSocketUrl()
-      expect(url).toBe('ws://localhost:3000/api/scenario/generate-ws')
+      expect(url).toBe('ws://localhost:8000/api/scenario/generate-ws')
     })
   })
 
   describe('feedbackApi', () => {
     it('should submit feedback', async () => {
       const mockResponse = { data: { success: true } }
-      mockedAxios.post.mockResolvedValue(mockResponse)
+      mockAxiosInstance.post.mockResolvedValue(mockResponse)
 
       const request = {
         feedback_type: 'like' as const,
@@ -85,7 +115,7 @@ describe('API Services', () => {
 
       const result = await feedbackApi.submit(request)
       
-      expect(mockedAxios.post).toHaveBeenCalledWith('/feedback/submit', request)
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/feedback/submit', request)
       expect(result).toEqual(mockResponse.data)
     })
 
@@ -97,11 +127,11 @@ describe('API Services', () => {
           average_scores: { overall: 4.2 }
         }
       }
-      mockedAxios.get.mockResolvedValue(mockStats)
+      mockAxiosInstance.get.mockResolvedValue(mockStats)
 
       const result = await feedbackApi.getStats()
       
-      expect(mockedAxios.get).toHaveBeenCalledWith('/feedback/stats')
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/feedback/stats')
       expect(result).toEqual(mockStats.data)
     })
   })
@@ -115,11 +145,11 @@ describe('API Services', () => {
           documents: { enabled: true }
         }
       }
-      mockedAxios.get.mockResolvedValue(mockInfo)
+      mockAxiosInstance.get.mockResolvedValue(mockInfo)
 
       const result = await ragApi.getInfo()
       
-      expect(mockedAxios.get).toHaveBeenCalledWith('/rag/info')
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/rag/info')
       expect(result).toEqual(mockInfo.data)
     })
 
@@ -131,11 +161,11 @@ describe('API Services', () => {
           total_chunks_added: 50
         }
       }
-      mockedAxios.post.mockResolvedValue(mockResult)
+      mockAxiosInstance.post.mockResolvedValue(mockResult)
 
       const result = await ragApi.indexDocuments(true)
       
-      expect(mockedAxios.post).toHaveBeenCalledWith('/rag/index', { force_reindex: true })
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/rag/index', { force_reindex: true })
       expect(result).toEqual(mockResult.data)
     })
   })
@@ -148,14 +178,13 @@ describe('API Services', () => {
           message: 'Valid repository'
         }
       }
-      mockedAxios.post.mockResolvedValue(mockValidation)
+      mockAxiosInstance.post.mockResolvedValue(mockValidation)
 
       const result = await filesApi.validateRepoPath('/test/repo')
       
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         '/files/validate/repo-path', 
-        '/test/repo',
-        { headers: { 'Content-Type': 'application/json' } }
+        { repo_path: '/test/repo' }
       )
       expect(result).toEqual(mockValidation.data)
     })
@@ -182,11 +211,11 @@ describe('API Services', () => {
           ]
         }
       }
-      mockedAxios.get.mockResolvedValue(mockBackupFiles)
+      mockAxiosInstance.get.mockResolvedValue(mockBackupFiles)
 
       const result = await feedbackApi.listBackupFiles()
       
-      expect(mockedAxios.get).toHaveBeenCalledWith('/feedback/backup-files')
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/feedback/backup-files')
       expect(result).toEqual(mockBackupFiles.data)
     })
 
@@ -197,12 +226,12 @@ describe('API Services', () => {
           success: true
         }
       }
-      mockedAxios.delete.mockResolvedValue(mockResponse)
+      mockAxiosInstance.delete.mockResolvedValue(mockResponse)
 
       const filename = 'feedback_backup_20240101_120000.json'
       const result = await feedbackApi.deleteBackupFile(filename)
       
-      expect(mockedAxios.delete).toHaveBeenCalledWith('/feedback/backup-files/feedback_backup_20240101_120000.json')
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/feedback/backup-files/feedback_backup_20240101_120000.json')
       expect(result).toEqual(mockResponse.data)
     })
 
@@ -211,12 +240,12 @@ describe('API Services', () => {
         data: new Blob(['{"test": "data"}'], { type: 'application/json' }),
         headers: { 'content-type': 'application/json' }
       }
-      mockedAxios.get.mockResolvedValue(mockResponse)
+      mockAxiosInstance.get.mockResolvedValue(mockResponse)
 
       const filename = 'feedback_backup_20240101_120000.json'
       const result = await feedbackApi.downloadBackupFile(filename)
       
-      expect(mockedAxios.get).toHaveBeenCalledWith(
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
         '/feedback/backup-files/feedback_backup_20240101_120000.json/download',
         { responseType: 'blob' }
       )
@@ -248,47 +277,47 @@ describe('API Services', () => {
           success: true
         }
       }
-      mockedAxios.post.mockResolvedValue(mockReportData)
+      mockAxiosInstance.post.mockResolvedValue(mockReportData)
 
       const result = await feedbackApi.generateSummaryReport()
       
-      expect(mockedAxios.post).toHaveBeenCalledWith('/feedback/summary-report')
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/feedback/summary-report')
       expect(result).toEqual(mockReportData.data)
     })
 
     it('should handle list backup files error', async () => {
       const errorMessage = 'Failed to list backup files'
-      mockedAxios.get.mockRejectedValue(new Error(errorMessage))
+      mockAxiosInstance.get.mockRejectedValue(new Error(errorMessage))
 
       await expect(feedbackApi.listBackupFiles()).rejects.toThrow(errorMessage)
-      expect(mockedAxios.get).toHaveBeenCalledWith('/feedback/backup-files')
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/feedback/backup-files')
     })
 
     it('should handle delete backup file error', async () => {
       const errorMessage = 'Failed to delete backup file'
-      mockedAxios.delete.mockRejectedValue(new Error(errorMessage))
+      mockAxiosInstance.delete.mockRejectedValue(new Error(errorMessage))
 
       const filename = 'feedback_backup_20240101_120000.json'
       await expect(feedbackApi.deleteBackupFile(filename)).rejects.toThrow(errorMessage)
-      expect(mockedAxios.delete).toHaveBeenCalledWith('/feedback/backup-files/feedback_backup_20240101_120000.json')
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/feedback/backup-files/feedback_backup_20240101_120000.json')
     })
 
     it('should handle generate summary report error', async () => {
       const errorMessage = 'Failed to generate report'
-      mockedAxios.post.mockRejectedValue(new Error(errorMessage))
+      mockAxiosInstance.post.mockRejectedValue(new Error(errorMessage))
 
       await expect(feedbackApi.generateSummaryReport()).rejects.toThrow(errorMessage)
-      expect(mockedAxios.post).toHaveBeenCalledWith('/feedback/summary-report')
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/feedback/summary-report')
     })
 
     it('should properly encode filename with special characters', async () => {
       const mockResponse = { data: { success: true } }
-      mockedAxios.delete.mockResolvedValue(mockResponse)
+      mockAxiosInstance.delete.mockResolvedValue(mockResponse)
 
       const filenameWithSpecialChars = 'feedback_backup_2024-01-01_12:00:00.json'
       await feedbackApi.deleteBackupFile(filenameWithSpecialChars)
       
-      expect(mockedAxios.delete).toHaveBeenCalledWith('/feedback/backup-files/feedback_backup_2024-01-01_12%3A00%3A00.json')
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/feedback/backup-files/feedback_backup_2024-01-01_12%3A00%3A00.json')
     })
   })
 })

@@ -8,7 +8,6 @@ import {
   TextField,
   Typography,
   Box,
-  Alert,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -99,7 +98,7 @@ export default function FeedbackModal({
         testcase_feedback: testcaseFeedback.filter(tf => tf.comments || tf.score !== 3),
         repo_path: repoPath,
         git_analysis: `Generated from ${repoPath}`, // 실제로는 Git 분석 결과가 필요
-        scenario_content: result
+        scenario_content: result as unknown as Record<string, unknown>
       }
 
       logger.debug(`피드백 요청 데이터: testcase_feedback_count=${feedbackRequest.testcase_feedback.length}`)

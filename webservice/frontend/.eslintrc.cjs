@@ -1,0 +1,45 @@
+module.exports = {
+  root: true,
+  env: { 
+    browser: true, 
+    es2020: true, 
+    node: true
+  },
+  extends: [
+    'eslint:recommended'
+  ],
+  ignorePatterns: ['dist', '.eslintrc.cjs', 'node_modules'],
+  parser: '@typescript-eslint/parser',
+  plugins: ['@typescript-eslint', 'react-hooks', 'react-refresh'],
+  rules: {
+    'react-refresh/only-export-components': [
+      'warn',
+      { allowConstantExport: true },
+    ],
+    'no-unused-vars': 'off',
+    '@typescript-eslint/no-unused-vars': 'warn',
+    '@typescript-eslint/no-explicit-any': 'warn',
+    'react-hooks/rules-of-hooks': 'error',
+    'react-hooks/exhaustive-deps': 'warn',
+  },
+  overrides: [
+    {
+      files: ['**/*.test.{js,jsx,ts,tsx}', '**/setupTests.ts'],
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        vi: 'readonly'
+      },
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        'react/react-in-jsx-scope': 'off',
+        'react/jsx-uses-react': 'off'
+      }
+    }
+  ]
+}

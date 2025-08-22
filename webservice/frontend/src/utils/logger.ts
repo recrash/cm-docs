@@ -4,7 +4,7 @@ import log from 'loglevel';
 const isDevelopment = import.meta.env.DEV;
 log.setLevel(isDevelopment ? 'info' : 'warn');
 
-const sendLogToServer = (level: log.LogLevelDesc, message: string, meta?: any) => {
+const sendLogToServer = (level: log.LogLevelDesc, message: string, meta?: Record<string, unknown>) => {
   if (isDevelopment) {
     return;
   }
@@ -28,15 +28,15 @@ const sendLogToServer = (level: log.LogLevelDesc, message: string, meta?: any) =
 };
 
 const logger = {
-  info: (message: string, meta?: any) => {
+  info: (message: string, meta?: Record<string, unknown>) => {
     log.info(message, meta || '');
     sendLogToServer('info', message, meta);
   },
-  warn: (message: string, meta?: any) => {
+  warn: (message: string, meta?: Record<string, unknown>) => {
     log.warn(message, meta || '');
     sendLogToServer('warn', message, meta);
   },
-  error: (message: string, error?: Error, meta?: any) => {
+  error: (message: string, error?: Error, meta?: Record<string, unknown>) => {
     // Construct a meaningful log message from the error object
     const errorMessage = error instanceof Error ? `${message} - ${error.name}: ${error.message}` : message;
     const errorMeta = {
@@ -47,7 +47,7 @@ const logger = {
     log.error(errorMessage, errorMeta);
     sendLogToServer('error', errorMessage, errorMeta);
   },
-  debug: (message: string, meta?: any) => {
+  debug: (message: string, meta?: Record<string, unknown>) => {
     log.debug(message, meta || '');
     // Debug logs are typically not sent to the server
   },

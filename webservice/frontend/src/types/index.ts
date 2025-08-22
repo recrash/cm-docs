@@ -38,13 +38,13 @@ export const GenerationStatus = {
   ERROR: 'error'
 } as const
 
-export type GenerationStatus = typeof GenerationStatus[keyof typeof GenerationStatus]
+export type GenerationStatusType = typeof GenerationStatus[keyof typeof GenerationStatus]
 
 export interface GenerationProgress {
-  status: GenerationStatus
+  status: GenerationStatusType
   message: string
   progress: number
-  details?: any
+  details?: Record<string, unknown>
 }
 
 export interface FeedbackRequest {
@@ -53,7 +53,7 @@ export interface FeedbackRequest {
   testcase_feedback: TestCaseFeedback[]
   repo_path: string
   git_analysis: string
-  scenario_content: any
+  scenario_content: Record<string, unknown>
 }
 
 export interface TestCaseFeedback {
@@ -96,4 +96,36 @@ export interface IndexingResult {
   indexed_count: number
   total_chunks_added: number
   message?: string
+}
+
+export interface PromptEnhancement {
+  is_active?: boolean
+  enhancement_summary?: {
+    feedback_count?: number
+    improvement_areas?: unknown[]
+    good_examples_available?: number
+    bad_examples_available?: number
+  }
+}
+
+export interface ExampleItem {
+  test_scenario_name?: string
+  timestamp?: string
+  overall_score?: number
+  comments?: string
+  scenario_content?: {
+    test_scenario_name?: string
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+export interface V2ResultData {
+  description?: string
+  filename?: string
+  test_scenario_name?: string
+  test_cases?: TestCase[]
+  llm_response_time?: number
+  prompt_size?: number
+  added_chunks?: number
 }

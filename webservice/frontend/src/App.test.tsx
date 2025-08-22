@@ -1,20 +1,20 @@
-import React from 'react'
 import { render, screen } from '@testing-library/react'
+import { vi } from 'vitest'
 import App from './App'
 
-// Mock router
-jest.mock('react-router-dom', () => ({
-  BrowserRouter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Routes: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Route: () => <div>Route Component</div>,
-}))
-
 // Mock MainPage
-jest.mock('./pages/MainPage', () => {
-  return function MainPage() {
+vi.mock('./pages/MainPage', () => ({
+  default: function MainPage() {
     return <div data-testid="main-page">Main Page</div>
   }
-})
+}))
+
+// Mock router to render MainPage
+vi.mock('react-router-dom', () => ({
+  BrowserRouter: ({ children }: { children: any }) => <div>{children}</div>,
+  Routes: ({ children }: { children: any }) => <div>{children}</div>,
+  Route: ({ element }: { element: any }) => element,
+}))
 
 describe('App', () => {
   it('renders without crashing', () => {

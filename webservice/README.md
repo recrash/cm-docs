@@ -60,7 +60,7 @@ TestscenarioMaker는 Git 저장소의 변경사항을 분석하고 AI(LLM)를 �
 - **ko-sroberta-multitask** - 한국어 특화 임베딩 모델
 
 ### 개발 도구
-- **Jest** - 프론트엔드 유닛 테스트
+- **Vitest** - 프론트엔드 유닛 테스트 (Vite 네이티브)
 - **Playwright** - E2E 테스트 및 브라우저 자동화
 - **pytest** - 백엔드 API 테스트
 - **ESLint** + **TypeScript** - 코드 품질 관리

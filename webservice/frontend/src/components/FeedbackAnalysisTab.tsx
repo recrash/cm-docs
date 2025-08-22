@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Box,
   Card,
@@ -18,23 +18,21 @@ import {
   ExpandMore,
   Download,
   Delete,
-  Analytics,
   TrendingUp,
   TrendingDown,
   FolderOpen,
   Assessment
 } from '@mui/icons-material'
 import { feedbackApi } from '../services/api'
-import type { FeedbackStats } from '../types'
+import type { FeedbackStats, PromptEnhancement, ExampleItem } from '../types'
 import BackupFileManagementModal from './BackupFileManagementModal'
 
 export default function FeedbackAnalysisTab() {
   const [stats, setStats] = useState<FeedbackStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [insights, setInsights] = useState<any>(null)
-  const [promptEnhancement, setPromptEnhancement] = useState<any>(null)
-  const [examples, setExamples] = useState<{ good: any[], bad: any[] }>({ good: [], bad: [] })
+  const [promptEnhancement, setPromptEnhancement] = useState<PromptEnhancement | null>(null)
+  const [examples, setExamples] = useState<{ good: ExampleItem[], bad: ExampleItem[] }>({ good: [], bad: [] })
   const [backupModalOpen, setBackupModalOpen] = useState(false)
 
   useEffect(() => {
@@ -52,10 +50,6 @@ export default function FeedbackAnalysisTab() {
           console.error('Failed to load stats:', err)
           return null
         }),
-        feedbackApi.getInsights().catch(err => {
-          console.error('Failed to load insights:', err)
-          return null
-        }),
         feedbackApi.getPromptEnhancement().catch(err => {
           console.error('Failed to load prompt enhancement:', err)
           return null
@@ -70,7 +64,7 @@ export default function FeedbackAnalysisTab() {
         })
       ]
 
-      const [statsData, insightsData, enhancementData, goodExamples, badExamples] = await Promise.all(promises)
+      const [statsData, enhancementData, goodExamples, badExamples] = await Promise.all(promises)
 
       if (statsData) {
         setStats(statsData)
@@ -83,9 +77,6 @@ export default function FeedbackAnalysisTab() {
         })
       }
 
-      if (insightsData) {
-        setInsights(insightsData)
-      }
       
       if (enhancementData) {
         setPromptEnhancement(enhancementData)
@@ -366,7 +357,7 @@ export default function FeedbackAnalysisTab() {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Chip label={`${example.overall_score}/5`} color="success" size="small" />
                             <Typography variant="body2">
-                              {example.timestamp?.slice(0, 10)}
+                              {typeof example.timestamp === 'string' ? example.timestamp.slice(0, 10) : 'N/A'}
                             </Typography>
                           </Box>
                         </AccordionSummary>
@@ -374,7 +365,7 @@ export default function FeedbackAnalysisTab() {
                           <Typography variant="subtitle2">
                             시나리오 제목: {example.scenario_content?.test_scenario_name || 'N/A'}
                           </Typography>
-                          {example.comments && (
+                          {example.comments && typeof example.comments === 'string' && (
                             <Typography variant="body2" sx={{ mt: 1 }}>
                               의견: {example.comments}
                             </Typography>
@@ -406,7 +397,7 @@ export default function FeedbackAnalysisTab() {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Chip label={`${example.overall_score}/5`} color="error" size="small" />
                             <Typography variant="body2">
-                              {example.timestamp?.slice(0, 10)}
+                              {typeof example.timestamp === 'string' ? example.timestamp.slice(0, 10) : 'N/A'}
                             </Typography>
                           </Box>
                         </AccordionSummary>
@@ -414,7 +405,7 @@ export default function FeedbackAnalysisTab() {
                           <Typography variant="subtitle2">
                             시나리오 제목: {example.scenario_content?.test_scenario_name || 'N/A'}
                           </Typography>
-                          {example.comments && (
+                          {example.comments && typeof example.comments === 'string' && (
                             <Typography variant="body2" sx={{ mt: 1 }}>
                               개선 의견: {example.comments}
                             </Typography>

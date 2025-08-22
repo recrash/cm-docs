@@ -8,7 +8,7 @@ export interface V2ProgressMessage {
   status: V2GenerationStatus
   message: string
   progress: number
-  details?: Record<string, any>
+  details?: Record<string, unknown>
   result?: {
     filename: string
     description: string
@@ -16,7 +16,7 @@ export interface V2ProgressMessage {
     llm_response_time?: number
     prompt_size?: number
     added_chunks?: number
-    test_cases?: any[]
+    test_cases?: Record<string, unknown>[]
     test_scenario_name?: string
   }
 }
@@ -35,7 +35,7 @@ export enum V2GenerationStatus {
 export interface V2WebSocketCallbacks {
   onProgress: (progress: V2ProgressMessage) => void
   onError: (error: string) => void
-  onComplete: (result: any) => void
+  onComplete: (result: Record<string, unknown>) => void
 }
 
 export class V2ProgressWebSocket {
