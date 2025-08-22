@@ -54,7 +54,7 @@ pipeline {
                         }
                         
                         // 최소 검증만 수행 (시간 단축)
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from docx import Document; print('테스트 환경 준비 완료')\\\"\""
+                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from docx import Document; print('Test environment ready')\\\"\""
                         
                         echo "테스트 환경 구축 완료 (최적화됨)"
                     }
