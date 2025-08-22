@@ -31,7 +31,15 @@
       "Bash(/Users/recrash/Documents/Workspace/cm-docs/webservice/.venv/bin/python --version)",
       "Bash(/Users/recrash/Documents/Workspace/cm-docs/webservice/.venv/bin/python -c \"import fastapi; import chromadb; import sentence_transformers; print(''✅ webservice 핵심 의존성 확인 완료 (Python 3.13.5)'')\")",
       "Bash(/Users/recrash/Documents/Workspace/cm-docs/cli/.venv/bin/python --version)",
-      "Bash(/Users/recrash/Documents/Workspace/cm-docs/cli/.venv/bin/python -c \"import click; import rich; import httpx; print(''✅ cli 핵심 의존성 확인 완료 (Python 3.13.5)'')\")"
+      "Bash(/Users/recrash/Documents/Workspace/cm-docs/cli/.venv/bin/python -c \"import click; import rich; import httpx; print(''✅ cli 핵심 의존성 확인 완료 (Python 3.13.5)'')\")",
+      "Bash(grep:*)",
+      "Bash(npm run lint)",
+      "mcp__microsoft-playwright-mcp__browser_navigate",
+      "mcp__microsoft-playwright-mcp__browser_click",
+      "mcp__microsoft-playwright-mcp__browser_snapshot",
+      "mcp__microsoft-playwright-mcp__browser_type",
+      "Bash(npm run build:*)",
+      "mcp__microsoft-playwright-mcp__browser_close"
     ],
     "deny": [],
     "ask": []

@@ -10,16 +10,13 @@ import {
   Typography,
   LinearProgress,
   Alert,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Grid,
   Chip,
   Paper
 } from '@mui/material'
-import { ExpandMore, Rocket, Psychology, Speed, Launch } from '@mui/icons-material'
-import { scenarioApi, ragApi, filesApi, v2Api } from '../services/api'
-import { V2ProgressWebSocket, generateClientId, type V2ProgressMessage, V2GenerationStatus, getV2StatusMessage } from '../services/v2WebSocket'
+import { Rocket, Psychology, Speed } from '@mui/icons-material'
+import { ragApi, filesApi } from '../services/api'
+import { V2ProgressWebSocket, generateClientId, type V2ProgressMessage, V2GenerationStatus } from '../services/v2WebSocket'
 import ScenarioResultViewer from './ScenarioResultViewer'
 import FeedbackModal from './FeedbackModal'
 import RAGSystemPanel from './RAGSystemPanel'
@@ -39,12 +36,9 @@ export default function ScenarioGenerationTab() {
   const [v2Progress, setV2Progress] = useState<V2ProgressMessage | null>(null)
   const [v2WebSocket, setV2WebSocket] = useState<V2ProgressWebSocket | null>(null)
   const [isWaitingForCLI, setIsWaitingForCLI] = useState(false)
-  const [currentClientId, setCurrentClientId] = useState<string | null>(null)
-  const [config, setConfig] = useState<any>(null)
 
   useEffect(() => {
-    // 컴포넌트 마운트 시 설정과 RAG 상태 로드
-    loadConfig()
+    // 컴포넌트 마운트 시 RAG 상태 로드
     loadRagStatus()
   }, [])
 
@@ -57,17 +51,6 @@ export default function ScenarioGenerationTab() {
     }
   }, [v2WebSocket])
 
-  const loadConfig = async () => {
-    try {
-      const configData = await scenarioApi.getConfig()
-      setConfig(configData)
-      if (configData.repo_path) {
-        setRepoPath(configData.repo_path)
-      }
-    } catch (error) {
-      console.error('Failed to load config:', error)
-    }
-  }
 
   const loadRagStatus = async () => {
     try {
@@ -116,7 +99,6 @@ export default function ScenarioGenerationTab() {
 
       // 고유한 클라이언트 ID 생성
       const clientId = generateClientId()
-      setCurrentClientId(clientId)
 
       console.log('🚀 v2 모드로 시나리오 생성 시작:', { clientId, repoPath })
 

@@ -20,7 +20,7 @@ jest.mock('../services/api', () => ({
 
 // Mock the BackupFileManagementModal component
 jest.mock('./BackupFileManagementModal', () => {
-  return function MockBackupFileManagementModal({ open, onClose }: any) {
+  return function MockBackupFileManagementModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     return open ? (
       <div data-testid="backup-modal">
         <h2>백업 파일 관리</h2>
@@ -101,7 +101,7 @@ describe('FeedbackAnalysisTab - Data Management', () => {
   })
 
   it('should handle export data button click', async () => {
-    ;(feedbackApi.exportData as jest.Mock).mockResolvedValue({
+    (feedbackApi.exportData as jest.Mock).mockResolvedValue({
       message: '데이터가 성공적으로 내보내졌습니다.',
       filename: 'feedback_export_test.json'
     })
@@ -191,7 +191,7 @@ describe('FeedbackAnalysisTab - Data Management', () => {
   })
 
   it('should handle export data error', async () => {
-    ;(feedbackApi.exportData as jest.Mock).mockRejectedValue(new Error('Export failed'))
+    (feedbackApi.exportData as jest.Mock).mockRejectedValue(new Error('Export failed'))
     
     render(<FeedbackAnalysisTab />)
     
@@ -209,7 +209,7 @@ describe('FeedbackAnalysisTab - Data Management', () => {
   })
 
   it('should handle generate report error', async () => {
-    ;(feedbackApi.generateSummaryReport as jest.Mock).mockRejectedValue(new Error('Report generation failed'))
+    (feedbackApi.generateSummaryReport as jest.Mock).mockRejectedValue(new Error('Report generation failed'))
     
     render(<FeedbackAnalysisTab />)
     
@@ -251,7 +251,7 @@ describe('FeedbackAnalysisTab - Data Management', () => {
   })
 
   it('should handle feedback reset operations with proper confirmation', async () => {
-    ;(global.confirm as jest.Mock).mockReturnValue(true)
+    (global.confirm as jest.Mock).mockReturnValue(true)
     ;(feedbackApi.resetAll as jest.Mock).mockResolvedValue({
       message: '모든 피드백이 성공적으로 삭제되었습니다.',
       success: true

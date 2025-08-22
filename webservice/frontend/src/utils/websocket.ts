@@ -6,13 +6,13 @@ export class ScenarioWebSocket {
   private url: string;
   private onProgressCallback: (progress: GenerationProgress) => void;
   private onErrorCallback: (error: string) => void;
-  private onCompleteCallback: (result: any) => void;
+  private onCompleteCallback: (result: Record<string, unknown>) => void;
 
   constructor(
     url: string,
     onProgress: (progress: GenerationProgress) => void,
     onError: (error: string) => void,
-    onComplete: (result: any) => void
+    onComplete: (result: Record<string, unknown>) => void
   ) {
     this.url = url;
     this.onProgressCallback = onProgress;
@@ -20,7 +20,7 @@ export class ScenarioWebSocket {
     this.onCompleteCallback = onComplete;
   }
 
-  connect(request: any) {
+  connect(request: Record<string, unknown>) {
     try {
       this.ws = new WebSocket(this.url);
 

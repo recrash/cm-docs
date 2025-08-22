@@ -10,7 +10,7 @@ mockedAxios.interceptors = {
   response: {
     use: jest.fn()
   }
-} as any
+} as jest.Mocked<typeof axios.interceptors>
 
 describe('API Services', () => {
   beforeEach(() => {

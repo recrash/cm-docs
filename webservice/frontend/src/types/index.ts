@@ -38,13 +38,13 @@ export const GenerationStatus = {
   ERROR: 'error'
 } as const
 
-export type GenerationStatus = typeof GenerationStatus[keyof typeof GenerationStatus]
+export type GenerationStatusType = typeof GenerationStatus[keyof typeof GenerationStatus]
 
 export interface GenerationProgress {
-  status: GenerationStatus
+  status: GenerationStatusType
   message: string
   progress: number
-  details?: any
+  details?: Record<string, unknown>
 }
 
 export interface FeedbackRequest {
@@ -53,7 +53,7 @@ export interface FeedbackRequest {
   testcase_feedback: TestCaseFeedback[]
   repo_path: string
   git_analysis: string
-  scenario_content: any
+  scenario_content: Record<string, unknown>
 }
 
 export interface TestCaseFeedback {

@@ -18,7 +18,6 @@ import {
   ExpandMore,
   Download,
   Delete,
-  Analytics,
   TrendingUp,
   TrendingDown,
   FolderOpen,
@@ -32,9 +31,8 @@ export default function FeedbackAnalysisTab() {
   const [stats, setStats] = useState<FeedbackStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [insights, setInsights] = useState<any>(null)
-  const [promptEnhancement, setPromptEnhancement] = useState<any>(null)
-  const [examples, setExamples] = useState<{ good: any[], bad: any[] }>({ good: [], bad: [] })
+  const [promptEnhancement, setPromptEnhancement] = useState<Record<string, unknown> | null>(null)
+  const [examples, setExamples] = useState<{ good: Record<string, unknown>[], bad: Record<string, unknown>[] }>({ good: [], bad: [] })
   const [backupModalOpen, setBackupModalOpen] = useState(false)
 
   useEffect(() => {
@@ -52,10 +50,6 @@ export default function FeedbackAnalysisTab() {
           console.error('Failed to load stats:', err)
           return null
         }),
-        feedbackApi.getInsights().catch(err => {
-          console.error('Failed to load insights:', err)
-          return null
-        }),
         feedbackApi.getPromptEnhancement().catch(err => {
           console.error('Failed to load prompt enhancement:', err)
           return null
@@ -70,7 +64,7 @@ export default function FeedbackAnalysisTab() {
         })
       ]
 
-      const [statsData, insightsData, enhancementData, goodExamples, badExamples] = await Promise.all(promises)
+      const [statsData, enhancementData, goodExamples, badExamples] = await Promise.all(promises)
 
       if (statsData) {
         setStats(statsData)
@@ -83,9 +77,6 @@ export default function FeedbackAnalysisTab() {
         })
       }
 
-      if (insightsData) {
-        setInsights(insightsData)
-      }
       
       if (enhancementData) {
         setPromptEnhancement(enhancementData)

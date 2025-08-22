@@ -33,7 +33,7 @@ global.WebSocket = class WebSocket {
   close() {}
   addEventListener() {}
   removeEventListener() {}
-} as any
+} as typeof WebSocket
 
 // Mock console warnings
 const originalWarn = console.warn
