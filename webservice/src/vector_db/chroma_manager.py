@@ -1,6 +1,9 @@
 from typing import List, Dict, Any
 from sentence_transformers import SentenceTransformer
 
+# 환경 변수 기반 경로 관리 임포트
+from ..paths import get_vector_db_dir, get_default_model_path
+
 # 임포트 타이밍 지연 + 실패는 나중에 사용 시점에 에러 처리
 try:
     import chromadb  # type: ignore
@@ -15,27 +18,38 @@ def _ensure_chromadb():
 class ChromaManager:
     """ChromaDB를 사용한 벡터 데이터베이스 관리 클래스"""
     
-    def __init__(self, persist_directory: str = "vector_db_data", embedding_model: str = "jhgan/ko-sroberta-multitask", local_model_path: str = None):
+    def __init__(self, persist_directory: str = None, embedding_model: str = "jhgan/ko-sroberta-multitask", local_model_path: str = None):
         """
         ChromaDB 매니저 초기화
         
         Args:
-            persist_directory: 벡터 DB 저장 경로
+            persist_directory: 벡터 DB 저장 경로 (None인 경우 환경변수 기반 경로 사용)
             embedding_model: 한국어 임베딩 모델 (HuggingFace 모델명)
-            local_model_path: 로컬 모델 경로 (우선 사용)
+            local_model_path: 로컬 모델 경로 (우선 사용, None인 경우 환경변수 기반 경로 사용)
         """
         # ChromaDB 임포트 상태 확인
         _ensure_chromadb()
         
         import os
         
-        self.persist_directory = persist_directory
+        # 환경 변수 기반 벡터 DB 경로 사용
+        if persist_directory is None:
+            self.persist_directory = str(get_vector_db_dir())
+        else:
+            self.persist_directory = persist_directory
+            
         self.embedding_model_name = embedding_model
         
         # ChromaDB 클라이언트 초기화
-        self.client = chromadb.PersistentClient(path=persist_directory)
+        self.client = chromadb.PersistentClient(path=self.persist_directory)
         
-        # 임베딩 모델 로드 (로컬 경로 우선)
+        # 임베딩 모델 로드 (로컬 경로 우선, 환경변수 기반 기본 경로 사용)
+        if local_model_path is None:
+            # 환경변수 기반 기본 모델 경로 사용
+            default_model_path = get_default_model_path()
+            if default_model_path.exists():
+                local_model_path = str(default_model_path)
+        
         if local_model_path and os.path.exists(local_model_path):
             print(f"로컬 임베딩 모델 사용: {local_model_path}")
             try:
@@ -56,6 +70,7 @@ class ChromaManager:
                 print("1. 인터넷 연결 환경에서 모델을 미리 다운로드")
                 print("2. config.json의 local_embedding_model_path에 로컬 모델 경로 설정")
                 print("3. 또는 config.json에서 rag.enabled를 false로 설정")
+                print(f"4. 또는 WEBSERVICE_DATA_PATH 환경변수 설정 후 models/ 폴더에 모델 배치")
                 raise
         
         # 컬렉션 초기화

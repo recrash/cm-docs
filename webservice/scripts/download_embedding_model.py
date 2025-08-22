@@ -3,18 +3,36 @@
 사전 임베딩 모델 다운로드 스크립트
 
 폐쇄망 환경에서 사용하기 위해 한국어 임베딩 모델을 미리 다운로드합니다.
-인터넷 연결이 가능한 환경에서 실행한 후, models/ 폴더를 폐쇄망으로 복사하세요.
+환경 변수 WEBSERVICE_DATA_PATH 기반 경로를 사용합니다.
+인터넷 연결이 가능한 환경에서 실행한 후, 전체 data/models/ 폴더를 폐쇄망으로 복사하세요.
 """
 
 import os
 import sys
+from pathlib import Path
+
+# src 모듈을 임포트하기 위해 경로 추가
+current_dir = Path(__file__).parent
+webservice_root = current_dir.parent
+sys.path.append(str(webservice_root))
+
+try:
+    from src.paths import get_models_dir, get_default_model_path
+except ImportError:
+    # 경로 설정 실패시 기본 경로 사용
+    print("⚠️ 경로 모듈 임포트 실패, 기본 경로 사용")
+    def get_models_dir():
+        return Path("./data/models")
+    def get_default_model_path():
+        return Path("./data/models/ko-sroberta-multitask")
+
 from sentence_transformers import SentenceTransformer
 
 def download_embedding_model():
-    """한국어 임베딩 모델 다운로드"""
+    """한국어 임베딩 모델을 환경변수 기반 경로에 다운로드"""
     
     model_name = "jhgan/ko-sroberta-multitask"
-    local_path = "./models/ko-sroberta-multitask"
+    local_path = get_default_model_path()
     
     print(f"한국어 임베딩 모델 다운로드 시작: {model_name}")
     print(f"저장 위치: {os.path.abspath(local_path)}")
@@ -24,9 +42,9 @@ def download_embedding_model():
         print("모델 다운로드 중... (시간이 걸릴 수 있습니다)")
         model = SentenceTransformer(model_name)
         
-        # 로컬 디렉토리에 저장
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-        model.save(local_path)
+        # 로컬 디렉토리에 저장 (pathlib 사용)
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        model.save(str(local_path))
         
         print(f"✅ 모델이 성공적으로 다운로드되었습니다: {local_path}")
         print(f"📁 폴더 크기: {get_folder_size(local_path):.1f} MB")
@@ -37,12 +55,14 @@ def download_embedding_model():
         embeddings = model.encode(test_texts)
         print(f"✅ 테스트 성공! 임베딩 차원: {embeddings.shape}")
         
-        # config.json 업데이트 가이드
+        # 폐쇄망 배포 가이드
         print("\n📋 다음 단계:")
-        print("1. 전체 models/ 폴더를 폐쇄망 환경으로 복사")
-        print("2. config.json에서 다음과 같이 설정:")
-        print('   "local_embedding_model_path": "./models/ko-sroberta-multitask"')
-        print("3. 앱을 재시작하면 로컬 모델이 사용됩니다")
+        print("1. 전체 data/models/ 폴더를 폐쇄망 환경으로 복사")
+        print("2. 폐쇄망 환경에서 WEBSERVICE_DATA_PATH 환경변수 설정:")
+        print('   예: WEBSERVICE_DATA_PATH=C:\\deploys\\data\\webservice')
+        print("3. 또는 config.json에서 다음과 같이 설정:")
+        print('   "local_embedding_model_path": "모델경로"')
+        print("4. 앱을 재시작하면 로컬 모델이 사용됩니다")
         
         return True
         
