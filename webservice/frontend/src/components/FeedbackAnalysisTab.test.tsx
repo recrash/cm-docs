@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { vi } from 'vitest'
+import React from 'react'
 import FeedbackAnalysisTab from './FeedbackAnalysisTab'
 
 // Mock the feedbackApi

@@ -22,4 +22,22 @@ module.exports = {
     'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'warn',
   },
+  overrides: [
+    {
+      files: ['**/*.test.{js,jsx,ts,tsx}', '**/setupTests.ts'],
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        vi: 'readonly'
+      },
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off'
+      }
+    }
+  ]
 }
