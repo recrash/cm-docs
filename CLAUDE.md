@@ -47,7 +47,7 @@ subprocess.run(['git', 'status'], cwd=str(repo_path), capture_output=True)
 - **Backend**: FastAPI + Python with Pseudo-MSA architecture
 - **AI/LLM**: Ollama integration (qwen3:8b model)
 - **Vector DB**: ChromaDB for RAG system
-- **Testing**: Jest + Playwright (E2E) + pytest
+- **Testing**: Vitest + Playwright (E2E) + pytest
 
 ### ChromaDB 의존성 관리
 **제약조건 파일 필수 사용**:

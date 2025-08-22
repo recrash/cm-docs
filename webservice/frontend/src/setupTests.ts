@@ -1,36 +1,19 @@
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// jest-dom adds custom matchers for asserting on DOM nodes (works with Vitest too).
 import '@testing-library/jest-dom'
-
-// Mock DOM environment for React components
-import { TextEncoder, TextDecoder } from 'util'
-Object.assign(global, { TextDecoder, TextEncoder })
-
-// Mock import.meta.env for Vite environment variables
-Object.defineProperty(global, 'import', {
-  value: {
-    meta: {
-      env: {
-        DEV: false,
-        MODE: 'test',
-        PROD: true,
-        VITE_API_URL: 'http://localhost:8000',
-      }
-    }
-  }
-})
+import { vi } from 'vitest'
 
 // Setup DOM environment properly
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: jest.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation(query => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(), // deprecated
-    removeListener: jest.fn(), // deprecated
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   })),
 })
 
@@ -41,9 +24,9 @@ Object.defineProperty(window, 'location', {
     protocol: 'http:',
     host: 'localhost:3000',
     port: '3000',
-    assign: jest.fn(),
-    replace: jest.fn(),
-    reload: jest.fn(),
+    assign: vi.fn(),
+    replace: vi.fn(),
+    reload: vi.fn(),
   },
   writable: true,
 })

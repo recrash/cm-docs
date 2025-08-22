@@ -1,15 +1,16 @@
 import { render, screen } from '@testing-library/react'
+import { vi } from 'vitest'
 import App from './App'
 
 // Mock MainPage
-jest.mock('./pages/MainPage', () => {
-  return function MainPage() {
+vi.mock('./pages/MainPage', () => ({
+  default: function MainPage() {
     return <div data-testid="main-page">Main Page</div>
   }
-})
+}))
 
 // Mock router to render MainPage
-jest.mock('react-router-dom', () => ({
+vi.mock('react-router-dom', () => ({
   BrowserRouter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Routes: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Route: ({ element }: { element: React.ReactNode }) => element,

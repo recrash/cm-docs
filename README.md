@@ -40,7 +40,7 @@ cm-docs/
 - **백엔드**: FastAPI + Python (Pseudo-MSA 아키텍처)
 - **AI/LLM**: Ollama 통합 (qwen3:8b 모델)
 - **벡터 DB**: ChromaDB (RAG 시스템)
-- **테스팅**: Jest + Playwright (E2E) + pytest (API)
+- **테스팅**: Vitest + Playwright (E2E) + pytest (API)
 
 ### 주요 기능
 
@@ -122,7 +122,7 @@ npm run test:all
 ### 테스팅
 - **E2E 테스트**: `npm run test:e2e` (Playwright 필수)
 - **API 테스트**: `npm run test:api` (pytest)
-- **프론트엔드 테스트**: `npm run test` (Jest)
+- **프론트엔드 테스트**: `npm run test` (Vitest)
 
 ## ⚡ CLI - TestscenarioMaker 명령줄 도구
 
