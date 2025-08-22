@@ -238,8 +238,8 @@ pipeline {
             steps {
                 script {
                     try {
-                        // 서비스 중지
-                        bat 'nssm stop autodoc_service'
+                        // 서비스 무조건 중지
+                        bat 'nssm stop autodoc_service || echo "이미 중지됨"'
                         echo "AutoDoc Service 중지 완료"
                         
                         // 10초 대기 (사용자 요구사항)
@@ -275,8 +275,8 @@ pipeline {
                         
                     } catch (Exception e) {
                         echo "배포 실패: ${e.getMessage()}"
-                        // 백업에서 롤백 시도
-                        bat 'nssm stop autodoc_service'
+                        // 백업에서 롤백 시도 - 서비스 무조건 중지
+                        bat 'nssm stop autodoc_service || echo "이미 중지됨"'
                         powershell """
                             if (Test-Path "${env.BACKUP_DIR}\\*.whl") {
                                 \$backupWhl = Get-ChildItem -Path "${env.BACKUP_DIR}\\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
