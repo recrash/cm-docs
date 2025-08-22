@@ -95,7 +95,7 @@
     ```
 
       * **Application 탭**
-          * **Path**: `C:\deploys\apps\webservice\venv\Scripts\python.exe`
+          * **Path**: `C:\deploys\apps\webservice\.venv\Scripts\python.exe`
           * **Startup directory**: `C:\deploys\apps\webservice`
           * **Arguments**: `-m uvicorn backend.main:app --host 0.0.0.0 --port 8001`
       * **Environment 탭 (가장 중요)**
@@ -108,7 +108,7 @@
     ```
 
       * **Application 탭**
-          * **Path**: `C:\deploys\apps\autodoc_service\venv\Scripts\python.exe`
+          * **Path**: `C:\deploys\apps\autodoc_service\.venv312\Scripts\python.exe`
           * **Startup directory**: `C:\deploys\apps\autodoc_service`
           * **Arguments**: `-m uvicorn app.main:app --host 0.0.0.0 --port 8000`
       * **Environment 탭 (가장 중요)**
