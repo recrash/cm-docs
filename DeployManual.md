@@ -1,158 +1,189 @@
-## 폐쇄망 운영 환경 시스템 배포 매뉴얼
+  * **Part A:** **개발자/DevOps 담당자**를 위한 `deploy-package.zip` 생성 가이드 (CI 서버에서 수행)
+  * **Part B:** **시스템 운영자**를 위한 폐쇄망 서버 배포 매뉴얼 (운영 서버에서 수행)
+
+-----
+
+## Part A: "All-in-One" 배포 패키지 생성 가이드
+
+> 🎯 **목표**: 인터넷이 되는 CI/개발 서버에서, 폐쇄망 운영 서버 배포에 필요한 모든 것을 담은 `deploy-package.zip` 파일 하나를 만드는 것.
+
+### A-1. "의존성 씨앗" 수확 (최초 1회 및 의존성 변경 시)
+
+폐쇄망 CI/CD를 시작하기 전, 인터넷이 연결된 PC에서 앞으로 사용할 모든 Python 라이브러리의 `.whl` 파일을 미리 확보해야 합니다.
+
+1.  프로젝트 루트에 아래 `Download-All-Dependencies.ps1` (Windows) 또는 `download-all-dependencies.sh` (Linux/macOS) 스크립트를 저장합니다.
+2.  스크립트를 실행하여 프로젝트 루트에 `wheelhouse` 폴더를 생성합니다. 이 폴더는 프로젝트의 모든 의존성을 담는 '저장소' 역할을 합니다.
+
+
+### A-2. `deploy-package.zip` 생성
+
+이제 CI/CD 파이프라인(인트라넷 Jenkins)이 실행할 패키징 스크립트를 준비합니다. 이 스크립트는 **A-1**에서 만든 `wheelhouse` 폴더가 프로젝트 루트에 존재한다고 가정하고 작동합니다.
+
+#### `Create-Deploy-Package.ps1` (Windows Jenkins용)
+
+```powershell
+# (이전 답변에서 제공한 스크립트와 동일)
+# ... 스크립트 내용 ...
+# 3. 초기 데이터 복사 단계 이후에, wheelhouse 폴더를 복사하는 로직 추가
+Write-Host "    - 오프라인 의존성('wheelhouse')을 패키지에 포함합니다."
+$sourceDir = Join-Path $ProjectRoot "wheelhouse"
+$targetDir = Join-Path $PackageDir "dependencies" # 패키지 내에서는 dependencies 이름으로 저장
+Copy-Item -Path $sourceDir -Destination $targetDir -Recurse -Force
+# ... 이후 압축 단계로 ...
+```
+
+#### `create-deploy-package.sh` (Linux/macOS Jenkins용)
+
+```bash
+# (이전 답변에서 제공한 스크립트와 동일)
+# ... 스크립트 내용 ...
+# 3. 초기 데이터 복사 단계 이후에, wheelhouse 폴더를 복사하는 로직 추가
+echo "    - 오프라인 의존성('wheelhouse')을 패키지에 포함합니다."
+SOURCE_DIR="$PROJECT_ROOT/wheelhouse"
+TARGET_DIR="$PACKAGE_DIR/dependencies" # 패키지 내에서는 dependencies 이름으로 저장
+mkdir -p "$TARGET_DIR"
+cp -r "$SOURCE_DIR"/* "$TARGET_DIR/"
+# ... 이후 압축 단계로 ...
+```
+
+-----
+
+-----
+
+## Part B: 폐쇄망 운영 환경 시스템 배포 매뉴얼 (최종 개정판)
 
 ### 1\. 개요
 
-본 문서는 '변경관리문서 생성 자동화 시스템'을 외부 인터넷이 차단된 폐쇄망 운영 서버(Windows Server)에 배포하고 설정하는 절차를 안내합니다.
-
-#### 시스템 구성 요소
-
-  * **webservice**: 사용자 UI(React) 및 핵심 API(FastAPI, Python 3.13)
-  * **autodoc\_service**: 문서 생성 전문 API(FastAPI, Python 3.12)
-
-#### 배포 아키텍처 원칙
-
-본 시스템은 **애플리케이션(`apps`)**, **데이터(`data`)**, \*\*패키지(`packages`)\*\*의 역할을 명확히 분리한 표준 폴더 구조를 따릅니다. 이를 통해 배포와 유지보수의 안정성을 확보합니다.
-
------
+본 문서는 '변경관리문서 생성 자동화 시스템'을 외부 인터넷이 차단된 \*\*인트라넷 운영 서버(Windows Server)\*\*에 배포하고 설정하는 절차를 안내합니다.
 
 ### 2\. 사전 준비 사항
 
-운영 서버에 아래 항목들이 준비되어 있어야 합니다.
+1.  **배포 패키지**: CI 서버에서 생성된 `deploy-package.zip` 파일 1개.
+2.  **서버 환경**:
+      * OS: Windows Server
+      * Python: **Python 3.13** 과 **Python 3.12** 모두 설치
+      * NSSM: `nssm.exe` 파일
+      * Nginx: (웹 프록시로 사용할 경우)
 
-1.  **배포 패키지 (Deployment Package)**
+### 3\. 최초 배포 절차
 
-      * 개발 환경의 Jenkins CI 파이프라인을 통해 생성된 **`deploy-package.zip`** 파일 1개.
-      * 이 압축 파일에는 아래 모든 구성 요소가 포함되어 있습니다.
-          * 설치 파일 (`.whl`)
-          * 프론트엔드 빌드 결과물
-          * 최초 실행에 필요한 데이터 (템플릿, 모델 등)
+#### 3.1. 배포 패키지 압축 해제
 
-2.  **서버 환경**
-
-      * **OS**: Windows Server
-      * **Python**: **Python 3.13** 과 **Python 3.12** 가 모두 설치되어 있어야 합니다. (`py -3.13 --version`, `py -3.12 --version` 명령어로 확인)
-      * **NSSM**: Windows 서비스를 쉽게 등록/관리해 주는 `nssm.exe` 파일이 서버 내 사용 가능한 경로에 위치해야 합니다.
-
------
-
-### 3\. 배포 절차
-
-#### 3.1. 배포 패키지 배치 및 압축 해제
-
-1.  사전 준비한 `deploy-package.zip` 파일을 운영 서버의 **`C:\`** 드라이브로 복사합니다.
-
-2.  `C:\` 위치에서 압축을 해제합니다.
-
-3.  압축 해제 후, 아래와 같은 폴더 구조가 생성되었는지 확인합니다.
-
+1.  `deploy-package.zip` 파일을 운영 서버의 **`C:\`** 드라이브로 복사 후 압축을 해제합니다.
+2.  `C:\deploys` 폴더가 아래 구조로 생성되었는지 확인합니다.
     ```
-    C:
-    └── deploys
-        ├── apps/
-        ├── data/
-        └── packages/
+    C:\deploys
+    ├── apps\       # 프론트엔드 빌드 결과물
+    ├── data\       # 초기 데이터 (모델, 템플릿)
+    └── packages\   # 설치 파일 (.whl) 및 의존성
     ```
 
-#### 3.2. Python 가상환경 생성 및 패키지 설치
+#### 3.2. Python 가상환경 생성 및 오프라인 설치
 
-폐쇄망이므로 인터넷을 통해 패키지를 다운로드할 수 없습니다. `packages` 폴더에 동봉된 `.whl` 파일을 사용하여 설치를 진행합니다.
-
-**PowerShell**을 관리자 권한으로 실행하여 아래 명령어를 순서대로 입력합니다.
+**PowerShell**을 **관리자 권한**으로 실행하여 아래 명령어를 순서대로 입력합니다.
 
 1.  **webservice (Python 3.13) 설정**
 
     ```powershell
-    # 1. webservice 앱 폴더 및 가상환경 생성
+    # 가상환경 생성 (.venv)
     New-Item -ItemType Directory -Force -Path "C:\deploys\apps\webservice"
     py -3.13 -m venv "C:\deploys\apps\webservice\.venv"
 
-    # 2. packages 폴더에 있는 webservice .whl 파일 설치
-    # (주의: 파일 이름의 버전은 배포 시점에 따라 달라질 수 있음)
-    C:\deploys\apps\webservice\.venv\Scripts\pip.exe install C:\deploys\packages\webservice\webservice-*.whl
+    # 오프라인 의존성 설치
+    $whlAppFile = Get-ChildItem -Path "C:\deploys\packages\webservice\*.whl" | Select-Object -First 1 -ExpandProperty FullName
+    $dependencyPath = "C:\deploys\packages\dependencies"
+    & "C:\deploys\apps\webservice\.venv\Scripts\pip.exe" install --no-index --find-links="$dependencyPath" $whlAppFile
     ```
 
 2.  **autodoc\_service (Python 3.12) 설정**
 
     ```powershell
-    # 1. autodoc_service 앱 폴더 및 가상환경 생성
+    # 가상환경 생성 (.venv312)
     New-Item -ItemType Directory -Force -Path "C:\deploys\apps\autodoc_service"
     py -3.12 -m venv "C:\deploys\apps\autodoc_service\.venv312"
 
-    # 2. packages 폴더에 있는 autodoc_service .whl 파일 설치
-    C:\deploys\apps\autodoc_service\.venv312\Scripts\pip.exe install C:\deploys\packages\autodoc_service\autodoc_service-*.whl
+    # 오프라인 의존성 설치
+    $whlAppFile = Get-ChildItem -Path "C:\deploys\packages\autodoc_service\*.whl" | Select-Object -First 1 -ExpandProperty FullName
+    $dependencyPath = "C:\deploys\packages\dependencies"
+    & "C:\deploys\apps\autodoc_service\.venv312\Scripts\pip.exe" install --no-index --find-links="$dependencyPath" $whlAppFile
     ```
 
 #### 3.3. Windows 서비스 등록 (NSSM)
 
-`nssm.exe`를 사용하여 각 서비스를 Windows 서비스로 등록합니다. 이는 서버 재부팅 시 자동으로 서비스를 시작하게 해줍니다.
-
-**PowerShell**에서 아래 명령어를 실행하여 NSSM GUI를 띄우고, 각 서비스 설정을 정확히 입력합니다.
-
-1.  **webservice 등록**
-
-    ```powershell
-    nssm install webservice
-    ```
+1.  **webservice 등록 (`nssm install webservice`)**
 
       * **Application 탭**
-          * **Path**: `C:\deploys\apps\webservice\.venv\Scripts\python.exe`
-          * **Startup directory**: `C:\deploys\apps\webservice`
-          * **Arguments**: `-m uvicorn backend.main:app --host 0.0.0.0 --port 8001`
-      * **Environment 탭 (가장 중요)**
+          * Path: `C:\deploys\apps\webservice\.venv\Scripts\python.exe`
+          * Startup directory: `C:\deploys\apps\webservice`
+          * Arguments: `-m uvicorn backend.main:app --host 0.0.0.0 --port 8000`
+      * **Environment 탭**
           * `WEBSERVICE_DATA_PATH=C:\deploys\data\webservice`
 
-2.  **autodoc\_service 등록**
-
-    ```powershell
-    nssm install autodoc_service
-    ```
+2.  **autodoc\_service 등록 (`nssm install autodoc_service`)**
 
       * **Application 탭**
-          * **Path**: `C:\deploys\apps\autodoc_service\.venv312\Scripts\python.exe`
-          * **Startup directory**: `C:\deploys\apps\autodoc_service`
-          * **Arguments**: `-m uvicorn app.main:app --host 0.0.0.0 --port 8000`
-      * **Environment 탭 (가장 중요)**
+          * Path: `C:\deploys\apps\autodoc_service\.venv312\Scripts\python.exe`
+          * Startup directory: `C:\deploys\apps\autodoc_service`
+          * Arguments: `-m uvicorn app.main:app --host 0.0.0.0 --port 8001`
+      * **Environment 탭**
           * `AUTODOC_DATA_PATH=C:\deploys\data\autodoc_service`
 
-3.  **서비스 로그온 계정 설정 (필요시)**
-
-      * `서비스(services.msc)`를 열어 `webservice`와 `autodoc_service`의 속성으로 들어갑니다.
-      * `로그온` 탭에서 시스템 환경 변수 접근 권한이 있는 계정(예: Local System 또는 특정 관리자 계정)으로 설정합니다.
-
-#### 3.4. 서비스 시작
-
-모든 설정이 완료되면 서비스를 시작합니다.
+#### 3.4. 서비스 시작 및 확인
 
 ```powershell
 nssm start webservice
 nssm start autodoc_service
+nssm status webservice
+nssm status autodoc_service
 ```
 
------
+  * **로그 파일 위치**: `C:\deploys\data\[서비스이름]\logs`
 
-### 4\. 서비스 확인 및 로그 분석
+### 4\. Nginx 연동 가이드 (선택사항)
 
-  * **서비스 상태 확인**: `nssm status webservice` 명령어로 `SERVICE_RUNNING` 상태인지 확인합니다.
-  * **로그 파일 위치**:
-      * **webservice 로그**: `C:\deploys\data\webservice\logs`
-      * **autodoc\_service 로그**: `C:\deploys\data\autodoc_service\logs`
-  * **데이터 생성 위치**:
-      * **문서/모델/DB**: `C:\deploys\data\webservice` 하위 폴더
-      * **템플릿/생성문서**: `C:\deploys\data\autodoc_service` 하위 폴더
+Nginx를 Port 80으로 실행하여 각 서비스로 요청을 분배(Reverse Proxy)합니다.
 
------
+1.  Nginx 설치 폴더의 `conf/nginx.conf` 파일을 수정합니다.
+2.  `http` 블록 안에 아래 `server` 블록 내용을 추가하거나 수정합니다.
+
+<!-- end list -->
+
+```nginx
+# nginx.conf 예시
+server {
+    listen 80;
+    server_name your_server_ip_or_domain; # 서버 IP 또는 도메인
+
+    # 기본 UI 및 Webservice API (Port 8000)
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket 지원
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # Autodoc Service API (Port 8001)
+    location /autodoc/ {
+        proxy_pass http://localhost:8001/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+3.  Nginx를 재시작합니다. 이제 웹 브라우저에서 `http://서버주소`로 접속하면 `webservice` UI가 표시되고, 프론트엔드에서 `/autodoc/` 경로로 보내는 API 요청은 `autodoc_service`로 자동 전달됩니다.
 
 ### 5\. 시스템 업데이트 절차
 
-새로운 버전 배포 시, 아래 절차를 따릅니다.
-
 1.  **서비스 중지**: `nssm stop webservice`, `nssm stop autodoc_service`
-2.  **신규 패키지 압축 해제**: 새로운 `deploy-package.zip` 파일을 `C:\`에 덮어쓰기로 압축 해제합니다. (`apps`, `packages` 폴더가 갱신됩니다.)
-3.  **패키지 재설치**: **3.2절**의 `pip install` 명령어만 다시 실행하여 패키지를 업그레이드합니다.
+2.  **신규 패키지 적용**: 새로운 `deploy-package.zip` 파일의 압축을 풀어 `C:\deploys`에 덮어씁니다. (`data` 폴더는 영향을 받지 않습니다.)
+3.  **패키지 재설치**: **3.2절**의 PowerShell 설치 명령어들을 다시 실행하여 패키지를 업그레이드합니다.
 4.  **서비스 시작**: `nssm start webservice`, `nssm start autodoc_service`
-
-**※ 중요: 업데이트 중 `C:\deploys\data` 폴더는 절대 수정하거나 삭제하지 않습니다.**
-
------
-
-이 매뉴얼대로만 진행하면, 누구라도 안정적으로 폐쇄망에 시스템을 배포할 수 있을 거야. 우리가 함께 설계한 멋진 아키텍처의 최종 결과물이지\! 수고했어\!
