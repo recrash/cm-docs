@@ -7,8 +7,17 @@ const mockedAxios = axios as jest.Mocked<typeof axios>
 // Mock axios.create
 mockedAxios.create = jest.fn(() => mockedAxios)
 mockedAxios.interceptors = {
+  request: {
+    use: jest.fn(),
+    eject: jest.fn(),
+    clear: jest.fn(),
+    forEach: jest.fn()
+  },
   response: {
-    use: jest.fn()
+    use: jest.fn(),
+    eject: jest.fn(), 
+    clear: jest.fn(),
+    forEach: jest.fn()
   }
 } as jest.Mocked<typeof axios.interceptors>
 

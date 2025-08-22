@@ -5,6 +5,20 @@ import '@testing-library/jest-dom'
 import { TextEncoder, TextDecoder } from 'util'
 Object.assign(global, { TextDecoder, TextEncoder })
 
+// Mock import.meta.env for Vite environment variables
+Object.defineProperty(global, 'import', {
+  value: {
+    meta: {
+      env: {
+        DEV: false,
+        MODE: 'test',
+        PROD: true,
+        VITE_API_URL: 'http://localhost:8000',
+      }
+    }
+  }
+})
+
 // Setup DOM environment properly
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -20,8 +34,27 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 })
 
+// Mock window.location for browser environment
+Object.defineProperty(window, 'location', {
+  value: {
+    href: 'http://localhost:3000',
+    protocol: 'http:',
+    host: 'localhost:3000',
+    port: '3000',
+    assign: jest.fn(),
+    replace: jest.fn(),
+    reload: jest.fn(),
+  },
+  writable: true,
+})
+
 // Mock WebSocket
-global.WebSocket = class WebSocket {
+global.WebSocket = class MockWebSocket {
+  static readonly CONNECTING = 0
+  static readonly OPEN = 1
+  static readonly CLOSING = 2
+  static readonly CLOSED = 3
+  
   url: string
   readyState: number = 1
   
@@ -33,7 +66,7 @@ global.WebSocket = class WebSocket {
   close() {}
   addEventListener() {}
   removeEventListener() {}
-} as typeof WebSocket
+} as unknown as typeof WebSocket
 
 // Mock console warnings
 const originalWarn = console.warn

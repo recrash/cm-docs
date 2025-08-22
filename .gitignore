@@ -357,3 +357,6 @@ autodoc_service/logs/
 # autodoc_service 문서 폴더
 autodoc_service/documents/
 autodoc_service/testHTML/
+
+
+webservice/frontend/test-results/

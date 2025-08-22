@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Box,
   TextField,
@@ -20,7 +20,7 @@ import { V2ProgressWebSocket, generateClientId, type V2ProgressMessage, V2Genera
 import ScenarioResultViewer from './ScenarioResultViewer'
 import FeedbackModal from './FeedbackModal'
 import RAGSystemPanel from './RAGSystemPanel'
-import { type ScenarioResponse, type RAGStatus } from '../types'
+import { type ScenarioResponse, type RAGStatus, type V2ResultData } from '../types'
 
 export default function ScenarioGenerationTab() {
   const [repoPath, setRepoPath] = useState('')
@@ -116,19 +116,19 @@ export default function ScenarioGenerationTab() {
           setIsWaitingForCLI(false)
           setV2Progress(null)
         },
-        onComplete: (resultData) => {
+        onComplete: (resultData: V2ResultData) => {
           console.log('🎉 v2 시나리오 생성 완료!', resultData)
           
           // v1 형식으로 변환하여 기존 컴포넌트와 호환
           const convertedResult: ScenarioResponse = {
-            scenario_description: resultData.description,
-            test_scenario_name: resultData.test_scenario_name || resultData.filename.replace('.xlsx', ''),
+            scenario_description: resultData.description || '',
+            test_scenario_name: resultData.test_scenario_name || (resultData.filename ? resultData.filename.replace('.xlsx', '') : ''),
             test_cases: resultData.test_cases || [], // v2에서 실제 테스트 케이스 데이터 사용
             metadata: {
               llm_response_time: resultData.llm_response_time || 0,
               prompt_size: resultData.prompt_size || 0,
               added_chunks: resultData.added_chunks || 0,
-              excel_filename: resultData.filename
+              excel_filename: resultData.filename || ''
             }
           }
 
@@ -398,26 +398,26 @@ export default function ScenarioGenerationTab() {
                 }}
               >
                 <Grid container spacing={2}>
-                  {v2Progress.details.llm_response_time && (
+                  {v2Progress.details && typeof v2Progress.details === 'object' && 'llm_response_time' in v2Progress.details && (
                     <Grid item xs={12} sm={6}>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2" color="text.secondary">
                           ⏱️ LLM 응답 시간: 
                         </Typography>
                         <Typography variant="body2" fontWeight={600} sx={{ ml: 1 }}>
-                          {v2Progress.details.llm_response_time.toFixed(1)}초
+                          {typeof v2Progress.details.llm_response_time === 'number' ? v2Progress.details.llm_response_time.toFixed(1) : '0'}초
                         </Typography>
                       </Box>
                     </Grid>
                   )}
-                  {v2Progress.details.prompt_size && (
+                  {Boolean(v2Progress.details && typeof v2Progress.details === 'object' && 'prompt_size' in v2Progress.details && v2Progress.details.prompt_size) && (
                     <Grid item xs={12} sm={6}>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2" color="text.secondary">
                           📏 프롬프트 크기: 
                         </Typography>
                         <Typography variant="body2" fontWeight={600} sx={{ ml: 1 }}>
-                          {v2Progress.details.prompt_size.toLocaleString()}자
+                          {typeof v2Progress.details.prompt_size === 'number' ? v2Progress.details.prompt_size.toLocaleString() : '0'}자
                         </Typography>
                       </Box>
                     </Grid>

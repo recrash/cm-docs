@@ -97,3 +97,35 @@ export interface IndexingResult {
   total_chunks_added: number
   message?: string
 }
+
+export interface PromptEnhancement {
+  is_active?: boolean
+  enhancement_summary?: {
+    feedback_count?: number
+    improvement_areas?: unknown[]
+    good_examples_available?: number
+    bad_examples_available?: number
+  }
+}
+
+export interface ExampleItem {
+  test_scenario_name?: string
+  timestamp?: string
+  overall_score?: number
+  comments?: string
+  scenario_content?: {
+    test_scenario_name?: string
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+export interface V2ResultData {
+  description?: string
+  filename?: string
+  test_scenario_name?: string
+  test_cases?: TestCase[]
+  llm_response_time?: number
+  prompt_size?: number
+  added_chunks?: number
+}
