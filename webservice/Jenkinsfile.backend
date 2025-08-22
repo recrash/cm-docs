@@ -11,6 +11,9 @@ pipeline {
         DEPLOY_PYTHON_CMD = "${DEPLOY_PATH}\\.venv\\Scripts\\python.exe"
         DEPLOY_PIP_CMD = "${DEPLOY_PATH}\\.venv\\Scripts\\pip.exe"
         
+        // 환경변수 기반 데이터 경로 (커밋 f57efef)
+        WEBSERVICE_DATA_PATH = 'C:\\deploys\\data\\webservice'
+        
         // 기타 설정
         HEALTH_CHECK_URL = 'http://localhost:8000/api/health'
         BACKUP_DIR = 'C:\\deploys\\backup\\webservice'
@@ -95,7 +98,10 @@ pipeline {
                     // 백업 디렉토리 생성
                     bat "if not exist \"${env.BACKUP_DIR}\" mkdir \"${env.BACKUP_DIR}\""
                     
-                    // 타겟 폴더의 기존 wheel 파일들을 백업
+                    // 환경변수 기반 데이터 경로 생성 (커밋 f57efef 반영)
+                    bat "if not exist \"${env.WEBSERVICE_DATA_PATH}\" mkdir \"${env.WEBSERVICE_DATA_PATH}\""
+                    
+                    // 타겟 폴더의 기존 wheel 파일들과 중요 데이터 백업
                     powershell """
                         if (Test-Path "${env.DEPLOY_PATH}") {
                             \$existingWheels = Get-ChildItem -Path "${env.DEPLOY_PATH}" -Filter "*.whl" -ErrorAction SilentlyContinue
@@ -107,6 +113,14 @@ pipeline {
                                 }
                             } else {
                                 Write-Host "백업할 wheel 파일이 없습니다"
+                            }
+                            
+                            # 환경변수 기반 중요 데이터 백업 (logs, templates 등)
+                            if (Test-Path "${env.WEBSERVICE_DATA_PATH}") {
+                                Write-Host "환경변수 기반 데이터 디렉토리 백업 중..."
+                                if (Test-Path "${env.WEBSERVICE_DATA_PATH}\\templates") {
+                                    Copy-Item -Path "${env.WEBSERVICE_DATA_PATH}\\templates" -Destination "${env.BACKUP_DIR}\\templates" -Recurse -Force -ErrorAction SilentlyContinue
+                                }
                             }
                         } else {
                             Write-Host "배포 경로가 존재하지 않습니다: ${env.DEPLOY_PATH}"
@@ -350,11 +364,15 @@ pipeline {
                 폐쇄망 환경 오프라인 설치 가이드:
                 
                 1. 아티팩트 다운로드 후 폐쇄망 서버로 전송
-                2. 가상환경 생성: py -3.13 -m venv .venv
-                3. 가상환경 활성화: .venv\\Scripts\\activate
-                4. 오프라인 설치: pip install --no-index --find-links="./.pip-wheelhouse" webservice-*.whl
+                2. 환경변수 설정: set WEBSERVICE_DATA_PATH=C:\\deploys\\data\\webservice
+                3. 가상환경 생성: py -3.13 -m venv .venv
+                4. 가상환경 활성화: .venv\\Scripts\\activate
+                5. 오프라인 설치: pip install --no-index --find-links="./.pip-wheelhouse" webservice-*.whl
                 
-                주의: ChromaDB 호환성을 위해 제약조건이 적용된 휠 번들입니다.
+                주의: 
+                - ChromaDB 호환성을 위해 제약조건이 적용된 휠 번들입니다.
+                - WEBSERVICE_DATA_PATH 환경변수로 데이터 경로를 설정하세요.
+                - 환경변수 미설정시 기본값: webservice/data/
                 =========================================
                 """
             }
@@ -372,8 +390,9 @@ pipeline {
             // Jenkins Workspace 정리
             dir("${WORKSPACE}/webservice") {
                 bat 'if exist "*.tmp" del /f /q *.tmp'
-                // 테스트로 생성된 파일 정리
-                bat 'if exist "outputs\\*TEST_*" del /f /q "outputs\\*TEST_*"'
+                // 테스트로 생성된 파일 정리 (환경변수 기반 경로 고려)
+                bat 'if exist "data\\outputs\\*TEST_*" del /f /q "data\\outputs\\*TEST_*"'
+                bat 'if exist "outputs\\*TEST_*" del /f /q "outputs\\*TEST_*"'  // 기존 경로 호환성
                 // pytest 캐시 정리
                 bat 'if exist ".pytest_cache" rmdir /s /q ".pytest_cache"'
                 // 임시 파일 강제 정리
@@ -383,7 +402,16 @@ pipeline {
             // 배포 환경 정리
             dir(env.DEPLOY_PATH) {
                 bat 'if exist "*.tmp" del /f /q *.tmp'
-                bat 'if exist "outputs\\*TEST_*" del /f /q "outputs\\*TEST_*"'
+            }
+            
+            // 환경변수 기반 데이터 경로 정리
+            script {
+                if (env.WEBSERVICE_DATA_PATH) {
+                    dir(env.WEBSERVICE_DATA_PATH) {
+                        bat 'if exist "outputs\\*TEST_*" del /f /q "outputs\\*TEST_*"'
+                        bat 'if exist "logs\\*TEST_*" del /f /q "logs\\*TEST_*"'
+                    }
+                }
             }
         }
     }
