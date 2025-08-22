@@ -11,7 +11,7 @@ pipeline {
         
         // nginx 배포 경로 (Frontend는 nginx로 직접 서빙)
         NGINX_ROOT = 'C:\\nginx\\html'
-        BACKUP_DIR = 'C:\\deploys\\backup\\webservice\\frontend'
+        BACKUP_DIR = 'C:\\deploys\\backup\\apps\\webservice\\frontend'
         FRONTEND_URL = 'http://localhost'
     }
     stages {
