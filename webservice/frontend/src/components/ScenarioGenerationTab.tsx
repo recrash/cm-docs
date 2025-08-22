@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Box,
   TextField,
@@ -10,20 +10,17 @@ import {
   Typography,
   LinearProgress,
   Alert,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Grid,
   Chip,
   Paper
 } from '@mui/material'
-import { ExpandMore, Rocket, Psychology, Speed, Launch } from '@mui/icons-material'
-import { scenarioApi, ragApi, filesApi, v2Api } from '../services/api'
-import { V2ProgressWebSocket, generateClientId, type V2ProgressMessage, V2GenerationStatus, getV2StatusMessage } from '../services/v2WebSocket'
+import { Rocket, Psychology, Speed } from '@mui/icons-material'
+import { ragApi, filesApi } from '../services/api'
+import { V2ProgressWebSocket, generateClientId, type V2ProgressMessage, V2GenerationStatus } from '../services/v2WebSocket'
 import ScenarioResultViewer from './ScenarioResultViewer'
 import FeedbackModal from './FeedbackModal'
 import RAGSystemPanel from './RAGSystemPanel'
-import { type ScenarioResponse, type RAGStatus } from '../types'
+import { type ScenarioResponse, type RAGStatus, type V2ResultData } from '../types'
 
 export default function ScenarioGenerationTab() {
   const [repoPath, setRepoPath] = useState('')
@@ -39,12 +36,9 @@ export default function ScenarioGenerationTab() {
   const [v2Progress, setV2Progress] = useState<V2ProgressMessage | null>(null)
   const [v2WebSocket, setV2WebSocket] = useState<V2ProgressWebSocket | null>(null)
   const [isWaitingForCLI, setIsWaitingForCLI] = useState(false)
-  const [currentClientId, setCurrentClientId] = useState<string | null>(null)
-  const [config, setConfig] = useState<any>(null)
 
   useEffect(() => {
-    // 컴포넌트 마운트 시 설정과 RAG 상태 로드
-    loadConfig()
+    // 컴포넌트 마운트 시 RAG 상태 로드
     loadRagStatus()
   }, [])
 
@@ -57,17 +51,6 @@ export default function ScenarioGenerationTab() {
     }
   }, [v2WebSocket])
 
-  const loadConfig = async () => {
-    try {
-      const configData = await scenarioApi.getConfig()
-      setConfig(configData)
-      if (configData.repo_path) {
-        setRepoPath(configData.repo_path)
-      }
-    } catch (error) {
-      console.error('Failed to load config:', error)
-    }
-  }
 
   const loadRagStatus = async () => {
     try {
@@ -116,7 +99,6 @@ export default function ScenarioGenerationTab() {
 
       // 고유한 클라이언트 ID 생성
       const clientId = generateClientId()
-      setCurrentClientId(clientId)
 
       console.log('🚀 v2 모드로 시나리오 생성 시작:', { clientId, repoPath })
 
@@ -134,19 +116,19 @@ export default function ScenarioGenerationTab() {
           setIsWaitingForCLI(false)
           setV2Progress(null)
         },
-        onComplete: (resultData) => {
+        onComplete: (resultData: V2ResultData) => {
           console.log('🎉 v2 시나리오 생성 완료!', resultData)
           
           // v1 형식으로 변환하여 기존 컴포넌트와 호환
           const convertedResult: ScenarioResponse = {
-            scenario_description: resultData.description,
-            test_scenario_name: resultData.test_scenario_name || resultData.filename.replace('.xlsx', ''),
+            scenario_description: resultData.description || '',
+            test_scenario_name: resultData.test_scenario_name || (resultData.filename ? resultData.filename.replace('.xlsx', '') : ''),
             test_cases: resultData.test_cases || [], // v2에서 실제 테스트 케이스 데이터 사용
             metadata: {
               llm_response_time: resultData.llm_response_time || 0,
               prompt_size: resultData.prompt_size || 0,
               added_chunks: resultData.added_chunks || 0,
-              excel_filename: resultData.filename
+              excel_filename: resultData.filename || ''
             }
           }
 
@@ -416,26 +398,26 @@ export default function ScenarioGenerationTab() {
                 }}
               >
                 <Grid container spacing={2}>
-                  {v2Progress.details.llm_response_time && (
+                  {v2Progress.details && typeof v2Progress.details === 'object' && 'llm_response_time' in v2Progress.details && (
                     <Grid item xs={12} sm={6}>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2" color="text.secondary">
                           ⏱️ LLM 응답 시간: 
                         </Typography>
                         <Typography variant="body2" fontWeight={600} sx={{ ml: 1 }}>
-                          {v2Progress.details.llm_response_time.toFixed(1)}초
+                          {typeof v2Progress.details.llm_response_time === 'number' ? v2Progress.details.llm_response_time.toFixed(1) : '0'}초
                         </Typography>
                       </Box>
                     </Grid>
                   )}
-                  {v2Progress.details.prompt_size && (
+                  {Boolean(v2Progress.details && typeof v2Progress.details === 'object' && 'prompt_size' in v2Progress.details && v2Progress.details.prompt_size) && (
                     <Grid item xs={12} sm={6}>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2" color="text.secondary">
                           📏 프롬프트 크기: 
                         </Typography>
                         <Typography variant="body2" fontWeight={600} sx={{ ml: 1 }}>
-                          {v2Progress.details.prompt_size.toLocaleString()}자
+                          {typeof v2Progress.details.prompt_size === 'number' ? v2Progress.details.prompt_size.toLocaleString() : '0'}자
                         </Typography>
                       </Box>
                     </Grid>

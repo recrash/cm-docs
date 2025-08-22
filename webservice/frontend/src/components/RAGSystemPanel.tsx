@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Card,
   CardContent,
@@ -19,7 +19,6 @@ import {
   Psychology,
   Refresh,
   Clear,
-  Storage,
   Description
 } from '@mui/icons-material'
 import { ragApi } from '../services/api'
@@ -38,11 +37,7 @@ export default function RAGSystemPanel({ ragStatus, onStatusUpdate }: RAGSystemP
   const [message, setMessage] = useState<string | null>(null)
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
 
-  useEffect(() => {
-    loadRagInfo()
-  }, [ragStatus])
-
-  const loadRagInfo = async () => {
+  const loadRagInfo = useCallback(async () => {
     if (!ragStatus || ragStatus.status === 'error') return
     
     try {
@@ -54,7 +49,11 @@ export default function RAGSystemPanel({ ragStatus, onStatusUpdate }: RAGSystemP
     } finally {
       setLoading(false)
     }
-  }
+  }, [ragStatus])
+
+  useEffect(() => {
+    loadRagInfo()
+  }, [loadRagInfo])
 
   const handleIndexDocuments = async (forceReindex: boolean = false) => {
     try {
@@ -72,8 +71,8 @@ export default function RAGSystemPanel({ ragStatus, onStatusUpdate }: RAGSystemP
         setMessage(`인덱싱 실패: ${result.message || 'Unknown error'}`)
         setMessageType('error')
       }
-    } catch (error: any) {
-      setMessage(`인덱싱 중 오류 발생: ${error.message}`)
+    } catch (error) {
+      setMessage(`인덱싱 중 오류 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
       setMessageType('error')
     } finally {
       setIsIndexing(false)
@@ -91,8 +90,8 @@ export default function RAGSystemPanel({ ragStatus, onStatusUpdate }: RAGSystemP
       setMessageType('success')
       onStatusUpdate()
       loadRagInfo()
-    } catch (error: any) {
-      setMessage(`데이터베이스 초기화 중 오류 발생: ${error.message}`)
+    } catch (error) {
+      setMessage(`데이터베이스 초기화 중 오류 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
       setMessageType('error')
     } finally {
       setIsClearing(false)
