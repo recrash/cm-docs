@@ -82,6 +82,7 @@ cd webservice/frontend && npm run build
 
 ### Webservice-Specific Guidelines
 - **명확한 명령이나 지시가 있기 전까지는 기존 기능 삭제 금지**
+- 프론트엔드 코드를 수정 할 때는 ESlint 정의를 확인하고, 수정을 한 다음에는 Typescript 컴파일 에러를 확인할 것
 - **E2E testing mandatory** for functionality verification
 - **Korean Language**: All user-facing content in Korean
 - Use `pathlib.Path` and relative paths for cross-platform compatibility
@@ -244,4 +245,3 @@ logger.info("서비스 시작...")
 - **Korean Content**: All user-facing text in Korean
 - **E2E Testing**: Mandatory for webservice functionality verification
 - **NSSM Services**: Windows service management for production deployment
-- React 17+에서는 JSX Transform이 자동으로 처리되어서 명시적으로 React를 import할 필요가 없음. 관련 내용을 인지할 것.
