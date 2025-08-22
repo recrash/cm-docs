@@ -19,6 +19,13 @@ cm-docs/
 │   ├── frontend/        # React + TypeScript 프론트엔드
 │   ├── backend/         # FastAPI 백엔드 서비스
 │   ├── src/             # 핵심 분석 모듈
+│   ├── data/            # 환경변수 기반 데이터 디렉토리 (개발환경 기본값)
+│   │   ├── logs/        # 로그 파일
+│   │   ├── models/      # AI 임베딩 모델
+│   │   ├── documents/   # 생성된 문서
+│   │   ├── templates/   # 템플릿 파일
+│   │   ├── outputs/     # Excel 출력
+│   │   └── db/          # 벡터 데이터베이스
 │   └── tests/           # 테스트 슈트 (E2E, API, 단위)
 ├── cli/                 # TestscenarioMaker CLI 도구
 │   ├── src/ts_cli/      # CLI 핵심 로직
@@ -26,8 +33,10 @@ cm-docs/
 │   └── tests/           # CLI 테스트 슈트
 ├── autodoc_service/     # AutoDoc 문서 자동화 서비스
 │   ├── app/             # FastAPI 애플리케이션
-│   ├── templates/       # 문서 템플릿 (Word, Excel)
-│   ├── documents/       # 생성된 문서 출력
+│   ├── data/            # 환경변수 기반 데이터 디렉토리 (개발환경 기본값)
+│   │   ├── logs/        # 로그 파일
+│   │   ├── templates/   # 문서 템플릿 (Word, Excel)
+│   │   └── documents/   # 생성된 문서 출력
 │   └── testHTML/        # HTML 테스트 파일
 ├── README.md            # 통합 프로젝트 문서
 └── pyproject.toml       # 공통 개발 환경 설정
@@ -66,7 +75,7 @@ cm-docs/
 
 #### 🔧 MSA 기반 독립 환경 구성
 
-각 서비스는 독립된 Python 가상환경을 사용합니다:
+각 서비스는 독립된 Python 가상환경과 환경변수 기반 데이터 경로를 사용합니다:
 
 ```bash
 # Webservice (Python 3.13 환경)
@@ -108,6 +117,10 @@ npm install
 
 # PYTHONPATH 설정 (필수 - src/ 모듈 임포트용)
 export PYTHONPATH=$(pwd):$PYTHONPATH
+
+# 프로덕션 환경변수 (선택적 - 미설정시 data/ 서브디렉토리 사용)
+export WEBSERVICE_DATA_PATH="/path/to/webservice/data"    # 프로덕션 전용
+export AUTODOC_DATA_PATH="/path/to/autodoc/data"          # 프로덕션 전용
 
 # 백엔드 서버 시작 (포트 8000)
 cd webservice/backend && python -m uvicorn main:app --reload --port 8000
@@ -314,6 +327,27 @@ pytest --cov=app --cov-report=html app/tests/
 - **개발 가이드**: 루트 `CLAUDE.md` (통합 개발 지침)
 - **Git 무시 설정**: 루트 `.gitignore` (모든 프로젝트 패턴 포괄)
 - **구성 중복 제거**: 각 하위 프로젝트의 개별 설정 파일 통합 완료
+- **환경변수 기반 경로**: 프로덕션/개발 환경 자동 감지 (커밋 f57efef)
+
+### 환경변수 기반 데이터 경로 시스템
+
+**프로덕션 환경변수**:
+```bash
+# Windows 프로덕션 환경 (Jenkins에서 설정)
+WEBSERVICE_DATA_PATH=C:\deploys\data\webservice
+AUTODOC_DATA_PATH=C:\deploys\data\autodoc_service
+
+# Linux 프로덕션 환경
+WEBSERVICE_DATA_PATH=/opt/data/webservice
+AUTODOC_DATA_PATH=/opt/data/autodoc_service
+```
+
+**개발 환경 기본값** (환경변수 미설정시):
+- webservice: `webservice/data/`
+- autodoc_service: `autodoc_service/data/`
+
+**자동 디렉토리 생성**:
+모든 경로 함수는 필요시 디렉토리를 자동으로 생성하므로 별도 설정이 불필요합니다.
 
 ### 코드 품질
 ```bash
@@ -364,6 +398,9 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 cd webservice
 source .venv/bin/activate
 export PYTHONPATH=$(pwd):$PYTHONPATH  # 필수: src/ 모듈 임포트
+
+# 프로덕션 환경변수 설정 (선택적)
+export WEBSERVICE_DATA_PATH="/opt/data/webservice"  # 프로덕션용
 python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 # 한국어 임베딩 모델 다운로드 (오프라인 환경용)
@@ -380,6 +417,9 @@ python scripts/create_dmg.py
 # AutoDoc Service 배포 (Python 3.12)
 cd autodoc_service
 source .venv312/bin/activate
+
+# 프로덕션 환경변수 설정 (선택적)
+export AUTODOC_DATA_PATH="/opt/data/autodoc_service"  # 프로덕션용
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 

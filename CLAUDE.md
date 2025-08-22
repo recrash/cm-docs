@@ -40,6 +40,29 @@ project_root = Path(__file__).parent.parent
 subprocess.run(['git', 'status'], cwd=str(repo_path), capture_output=True)
 ```
 
+### Environment Variable-Based Path System
+**Production Data Path Management** (커밋 f57efef에서 도입):
+```bash
+# Production environment variables
+export WEBSERVICE_DATA_PATH="C:/deploys/data/webservice"     # Windows
+export AUTODOC_DATA_PATH="C:/deploys/data/autodoc_service"   # Windows
+
+# Development fallback (environment variables 없으면 자동 사용)
+# webservice/data/    - webservice 개발환경 기본값
+# autodoc_service/data/  - autodoc_service 개발환경 기본값
+```
+
+**Data Directory Structure**:
+```
+data/
+├── logs/         # 로그 파일 (환경변수 기반)
+├── models/       # AI 임베딩 모델 (webservice만)
+├── documents/    # 생성된 문서 출력
+├── templates/    # 템플릿 파일 (환경변수 기반)
+├── outputs/      # Excel 출력 (webservice만)
+└── db/           # 벡터 DB (webservice만)
+```
+
 ## Webservice Development
 
 ### Technology Stack
@@ -91,6 +114,10 @@ cd webservice/frontend && npm run build
 ```bash
 webservice/config.json  # Main config (based on config.example.json)
 export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ imports
+
+# Production environment variables (optional, fallback to data/ subdirectories)
+export WEBSERVICE_DATA_PATH="/path/to/webservice/data"  # 프로덕션 전용
+export AUTODOC_DATA_PATH="/path/to/autodoc/data"        # 프로덕션 전용
 ```
 
 ### Nginx 기반 프론트엔드 배포
@@ -229,8 +256,24 @@ logger.info("서비스 시작...")
 
 - **Webservice**: `webservice/config.json` (Ollama, RAG settings)
 - **CLI**: Hierarchical config loading
-- **AutoDoc**: Template files in `templates/` directory
+- **AutoDoc**: Template files in environment-variable based path (production: `$AUTODOC_DATA_PATH/templates/`, development: `autodoc_service/data/templates/`)
 - **Monorepo**: Root `pyproject.toml` for unified tools
+
+## Environment Variable System
+
+### Path Management (커밋 f57efef)
+**Production Environment Variables**:
+- `WEBSERVICE_DATA_PATH`: webservice 데이터 루트 경로
+- `AUTODOC_DATA_PATH`: autodoc_service 데이터 루트 경로
+
+**Development Fallback** (환경변수 미설정시):
+- webservice: `webservice/data/`
+- autodoc_service: `autodoc_service/data/`
+
+**Path Functions** (자동 디렉토리 생성):
+- `get_data_root()`: 환경변수 기반 데이터 루트
+- `get_logs_dir()`, `get_templates_dir()`, `get_documents_dir()`
+- `get_models_dir()`, `get_outputs_dir()`, `get_vector_db_dir()` (webservice만)
 
 ## Template System Architecture
 
