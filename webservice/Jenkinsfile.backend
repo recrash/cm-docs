@@ -212,8 +212,8 @@ pipeline {
                     
                     def endpoints = [
                         "${env.HEALTH_CHECK_URL}": "기본 헬스체크",
-                        "http://localhost:8000/": "루트 엔드포인트",
-                        "http://localhost:8000/api/v2": "V2 API 엔드포인트"
+                        "http://localhost:8000/api": "API 루트 엔드포인트",
+                        "http://localhost:8000/api/v2/scenario/generate": "V2 시나리오 생성 엔드포인트 (OPTIONS)"
                     ]
                     
                     def allPassed = true
@@ -226,18 +226,31 @@ pipeline {
                                 def response = powershell(
                                     script: """
                                         try {
-                                            \$result = Invoke-WebRequest -Uri '${url}' -UseBasicParsing -TimeoutSec 10
+                                            # V2 엔드포인트는 POST 전용이므로 OPTIONS나 HEAD 사용
+                                            if ('${url}'.Contains('v2/scenario/generate')) {
+                                                \$result = Invoke-WebRequest -Uri '${url}' -Method OPTIONS -UseBasicParsing -TimeoutSec 10
+                                            } else {
+                                                \$result = Invoke-WebRequest -Uri '${url}' -UseBasicParsing -TimeoutSec 10
+                                            }
                                             Write-Output \$result.StatusCode
                                         } catch {
-                                            Write-Output "500"
+                                            \$errorMessage = \$_.Exception.Message
+                                            if (\$_.Exception.Response) {
+                                                \$statusCode = [int]\$_.Exception.Response.StatusCode
+                                                Write-Output "\$statusCode"
+                                            } else {
+                                                Write-Host "Error details: \$errorMessage" -ForegroundColor Red
+                                                Write-Output "500"
+                                            }
                                         }
                                     """,
                                     returnStdout: true
                                 ).trim()
                                 
-                                if (response == "200") {
+                                // OPTIONS 메서드는 405 (Method Not Allowed)를 반환할 수 있음
+                                if (response == "200" || (url.contains("v2/scenario/generate") && response == "405")) {
                                     endpointPassed = true
-                                    echo "${description} 검증 성공 (${i+1}번째 시도)"
+                                    echo "${description} 검증 성공 (${i+1}번째 시도) - HTTP ${response}"
                                     break
                                 } else {
                                     echo "${description} 실패 - HTTP ${response} (${i+1}번째 시도)"
