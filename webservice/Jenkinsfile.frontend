@@ -46,48 +46,23 @@ pipeline {
                         ) == 0
                         
                         if (packageChanged) {
-                            echo "패키지 파일 변경 감지됨 - 의존성 업데이트 실행"
+                            echo "패키지 파일 변경 감지됨 - 의존성 업데이트 실행 (폐쇄망 모드)"
                             // 캐시 디렉토리 생성
                             bat "if not exist \"${env.WORKSPACE_CACHE_DIR}\" mkdir \"${env.WORKSPACE_CACHE_DIR}\""
-                            // clean install with cache
-                            bat "npm ci --cache \"${env.WORKSPACE_CACHE_DIR}\""
+                            // 폐쇄망 환경: 오프라인 우선 시도, 실패 시 경고만 출력
+                            def installResult = bat(
+                                script: "npm ci --cache \"${env.WORKSPACE_CACHE_DIR}\" --offline",
+                                returnStatus: true
+                            )
+                            if (installResult != 0) {
+                                echo "경고: 오프라인 설치 실패 - 폐쇄망 환경에서는 package-lock.json과 캐시가 필요합니다"
+                                echo "node_modules가 이미 있으면 기존 것을 사용합니다"
+                            }
                         } else {
-                            echo "패키지 변경 없음 - 기존 node_modules 사용"
-                            bat "npm ci --cache \"${env.WORKSPACE_CACHE_DIR}\" --offline || npm ci --cache \"${env.WORKSPACE_CACHE_DIR}\""
+                            echo "패키지 변경 없음 - 기존 node_modules 사용 (폐쇄망 최적)"
                         }
                         
                         echo "의존성 설치 완료"
-                    }
-                }
-            }
-        }
-        
-        stage('Security Check') {
-            steps {
-                dir("${env.WORKSPACE_NPM_DIR}") {
-                    script {
-                        // npm audit 실행 (moderate 이상 취약점 검사)
-                        def auditResult = bat(
-                            script: 'npm audit --audit-level=moderate',
-                            returnStatus: true
-                        )
-                        
-                        if (auditResult != 0) {
-                            echo "보안 취약점 발견 - 자동 수정 시도"
-                            bat 'npm audit fix --force'
-                            
-                            // 다시 검사
-                            def secondAudit = bat(
-                                script: 'npm audit --audit-level=high',
-                                returnStatus: true
-                            )
-                            
-                            if (secondAudit != 0) {
-                                echo "경고: 고위험 보안 취약점이 남아있습니다. 수동 검토가 필요합니다."
-                            }
-                        }
-                        
-                        echo "보안 검사 완료"
                     }
                 }
             }
@@ -265,13 +240,12 @@ pipeline {
             echo "Webservice Frontend 배포 실패 - 로그를 확인하세요"
         }
         always {
-            // Jenkins Workspace 정리
+            // Jenkins Workspace 정리 (폐쇄망 환경 고려)
             dir("${env.WORKSPACE_NPM_DIR}") {
-                bat 'npm cache clean --force'
-                // 임시 파일 정리
+                // 임시 파일 정리만 수행 (node_modules는 보존)
                 bat 'if exist "*.tmp" del /f /q *.tmp'
-                // node_modules 정리 (용량 관리)
-                bat 'if exist "node_modules" rmdir /s /q "node_modules"'
+                bat 'if exist "*.log" del /f /q *.log'
+                echo "정리 완료 (node_modules 보존 - 폐쇄망 환경)"
             }
         }
     }
