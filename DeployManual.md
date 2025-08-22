@@ -64,11 +64,11 @@
     ```powershell
     # 1. webservice 앱 폴더 및 가상환경 생성
     New-Item -ItemType Directory -Force -Path "C:\deploys\apps\webservice"
-    py -3.13 -m venv "C:\deploys\apps\webservice\venv"
+    py -3.13 -m venv "C:\deploys\apps\webservice\.venv"
 
     # 2. packages 폴더에 있는 webservice .whl 파일 설치
     # (주의: 파일 이름의 버전은 배포 시점에 따라 달라질 수 있음)
-    C:\deploys\apps\webservice\venv\Scripts\pip.exe install C:\deploys\packages\webservice\webservice-*.whl
+    C:\deploys\apps\webservice\.venv\Scripts\pip.exe install C:\deploys\packages\webservice\webservice-*.whl
     ```
 
 2.  **autodoc\_service (Python 3.12) 설정**
@@ -76,10 +76,10 @@
     ```powershell
     # 1. autodoc_service 앱 폴더 및 가상환경 생성
     New-Item -ItemType Directory -Force -Path "C:\deploys\apps\autodoc_service"
-    py -3.12 -m venv "C:\deploys\apps\autodoc_service\venv"
+    py -3.12 -m venv "C:\deploys\apps\autodoc_service\.venv312"
 
     # 2. packages 폴더에 있는 autodoc_service .whl 파일 설치
-    C:\deploys\apps\autodoc_service\venv\Scripts\pip.exe install C:\deploys\packages\autodoc_service\autodoc_service-*.whl
+    C:\deploys\apps\autodoc_service\.venv312\Scripts\pip.exe install C:\deploys\packages\autodoc_service\autodoc_service-*.whl
     ```
 
 #### 3.3. Windows 서비스 등록 (NSSM)
