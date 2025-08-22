@@ -11,6 +11,7 @@ from datetime import datetime
 import pytest
 
 from ..logging_config import setup_autodoc_logging, get_logger, AutoDocRotatingFileHandler
+from ..services.paths import get_logs_dir
 
 
 class TestLoggingConfiguration:
