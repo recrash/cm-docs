@@ -2,9 +2,13 @@
 pipeline {
     agent any
     environment {
-        PROJECT_PATH = 'C:\\deploys\\cm-docs\\webservice'
+        // Jenkins Workspace (빌드/테스트용)
+        WORKSPACE_NPM_DIR = "${WORKSPACE}\\webservice\\frontend"
+        WORKSPACE_CACHE_DIR = "${WORKSPACE}\\webservice\\frontend\\.npm"
+        
+        // 배포 경로 (운영 서비스용)
+        DEPLOY_PATH = 'C:\\deploys\\cm-docs\\webservice\\frontend'
         NGINX_ROOT = 'C:\\nginx\\html'
-        NPM_CACHE_DIR = "${PROJECT_PATH}\\frontend\\.npm"
         BACKUP_DIR = 'C:\\deploys\\backup\\webservice\\frontend'
         FRONTEND_URL = 'http://localhost'
     }
@@ -16,9 +20,25 @@ pipeline {
             }
         }
         
+        stage('Setup Test Environment') {
+            steps {
+                dir("${env.WORKSPACE_NPM_DIR}") {
+                    script {
+                        echo "Jenkins Workspace에서 테스트 환경 구축"
+                        
+                        // Node.js 버전 확인
+                        bat 'node --version'
+                        bat 'npm --version'
+                        
+                        echo "Jenkins Workspace 테스트 환경 구축 완료"
+                    }
+                }
+            }
+        }
+        
         stage('Dependency Check') {
             steps {
-                dir("${env.PROJECT_PATH}\\frontend") {
+                dir("${env.WORKSPACE_NPM_DIR}") {
                     script {
                         // package.json 또는 package-lock.json 변경 감지
                         def packageChanged = bat(
@@ -29,12 +49,12 @@ pipeline {
                         if (packageChanged) {
                             echo "패키지 파일 변경 감지됨 - 의존성 업데이트 실행"
                             // 캐시 디렉토리 생성
-                            bat "if not exist \"${env.NPM_CACHE_DIR}\" mkdir \"${env.NPM_CACHE_DIR}\""
+                            bat "if not exist \"${env.WORKSPACE_CACHE_DIR}\" mkdir \"${env.WORKSPACE_CACHE_DIR}\""
                             // clean install with cache
-                            bat "npm ci --cache \"${env.NPM_CACHE_DIR}\""
+                            bat "npm ci --cache \"${env.WORKSPACE_CACHE_DIR}\""
                         } else {
                             echo "패키지 변경 없음 - 기존 node_modules 사용"
-                            bat "npm ci --cache \"${env.NPM_CACHE_DIR}\" --offline || npm ci --cache \"${env.NPM_CACHE_DIR}\""
+                            bat "npm ci --cache \"${env.WORKSPACE_CACHE_DIR}\" --offline || npm ci --cache \"${env.WORKSPACE_CACHE_DIR}\""
                         }
                         
                         echo "의존성 설치 완료"
@@ -45,7 +65,7 @@ pipeline {
         
         stage('Security Check') {
             steps {
-                dir("${env.PROJECT_PATH}\\frontend") {
+                dir("${env.WORKSPACE_NPM_DIR}") {
                     script {
                         // npm audit 실행 (moderate 이상 취약점 검사)
                         def auditResult = bat(
@@ -76,7 +96,7 @@ pipeline {
         
         stage('Lint & Type Check') {
             steps {
-                dir("${env.PROJECT_PATH}\\frontend") {
+                dir("${env.WORKSPACE_NPM_DIR}") {
                     bat 'npm run lint'
                     // TypeScript 타입 체크 (있는 경우)
                     script {
@@ -97,7 +117,7 @@ pipeline {
         
         stage('Test') {
             steps {
-                dir("${env.PROJECT_PATH}\\frontend") {
+                dir("${env.WORKSPACE_NPM_DIR}") {
                     bat 'npm run test -- --run --reporter=verbose'
                     echo "프론트엔드 테스트 완료"
                 }
@@ -120,14 +140,14 @@ pipeline {
             }
         }
         
-        stage('Build & Package') {
+        stage('Build') {
             steps {
-                dir("${env.PROJECT_PATH}\\frontend") {
+                dir("${env.WORKSPACE_NPM_DIR}") {
                     script {
                         try {
-                            // React 앱 빌드
+                            // React 앱 빌드 (Jenkins Workspace에서)
                             bat 'npm run build'
-                            echo "React 빌드 완료"
+                            echo "React 빌드 완료 (Jenkins Workspace)"
                             
                             // 빌드 결과 검증
                             def distExists = bat(
@@ -139,9 +159,9 @@ pipeline {
                                 error("빌드 실패: dist/index.html이 생성되지 않았습니다")
                             }
                             
-                            // zip 파일 생성
+                            // zip 파일 생성 (상위 디렉토리에)
                             powershell 'Compress-Archive -Path .\\dist\\* -DestinationPath ..\\frontend.zip -Force'
-                            echo "빌드 패키징 완료"
+                            echo "빌드 패키징 완료 (Jenkins Workspace)"
                             
                         } catch (Exception e) {
                             echo "빌드 실패: ${e.getMessage()}"
@@ -156,16 +176,16 @@ pipeline {
             steps {
                 script {
                     try {
-                        // nginx 디렉토리 정리 및 배포
+                        // Jenkins Workspace에서 빌드된 zip 파일을 nginx로 배포
                         powershell """
                             # 기존 파일 제거 (백업 제외)
                             if (Test-Path '${env.NGINX_ROOT}') {
                                 Get-ChildItem -Path '${env.NGINX_ROOT}' -Exclude 'backup' | Remove-Item -Recurse -Force
                             }
                             
-                            # 새 파일 배포
-                            Expand-Archive -Path '${env.PROJECT_PATH}\\frontend.zip' -DestinationPath '${env.NGINX_ROOT}' -Force
-                            Write-Host "프론트엔드 배포 완료"
+                            # Jenkins Workspace에서 빌드된 zip 파일 배포
+                            Expand-Archive -Path '${env.WORKSPACE}\\webservice\\frontend.zip' -DestinationPath '${env.NGINX_ROOT}' -Force
+                            Write-Host "프론트엔드 배포 완료 (Jenkins Workspace → nginx)"
                         """
                         
                     } catch (Exception e) {
@@ -225,8 +245,8 @@ pipeline {
         
         stage('Archive Artifact') {
             steps {
-                archiveArtifacts artifacts: "${env.PROJECT_PATH}/frontend.zip", followSymlinks: false
-                echo "아티팩트 보관 완료"
+                archiveArtifacts artifacts: "webservice/frontend.zip", followSymlinks: false
+                echo "Jenkins Workspace에서 빌드된 아티팩트 보관 완료"
             }
         }
     }
@@ -239,9 +259,13 @@ pipeline {
             echo "Webservice Frontend 배포 실패 - 로그를 확인하세요"
         }
         always {
-            // npm 캐시 정리 (용량 관리)
-            dir("${env.PROJECT_PATH}\\frontend") {
+            // Jenkins Workspace 정리
+            dir("${env.WORKSPACE_NPM_DIR}") {
                 bat 'npm cache clean --force'
+                // 임시 파일 정리
+                bat 'if exist "*.tmp" del /f /q *.tmp'
+                // node_modules 정리 (용량 관리)
+                bat 'if exist "node_modules" rmdir /s /q "node_modules"'
             }
         }
     }
