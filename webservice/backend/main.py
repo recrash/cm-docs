@@ -117,10 +117,19 @@ async def auto_index_documents():
 async def lifespan(app: FastAPI):
     """FastAPI 애플리케이션 라이프사이클 매니저"""
     # 시작 시 실행
+    logger.info("=== LIFESPAN MANAGER START ===")
     logger.info("애플리케이션 시작...")
-    await startup_rag_system()
+    logger.info("startup_rag_system 호출 시작")
+    try:
+        await startup_rag_system()
+        logger.info("startup_rag_system 호출 완료")
+    except Exception as e:
+        logger.error(f"startup_rag_system 호출 중 예외 발생: {str(e)}")
+        logger.exception("라이프사이클 매니저 예외 상세:")
+    logger.info("=== LIFESPAN MANAGER START COMPLETE ===")
     yield
     # 종료 시 실행
+    logger.info("=== LIFESPAN MANAGER SHUTDOWN ===")
     logger.info("애플리케이션 종료.")
 
 app = FastAPI(
