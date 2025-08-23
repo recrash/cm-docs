@@ -242,11 +242,31 @@ class DocumentIndexer:
     
     def _find_supported_files(self) -> List[str]:
         """지원하는 파일들을 찾아서 반환"""
-        supported_files = []
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[FIND_FILES] 파일 검색 시작 - documents_folder: {self.documents_folder}")
         
-        for file_path in self.documents_folder.rglob('*'):
-            if file_path.is_file() and self.document_reader.is_supported_file(str(file_path)):
-                supported_files.append(str(file_path))
+        supported_files = []
+        file_count = 0
+        
+        try:
+            logger.info(f"[FIND_FILES] rglob 시작")
+            for file_path in self.documents_folder.rglob('*'):
+                file_count += 1
+                logger.info(f"[FIND_FILES] 파일 {file_count}: {file_path}")
+                
+                if file_count > 100:  # 무한루프 방지
+                    logger.warning(f"[FIND_FILES] 파일 개수가 100개를 초과했습니다. 중단합니다.")
+                    break
+                    
+                if file_path.is_file() and self.document_reader.is_supported_file(str(file_path)):
+                    logger.info(f"[FIND_FILES] 지원되는 파일 발견: {file_path}")
+                    supported_files.append(str(file_path))
+            
+            logger.info(f"[FIND_FILES] 파일 검색 완료 - 전체: {file_count}, 지원: {len(supported_files)}")
+        except Exception as e:
+            logger.error(f"[FIND_FILES] 파일 검색 중 오류: {e}")
+            logger.exception("[FIND_FILES] 예외 상세:")
         
         return sorted(supported_files)
     
