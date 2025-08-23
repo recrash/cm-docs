@@ -180,7 +180,7 @@ pipeline {
                                 Write-Host "config.json 복사 완료 (Development): ${env.DEPLOY_PATH}\\config.json"
                                 
                                 # Production 경로 (데이터 폴더)
-                                if ("${env.WEBSERVICE_DATA_PATH}" -ne "" -and "${env.WEBSERVICE_DATA_PATH}" -ne "`$null") {
+                                if (Test-Path env:WEBSERVICE_DATA_PATH) {
                                     Copy-Item -Path "${WORKSPACE}\\webservice\\config.json" -Destination "${env.WEBSERVICE_DATA_PATH}\\config.json" -Force
                                     Write-Host "config.json 복사 완료 (Production): ${env.WEBSERVICE_DATA_PATH}\\config.json"
                                 } else {
