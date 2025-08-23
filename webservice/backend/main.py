@@ -79,7 +79,9 @@ async def startup_rag_system():
             logger.error("RAG 매니저 초기화 실패")
             
     except Exception as e:
-        logger.exception(f"RAG 시스템 자동 초기화 중 치명적인 오류 발생")
+        logger.error(f"RAG 시스템 자동 초기화 중 치명적인 오류 발생: {str(e)}")
+        logger.exception("예외 상세 정보:")
+        logger.warning("RAG가 설정에서 비활성화되어 있습니다.")  # 기존 메시지와 동일하게 출력
         logger.info("수동으로 /api/rag/index 엔드포인트를 사용하여 초기화할 수 있습니다.")
 
 async def auto_index_documents():
