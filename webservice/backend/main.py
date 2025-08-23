@@ -38,9 +38,36 @@ async def startup_rag_system():
         from src.config_loader import load_config
         logger.info("STEP 4: config_loader 모듈 임포트 성공")
         
-        logger.info("STEP 5: load_config 함수 호출 시도")
-        config = load_config()
-        logger.info(f"STEP 6: config 로드 완료 - 결과: {config is not None}")
+        # working directory 문제 해결을 위해 하이브리드 경로 사용
+        import os
+        from pathlib import Path
+        
+        config_path = None
+        
+        # 1순위: Production 환경 (WEBSERVICE_DATA_PATH 환경변수 기반)
+        if os.getenv('WEBSERVICE_DATA_PATH'):
+            config_path = Path(os.getenv('WEBSERVICE_DATA_PATH')) / "config.json"
+            logger.info(f"STEP 5A: Production 모드 - 환경변수 기반 경로: {config_path}")
+            logger.info(f"STEP 5B: Production config 파일 존재 여부: {config_path.exists()}")
+            
+            if not config_path.exists():
+                logger.warning(f"STEP 5C: Production config 파일이 없음, Development 경로로 fallback")
+                config_path = None
+        
+        # 2순위: Development 환경 (코드 옆 config.json)
+        if not config_path or not config_path.exists():
+            backend_dir = Path(__file__).parent  # backend 폴더
+            webservice_root = backend_dir.parent  # webservice 폴더  
+            config_path = webservice_root / "config.json"
+            logger.info(f"STEP 5D: Development 모드 - 코드 기반 경로: {config_path}")
+            logger.info(f"STEP 5E: Development config 파일 존재 여부: {config_path.exists()}")
+        
+        logger.info(f"STEP 5F: 최종 선택된 config 경로: {config_path}")
+        logger.info(f"STEP 5G: 현재 working directory: {os.getcwd()}")
+        
+        logger.info("STEP 6: load_config 함수 호출 시도")
+        config = load_config(str(config_path))
+        logger.info(f"STEP 7: config 로드 완료 - 결과: {config is not None}")
         
         if not config:
             logger.error("STEP 7A: config가 None입니다 - 설정 파일을 읽지 못했습니다")

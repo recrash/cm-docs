@@ -174,8 +174,18 @@ pipeline {
                         powershell """
                             if (Test-Path "${WORKSPACE}\\webservice\\config.json") {
                                 Write-Host "config.json 파일 복사 중..."
+                                
+                                # Development 경로 (코드와 함께)
                                 Copy-Item -Path "${WORKSPACE}\\webservice\\config.json" -Destination "${env.DEPLOY_PATH}\\config.json" -Force
-                                Write-Host "config.json 복사 완료: ${env.DEPLOY_PATH}\\config.json"
+                                Write-Host "config.json 복사 완료 (Development): ${env.DEPLOY_PATH}\\config.json"
+                                
+                                # Production 경로 (데이터 폴더)
+                                if ("${env.WEBSERVICE_DATA_PATH}" -ne "" -and "${env.WEBSERVICE_DATA_PATH}" -ne "`$null") {
+                                    Copy-Item -Path "${WORKSPACE}\\webservice\\config.json" -Destination "${env.WEBSERVICE_DATA_PATH}\\config.json" -Force
+                                    Write-Host "config.json 복사 완료 (Production): ${env.WEBSERVICE_DATA_PATH}\\config.json"
+                                } else {
+                                    Write-Host "WEBSERVICE_DATA_PATH 환경변수가 없어서 Production 경로 생략"
+                                }
                             } else {
                                 Write-Host "경고: config.json 파일이 소스에 없습니다"
                             }
