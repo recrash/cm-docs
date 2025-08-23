@@ -16,7 +16,31 @@ def get_rag_manager(lazy_load=True):
     """RAG 매니저 싱글톤 인스턴스 반환"""
     global _rag_manager
     if _rag_manager is None and not lazy_load:
-        config = load_config()
+        # 하이브리드 config 경로 설정 (main.py와 동일한 로직)
+        from pathlib import Path
+        config_path = None
+        
+        # 1순위: Production 환경 (WEBSERVICE_DATA_PATH 환경변수 기반)
+        env_path = os.getenv('WEBSERVICE_DATA_PATH')
+        if env_path:
+            try:
+                config_path = Path(env_path) / "config.json"
+                if not config_path.exists():
+                    config_path = None
+            except Exception:
+                config_path = None
+        
+        # 2순위: Development 환경 (코드 기준 상대 경로)
+        if not config_path or not config_path.exists():
+            try:
+                # src 폴더에서 webservice 폴더로 이동
+                src_dir = Path(__file__).parent  # src 폴더
+                webservice_root = src_dir.parent  # webservice 폴더
+                config_path = webservice_root / "config.json"
+            except Exception:
+                config_path = "config.json"  # fallback
+        
+        config = load_config(str(config_path))
         if config and config.get('rag', {}).get('enabled', False):
             rag_config = config['rag']
             print("RAG Manager 초기화 중... (임베딩 모델 로딩)")
