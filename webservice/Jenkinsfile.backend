@@ -170,7 +170,18 @@ pipeline {
                             }
                         """
                         
-                        // 2단계: 새 wheel 파일 설치 준비 (배포 경로 확인)
+                        // 2단계: 설정 파일 복사 (config.json)
+                        powershell """
+                            if (Test-Path "${WORKSPACE}\\webservice\\config.json") {
+                                Write-Host "config.json 파일 복사 중..."
+                                Copy-Item -Path "${WORKSPACE}\\webservice\\config.json" -Destination "${env.DEPLOY_PATH}\\config.json" -Force
+                                Write-Host "config.json 복사 완료: ${env.DEPLOY_PATH}\\config.json"
+                            } else {
+                                Write-Host "경고: config.json 파일이 소스에 없습니다"
+                            }
+                        """
+                        
+                        // 3단계: 새 wheel 파일 설치 준비 (배포 경로 확인)
                         powershell """
                             \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\webservice-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
                             if (\$deployWhl) {
@@ -180,11 +191,11 @@ pipeline {
                             }
                         """
                         
-                        // 3단계: 서비스 중지 (빠른 교체를 위해 마지막에)
+                        // 4단계: 서비스 중지 (빠른 교체를 위해 마지막에)
                         bat 'nssm stop webservice'
                         echo "Webservice 중지 완료"
                         
-                        // 4단계: 초고속 wheel 설치 (휠하우스 활용)
+                        // 5단계: 초고속 wheel 설치 (휠하우스 활용)
                         powershell """
                             \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\webservice-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
                             Write-Host "초고속 설치 시작: \$(\$deployWhl.Name)"
@@ -200,7 +211,7 @@ pipeline {
                             Write-Host "설치 완료"
                         """
                         
-                        // 5단계: 서비스 즉시 시작 (최소 다운타임)
+                        // 6단계: 서비스 즉시 시작 (최소 다운타임)
                         bat 'nssm start webservice'
                         echo "Webservice 시작 완료 - 최소 다운타임으로 배포 완료"
                         
