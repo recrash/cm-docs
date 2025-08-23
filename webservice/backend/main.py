@@ -61,9 +61,16 @@ async def startup_rag_system():
             data_root = get_data_directory_path()
             documents_folder = os.path.join(data_root, 'documents')
             
-            logger.info(f"RAG 매니저 초기화 완료, documents 경로: {documents_folder}")
-            logger.info("임베딩 모델 로딩 문제로 인해 문서 인덱싱은 수동으로 실행하세요.")
-            logger.info("API 엔드포인트: /api/rag/index")
+            if os.path.exists(documents_folder):
+                logger.info(f"문서 폴더 발견: {documents_folder}")
+                logger.info("백그라운드에서 문서 인덱싱 시작...")
+                
+                # 백그라운드에서 인덱싱 실행 (서버 시작을 차단하지 않음)
+                asyncio.create_task(auto_index_documents())
+            else:
+                logger.info(f"문서 폴더가 없습니다: {documents_folder}")
+                logger.info("문서를 추가하면 자동으로 인덱싱됩니다.")
+
         else:
             logger.error("RAG 매니저 초기화 실패")
             
