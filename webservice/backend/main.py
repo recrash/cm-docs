@@ -81,9 +81,15 @@ async def startup_rag_system():
 
 async def auto_index_documents():
     """백그라운드에서 문서 자동 인덱싱"""
+    logger.info("=== 백그라운드 문서 인덱싱 시작 ===")
     try:
+        logger.info("STEP 1: prompt_loader 모듈 import 시도")
         from src.prompt_loader import index_documents_folder
+        logger.info("STEP 2: prompt_loader 모듈 import 성공")
+        
+        logger.info("STEP 3: index_documents_folder 함수 호출 시작")
         result = index_documents_folder(force_reindex=False)
+        logger.info(f"STEP 4: index_documents_folder 함수 호출 완료 - 결과: {result}")
         
         if result.get('status') == 'success':
             indexed_count = result.get('indexed_documents', 0)
@@ -94,7 +100,10 @@ async def auto_index_documents():
             logger.error(f"문서 인덱싱 실패: {message}")
             
     except Exception as e:
-        logger.exception(f"백그라운드 문서 인덱싱 중 오류 발생")
+        logger.error(f"백그라운드 문서 인덱싱 중 오류 발생: {str(e)}")
+        logger.exception("백그라운드 인덱싱 예외 상세:")
+    
+    logger.info("=== 백그라운드 문서 인덱싱 종료 ===")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
