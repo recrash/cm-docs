@@ -200,32 +200,34 @@ def get_document_indexer(lazy_load=True):
 
 def index_documents_folder(force_reindex=False):
     """documents 폴더의 모든 문서를 인덱싱"""
-    print(f"[DEBUG] index_documents_folder 함수 시작 - force_reindex: {force_reindex}")
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[DEBUG] index_documents_folder 함수 시작 - force_reindex: {force_reindex}")
     
     config = load_config()
     if not config or not config.get('rag', {}).get('enabled', False):
-        print("[DEBUG] RAG가 비활성화되어 있습니다.")
+        logger.warning("[DEBUG] RAG가 비활성화되어 있습니다.")
         return {'status': 'error', 'message': 'RAG가 비활성화되어 있습니다.'}
 
-    print("[DEBUG] RAG 설정 확인 완료, 인덱서 로딩 시작")
+    logger.info("[DEBUG] RAG 설정 확인 완료, 인덱서 로딩 시작")
     try:
         # 실제 인덱싱시에만 로딩
-        print("[DEBUG] get_document_indexer 호출 시작")
+        logger.info("[DEBUG] get_document_indexer 호출 시작")
         indexer = get_document_indexer(lazy_load=False)
-        print(f"[DEBUG] get_document_indexer 호출 완료 - indexer: {indexer is not None}")
+        logger.info(f"[DEBUG] get_document_indexer 호출 완료 - indexer: {indexer is not None}")
         
         if indexer:
-            print("[DEBUG] indexer.index_documents_folder 호출 시작")
+            logger.info("[DEBUG] indexer.index_documents_folder 호출 시작")
             result = indexer.index_documents_folder(force_reindex)
-            print(f"[DEBUG] indexer.index_documents_folder 호출 완료 - 결과: {result}")
+            logger.info(f"[DEBUG] indexer.index_documents_folder 호출 완료 - 결과: {result}")
             return result
     except Exception as e:
-        print(f"[DEBUG] 문서 인덱싱 중 오류 발생: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"[DEBUG] 문서 인덱싱 중 오류 발생: {e}")
+        logger.exception("[DEBUG] 예외 상세 정보:")
         return {'status': 'error', 'message': str(e)}
 
-    print("[DEBUG] 인덱서 초기화 실패")
+    logger.warning("[DEBUG] 인덱서 초기화 실패")
     return {'status': 'error', 'message': '인덱서 초기화 실패'}
 
 def get_documents_info():
