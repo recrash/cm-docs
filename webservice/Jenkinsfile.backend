@@ -212,11 +212,11 @@ pipeline {
                             
                             # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
                             if (Test-Path "C:\\deploys\\packages\\wheelhouse\\*.whl") {
-                                Write-Host "휠하우스 발견 - 오프라인 초고속 설치"
-                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=C:/deploys/packages/wheelhouse --upgrade
+                                Write-Host "휠하우스 발견 - 오프라인 초고속 설치 (webservice 패키지만 강제 재설치)"
+                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=C:/deploys/packages/wheelhouse --force-reinstall --no-deps
                             } else {
-                                Write-Host "휠하우스 없음 - 기본 업그레이드 설치"
-                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --upgrade
+                                Write-Host "휠하우스 없음 - webservice 패키지만 강제 재설치"
+                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --force-reinstall --no-deps
                             }
                             Write-Host "설치 완료"
                         """
