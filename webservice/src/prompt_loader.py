@@ -191,7 +191,10 @@ def get_document_indexer(lazy_load=True):
         if config and config.get('rag', {}).get('enabled', False):
             rag_manager = get_rag_manager(lazy_load=False)
             if rag_manager:
-                documents_folder = config.get('documents_folder', 'documents')
+                from .config_loader import get_data_directory_path
+                import os
+                data_root = get_data_directory_path()
+                documents_folder = os.path.join(data_root, 'documents')
                 _document_indexer = DocumentIndexer(rag_manager, documents_folder)
     return _document_indexer
 
@@ -221,8 +224,10 @@ def get_documents_info():
     # 인덱서가 로드되지 않은 경우 기본 정보만 반환
     indexer = get_document_indexer(lazy_load=True)
     if indexer is None:
+        from .config_loader import get_data_directory_path
         import os
-        documents_folder = config.get('documents_folder', 'documents')
+        data_root = get_data_directory_path()
+        documents_folder = os.path.join(data_root, 'documents')
         return {
             'enabled': True,
             'folder_path': os.path.abspath(documents_folder) if os.path.exists(documents_folder) else documents_folder,
@@ -250,6 +255,8 @@ def get_rag_info():
     rag_manager = get_rag_manager(lazy_load=True)
     if rag_manager is None:
         # 기본 정보만 반환 (실제 로딩은 하지 않음)
+        from .config_loader import get_data_directory_path
+        import os
         rag_config = config.get('rag', {})
         return {
             'enabled': True,
@@ -260,7 +267,13 @@ def get_rag_info():
             },
             'chunk_size': rag_config.get('chunk_size', 1000),
             'chunk_overlap': rag_config.get('chunk_overlap', 200),
-            'documents': {'enabled': True, 'folder_path': config.get('documents_folder', 'documents'), 'supported_files': 0, 'total_files': 0, 'file_types': {}}
+            'documents': {
+                'enabled': True, 
+                'folder_path': os.path.join(get_data_directory_path(), 'documents'), 
+                'supported_files': 0, 
+                'total_files': 0, 
+                'file_types': {}
+            }
         }
 
     try:
