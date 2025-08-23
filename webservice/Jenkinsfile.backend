@@ -14,7 +14,7 @@ pipeline {
         // 환경변수 기반 데이터 경로 (커밋 f57efef)
         WEBSERVICE_DATA_PATH = 'C:\\deploys\\data\\webservice'
         // RAG(ChromaDB)의 불필요한 네트워크 통신을 막기 위해 이 부분을 추가
-        ANONYMIZED_TELEMETRY = "False"
+        ANONYMIZED_TELEMETRY = 'False'
         
         // 기타 설정
         HEALTH_CHECK_URL = 'http://localhost:8000/api/health'
