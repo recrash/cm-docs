@@ -31,11 +31,18 @@ async def startup_rag_system():
         logger.info("RAG 시스템 자동 초기화 시작...")
         
         # 설정 로드 및 RAG 활성화 확인
+        logger.info("config_loader 모듈 임포트 중...")
         from src.config_loader import load_config
+        logger.info("load_config 함수 호출 중...")
         config = load_config()
+        logger.info(f"config 로드 결과: {config is not None}")
         
         if not config or not config.get('rag', {}).get('enabled', False):
             logger.warning("RAG가 설정에서 비활성화되어 있습니다.")
+            if not config:
+                logger.error("config가 None입니다 - 설정 파일을 읽지 못했습니다")
+            else:
+                logger.info(f"RAG 설정 상태: {config.get('rag', 'rag 키 없음')}")
             return
             
         logger.info("RAG 설정 확인 완료")
