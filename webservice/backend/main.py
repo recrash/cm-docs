@@ -119,7 +119,7 @@ async def lifespan(app: FastAPI):
         logger.info("애플리케이션 시작...")
         logger.info("startup_rag_system 호출 시작")
         try:
-            asyncio.create_task(startup_rag_system())
+            await startup_rag_system()
             logger.info("startup_rag_system 호출 완료")
         except ImportError as ie:
             logger.error(f"startup_rag_system 임포트 오류: {str(ie)}")
