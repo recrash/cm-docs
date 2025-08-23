@@ -120,13 +120,19 @@ class DocumentIndexer:
         Returns:
             인덱싱 결과 정보
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[INDEXER] index_documents_folder 메서드 시작 - force_reindex: {force_reindex}")
+        logger.info(f"[INDEXER] documents_folder 경로: {self.documents_folder}")
+        
         def notify_progress(message: str, progress: float):
             if progress_callback:
                 progress_callback(message, progress)
         
+        logger.info(f"[INDEXER] 문서 폴더 존재 여부 확인: {self.documents_folder.exists()}")
         if not self.documents_folder.exists():
             error_msg = f"문서 폴더가 존재하지 않습니다: {self.documents_folder}"
-            print(error_msg)
+            logger.error(f"[INDEXER] {error_msg}")
             notify_progress(error_msg, 1.0)
             return {
                 'status': 'error',
@@ -136,8 +142,9 @@ class DocumentIndexer:
                 'error_count': 0
             }
         
+        logger.info(f"[INDEXER] notify_progress 호출 - 문서 폴더 스캔 중")
         notify_progress(f"문서 폴더 스캔 중: {self.documents_folder}", 0.1)
-        print(f"문서 폴더 인덱싱 시작: {self.documents_folder}")
+        logger.info(f"[INDEXER] 문서 폴더 인덱싱 시작: {self.documents_folder}")
         
         results = {
             'status': 'success',
