@@ -55,3 +55,23 @@ def load_config(path="config.json"):
     except FileNotFoundError:
         logger.error(f"오류: 설정 파일('{path}')을 찾을 수 없습니다.")
         return None
+
+def get_data_directory_path():
+    """데이터 디렉토리 루트 경로를 반환합니다 (환경변수 우선, 개발환경 fallback)"""
+    import os
+    from pathlib import Path
+    
+    # 1순위: Production 환경 (WEBSERVICE_DATA_PATH 환경변수 기반)
+    env_path = os.getenv('WEBSERVICE_DATA_PATH')
+    if env_path and Path(env_path).exists():
+        return str(Path(env_path))
+    
+    # 2순위: Development 환경 (webservice/data/ 폴더)
+    try:
+        # src 폴더에서 webservice 폴더로 이동
+        src_dir = Path(__file__).parent  # src 폴더
+        webservice_root = src_dir.parent  # webservice 폴더
+        data_path = webservice_root / "data"
+        return str(data_path)
+    except Exception:
+        return "data"  # fallback
