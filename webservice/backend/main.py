@@ -25,6 +25,14 @@ from backend.routers.v2.router import v2_router
 setup_logging()
 logger = logging.getLogger(__name__)
 
+# 모듈 로딩 진단
+logger.info("=== MAIN.PY MODULE LOADING ===")
+logger.info(f"Python 버전: {sys.version}")
+logger.info(f"현재 작업 디렉토리: {os.getcwd()}")
+logger.info(f"main.py 파일 경로: {__file__}")
+logger.info(f"sys.path 첫 3개 항목: {sys.path[:3]}")
+logger.info("=== MAIN.PY MODULE LOADING COMPLETE ===")
+
 async def startup_rag_system():
     """백엔드 시작 시 RAG 시스템 자동 초기화"""
     logger.info("RAG 시스템 자동 초기화 시작...")
@@ -33,34 +41,52 @@ async def startup_rag_system():
     try:
         logger.info("STEP 2: try 블록 진입")
         
+        # 기본 import 검증
+        logger.info("STEP 2.1: 기본 라이브러리 import 검증 시작")
+        import os
+        logger.info("STEP 2.2: os 모듈 임포트 성공")
+        from pathlib import Path
+        logger.info("STEP 2.3: pathlib.Path 임포트 성공")
+        
         # 설정 로드 및 RAG 활성화 확인
         logger.info("STEP 3: config_loader 모듈 임포트 시도")
         from src.config_loader import load_config
         logger.info("STEP 4: config_loader 모듈 임포트 성공")
         
         # working directory 문제 해결을 위해 하이브리드 경로 사용
-        import os
-        from pathlib import Path
-        
         config_path = None
+        env_path = os.getenv('WEBSERVICE_DATA_PATH')
+        logger.info(f"STEP 5.0: 환경변수 WEBSERVICE_DATA_PATH 값: {env_path}")
         
         # 1순위: Production 환경 (WEBSERVICE_DATA_PATH 환경변수 기반)
-        if os.getenv('WEBSERVICE_DATA_PATH'):
-            config_path = Path(os.getenv('WEBSERVICE_DATA_PATH')) / "config.json"
-            logger.info(f"STEP 5A: Production 모드 - 환경변수 기반 경로: {config_path}")
-            logger.info(f"STEP 5B: Production config 파일 존재 여부: {config_path.exists()}")
-            
-            if not config_path.exists():
-                logger.warning(f"STEP 5C: Production config 파일이 없음, Development 경로로 fallback")
+        if env_path:
+            try:
+                config_path = Path(env_path) / "config.json"
+                logger.info(f"STEP 5A: Production 모드 - 환경변수 기반 경로: {config_path}")
+                logger.info(f"STEP 5B: Production config 파일 존재 여부: {config_path.exists()}")
+                
+                if not config_path.exists():
+                    logger.warning(f"STEP 5C: Production config 파일이 없음, Development 경로로 fallback")
+                    config_path = None
+            except Exception as path_error:
+                logger.error(f"STEP 5A_ERROR: Production 경로 처리 중 오류: {str(path_error)}")
                 config_path = None
+        else:
+            logger.info("STEP 5A_SKIP: WEBSERVICE_DATA_PATH 환경변수가 설정되지 않음")
         
         # 2순위: Development 환경 (코드 옆 config.json)
         if not config_path or not config_path.exists():
-            backend_dir = Path(__file__).parent  # backend 폴더
-            webservice_root = backend_dir.parent  # webservice 폴더  
-            config_path = webservice_root / "config.json"
-            logger.info(f"STEP 5D: Development 모드 - 코드 기반 경로: {config_path}")
-            logger.info(f"STEP 5E: Development config 파일 존재 여부: {config_path.exists()}")
+            try:
+                backend_dir = Path(__file__).parent  # backend 폴더
+                webservice_root = backend_dir.parent  # webservice 폴더  
+                config_path = webservice_root / "config.json"
+                logger.info(f"STEP 5D: Development 모드 - 코드 기반 경로: {config_path}")
+                logger.info(f"STEP 5E: Development config 파일 존재 여부: {config_path.exists()}")
+            except Exception as path_error:
+                logger.error(f"STEP 5D_ERROR: Development 경로 처리 중 오류: {str(path_error)}")
+                logger.error("STEP 5D_CRITICAL: config.json 경로를 결정할 수 없습니다")
+                logger.warning("RAG가 설정에서 비활성화되어 있습니다.")
+                return
         
         logger.info(f"STEP 5F: 최종 선택된 config 경로: {config_path}")
         logger.info(f"STEP 5G: 현재 working directory: {os.getcwd()}")
@@ -144,20 +170,33 @@ async def auto_index_documents():
 async def lifespan(app: FastAPI):
     """FastAPI 애플리케이션 라이프사이클 매니저"""
     # 시작 시 실행
-    logger.info("=== LIFESPAN MANAGER START ===")
-    logger.info("애플리케이션 시작...")
-    logger.info("startup_rag_system 호출 시작")
     try:
-        await startup_rag_system()
-        logger.info("startup_rag_system 호출 완료")
-    except Exception as e:
-        logger.error(f"startup_rag_system 호출 중 예외 발생: {str(e)}")
-        logger.exception("라이프사이클 매니저 예외 상세:")
-    logger.info("=== LIFESPAN MANAGER START COMPLETE ===")
+        logger.info("=== LIFESPAN MANAGER START ===")
+        logger.info("애플리케이션 시작...")
+        logger.info("startup_rag_system 호출 시작")
+        try:
+            await startup_rag_system()
+            logger.info("startup_rag_system 호출 완료")
+        except ImportError as ie:
+            logger.error(f"startup_rag_system 임포트 오류: {str(ie)}")
+            logger.exception("임포트 오류 상세:")
+        except Exception as e:
+            logger.error(f"startup_rag_system 호출 중 일반 예외 발생: {str(e)}")
+            logger.exception("라이프사이클 매니저 예외 상세:")
+        logger.info("=== LIFESPAN MANAGER START COMPLETE ===")
+    except Exception as fatal_error:
+        logger.error(f"라이프사이클 매니저 치명적 오류: {str(fatal_error)}")
+        logger.exception("치명적 오류 상세:")
+        logger.info("=== LIFESPAN MANAGER FAILED ===")
+    
     yield
+    
     # 종료 시 실행
-    logger.info("=== LIFESPAN MANAGER SHUTDOWN ===")
-    logger.info("애플리케이션 종료.")
+    try:
+        logger.info("=== LIFESPAN MANAGER SHUTDOWN ===")
+        logger.info("애플리케이션 종료.")
+    except Exception as shutdown_error:
+        logger.error(f"라이프사이클 매니저 종료 중 오류: {str(shutdown_error)}")
 
 app = FastAPI(
     title="TestscenarioMaker API",
