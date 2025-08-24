@@ -9,7 +9,7 @@ import portalocker
 
 from .document_reader import DocumentReader
 from .rag_manager import RAGManager
-from ..path_config import get_data_root
+from ..paths import get_data_root
 
 
 class DocumentIndexer:
