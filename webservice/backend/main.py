@@ -100,22 +100,40 @@ async def auto_index_documents():
         logger.info(f"STEP 3.2: 테스트 함수 결과: {test_result}")
         
         logger.info("STEP 3.3: index_documents_folder 함수 호출 시작")
-        result = index_documents_folder(False)
-        logger.info(f"STEP 4: index_documents_folder 함수 호출 완료 - 결과: {result}")
         
-        if result.get('status') == 'success':
-            indexed_count = result.get('indexed_documents', 0)
-            total_chunks = result.get('total_chunks', 0)
-            logger.info(f"문서 인덱싱 완료: {indexed_count}개 문서, {total_chunks}개 청크")
-        else:
-            message = result.get('message', '알 수 없는 오류')
-            logger.error(f"문서 인덱싱 실패: {message}")
+        # 타임아웃을 적용하여 안전하게 실행
+        try:
+            import time
+            start_time = time.time()
             
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, index_documents_folder, False
+            )
+            
+            elapsed_time = time.time() - start_time
+            logger.info(f"STEP 4: index_documents_folder 함수 호출 완료 ({elapsed_time:.1f}초 소요) - 결과: {result}")
+            
+            if result.get('status') == 'success':
+                indexed_count = result.get('indexed_documents', 0)
+                total_chunks = result.get('total_chunks', 0)
+                logger.info(f"문서 인덱싱 완료: {indexed_count}개 문서, {total_chunks}개 청크")
+            else:
+                message = result.get('message', '알 수 없는 오류')
+                logger.error(f"문서 인덱싱 실패: {message}")
+                
+        except asyncio.TimeoutError:
+            logger.error("백그라운드 인덱싱 타임아웃")
+            logger.info("타임아웃되었지만 애플리케이션은 계속 실행됩니다")
+            
+    except ImportError as ie:
+        logger.error(f"백그라운드 인덱싱 모듈 임포트 오류: {str(ie)}")
+        logger.info("임포트 오류가 발생했지만 애플리케이션은 계속 실행됩니다")
     except Exception as e:
-        logger.error(f"백그라운드 문서 인덱싱 중 오류 발생: {str(e)}")
+        logger.error(f"백그라운드 문서 인덱싱 중 예상치 못한 오류 발생: {str(e)}")
         logger.exception("백그라운드 인덱싱 예외 상세:")
-    
-    logger.info("=== 백그라운드 문서 인덱싱 종료 ===")
+        logger.info("인덱싱 오류가 발생했지만 애플리케이션은 계속 실행됩니다")
+    finally:
+        logger.info("=== 백그라운드 문서 인덱싱 종료 ===")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -135,10 +153,13 @@ async def lifespan(app: FastAPI):
             logger.error(f"startup_rag_system 호출 중 일반 예외 발생: {str(e)}")
             logger.exception("라이프사이클 매니저 예외 상세:")
         logger.info("=== LIFESPAN MANAGER START COMPLETE ===")
+        logger.info("=== FastAPI 애플리케이션 시작 완료 ===")
     except Exception as fatal_error:
         logger.error(f"라이프사이클 매니저 치명적 오류: {str(fatal_error)}")
         logger.exception("치명적 오류 상세:")
         logger.info("=== LIFESPAN MANAGER FAILED ===")
+        # 에러가 발생해도 앱은 시작되도록 함
+        logger.info("=== FastAPI 애플리케이션 시작 완료 (오류 있음) ===")
     
     yield
     

@@ -9,6 +9,7 @@ import portalocker
 
 from .document_reader import DocumentReader
 from .rag_manager import RAGManager
+from ..path_config import get_data_root
 
 
 class DocumentIndexer:
@@ -31,11 +32,17 @@ class DocumentIndexer:
         else:
             self.documents_folder = Path(documents_folder)
             
-        # 캐시 파일 경로 (프로젝트 루트)
-        self.cache_file_path = self.documents_folder.parent / self.CACHE_FILENAME
+        # 캐시 파일 경로 (환경변수 기반 데이터 루트)
+        data_root = get_data_root()
+        self.cache_file_path = Path(data_root) / self.CACHE_FILENAME
         
         self.document_reader = DocumentReader()
         self.indexed_files_cache = {}  # 메모리 캐시
+        
+        # 캐시 파일 경로 로깅
+        print(f"[CACHE_INIT] 캐시 파일 경로 설정: {self.cache_file_path}")
+        print(f"[CACHE_INIT] 데이터 루트: {data_root}")
+        print(f"[CACHE_INIT] 문서 폴더: {self.documents_folder}")
         
         # 영속적 캐시 로드
         self._load_persistent_cache()
@@ -43,8 +50,12 @@ class DocumentIndexer:
     def _load_persistent_cache(self):
         """영속적 캐시 파일을 로드"""
         try:
+            print(f"[CACHE_LOAD] 캐시 파일 로드 시도: {self.cache_file_path}")
+            print(f"[CACHE_LOAD] 캐시 파일 존재 여부: {self.cache_file_path.exists()}")
+            
             if not self.cache_file_path.exists():
-                print(f"캐시 파일이 없습니다: {self.cache_file_path}")
+                print(f"[CACHE_LOAD] 캐시 파일이 없습니다: {self.cache_file_path}")
+                print(f"[CACHE_LOAD] 새로운 캐시를 생성합니다")
                 return
                 
             # 파일 락을 사용하여 안전하게 읽기
