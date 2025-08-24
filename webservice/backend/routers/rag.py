@@ -140,6 +140,18 @@ async def get_rag_status():
             message = f"RAG 시스템 오류: {str(e)}"
             auto_activated = False
             logger.error(f"RAG 시스템 오류: {str(e)}")
+            # Return error status with proper HTTP status code
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "status": status,
+                    "message": message,
+                    "auto_activated": auto_activated,
+                    "document_count": 0,
+                    "embedding_model": "Unknown",
+                    "chunk_size": 0
+                }
+            )
         
         # 기본 정보 수집
         rag_info = get_rag_info()
@@ -157,16 +169,23 @@ async def get_rag_status():
         logger.info(f"RAG 상태 조회 성공: status={status}, document_count={result['document_count']}")
         return result
         
+    except HTTPException:
+        # Re-raise HTTPException to preserve status code
+        raise
     except Exception as e:
         logger.error(f"RAG 상태 조회 실패: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"RAG 상태 조회 중 오류가 발생했습니다: {str(e)}",
-            "auto_activated": False,
-            "document_count": 0,
-            "embedding_model": "Unknown",
-            "chunk_size": 0
-        }
+        # Return 500 Internal Server Error for unexpected exceptions
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "error",
+                "message": f"RAG 상태 조회 중 오류가 발생했습니다: {str(e)}",
+                "auto_activated": False,
+                "document_count": 0,
+                "embedding_model": "Unknown",
+                "chunk_size": 0
+            }
+        )
 
 @router.get("/auto-activation")
 async def get_auto_activation_status():

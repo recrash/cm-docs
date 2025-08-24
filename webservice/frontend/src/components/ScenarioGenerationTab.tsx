@@ -56,8 +56,19 @@ export default function ScenarioGenerationTab() {
     try {
       const status = await ragApi.getStatus()
       setRagStatus(status)
+      setError(null) // Clear any previous errors
     } catch (error) {
       console.error('Failed to load RAG status:', error)
+      const errorMessage = error instanceof Error ? error.message : 'RAG 상태를 불러오지 못했습니다.'
+      setError(errorMessage)
+      // Set a fallback status to prevent infinite loading
+      setRagStatus({
+        status: 'error',
+        message: errorMessage,
+        document_count: 0,
+        embedding_model: 'Unknown',
+        chunk_size: 0
+      })
     }
   }
 
