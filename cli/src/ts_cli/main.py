@@ -75,22 +75,22 @@ def load_server_config() -> str:
         config_loader = load_config()
         server_url = config_loader.get("api", "base_url")
         if server_url and server_url.strip():  # 빈 값 체크 추가
-            console.print(f"[green]설정 파일에서 서버 URL 로드: {server_url}[/green]")
+            console.print(f"[green]Server URL loaded from config: {server_url}[/green]")
             return server_url
     except Exception as e:
-        console.print(f"[yellow]설정 파일 로드 실패: {e}[/yellow]")
+        console.print(f"[yellow]Config file load failed: {e}[/yellow]")
     
     # 2순위: TSM_SERVER_URL 환경 변수에서 로드 시도
     env_server_url = os.environ.get("TSM_SERVER_URL")
     if env_server_url and env_server_url.strip():  # 빈 값 체크 추가
-        console.print(f"[green]환경 변수에서 서버 URL 로드: {env_server_url}[/green]")
+        console.print(f"[green]Server URL loaded from environment: {env_server_url}[/green]")
         return env_server_url
     
     # 모두 실패한 경우
-    console.print("[red]서버 URL을 찾을 수 없습니다.[/red]")
-    console.print("[red]다음 중 하나를 설정해주세요:[/red]")
-    console.print("[red]  1. config.ini 파일의 [api] 섹션에 base_url 설정[/red]")
-    console.print("[red]  2. TSM_SERVER_URL 환경 변수 설정[/red]")
+    console.print("[red]Server URL not found.[/red]")
+    console.print("[red]Please configure one of the following:[/red]")
+    console.print("[red]  1. Set base_url in [api] section of config.ini[/red]")
+    console.print("[red]  2. Set TSM_SERVER_URL environment variable[/red]")
     sys.exit(1)
 
 
@@ -137,7 +137,7 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
         # v2 API 엔드포인트 URL 구성
         api_url = f"{server_url.rstrip('/')}/api/v2/scenario/generate"
         
-        console.print("[cyan]API 요청 전송 중...[/cyan]")
+        console.print("[cyan]Sending API request...[/cyan]")
         
         # requests를 사용한 동기 API 호출
         with requests.Session() as session:
@@ -376,10 +376,10 @@ def log_debug_info(debug_info: dict) -> None:
             f.write(json.dumps(debug_info, indent=2, ensure_ascii=False, default=str))
             f.write(f"\n{'='*80}\n\n")
             
-        console.print("[green]디버그 정보 수집 완료[/green]")
+        console.print("[green]Debug information collected[/green]")
         
     except Exception as e:
-        console.print(f"[red]디버그 로깅 실패: {e}[/red]")
+        console.print(f"[red]Debug logging failed: {e}[/red]")
 
 
 def parse_url_parameters(url: str) -> tuple[Path, Optional[str]]:
@@ -476,22 +476,22 @@ def handle_url_protocol() -> None:
         raw_url = " ".join(sys.argv[1:])
         
         if not raw_url.startswith('testscenariomaker://'):
-            console.print("[red]올바르지 않은 URL 형식입니다.[/red]")
+            console.print("[red]Invalid URL format.[/red]")
             sys.exit(1)
         
-        console.print(f"[cyan]URL 프로토콜 처리 중: {raw_url}[/cyan]")
+        console.print(f"[cyan]Processing URL protocol: {raw_url}[/cyan]")
         
         # 종합 디버깅 정보 수집
         debug_info = collect_debug_info(raw_url)
         log_debug_info(debug_info)
-        console.print(f"[dim]디버그 로그: {debug_info['debug_file']}[/dim]")
+        console.print(f"[dim]Debug log: {debug_info['debug_file']}[/dim]")
         
         # URL에서 repoPath, clientId 추출
         try:
             repository_path, client_id = parse_url_parameters(raw_url)
-            console.print(f"[green]분석 대상 경로: {repository_path.resolve()}[/green]")
+            console.print(f"[green]Target repository: {repository_path.resolve()}[/green]")
             if client_id:
-                console.print(f"[cyan]클라이언트 ID: {client_id}[/cyan]")
+                console.print(f"[cyan]Client ID: {client_id}[/cyan]")
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             sys.exit(1)
@@ -504,15 +504,15 @@ def handle_url_protocol() -> None:
         
         # 동기 API 호출
         console.print(f"[bold blue]TestscenarioMaker CLI v{__version__}[/bold blue]")
-        console.print(f"저장소 분석 시작: [green]{repository_path.resolve()}[/green]")
+        console.print(f"Repository analysis started: [green]{repository_path.resolve()}[/green]")
         
         success = make_api_request(server_url, repository_path, client_id)
         
         if success:
-            console.print("[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]")
+            console.print("[bold green]Repository analysis completed successfully.[/bold green]")
             sys.exit(0)
         else:
-            console.print("[bold red]저장소 분석 중 오류가 발생했습니다.[/bold red]")
+            console.print("[bold red]Error occurred during repository analysis.[/bold red]")
             sys.exit(1)
             
     except KeyboardInterrupt:

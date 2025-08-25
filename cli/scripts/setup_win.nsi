@@ -137,8 +137,9 @@ Section "Register URL Protocol" SEC05
   WriteRegStr HKCR "testscenariomaker\shell\open" "" ""
   
   ; Register command for background execution (no console window)
-  ; Using start /b to run process in background without showing console window
-  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'cmd /c start /b "" "$INSTDIR\ts-cli.exe" "%1"'
+  ; Using PowerShell for more reliable path handling and working directory control
+  ; Set working directory to C:\deploys\apps\cli for proper service deployment
+  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'powershell -Command "Set-Location C:\\deploys\\apps\\cli; Start-Process \"$INSTDIR\\ts-cli.exe\" -ArgumentList \"%1\" -WindowStyle Hidden"'
   
 SectionEnd
 
