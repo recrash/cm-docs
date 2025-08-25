@@ -83,6 +83,7 @@ class ChromaManager:
     def _get_or_create_collection(self):
         """컬렉션 생성 또는 기존 컬렉션 가져오기"""
         try:
+            logger.info(f"컬렉션 생성 또는 기존 컬렉션 가져오기 시작")
             collection = self.client.get_collection(name=self.collection_name)
             logger.info(f"기존 컬렉션 '{self.collection_name}' 로드됨")
             return collection
@@ -108,17 +109,51 @@ class ChromaManager:
             ids: 각 문서의 고유 ID 리스트
         """
         try:
-            # 임베딩 생성
-            embeddings = self.embedding_model.encode(documents).tolist()
+            # # 임베딩 생성
+            logger.info(f"임베딩 생성 시작: {len(documents)}개")
+
+            # 1. GPU에서 임베딩 생성 (Tensor로)
+            embeddings_tensor = self.embedding_model.encode(documents, convert_to_tensor=True)            
+            # 2. CPU가 이해할 수 있는 파이썬 리스트로 변환 (가장 중요!)
+            embeddings_list = embeddings_tensor.cpu().numpy().tolist()
+            logger.info(f"임베딩 생성 완료: {len(documents)}개")
             
-            # ChromaDB에 추가
+            
+            # 실제 임베딩 생성 코드는 주석 처리
+            logger.info(f"임베딩 생성 시작: {len(documents)}개")
+            embeddings_tensor = self.embedding_model.encode(documents, convert_to_tensor=True)
+            embeddings_list = embeddings_tensor.cpu().numpy().tolist()
+            logger.info(f"임베딩 생성 완료: {len(embeddings_list)}개")
+                                    
+                         
+             # ===== 🔥 최종 검증 디버깅 코드 시작 🔥 =====
+            doc_count = len(documents)
+            embed_count = len(embeddings_list)
+            meta_count = len(metadatas)
+            id_count = len(ids)
+
+            logger.debug("--- Final Data Verification ---")
+            logger.debug(f"Documents Count: {doc_count}")
+            logger.debug(f"Embeddings Count: {embed_count}")
+            logger.debug(f"Metadatas Count: {meta_count}")
+            logger.debug(f"IDs Count: {id_count}")
+            
+            # 모든 리스트의 길이가 동일한지 확인
+            if not (doc_count == embed_count == meta_count == id_count):
+                logger.error("CRITICAL: 데이터 리스트들의 길이가 일치하지 않습니다!")
+                # 에러를 발생시켜서 바로 중단시킬 수도 있어.
+                # raise ValueError("Data list lengths are inconsistent!")
+            else:
+                logger.info("OK: 모든 데이터 리스트의 길이가 일치합니다.")
+           
             self.collection.add(
-                documents=documents,
-                embeddings=embeddings,
-                metadatas=metadatas,
-                ids=ids
+            documents=documents,
+            embeddings=embeddings_list,
+            metadatas=metadatas,
+            ids=ids
             )
             logger.info(f"{len(documents)}개 문서가 벡터 DB에 추가되었습니다.")
+            
             
         except Exception as e:
             logger.error(f"문서 추가 중 오류 발생: {e}")

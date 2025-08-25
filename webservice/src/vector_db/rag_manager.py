@@ -74,9 +74,10 @@ class RAGManager:
             추가된 청크 수
         """
         try:
+            logger.info(f"문서 청크 분할 시작: {source_path}")
             # 문서를 청크로 분할
             chunks = self.document_chunker.chunk_document(document_text, document_type, source_path)
-            
+            logger.info(f"문서 청크 분할 완료: {source_path}")
             if not chunks:
                 logger.warning("청크가 생성되지 않았습니다.")
                 return 0
@@ -86,8 +87,9 @@ class RAGManager:
             metadatas = [chunk['metadata'] for chunk in chunks]
             ids = [chunk['id'] for chunk in chunks]
             
+            logger.info(f"문서 청크 추가 시작: {source_path}")
             self.chroma_manager.add_documents(documents, metadatas, ids)
-            
+            logger.info(f"문서 청크 추가 완료: {source_path}")
             return len(chunks)
             
         except Exception as e:

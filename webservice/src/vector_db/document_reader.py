@@ -4,6 +4,8 @@ from docx import Document
 from typing import Dict, List, Any, Optional
 import logging
 
+logger = logging.getLogger(__name__)
+
 class DocumentReader:
     """다양한 문서 형식을 읽는 클래스"""
     
@@ -23,6 +25,7 @@ class DocumentReader:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"파일을 찾을 수 없습니다: {file_path}")
         
+        logger.info(f"파일 읽기 시작: {file_path}")
         file_ext = os.path.splitext(file_path)[1].lower()
         
         try:
@@ -51,12 +54,15 @@ class DocumentReader:
         """엑셀 파일 읽기"""
         try:
             # 모든 시트 읽기
-            excel_file = pd.ExcelFile(file_path)
+            logger.info(f"엑셀 파일 읽기 시작: {file_path}")
+            excel_data = pd.read_excel(file_path, sheet_name=None, engine='calamine')
+            logger.info(f"엑셀 파일 읽기 완료: {file_path}")
             all_content = []
+            sheet_names = list(excel_data.keys())
             
-            for sheet_name in excel_file.sheet_names:
-                df = pd.read_excel(file_path, sheet_name=sheet_name)
-                
+            for sheet_name, df in excel_data.items():
+                # df = pd.read_excel(file_path, sheet_name=sheet_name)
+                logger.info(f"엑셀 파일 파싱중: {file_path}")
                 # 시트 헤더 추가
                 all_content.append(f"=== 시트: {sheet_name} ===")
                 
@@ -80,15 +86,15 @@ class DocumentReader:
             
             content = "\n".join(all_content)
             
+            logger.info(f"엑셀 파일 파싱 완료: {file_path}")
             return {
                 'content': content,
                 'metadata': {
                     'file_path': file_path,
                     'file_type': 'excel',
-                    'sheet_count': len(excel_file.sheet_names),
-                    'sheet_names': excel_file.sheet_names,
-                    'total_rows': sum(pd.read_excel(file_path, sheet_name=sheet).shape[0] 
-                                    for sheet in excel_file.sheet_names),
+                    'sheet_count': len(sheet_names),
+                    'sheet_names': sheet_names,
+                    'total_rows': sum(df.shape[0] for df in excel_data.values()),
                     'status': 'success'
                 }
             }

@@ -211,6 +211,7 @@ class DocumentIndexer:
                     results['error_count'] += 1
                     continue
                 
+                logger.info(f"RAG에 문서 추가 시작: {file_path}")
                 # RAG에 문서 추가
                 chunks_added = self.rag_manager.add_document(
                     document_text=doc_result['content'],
