@@ -1,3 +1,11 @@
+# PyTorch 공식 서버를 추가 검색 위치로 지정
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+
+torch==2.5.1
+torchvision
+torchaudio
+
 annotated-types==0.7.0
 anyio==4.10.0
 attrs==25.3.0
