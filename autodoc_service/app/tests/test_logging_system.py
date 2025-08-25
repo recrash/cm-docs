@@ -11,6 +11,7 @@ from datetime import datetime
 import pytest
 
 from ..logging_config import setup_autodoc_logging, get_logger, AutoDocRotatingFileHandler
+from ..services.paths import get_logs_dir
 
 
 class TestLoggingConfiguration:
@@ -22,7 +23,7 @@ class TestLoggingConfiguration:
         setup_autodoc_logging()
         
         # When
-        log_dir = Path(__file__).resolve().parents[2] / "logs"
+        log_dir = get_logs_dir()  # 환경변수 기반 경로 사용
         
         # Then
         assert log_dir.exists(), "로그 디렉토리가 생성되어야 함"
@@ -66,7 +67,7 @@ class TestLoggingOutput:
         
         # Then
         # 로그 파일 확인
-        log_dir = Path(__file__).resolve().parents[2] / "logs"
+        log_dir = get_logs_dir()  # 환경변수 기반 경로 사용
         current_date = datetime.now().strftime('%Y%m%d')
         log_file = log_dir / f"{current_date}_autodoc.log"
         
@@ -88,7 +89,7 @@ class TestLoggingOutput:
         logger.error("오류 메시지")
         
         # Then
-        log_dir = Path(__file__).resolve().parents[2] / "logs"
+        log_dir = get_logs_dir()  # 환경변수 기반 경로 사용
         current_date = datetime.now().strftime('%Y%m%d')
         log_file = log_dir / f"{current_date}_autodoc.log"
         
@@ -114,7 +115,7 @@ class TestLoggingIntegration:
         logger2.info("모듈2에서 로그")
         
         # Then
-        log_dir = Path(__file__).resolve().parents[2] / "logs"
+        log_dir = get_logs_dir()  # 환경변수 기반 경로 사용
         current_date = datetime.now().strftime('%Y%m%d')
         log_file = log_dir / f"{current_date}_autodoc.log"
         
@@ -138,7 +139,7 @@ class TestLoggingIntegration:
             logger.exception("예외 발생")
         
         # Then
-        log_dir = Path(__file__).resolve().parents[2] / "logs"
+        log_dir = get_logs_dir()  # 환경변수 기반 경로 사용
         current_date = datetime.now().strftime('%Y%m%d')
         log_file = log_dir / f"{current_date}_autodoc.log"
         

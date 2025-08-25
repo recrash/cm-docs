@@ -6,14 +6,17 @@ pipeline {
         WORKSPACE_PYTHON_CMD = "${WORKSPACE}\\autodoc_service\\.venv312\\Scripts\\python.exe"
         WORKSPACE_PIP_CMD = "${WORKSPACE}\\autodoc_service\\.venv312\\Scripts\\pip.exe"
         
-        // 배포 경로 (운영 서비스용)
-        DEPLOY_PATH = 'C:\\deploys\\cm-docs\\autodoc_service'
+        // 배포 경로 (운영 서비스용) - 새 폴더 구조 반영
+        DEPLOY_PATH = 'C:\\deploys\\apps\\autodoc_service'
         DEPLOY_PYTHON_CMD = "${DEPLOY_PATH}\\.venv312\\Scripts\\python.exe"
         DEPLOY_PIP_CMD = "${DEPLOY_PATH}\\.venv312\\Scripts\\pip.exe"
         
+        // 환경변수 기반 데이터 경로 (커밋 f57efef)
+        AUTODOC_DATA_PATH = 'C:\\deploys\\data\\autodoc_service'
+        
         // 기타 설정
         HEALTH_CHECK_URL = 'http://localhost:8001/health'
-        BACKUP_DIR = 'C:\\deploys\\backup\\autodoc_service'
+        BACKUP_DIR = 'C:\\deploys\\backup\\apps\\autodoc_service'
     }
     stages {
         stage('Checkout') {
@@ -27,22 +30,33 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
                     script {
-                        echo "Jenkins Workspace에서 테스트 환경 구축"
+                        echo "빠른 테스트 환경 구축 (휠하우스 활용)"
                         
                         // Python 3.12 가상환경 생성
                         bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.12 -m venv .venv312'
                         
-                        // Python 버전 확인
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' --version\""
+                        // 휠하우스 활용 고속 설치
+                        script {
+                            def wheelHouseExists = bat(
+                                script: 'if exist "C:\\deploys\\packages\\wheelhouse\\*.whl" echo found',
+                                returnStdout: true
+                            ).contains('found')
+                            
+                            if (wheelHouseExists) {
+                                echo "휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)"
+                                bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=C:/deploys/packages/wheelhouse -r requirements.txt\""
+                            } else {
+                                echo "휠하우스 없음 - 온라인 설치 (느림)"
+                                bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt\""
+                            }
+                        }
                         
-                        // 의존성 설치 (Windows pip 업그레이드 이슈 해결)
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt\""
+                        // 최소 검증만 수행 (시간 단축)
+                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from docx import Document; print('Test environment ready')\\\"\""
                         
-                        // 핵심 의존성 검증 (따옴표 이스케이프 문제 해결)
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from docx import Document; import openpyxl; import pytest; print('Dependencies verified successfully')\\\"\""
-                        
-                        echo "Jenkins Workspace 테스트 환경 구축 완료"
+                        echo "테스트 환경 구축 완료 (최적화됨)"
                     }
                 }
             }
@@ -109,7 +123,10 @@ pipeline {
                     // 백업 디렉토리 생성
                     bat "if not exist \"${env.BACKUP_DIR}\" mkdir \"${env.BACKUP_DIR}\""
                     
-                    // 타겟 폴더의 기존 wheel 파일들을 백업
+                    // 환경변수 기반 데이터 경로 생성 (커밋 f57efef 반영)
+                    bat "if not exist \"${env.AUTODOC_DATA_PATH}\" mkdir \"${env.AUTODOC_DATA_PATH}\""
+                    
+                    // 타겟 폴더의 기존 wheel 파일들과 중요 데이터 백업
                     powershell """
                         if (Test-Path "${env.DEPLOY_PATH}") {
                             \$existingWheels = Get-ChildItem -Path "${env.DEPLOY_PATH}" -Filter "*.whl" -ErrorAction SilentlyContinue
@@ -121,6 +138,18 @@ pipeline {
                                 }
                             } else {
                                 Write-Host "백업할 wheel 파일이 없습니다"
+                            }
+                            
+                            # 환경변수 기반 중요 데이터 백업 (templates, documents 등)
+                            if (Test-Path "${env.AUTODOC_DATA_PATH}") {
+                                Write-Host "환경변수 기반 데이터 디렉토리 백업 중..."
+                                if (Test-Path "${env.AUTODOC_DATA_PATH}\\templates") {
+                                    Copy-Item -Path "${env.AUTODOC_DATA_PATH}\\templates" -Destination "${env.BACKUP_DIR}\\templates" -Recurse -Force -ErrorAction SilentlyContinue
+                                }
+                                if (Test-Path "${env.AUTODOC_DATA_PATH}\\documents") {
+                                    # 중요 문서만 백업 (테스트 제외)
+                                    Get-ChildItem -Path "${env.AUTODOC_DATA_PATH}\\documents" -Exclude "*TEST_*" | Copy-Item -Destination "${env.BACKUP_DIR}\\documents" -Recurse -Force -ErrorAction SilentlyContinue
+                                }
                             }
                         } else {
                             Write-Host "배포 경로가 존재하지 않습니다: ${env.DEPLOY_PATH}"
@@ -155,73 +184,37 @@ pipeline {
             }
         }
         
-        stage('Download Wheels for Offline') {
-            steps {
-                dir("${WORKSPACE}/autodoc_service") {
-                    script {
-                        echo "폐쇄망 환경 대비 휠 번들 다운로드 (스마트 캐싱 적용)"
-                        
-                        // 휠 다운로드 디렉토리 생성
-                        bat 'if not exist ".pip-wheelhouse" mkdir ".pip-wheelhouse"'
-                        
-                        // requirements.txt 변경 감지를 위한 해시 계산
-                        def currentHash = powershell(
-                            script: 'Get-FileHash requirements.txt -Algorithm MD5 | Select-Object -ExpandProperty Hash',
-                            returnStdout: true
-                        ).trim()
-                        
-                        def cacheFile = ".pip-wheelhouse/.requirements-hash"
-                        def cachedHash = ""
-                        
-                        // 기존 캐시 해시 확인
-                        if (fileExists(cacheFile)) {
-                            cachedHash = readFile(cacheFile).trim()
-                        }
-                        
-                        // 의존성 변경 여부 확인
-                        if (currentHash == cachedHash) {
-                            echo "의존성 변경 없음 - 기존 휠 캐시 재사용 (빌드 속도 최적화)"
-                            
-                            // 캐시된 휠 파일 개수 확인
-                            def wheelCount = bat(
-                                script: 'dir /b ".pip-wheelhouse\\*.whl" 2>nul | find /c ".whl" || echo 0',
-                                returnStdout: true
-                            ).trim()
-                            
-                            if (wheelCount.toInteger() > 0) {
-                                echo "캐시된 휠 파일 ${wheelCount}개 발견 - 다운로드 스킵"
-                            } else {
-                                echo "캐시 파일이 없어 전체 다운로드 실행"
-                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' download -r requirements.txt -d .pip-wheelhouse --prefer-binary\""
-                            }
-                        } else {
-                            echo "의존성 변경 감지 - 새로운 휠 번들 다운로드"
-                            
-                            // 기존 휠 파일 정리
-                            bat 'if exist ".pip-wheelhouse\\*.whl" del /f /q ".pip-wheelhouse\\*.whl"'
-                            
-                            // 모든 의존성 휠 다운로드 (폐쇄망 대비, autodoc_service는 제약조건 파일 없음)
-                            bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' download -r requirements.txt -d .pip-wheelhouse --prefer-binary\""
-                            
-                            // 새 해시 저장
-                            writeFile file: cacheFile, text: currentHash
-                        }
-                        
-                        // 다운로드된 휠 목록 확인
-                        bat 'dir /b ".pip-wheelhouse\\*.whl" | find /c ".whl"'
-                        
-                        echo "오프라인 설치용 휠 번들 준비 완료 (캐싱 최적화 적용)"
-                    }
-                }
-            }
-        }
         
         stage('Deploy') {
             steps {
                 script {
                     try {
-                        // 서비스 중지
-                        bat 'nssm stop autodoc_service'
+                        // 서비스 상태 확인 후 적절한 중지
+                        powershell """
+                            try {
+                                \$status = nssm status autodoc_service
+                                Write-Host "현재 서비스 상태: \$status"
+                                
+                                if (\$status -eq "SERVICE_PAUSED") {
+                                    Write-Host "일시중지 상태 감지 - CONTINUE 후 중지"
+                                    nssm continue autodoc_service
+                                    Start-Sleep -Seconds 3
+                                }
+                                
+                                Write-Host "서비스 중지 시작"
+                                nssm stop autodoc_service
+                                Start-Sleep -Seconds 2
+                                
+                                # 중지 확인
+                                \$finalStatus = nssm status autodoc_service
+                                Write-Host "최종 상태: \$finalStatus"
+                                
+                            } catch {
+                                Write-Host "서비스 제어 중 오류: \$(\$_.Exception.Message)"
+                                # 강제 중지 시도
+                                sc stop "autodoc_service" 2>\$null
+                            }
+                        """
                         echo "AutoDoc Service 중지 완료"
                         
                         // 10초 대기 (사용자 요구사항)
@@ -239,26 +232,63 @@ pipeline {
                             }
                         """
                         
-                        // 2단계: 타겟 폴더의 wheel 파일로 설치
+                        // 2단계: 초고속 wheel 설치 (휠하우스 활용)
                         powershell """
                             \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\autodoc_service-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
                             if (\$deployWhl) {
-                                Write-Host "타겟 폴더에서 설치: \$(\$deployWhl.Name)"
-                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --force-reinstall
+                                Write-Host "초고속 설치 시작: \$(\$deployWhl.Name)"
+                                
+                                # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
+                                if (Test-Path "C:\\deploys\\packages\\wheelhouse\\*.whl") {
+                                    Write-Host "휠하우스 발견 - 오프라인 초고속 설치"
+                                    & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=C:/deploys/packages/wheelhouse --upgrade
+                                } else {
+                                    Write-Host "휠하우스 없음 - 기본 업그레이드 설치"
+                                    & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --upgrade
+                                }
                                 Write-Host "설치 완료"
                             } else {
                                 throw "타겟 폴더에 wheel 파일이 없습니다"
                             }
                         """
                         
-                        // 서비스 시작
-                        bat 'nssm start autodoc_service'
+                        // 서비스 시작 (상태 확인 포함)
+                        powershell """
+                            try {
+                                Write-Host "AutoDoc Service 시작 중..."
+                                nssm start autodoc_service
+                                Start-Sleep -Seconds 3
+                                
+                                # 시작 상태 확인
+                                \$status = nssm status autodoc_service
+                                Write-Host "서비스 시작 후 상태: \$status"
+                                
+                                if (\$status -ne "SERVICE_RUNNING") {
+                                    Write-Host "경고: 서비스가 정상 실행 상태가 아닙니다"
+                                }
+                                
+                            } catch {
+                                Write-Host "서비스 시작 중 오류: \$(\$_.Exception.Message)"
+                                throw
+                            }
+                        """
                         echo "AutoDoc Service 시작 완료"
                         
                     } catch (Exception e) {
                         echo "배포 실패: ${e.getMessage()}"
-                        // 백업에서 롤백 시도
-                        bat 'nssm stop autodoc_service'
+                        // 백업에서 롤백 시도 - 서비스 적절한 중지
+                        powershell """
+                            try {
+                                \$status = nssm status autodoc_service
+                                if (\$status -eq "SERVICE_PAUSED") {
+                                    nssm continue autodoc_service
+                                    Start-Sleep -Seconds 2
+                                }
+                                nssm stop autodoc_service
+                            } catch {
+                                sc stop "autodoc_service" 2>\$null
+                            }
+                        """
                         powershell """
                             if (Test-Path "${env.BACKUP_DIR}\\*.whl") {
                                 \$backupWhl = Get-ChildItem -Path "${env.BACKUP_DIR}\\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -367,21 +397,25 @@ pipeline {
         
         stage('Archive Artifact') {
             steps {
-                // 빌드된 휠과 다운로드된 휠 번들 모두 보관
-                archiveArtifacts artifacts: "autodoc_service/dist/*.whl, autodoc_service/.pip-wheelhouse/*.whl", followSymlinks: false
-                echo "Jenkins Workspace에서 빌드된 Wheel 아티팩트 및 의존성 휠 번들 보관 완료"
+                // 빌드된 휠 보관
+                archiveArtifacts artifacts: "autodoc_service/dist/*.whl", followSymlinks: false
+                echo "빌드된 AutoDoc Service Wheel 아티팩트 보관 완료"
                 
-                // 폐쇄망 환경 오프라인 설치 가이드
+                // 폐쇄망 환경 설치 가이드 (휠하우스 활용)
                 echo """
                 =========================================
-                폐쇄망 환경 오프라인 설치 가이드:
+                폐쇄망 환경 배포 가이드 (휠하우스 활용):
                 
-                1. 아티팩트 다운로드 후 폐쇄망 서버로 전송
-                2. 가상환경 생성: py -3.12 -m venv .venv312
-                3. 가상환경 활성화: .venv312\\Scripts\\activate
-                4. 오프라인 설치: pip install --no-index --find-links="./.pip-wheelhouse" autodoc_service-*.whl
+                1. C:\\deploys\\packages\\wheelhouse\\ 에 의존성 준비
+                2. 환경변수 설정: set AUTODOC_DATA_PATH=C:\\deploys\\data\\autodoc_service
+                3. 가상환경 생성: py -3.12 -m venv .venv312
+                4. 가상환경 활성화: .venv312\\Scripts\\activate
+                5. 오프라인 설치: pip install --no-index --find-links=C:/deploys/packages/wheelhouse autodoc_service-*.whl
                 
-                주의: Python 3.12 환경에서 문서 생성 안정성을 보장합니다.
+                휠하우스 준비:
+                - download-all-dependencies.sh 실행 → wheelhouse 폴더 생성
+                - wheelhouse 내용을 C:\\deploys\\packages\\wheelhouse\\ 로 복사
+                - 이후 모든 배포는 인터넷 없이 초고속 진행
                 =========================================
                 """
             }
@@ -399,8 +433,9 @@ pipeline {
             // Jenkins Workspace 정리
             dir("${WORKSPACE}/autodoc_service") {
                 bat 'if exist "*.tmp" del /f /q *.tmp'
-                // 테스트로 생성된 문서 정리
-                bat 'if exist "documents\\*TEST_*" del /f /q "documents\\*TEST_*"'
+                // 테스트로 생성된 문서 정리 (환경변수 기반 경로 고려)
+                bat 'if exist "data\\documents\\*TEST_*" del /f /q "data\\documents\\*TEST_*"'
+                bat 'if exist "documents\\*TEST_*" del /f /q "documents\\*TEST_*"'  // 기존 경로 호환성
                 // pytest 캐시 정리
                 bat 'if exist ".pytest_cache" rmdir /s /q ".pytest_cache"'
                 // 임시 파일 강제 정리
@@ -410,7 +445,16 @@ pipeline {
             // 배포 환경 정리
             dir(env.DEPLOY_PATH) {
                 bat 'if exist "*.tmp" del /f /q *.tmp'
-                bat 'if exist "documents\\*TEST_*" del /f /q "documents\\*TEST_*"'
+            }
+            
+            // 환경변수 기반 데이터 경로 정리
+            script {
+                if (env.AUTODOC_DATA_PATH) {
+                    dir(env.AUTODOC_DATA_PATH) {
+                        bat 'if exist "documents\\*TEST_*" del /f /q "documents\\*TEST_*"'
+                        bat 'if exist "logs\\*TEST_*" del /f /q "logs\\*TEST_*"'
+                    }
+                }
             }
         }
     }

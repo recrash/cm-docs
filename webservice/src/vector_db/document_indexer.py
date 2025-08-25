@@ -2,13 +2,17 @@ import os
 import json
 import hashlib
 import time
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
 import portalocker
 
 from .document_reader import DocumentReader
+
+logger = logging.getLogger(__name__)
 from .rag_manager import RAGManager
+from ..paths import get_data_root
 
 
 class DocumentIndexer:
@@ -31,11 +35,17 @@ class DocumentIndexer:
         else:
             self.documents_folder = Path(documents_folder)
             
-        # 캐시 파일 경로 (프로젝트 루트)
-        self.cache_file_path = self.documents_folder.parent / self.CACHE_FILENAME
+        # 캐시 파일 경로 (환경변수 기반 데이터 루트)
+        data_root = get_data_root()
+        self.cache_file_path = Path(data_root) / self.CACHE_FILENAME
         
         self.document_reader = DocumentReader()
         self.indexed_files_cache = {}  # 메모리 캐시
+        
+        # 캐시 파일 경로 로깅
+        logger.debug(f"[CACHE_INIT] 캐시 파일 경로 설정: {self.cache_file_path}")
+        logger.debug(f"[CACHE_INIT] 데이터 루트: {data_root}")
+        logger.debug(f"[CACHE_INIT] 문서 폴더: {self.documents_folder}")
         
         # 영속적 캐시 로드
         self._load_persistent_cache()
@@ -43,8 +53,12 @@ class DocumentIndexer:
     def _load_persistent_cache(self):
         """영속적 캐시 파일을 로드"""
         try:
+            logger.debug(f"[CACHE_LOAD] 캐시 파일 로드 시도: {self.cache_file_path}")
+            logger.debug(f"[CACHE_LOAD] 캐시 파일 존재 여부: {self.cache_file_path.exists()}")
+            
             if not self.cache_file_path.exists():
-                print(f"캐시 파일이 없습니다: {self.cache_file_path}")
+                logger.debug(f"[CACHE_LOAD] 캐시 파일이 없습니다: {self.cache_file_path}")
+                logger.debug(f"[CACHE_LOAD] 새로운 캐시를 생성합니다")
                 return
                 
             # 파일 락을 사용하여 안전하게 읽기
@@ -57,23 +71,23 @@ class DocumentIndexer:
                     
             # 캐시 데이터 검증
             if not isinstance(cache_data, dict) or 'indexed_files' not in cache_data:
-                print("캐시 파일 형식이 올바르지 않습니다. 빈 캐시로 초기화합니다.")
+                logger.warning("캐시 파일 형식이 올바르지 않습니다. 빈 캐시로 초기화합니다.")
                 return
                 
             # 버전 호환성 검사
             cache_version = cache_data.get('cache_version', '0.0')
             if cache_version != self.CACHE_VERSION:
-                print(f"캐시 버전 불일치 (현재: {self.CACHE_VERSION}, 캐시: {cache_version}). 캐시를 초기화합니다.")
+                logger.info(f"캐시 버전 불일치 (현재: {self.CACHE_VERSION}, 캐시: {cache_version}). 캐시를 초기화합니다.")
                 return
                 
             self.indexed_files_cache = cache_data['indexed_files']
-            print(f"캐시 로드 완료: {len(self.indexed_files_cache)}개 파일")
+            logger.info(f"캐시 로드 완료: {len(self.indexed_files_cache)}개 파일")
             
         except json.JSONDecodeError as e:
-            print(f"캐시 파일이 손상되었습니다 ({e}). 빈 캐시로 초기화합니다.")
+            logger.error(f"캐시 파일이 손상되었습니다 ({e}). 빈 캐시로 초기화합니다.")
             self.indexed_files_cache = {}
         except Exception as e:
-            print(f"캐시 로드 중 오류 발생 ({e}). 빈 캐시로 초기화합니다.")
+            logger.error(f"캐시 로드 중 오류 발생 ({e}). 빈 캐시로 초기화합니다.")
             self.indexed_files_cache = {}
     
     def _save_persistent_cache(self):
@@ -102,7 +116,7 @@ class DocumentIndexer:
             temp_file.replace(self.cache_file_path)
             
         except Exception as e:
-            print(f"캐시 저장 중 오류 발생: {e}")
+            logger.error(f"캐시 저장 중 오류 발생: {e}")
             # 임시 파일이 남아있다면 정리
             temp_file = self.cache_file_path.with_suffix('.tmp')
             if temp_file.exists():
@@ -120,13 +134,19 @@ class DocumentIndexer:
         Returns:
             인덱싱 결과 정보
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[INDEXER] index_documents_folder 메서드 시작 - force_reindex: {force_reindex}")
+        logger.info(f"[INDEXER] documents_folder 경로: {self.documents_folder}")
+        
         def notify_progress(message: str, progress: float):
             if progress_callback:
                 progress_callback(message, progress)
         
+        logger.info(f"[INDEXER] 문서 폴더 존재 여부 확인: {self.documents_folder.exists()}")
         if not self.documents_folder.exists():
             error_msg = f"문서 폴더가 존재하지 않습니다: {self.documents_folder}"
-            print(error_msg)
+            logger.error(f"[INDEXER] {error_msg}")
             notify_progress(error_msg, 1.0)
             return {
                 'status': 'error',
@@ -136,8 +156,9 @@ class DocumentIndexer:
                 'error_count': 0
             }
         
+        logger.info(f"[INDEXER] notify_progress 호출 - 문서 폴더 스캔 중")
         notify_progress(f"문서 폴더 스캔 중: {self.documents_folder}", 0.1)
-        print(f"문서 폴더 인덱싱 시작: {self.documents_folder}")
+        logger.info(f"[INDEXER] 문서 폴더 인덱싱 시작: {self.documents_folder}")
         
         results = {
             'status': 'success',
@@ -156,10 +177,10 @@ class DocumentIndexer:
         
         if not supported_files:
             notify_progress("인덱싱할 지원 파일이 없습니다.", 1.0)
-            print("인덱싱할 지원 파일이 없습니다.")
+            logger.info("인덱싱할 지원 파일이 없습니다.")
             return results
         
-        print(f"발견된 지원 파일: {len(supported_files)}개")
+        logger.info(f"발견된 지원 파일: {len(supported_files)}개")
         notify_progress(f"발견된 지원 파일: {len(supported_files)}개", 0.25)
         
         # 파일 처리
@@ -172,12 +193,12 @@ class DocumentIndexer:
             try:
                 # 파일이 변경되었는지 확인
                 if not force_reindex and not self._is_file_modified(file_path):
-                    print(f"스킵 (변경 없음): {file_path}")
+                    logger.debug(f"스킵 (변경 없음): {file_path}")
                     results['skipped_files'].append(file_path)
                     results['skipped_count'] += 1
                     continue
                 
-                print(f"인덱싱 중: {file_path}")
+                logger.info(f"인덱싱 중: {file_path}")
                 
                 # 문서 읽기
                 doc_result = self.document_reader.read_document(file_path)
@@ -190,6 +211,7 @@ class DocumentIndexer:
                     results['error_count'] += 1
                     continue
                 
+                logger.info(f"RAG에 문서 추가 시작: {file_path}")
                 # RAG에 문서 추가
                 chunks_added = self.rag_manager.add_document(
                     document_text=doc_result['content'],
@@ -209,10 +231,10 @@ class DocumentIndexer:
                 results['indexed_count'] += 1
                 results['total_chunks_added'] += chunks_added
                 
-                print(f"  → {chunks_added}개 청크 추가됨")
+                logger.info(f"  → {chunks_added}개 청크 추가됨")
                 
             except Exception as e:
-                print(f"파일 인덱싱 중 오류 발생 ({file_path}): {e}")
+                logger.error(f"파일 인덱싱 중 오류 발생 ({file_path}): {e}")
                 results['error_files'].append({
                     'file': file_path,
                     'error': str(e)
@@ -225,21 +247,41 @@ class DocumentIndexer:
         
         notify_progress("인덱싱 완료!", 1.0)
         
-        print(f"\n인덱싱 완료:")
-        print(f"  - 성공: {results['indexed_count']}개")
-        print(f"  - 스킵: {results['skipped_count']}개")
-        print(f"  - 오류: {results['error_count']}개")
-        print(f"  - 총 청크: {results['total_chunks_added']}개")
+        logger.info(f"\n인덱싱 완료:")
+        logger.info(f"  - 성공: {results['indexed_count']}개")
+        logger.info(f"  - 스킵: {results['skipped_count']}개")
+        logger.info(f"  - 오류: {results['error_count']}개")
+        logger.info(f"  - 총 청크: {results['total_chunks_added']}개")
         
         return results
     
     def _find_supported_files(self) -> List[str]:
         """지원하는 파일들을 찾아서 반환"""
-        supported_files = []
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[FIND_FILES] 파일 검색 시작 - documents_folder: {self.documents_folder}")
         
-        for file_path in self.documents_folder.rglob('*'):
-            if file_path.is_file() and self.document_reader.is_supported_file(str(file_path)):
-                supported_files.append(str(file_path))
+        supported_files = []
+        file_count = 0
+        
+        try:
+            logger.info(f"[FIND_FILES] rglob 시작")
+            for file_path in self.documents_folder.rglob('*'):
+                file_count += 1
+                logger.info(f"[FIND_FILES] 파일 {file_count}: {file_path}")
+                
+                if file_count > 100:  # 무한루프 방지
+                    logger.warning(f"[FIND_FILES] 파일 개수가 100개를 초과했습니다. 중단합니다.")
+                    break
+                    
+                if file_path.is_file() and self.document_reader.is_supported_file(str(file_path)):
+                    logger.info(f"[FIND_FILES] 지원되는 파일 발견: {file_path}")
+                    supported_files.append(str(file_path))
+            
+            logger.info(f"[FIND_FILES] 파일 검색 완료 - 전체: {file_count}, 지원: {len(supported_files)}")
+        except Exception as e:
+            logger.error(f"[FIND_FILES] 파일 검색 중 오류: {e}")
+            logger.exception("[FIND_FILES] 예외 상세:")
         
         return sorted(supported_files)
     
@@ -277,7 +319,7 @@ class DocumentIndexer:
             return current_hash != cached_hash
             
         except Exception as e:
-            print(f"파일 변경 확인 중 오류 ({file_path}): {e}")
+            logger.error(f"파일 변경 확인 중 오류 ({file_path}): {e}")
             return True  # 오류가 발생하면 다시 인덱싱
     
     def _get_file_hash(self, file_path: str) -> str:
@@ -300,7 +342,7 @@ class DocumentIndexer:
             return hash_md5.hexdigest()
             
         except Exception as e:
-            print(f"파일 해시 계산 중 오류 ({file_path}): {e}")
+            logger.error(f"파일 해시 계산 중 오류 ({file_path}): {e}")
             # 오류 시 현재 시간 기반 해시 반환 (항상 다름을 보장)
             return hashlib.md5(str(time.time()).encode()).hexdigest()
     
@@ -319,7 +361,7 @@ class DocumentIndexer:
             }
             
         except Exception as e:
-            print(f"파일 캐시 업데이트 중 오류 ({file_path}): {e}")
+            logger.error(f"파일 캐시 업데이트 중 오류 ({file_path}): {e}")
     
     def get_folder_info(self) -> Dict[str, Any]:
         """documents 폴더 정보 반환"""
@@ -368,11 +410,11 @@ class DocumentIndexer:
             try:
                 if self.cache_file_path.exists():
                     self.cache_file_path.unlink()
-                    print("영속적 캐시 파일이 삭제되었습니다.")
+                    logger.info("영속적 캐시 파일이 삭제되었습니다.")
             except Exception as e:
-                print(f"캐시 파일 삭제 중 오류 발생: {e}")
+                logger.error(f"캐시 파일 삭제 중 오류 발생: {e}")
         
-        print("문서 인덱스 캐시가 초기화되었습니다.")
+        logger.info("문서 인덱스 캐시가 초기화되었습니다.")
     
     def reindex_single_file(self, file_path: str, 
                           progress_callback: Optional[Callable[[str, float], None]] = None) -> Dict[str, Any]:
@@ -401,7 +443,7 @@ class DocumentIndexer:
         
         try:
             notify_progress(f"파일 읽기: {file_path_obj.name}", 0.2)
-            print(f"단일 파일 인덱싱: {file_path}")
+            logger.info(f"단일 파일 인덱싱: {file_path}")
             
             # 문서 읽기
             doc_result = self.document_reader.read_document(file_path)

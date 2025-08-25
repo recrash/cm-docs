@@ -210,10 +210,11 @@ class TestExcelTestBuilder:
             )
     
     def test_missing_template_error(self, sample_change_request, temp_output_dir, monkeypatch):
-        """템플릿 파일 누락 시 에러 발생 테스트 (환경변수로 빈 템플릿 폴더 지정)"""
-        empty_dir = temp_output_dir / "empty_tpl"
+        """템플릿 파일 누락 시 에러 발생 테스트 (환경변수로 빈 데이터 폴더 지정)"""
+        empty_dir = temp_output_dir / "empty_data"
         empty_dir.mkdir(parents=True, exist_ok=True)
-        monkeypatch.setenv("AUTODOC_TPL_DIR", str(empty_dir))
+        # 새로운 환경변수 시스템에 맞게 AUTODOC_DATA_PATH 사용
+        monkeypatch.setenv("AUTODOC_DATA_PATH", str(empty_dir))
         
         with pytest.raises(FileNotFoundError, match="템플릿 파일을 찾을 수 없습니다"):
             build_test_scenario_xlsx(sample_change_request, temp_output_dir)

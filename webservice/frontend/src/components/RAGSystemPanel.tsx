@@ -102,7 +102,9 @@ export default function RAGSystemPanel({ ragStatus, onStatusUpdate }: RAGSystemP
     if (!ragStatus) return 'default'
     switch (ragStatus.status) {
       case 'active': return 'success'
+      case 'ready': return 'info'
       case 'inactive': return 'warning'
+      case 'disabled': return 'warning'
       case 'error': return 'error'
       default: return 'default'
     }
@@ -112,7 +114,9 @@ export default function RAGSystemPanel({ ragStatus, onStatusUpdate }: RAGSystemP
     if (!ragStatus) return '로딩 중...'
     switch (ragStatus.status) {
       case 'active': return '정상 작동'
+      case 'ready': return '준비됨'
       case 'inactive': return '비활성화'
+      case 'disabled': return '설정에서 비활성화'
       case 'error': return '오류'
       default: return '알 수 없음'
     }
@@ -122,23 +126,85 @@ export default function RAGSystemPanel({ ragStatus, onStatusUpdate }: RAGSystemP
     return (
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
             <CircularProgress size={20} />
             <Typography>RAG 시스템 상태 로딩 중...</Typography>
           </Box>
+          <Alert severity="info">
+            RAG 시스템 상태를 확인하고 있습니다. 잠시만 기다려 주세요.
+          </Alert>
         </CardContent>
       </Card>
     )
   }
 
-  if (ragStatus.status === 'error') {
+  // Handle different error and disabled states
+  if (ragStatus.status === 'error' || ragStatus.status === 'disabled') {
     return (
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Alert severity="error">
-            ⚠️ RAG 시스템이 비활성화되어 있거나 초기화에 실패했습니다. 
-            config.json에서 RAG를 활성화하고 앱을 재시작해주세요.
-          </Alert>
+          <Box sx={{ mb: 2 }}>
+            <Alert 
+              severity={ragStatus.status === 'disabled' ? 'warning' : 'error'}
+              action={
+                <Button 
+                  color="inherit" 
+                  size="small" 
+                  onClick={() => {
+                    loadRagInfo()
+                    onStatusUpdate()
+                  }}
+                >
+                  재시도
+                </Button>
+              }
+            >
+              {ragStatus.status === 'disabled' 
+                ? '⚙️ RAG 시스템이 설정에서 비활성화되어 있습니다. config.json에서 RAG를 활성화하고 앱을 재시작해주세요.' 
+                : `⚠️ RAG 시스템 오류: ${ragStatus.message}`
+              }
+            </Alert>
+          </Box>
+          {ragStatus.status === 'disabled' && (
+            <Alert severity="info">
+              💡 config.json에서 "rag.enabled"를 true로 설정하고 서버를 재시작하세요.
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Handle ready state (needs indexing)
+  if (ragStatus.status === 'ready') {
+    return (
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ mb: 2 }}>
+            <Alert severity="info">
+              📚 RAG 시스템이 준비되었습니다. 문서를 인덱싱하여 활성화하세요.
+            </Alert>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={isIndexing ? <CircularProgress size={16} color="inherit" /> : <Description />}
+            onClick={() => handleIndexDocuments(false)}
+            disabled={isIndexing || isClearing}
+            sx={{
+              py: 1.5,
+              background: 'linear-gradient(45deg, #2196f3 30%, #1976d2 90%)',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #1976d2 30%, #1565c0 90%)'
+              }
+            }}
+          >
+            문서 인덱싱 시작
+          </Button>
+          {message && (
+            <Alert severity={messageType} sx={{ mt: 2 }}>
+              {message}
+            </Alert>
+          )}
         </CardContent>
       </Card>
     )
