@@ -84,11 +84,12 @@ export interface RAGInfo {
 }
 
 export interface RAGStatus {
-  status: 'active' | 'inactive' | 'error'
+  status: 'active' | 'inactive' | 'disabled' | 'ready' | 'error'
   message: string
   document_count: number
   embedding_model: string
   chunk_size: number
+  auto_activated?: boolean
 }
 
 export interface IndexingResult {

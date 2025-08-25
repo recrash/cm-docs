@@ -176,7 +176,16 @@ async def get_auto_activation_status():
     
     try:
         from src.config_loader import load_config
+        logger.info("[RAG_ENDPOINT_DEBUG] RAG 자동 활성화 상태 조회 - config 로딩 시작")
         config = load_config()
+        logger.info(f"[RAG_ENDPOINT_DEBUG] config 로딩 결과: {config is not None}")
+        if config:
+            rag_config = config.get('rag', {})
+            rag_enabled = rag_config.get('enabled', False)
+            logger.info(f"[RAG_ENDPOINT_DEBUG] RAG 설정 전체: {rag_config}")
+            logger.info(f"[RAG_ENDPOINT_DEBUG] RAG enabled 값: {rag_enabled}")
+        else:
+            logger.info("[RAG_ENDPOINT_DEBUG] config가 None입니다")
         
         if not config or not config.get('rag', {}).get('enabled', False):
             logger.info("RAG 자동 활성화가 설정에서 비활성화됨")

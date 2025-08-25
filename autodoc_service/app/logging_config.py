@@ -8,24 +8,24 @@ AutoDoc Service에 특화된 로깅 시스템 구성
 - Windows 환경 한글 지원
 """
 import logging
-import sys
 import os
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 import datetime
 
-
+# 환경 변수 기반 경로 관리 임포트
+from .services.paths import get_logs_dir
 
 
 class AutoDocRotatingFileHandler(TimedRotatingFileHandler):
     """
     AutoDoc Service용 커스텀 로그 핸들러
     날짜별 로그 파일 생성: YYYYMMDD_autodoc.log
+    환경 변수 기반 로그 디렉터리 사용
     """
     def __init__(self, when='midnight', backupCount=7, encoding=None, delay=False, utc=False, atTime=None):
-        # AutoDoc Service 로그 디렉토리 설정
-        self.log_dir = Path(__file__).resolve().parents[1] / "logs"
-        self.log_dir.mkdir(exist_ok=True)
+        # 환경 변수 기반 로그 디렉토리 설정
+        self.log_dir = get_logs_dir()
         
         # 초기 파일명 구성
         current_date = datetime.date.today().strftime('%Y%m%d')
@@ -65,10 +65,10 @@ def setup_autodoc_logging():
     - 콘솔 출력 비활성화 (한글 인코딩 에러 방지)
     - AutoDoc Service에 최적화된 로그 형식
     - 모든 플랫폼에서 안정적인 파일 기반 로깅
+    - 환경 변수 기반 로그 디렉토리 사용
     """
-    # 로그 디렉토리 생성
-    log_dir = Path(__file__).resolve().parents[1] / "logs"
-    log_dir.mkdir(exist_ok=True)
+    # 환경 변수 기반 로그 디렉토리 가져오기 (자동 생성됨)
+    log_dir = get_logs_dir()
     
     # 로그 형식 설정
     log_format = "%(asctime)s | %(levelname)-8s | %(name)s | %(funcName)s:%(lineno)d | %(message)s"

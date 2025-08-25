@@ -6,6 +6,9 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 import datetime
 
+# 환경 변수 기반 경로 관리 임포트
+from .paths import get_logs_dir
+
 
 
 class DatedRotatingFileHandler(TimedRotatingFileHandler):
@@ -15,9 +18,8 @@ class DatedRotatingFileHandler(TimedRotatingFileHandler):
     """
     def __init__(self, filename_prefix, when='midnight', backupCount=0, encoding=None, delay=False, utc=False, atTime=None):
         self.prefix = filename_prefix
-        # Correctly determine project root and logs directory
-        self.log_dir = Path(__file__).resolve().parents[1] / "logs"
-        self.log_dir.mkdir(exist_ok=True)
+        # 환경 변수 기반 로그 디렉토리 사용
+        self.log_dir = get_logs_dir()
         
         # Construct the initial filename
         current_date = datetime.date.today().strftime('%Y%m%d')
@@ -61,9 +63,10 @@ def setup_logging():
     - 콘솔 출력 비활성화 (한글 인코딩 에러 방지)
     - UTF-8 인코딩으로 파일 로깅
     - 모든 플랫폼에서 안정적인 동작
+    - 환경 변수 기반 로그 디렉토리 사용
     """
-    log_dir = Path(__file__).resolve().parents[1] / "logs"
-    log_dir.mkdir(exist_ok=True)
+    # 환경 변수 기반 로그 디렉토리 가져오기 (자동 생성됨)
+    log_dir = get_logs_dir()
 
     log_format = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     formatter = logging.Formatter(log_format)

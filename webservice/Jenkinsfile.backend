@@ -6,14 +6,19 @@ pipeline {
         WORKSPACE_PYTHON_CMD = "${WORKSPACE}\\webservice\\.venv\\Scripts\\python.exe"
         WORKSPACE_PIP_CMD = "${WORKSPACE}\\webservice\\.venv\\Scripts\\pip.exe"
         
-        // 배포 경로 (운영 서비스용)
-        DEPLOY_PATH = 'C:\\deploys\\cm-docs\\webservice'
+        // 배포 경로 (운영 서비스용) - 새 폴더 구조 반영
+        DEPLOY_PATH = 'C:\\deploys\\apps\\webservice'
         DEPLOY_PYTHON_CMD = "${DEPLOY_PATH}\\.venv\\Scripts\\python.exe"
         DEPLOY_PIP_CMD = "${DEPLOY_PATH}\\.venv\\Scripts\\pip.exe"
         
+        // 환경변수 기반 데이터 경로 (커밋 f57efef)
+        WEBSERVICE_DATA_PATH = 'C:\\deploys\\data\\webservice'
+        // RAG(ChromaDB)의 불필요한 네트워크 통신을 막기 위해 이 부분을 추가
+        ANONYMIZED_TELEMETRY = 'False'
+        
         // 기타 설정
         HEALTH_CHECK_URL = 'http://localhost:8000/api/health'
-        BACKUP_DIR = 'C:\\deploys\\backup\\webservice'
+        BACKUP_DIR = 'C:\\deploys\\backup\\apps\\webservice'
     }
     stages {
         stage('Checkout') {
@@ -27,34 +32,33 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/webservice") {
                     script {
-                        echo "Jenkins Workspace에서 테스트 환경 구축"
+                        echo "빠른 테스트 환경 구축 (휠하우스 활용)"
                         
-                        // Python 3.13 가상환경 생성
-                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
+                        // Python 3.12 가상환경 생성
+                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.12 -m venv .venv'
                         
-                        // Python 버전 확인
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' --version\""
+                        // 휠하우스 활용 고속 설치
+                        script {
+                            def wheelHouseExists = bat(
+                                script: 'if exist "C:\\deploys\\packages\\wheelhouse\\*.whl" echo found',
+                                returnStdout: true
+                            ).contains('found')
+                            
+                            if (wheelHouseExists) {
+                                echo "휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)"
+                                bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=C:/deploys/packages/wheelhouse -r requirements.txt -c pip.constraints.txt\""
+                            } else {
+                                echo "휠하우스 없음 - 온라인 설치 (PyTorch CUDA 포함)"
+                                bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements.txt -c pip.constraints.txt --prefer-binary\""
+                            }
+                        }
                         
-                        // 의존성 설치 (constraints 파일로 호환성 이슈 해결, prefer-binary로 최적화)
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt -c pip.constraints.txt --prefer-binary\""
+                        // CUDA 및 주요 패키지 검증 (시간 단축)
+                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import fastapi; import torch; print(f'Test environment ready - PyTorch {torch.__version__} CUDA: {torch.cuda.is_available()}')\\\"\""
                         
-                        // 핵심 의존성 검증
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import fastapi; import sentence_transformers; print('Core dependencies verified successfully')\\\"\""
-                        
-                        // ChromaDB 설치 여부 확인
-                        bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' show chromadb | findstr Name\""
-                        
-                        // jsonschema 관련 패키지 설치 확인 (임포트는 테스트에서 검증)
-                        powershell """
-                            Write-Host "설치된 jsonschema 관련 패키지:"
-                            & '${env.WORKSPACE_PIP_CMD}' show jsonschema | Select-String "Name:|Version:"
-                            & '${env.WORKSPACE_PIP_CMD}' show jsonschema-specifications | Select-String "Name:|Version:"
-                            & '${env.WORKSPACE_PIP_CMD}' show referencing | Select-String "Name:|Version:"
-                            Write-Host "jsonschema 패키지 설치 확인 완료 (실제 동작은 테스트에서 검증)"
-                        """
-                        
-                        echo "Jenkins Workspace 테스트 환경 구축 완료"
+                        echo "테스트 환경 구축 완료 (최적화됨)"
                     }
                 }
             }
@@ -95,7 +99,10 @@ pipeline {
                     // 백업 디렉토리 생성
                     bat "if not exist \"${env.BACKUP_DIR}\" mkdir \"${env.BACKUP_DIR}\""
                     
-                    // 타겟 폴더의 기존 wheel 파일들을 백업
+                    // 환경변수 기반 데이터 경로 생성 (커밋 f57efef 반영)
+                    bat "if not exist \"${env.WEBSERVICE_DATA_PATH}\" mkdir \"${env.WEBSERVICE_DATA_PATH}\""
+                    
+                    // 타겟 폴더의 기존 wheel 파일들과 중요 데이터 백업
                     powershell """
                         if (Test-Path "${env.DEPLOY_PATH}") {
                             \$existingWheels = Get-ChildItem -Path "${env.DEPLOY_PATH}" -Filter "*.whl" -ErrorAction SilentlyContinue
@@ -107,6 +114,14 @@ pipeline {
                                 }
                             } else {
                                 Write-Host "백업할 wheel 파일이 없습니다"
+                            }
+                            
+                            # 환경변수 기반 중요 데이터 백업 (logs, templates 등)
+                            if (Test-Path "${env.WEBSERVICE_DATA_PATH}") {
+                                Write-Host "환경변수 기반 데이터 디렉토리 백업 중..."
+                                if (Test-Path "${env.WEBSERVICE_DATA_PATH}\\templates") {
+                                    Copy-Item -Path "${env.WEBSERVICE_DATA_PATH}\\templates" -Destination "${env.BACKUP_DIR}\\templates" -Recurse -Force -ErrorAction SilentlyContinue
+                                }
                             }
                         } else {
                             Write-Host "배포 경로가 존재하지 않습니다: ${env.DEPLOY_PATH}"
@@ -157,7 +172,28 @@ pipeline {
                             }
                         """
                         
-                        // 2단계: 새 wheel 파일 설치 준비 (배포 경로 확인)
+                        // 2단계: 설정 파일 복사 (config.json)
+                        powershell """
+                            if (Test-Path "${WORKSPACE}\\webservice\\config.json") {
+                                Write-Host "config.json 파일 복사 중..."
+                                
+                                # Development 경로 (코드와 함께)
+                                Copy-Item -Path "${WORKSPACE}\\webservice\\config.json" -Destination "${env.DEPLOY_PATH}\\config.json" -Force
+                                Write-Host "config.json 복사 완료 (Development): ${env.DEPLOY_PATH}\\config.json"
+                                
+                                # Production 경로 (데이터 폴더)
+                                if (Test-Path env:WEBSERVICE_DATA_PATH) {
+                                    Copy-Item -Path "${WORKSPACE}\\webservice\\config.json" -Destination "${env.WEBSERVICE_DATA_PATH}\\config.json" -Force
+                                    Write-Host "config.json 복사 완료 (Production): ${env.WEBSERVICE_DATA_PATH}\\config.json"
+                                } else {
+                                    Write-Host "WEBSERVICE_DATA_PATH 환경변수가 없어서 Production 경로 생략"
+                                }
+                            } else {
+                                Write-Host "경고: config.json 파일이 소스에 없습니다"
+                            }
+                        """
+                        
+                        // 3단계: 새 wheel 파일 설치 준비 (배포 경로 확인)
                         powershell """
                             \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\webservice-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
                             if (\$deployWhl) {
@@ -167,19 +203,27 @@ pipeline {
                             }
                         """
                         
-                        // 3단계: 서비스 중지 (빠른 교체를 위해 마지막에)
+                        // 4단계: 서비스 중지 (빠른 교체를 위해 마지막에)
                         bat 'nssm stop webservice'
                         echo "Webservice 중지 완료"
                         
-                        // 4단계: 신속한 wheel 설치
+                        // 5단계: 초고속 wheel 설치 (휠하우스 활용)
                         powershell """
                             \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\webservice-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                            Write-Host "신속 설치 시작: \$(\$deployWhl.Name)"
-                            & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --force-reinstall
+                            Write-Host "초고속 설치 시작: \$(\$deployWhl.Name)"
+                            
+                            # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
+                            if (Test-Path "C:\\deploys\\packages\\wheelhouse\\*.whl") {
+                                Write-Host "휠하우스 발견 - 오프라인 초고속 설치 (webservice 패키지만 강제 재설치)"
+                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=C:/deploys/packages/wheelhouse --force-reinstall --no-deps
+                            } else {
+                                Write-Host "휠하우스 없음 - webservice 패키지만 강제 재설치"
+                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --force-reinstall --no-deps
+                            }
                             Write-Host "설치 완료"
                         """
                         
-                        // 5단계: 서비스 즉시 시작 (최소 다운타임)
+                        // 6단계: 서비스 즉시 시작 (최소 다운타임)
                         bat 'nssm start webservice'
                         echo "Webservice 시작 완료 - 최소 다운타임으로 배포 완료"
                         
@@ -277,84 +321,28 @@ pipeline {
             }
         }
         
-        stage('Download Wheels for Offline') {
-            steps {
-                dir("${WORKSPACE}/webservice") {
-                    script {
-                        echo "폐쇄망 환경 대비 휠 번들 다운로드 (스마트 캐싱 적용)"
-                        
-                        // 휠 다운로드 디렉토리 생성
-                        bat 'if not exist ".pip-wheelhouse" mkdir ".pip-wheelhouse"'
-                        
-                        // requirements.txt 변경 감지를 위한 해시 계산
-                        def currentHash = powershell(
-                            script: 'Get-FileHash requirements.txt -Algorithm MD5 | Select-Object -ExpandProperty Hash',
-                            returnStdout: true
-                        ).trim()
-                        
-                        def cacheFile = ".pip-wheelhouse/.requirements-hash"
-                        def cachedHash = ""
-                        
-                        // 기존 캐시 해시 확인
-                        if (fileExists(cacheFile)) {
-                            cachedHash = readFile(cacheFile).trim()
-                        }
-                        
-                        // 의존성 변경 여부 확인
-                        if (currentHash == cachedHash) {
-                            echo "의존성 변경 없음 - 기존 휠 캐시 재사용 (빌드 속도 최적화)"
-                            
-                            // 캐시된 휠 파일 개수 확인
-                            def wheelCount = bat(
-                                script: 'dir /b ".pip-wheelhouse\\*.whl" 2>nul | find /c ".whl" || echo 0',
-                                returnStdout: true
-                            ).trim()
-                            
-                            if (wheelCount.toInteger() > 0) {
-                                echo "캐시된 휠 파일 ${wheelCount}개 발견 - 다운로드 스킵"
-                            } else {
-                                echo "캐시 파일이 없어 전체 다운로드 실행"
-                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' download -r requirements.txt -c pip.constraints.txt -d .pip-wheelhouse --prefer-binary\""
-                            }
-                        } else {
-                            echo "의존성 변경 감지 - 새로운 휠 번들 다운로드"
-                            
-                            // 기존 휠 파일 정리
-                            bat 'if exist ".pip-wheelhouse\\*.whl" del /f /q ".pip-wheelhouse\\*.whl"'
-                            
-                            // 모든 의존성 휠 다운로드 (폐쇄망 대비)
-                            bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' download -r requirements.txt -c pip.constraints.txt -d .pip-wheelhouse --prefer-binary\""
-                            
-                            // 새 해시 저장
-                            writeFile file: cacheFile, text: currentHash
-                        }
-                        
-                        // 다운로드된 휠 목록 확인
-                        bat 'dir /b ".pip-wheelhouse\\*.whl" | find /c ".whl"'
-                        
-                        echo "오프라인 설치용 휠 번들 준비 완료 (캐싱 최적화 적용)"
-                    }
-                }
-            }
-        }
         
         stage('Archive Artifact') {
             steps {
-                // 빌드된 휠과 다운로드된 휠 번들 모두 보관
-                archiveArtifacts artifacts: "webservice/dist/*.whl, webservice/.pip-wheelhouse/*.whl", followSymlinks: false
-                echo "Jenkins Workspace에서 빌드된 Wheel 아티팩트 및 의존성 휠 번들 보관 완료"
+                // 빌드된 휠 보관
+                archiveArtifacts artifacts: "webservice/dist/*.whl", followSymlinks: false
+                echo "빌드된 Webservice Wheel 아티팩트 보관 완료"
                 
-                // 폐쇄망 환경 오프라인 설치 가이드
+                // 폐쇄망 환경 설치 가이드 (휠하우스 활용)
                 echo """
                 =========================================
-                폐쇄망 환경 오프라인 설치 가이드:
+                폐쇄망 환경 배포 가이드 (휠하우스 활용):
                 
-                1. 아티팩트 다운로드 후 폐쇄망 서버로 전송
-                2. 가상환경 생성: py -3.13 -m venv .venv
-                3. 가상환경 활성화: .venv\\Scripts\\activate
-                4. 오프라인 설치: pip install --no-index --find-links="./.pip-wheelhouse" webservice-*.whl
+                1. C:\\deploys\\packages\\wheelhouse\\ 에 의존성 준비
+                2. 환경변수 설정: set WEBSERVICE_DATA_PATH=C:\\deploys\\data\\webservice
+                3. 가상환경 생성: py -3.12 -m venv .venv
+                4. 가상환경 활성화: .venv\\Scripts\\activate
+                5. 오프라인 설치: pip install --no-index --find-links=C:/deploys/packages/wheelhouse webservice-*.whl
                 
-                주의: ChromaDB 호환성을 위해 제약조건이 적용된 휠 번들입니다.
+                휠하우스 준비 (CUDA 포함):
+                - pip download --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements.txt -c pip.constraints.txt -d wheelhouse
+                - wheelhouse 내용을 C:\\deploys\\packages\\wheelhouse\\ 로 복사
+                - 이후 모든 배포는 인터넷 없이 초고속 진행 (PyTorch CUDA 포함)
                 =========================================
                 """
             }
@@ -372,8 +360,9 @@ pipeline {
             // Jenkins Workspace 정리
             dir("${WORKSPACE}/webservice") {
                 bat 'if exist "*.tmp" del /f /q *.tmp'
-                // 테스트로 생성된 파일 정리
-                bat 'if exist "outputs\\*TEST_*" del /f /q "outputs\\*TEST_*"'
+                // 테스트로 생성된 파일 정리 (환경변수 기반 경로 고려)
+                bat 'if exist "data\\outputs\\*TEST_*" del /f /q "data\\outputs\\*TEST_*"'
+                bat 'if exist "outputs\\*TEST_*" del /f /q "outputs\\*TEST_*"'  // 기존 경로 호환성
                 // pytest 캐시 정리
                 bat 'if exist ".pytest_cache" rmdir /s /q ".pytest_cache"'
                 // 임시 파일 강제 정리
@@ -383,7 +372,16 @@ pipeline {
             // 배포 환경 정리
             dir(env.DEPLOY_PATH) {
                 bat 'if exist "*.tmp" del /f /q *.tmp'
-                bat 'if exist "outputs\\*TEST_*" del /f /q "outputs\\*TEST_*"'
+            }
+            
+            // 환경변수 기반 데이터 경로 정리
+            script {
+                if (env.WEBSERVICE_DATA_PATH) {
+                    dir(env.WEBSERVICE_DATA_PATH) {
+                        bat 'if exist "outputs\\*TEST_*" del /f /q "outputs\\*TEST_*"'
+                        bat 'if exist "logs\\*TEST_*" del /f /q "logs\\*TEST_*"'
+                    }
+                }
             }
         }
     }

@@ -6,12 +6,13 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
+# 환경 변수 기반 경로 관리 임포트
+from .paths import get_templates_dir, get_outputs_dir
+
 # 상수 정의
-# 현재 스크립트 파일 위치를 기준으로 상대경로 설정
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_ROOT = SCRIPT_DIR.parent
-DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "templates" / "template.xlsx"
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
+# 환경 변수 기반 경로 사용
+DEFAULT_TEMPLATE_PATH = get_templates_dir() / "template.xlsx"
+OUTPUT_DIR = get_outputs_dir()
 FILE_NAME_FORMAT = "{timestamp}_테스트_시나리오_결과.xlsx"
 TIME_FORMAT = "%Y%m%d_%H%M%S"
 NEWLINE_ESCAPE = "\\n"

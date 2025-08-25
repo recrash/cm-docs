@@ -18,6 +18,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.git_analyzer import get_git_analysis_text
 from src.llm_handler import call_ollama_llm, OllamaAPIError
+from src.paths import get_templates_dir
 from src.excel_writer import save_results_to_excel
 from src.config_loader import load_config
 from src.prompt_loader import create_final_prompt, add_git_analysis_to_rag
@@ -135,8 +136,7 @@ async def generate_scenario_ws(websocket: WebSocket):
         await send_progress(GenerationStatus.GENERATING_EXCEL, "Excel 파일을 생성 중입니다...", 90)
         await asyncio.sleep(1)
 
-        project_root = Path(__file__).resolve().parents[2]
-        template_path = project_root / "templates" / "template.xlsx"
+        template_path = get_templates_dir() / "template.xlsx"
         final_filename = save_results_to_excel(result_json, str(template_path))
         
         # Completion
@@ -243,8 +243,7 @@ async def generate_scenario_from_text(request: AnalysisTextRequest):
         
         # Excel 파일 생성
         logger.info("Excel 파일 생성 중...")
-        project_root = Path(__file__).resolve().parents[2]
-        template_path = project_root / "templates" / "template.xlsx"
+        template_path = get_templates_dir() / "template.xlsx"
         final_filename = save_results_to_excel(result_json, str(template_path))
         
         if not final_filename:
