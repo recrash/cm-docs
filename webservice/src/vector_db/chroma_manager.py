@@ -1,8 +1,11 @@
 from typing import List, Dict, Any
+import logging
 from sentence_transformers import SentenceTransformer
 
 # 환경 변수 기반 경로 관리 임포트
 from ..paths import get_vector_db_dir, get_default_model_path
+
+logger = logging.getLogger(__name__)
 
 # 임포트 타이밍 지연 + 실패는 나중에 사용 시점에 에러 처리
 try:
@@ -51,26 +54,26 @@ class ChromaManager:
                 local_model_path = str(default_model_path)
         
         if local_model_path and os.path.exists(local_model_path):
-            print(f"로컬 임베딩 모델 사용: {local_model_path}")
+            logger.info(f"로컬 임베딩 모델 사용: {local_model_path}")
             try:
                 self.embedding_model = SentenceTransformer(local_model_path)
                 self.embedding_model_name = f"local:{local_model_path}"
             except Exception as e:
-                print(f"로컬 모델 로딩 실패 ({e}), HuggingFace 모델로 대체")
+                logger.warning(f"로컬 모델 로딩 실패 ({e}), HuggingFace 모델로 대체")
                 self.embedding_model = SentenceTransformer(embedding_model)
         else:
             if local_model_path:
-                print(f"로컬 모델 경로 없음: {local_model_path}")
-            print(f"HuggingFace 임베딩 모델 사용: {embedding_model}")
+                logger.info(f"로컬 모델 경로 없음: {local_model_path}")
+            logger.info(f"HuggingFace 임베딩 모델 사용: {embedding_model}")
             try:
                 self.embedding_model = SentenceTransformer(embedding_model)
             except Exception as e:
-                print(f"임베딩 모델 로딩 실패: {e}")
-                print("폐쇄망 환경인 경우 다음 방법을 시도해보세요:")
-                print("1. 인터넷 연결 환경에서 모델을 미리 다운로드")
-                print("2. config.json의 local_embedding_model_path에 로컬 모델 경로 설정")
-                print("3. 또는 config.json에서 rag.enabled를 false로 설정")
-                print(f"4. 또는 WEBSERVICE_DATA_PATH 환경변수 설정 후 models/ 폴더에 모델 배치")
+                logger.error(f"임베딩 모델 로딩 실패: {e}")
+                logger.info("폐쇄망 환경인 경우 다음 방법을 시도해보세요:")
+                logger.info("1. 인터넷 연결 환경에서 모델을 미리 다운로드")
+                logger.info("2. config.json의 local_embedding_model_path에 로컬 모델 경로 설정")
+                logger.info("3. 또는 config.json에서 rag.enabled를 false로 설정")
+                logger.info(f"4. 또는 WEBSERVICE_DATA_PATH 환경변수 설정 후 models/ 폴더에 모델 배치")
                 raise
         
         # 컬렉션 초기화
@@ -81,7 +84,7 @@ class ChromaManager:
         """컬렉션 생성 또는 기존 컬렉션 가져오기"""
         try:
             collection = self.client.get_collection(name=self.collection_name)
-            print(f"기존 컬렉션 '{self.collection_name}' 로드됨")
+            logger.info(f"기존 컬렉션 '{self.collection_name}' 로드됨")
             return collection
         except Exception as e:
             if "does not exist" in str(e).lower():
@@ -89,10 +92,10 @@ class ChromaManager:
                     name=self.collection_name,
                     metadata={"description": "테스트 시나리오 생성을 위한 Git 분석 데이터"}
                 )
-                print(f"새 컬렉션 '{self.collection_name}' 생성됨")
+                logger.info(f"새 컬렉션 '{self.collection_name}' 생성됨")
                 return collection
             else:
-                print(f"컬렉션 로드 중 오류 발생: {e}")
+                logger.error(f"컬렉션 로드 중 오류 발생: {e}")
                 raise
     
     def add_documents(self, documents: List[str], metadatas: List[Dict[str, Any]], ids: List[str]):
@@ -115,10 +118,10 @@ class ChromaManager:
                 metadatas=metadatas,
                 ids=ids
             )
-            print(f"{len(documents)}개 문서가 벡터 DB에 추가되었습니다.")
+            logger.info(f"{len(documents)}개 문서가 벡터 DB에 추가되었습니다.")
             
         except Exception as e:
-            print(f"문서 추가 중 오류 발생: {e}")
+            logger.error(f"문서 추가 중 오류 발생: {e}")
             raise
     
     def search_similar_documents(self, query: str, n_results: int = 5) -> Dict[str, Any]:
@@ -135,13 +138,13 @@ class ChromaManager:
         try:
             # 쿼리 검증
             if not query or not query.strip():
-                print("빈 쿼리로는 검색할 수 없습니다.")
+                logger.warning("빈 쿼리로는 검색할 수 없습니다.")
                 return {'documents': [], 'metadatas': [], 'distances': []}
             
             # 공백 및 특수문자만 있는 쿼리 검증
             clean_query = query.strip()
             if not clean_query or len(clean_query) < 2:
-                print("쿼리가 너무 짧습니다.")
+                logger.warning("쿼리가 너무 짧습니다.")
                 return {'documents': [], 'metadatas': [], 'distances': []}
             
             # 쿼리 임베딩 생성
@@ -161,16 +164,16 @@ class ChromaManager:
             }
             
         except Exception as e:
-            print(f"문서 검색 중 오류 발생: {e}")
+            logger.error(f"문서 검색 중 오류 발생: {e}")
             return {'documents': [], 'metadatas': [], 'distances': []}
     
     def delete_collection(self):
         """컬렉션 삭제"""
         try:
             self.client.delete_collection(name=self.collection_name)
-            print(f"컬렉션 '{self.collection_name}' 삭제됨")
+            logger.info(f"컬렉션 '{self.collection_name}' 삭제됨")
         except Exception as e:
-            print(f"컬렉션 삭제 중 오류 발생: {e}")
+            logger.error(f"컬렉션 삭제 중 오류 발생: {e}")
     
     def get_collection_info(self) -> Dict[str, Any]:
         """컬렉션 정보 반환"""
@@ -183,7 +186,7 @@ class ChromaManager:
                 'embedding_model': self.embedding_model_name
             }
         except Exception as e:
-            print(f"컬렉션 정보 조회 중 오류 발생: {e}")
+            logger.error(f"컬렉션 정보 조회 중 오류 발생: {e}")
             return {}
     
     def update_document(self, document_id: str, document: str, metadata: Dict[str, Any]):
@@ -197,8 +200,8 @@ class ChromaManager:
                 embeddings=embedding,
                 metadatas=[metadata]
             )
-            print(f"문서 ID '{document_id}' 업데이트됨")
+            logger.info(f"문서 ID '{document_id}' 업데이트됨")
             
         except Exception as e:
-            print(f"문서 업데이트 중 오류 발생: {e}")
+            logger.error(f"문서 업데이트 중 오류 발생: {e}")
             raise

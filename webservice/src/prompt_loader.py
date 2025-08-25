@@ -1,10 +1,13 @@
 # src/prompt_loader.py
 import os
+import logging
 from .config_loader import load_config
 from .vector_db.rag_manager import RAGManager
 from .vector_db.document_indexer import DocumentIndexer
 from .feedback_manager import FeedbackManager
 from .prompt_enhancer import PromptEnhancer
+
+logger = logging.getLogger(__name__)
 
 # 전역 인스턴스들 (지연 로딩을 위해 None으로 시작)
 _rag_manager = None
@@ -16,34 +19,11 @@ def get_rag_manager(lazy_load=True):
     """RAG 매니저 싱글톤 인스턴스 반환"""
     global _rag_manager
     if _rag_manager is None and not lazy_load:
-        # 하이브리드 config 경로 설정 (main.py와 동일한 로직)
-        from pathlib import Path
-        config_path = None
-        
-        # 1순위: Production 환경 (WEBSERVICE_DATA_PATH 환경변수 기반)
-        env_path = os.getenv('WEBSERVICE_DATA_PATH')
-        if env_path:
-            try:
-                config_path = Path(env_path) / "config.json"
-                if not config_path.exists():
-                    config_path = None
-            except Exception:
-                config_path = None
-        
-        # 2순위: Development 환경 (코드 기준 상대 경로)
-        if not config_path or not config_path.exists():
-            try:
-                # src 폴더에서 webservice 폴더로 이동
-                src_dir = Path(__file__).parent  # src 폴더
-                webservice_root = src_dir.parent  # webservice 폴더
-                config_path = webservice_root / "config.json"
-            except Exception:
-                config_path = "config.json"  # fallback
-        
-        config = load_config(str(config_path))
+        # config_loader의 표준 로직 사용
+        config = load_config()
         if config and config.get('rag', {}).get('enabled', False):
             rag_config = config['rag']
-            print("RAG Manager 초기화 중... (임베딩 모델 로딩)")
+            logger.info("RAG Manager initializing... (loading embedding model)")
             _rag_manager = RAGManager(
                 persist_directory=rag_config.get('persist_directory', 'vector_db_data'),
                 embedding_model=rag_config.get('embedding_model', 'jhgan/ko-sroberta-multitask'),
@@ -51,7 +31,7 @@ def get_rag_manager(lazy_load=True):
                 chunk_size=rag_config.get('chunk_size', 1000),
                 chunk_overlap=rag_config.get('chunk_overlap', 200)
             )
-            print("RAG Manager 초기화 완료")
+            logger.info("RAG Manager initialization complete")
     return _rag_manager
 
 def get_feedback_manager():
@@ -75,7 +55,7 @@ def reset_feedback_cache():
     # 기존 인스턴스들을 리셋하여 다음 호출 시 새로 생성되도록 함
     _feedback_manager = None
     _prompt_enhancer = None
-    print("피드백 관련 캐시가 리셋되었습니다.")
+    logger.info("Feedback related cache has been reset.")
 
 def load_prompt(path="prompts/final_prompt.txt"):
     """텍스트 파일에서 프롬프트 템플릿을 읽어옵니다."""
@@ -91,7 +71,7 @@ def load_prompt(path="prompts/final_prompt.txt"):
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
-        print(f"오류: 프롬프트 파일('{path}')을 찾을 수 없습니다.")
+        logger.error(f"Error: Prompt file ('{path}') not found.")
         return None
 
 def create_final_prompt(
@@ -124,8 +104,8 @@ def create_final_prompt(
             if rag_manager:
                 final_prompt = rag_manager.create_enhanced_prompt(template, git_analysis, use_rag=True)
         except Exception as e:
-            print(f"RAG 프롬프트 생성 중 오류 발생: {e}")
-            print("기본 프롬프트를 사용합니다.")
+            logger.error(f"Error occurred during RAG prompt generation: {e}")
+            logger.info("Using basic prompt.")
 
     # RAG를 사용하지 않거나 오류가 발생한 경우 기본 프롬프트 사용
     if final_prompt is None:
@@ -140,19 +120,19 @@ def create_final_prompt(
             # 개선 요약 출력 (디버깅용)
             enhancement_summary = prompt_enhancer.get_enhancement_summary()
             if enhancement_summary['feedback_count'] >= 3:
-                print(f"피드백 기반 프롬프트 개선 적용: {enhancement_summary['feedback_count']}개 피드백 반영")
-                print(f"평균 점수: {enhancement_summary['average_score']:.1f}/5.0")
+                logger.info(f"Feedback-based prompt improvement applied: {enhancement_summary['feedback_count']} feedback items reflected")
+                logger.info(f"Average score: {enhancement_summary['average_score']:.1f}/5.0")
                 if enhancement_summary['improvement_areas']:
-                    print(f"개선 영역: {', '.join(enhancement_summary['improvement_areas'])}")
+                    logger.info(f"Improvement areas: {', '.join(enhancement_summary['improvement_areas'])}")
 
             return enhanced_prompt
         except Exception as e:
-            print(f"피드백 기반 프롬프트 개선 중 오류 발생: {e}")
-            print("기본 프롬프트를 사용합니다.")
+            logger.error(f"Error occurred during feedback-based prompt improvement: {e}")
+            logger.info("Using basic prompt.")
 
     # --- NEW : 성능 모드 프롬프트 길이 제한 ----------------
     if performance_mode and len(final_prompt) > 32000:   # ≒ 8k 토큰
-        print(f"[PERF] Prompt length {len(final_prompt)} > 32 000 → trimming.")
+        logger.info(f"[PERF] Prompt length {len(final_prompt)} > 32000 → trimming.")
         final_prompt = final_prompt[:32000]
     # ------------------------------------------------------
 
@@ -179,7 +159,7 @@ def add_git_analysis_to_rag(git_analysis, repo_path):
         if rag_manager:
             return rag_manager.add_git_analysis(git_analysis, repo_path)
     except Exception as e:
-        print(f"RAG에 Git 분석 추가 중 오류 발생: {e}")
+        logger.error(f"Error occurred while adding Git analysis to RAG: {e}")
 
     return 0
 
@@ -256,7 +236,7 @@ def get_documents_info():
         folder_info['enabled'] = True
         return folder_info
     except Exception as e:
-        print(f"문서 정보 조회 중 오류 발생: {e}")
+        logger.error(f"Error occurred while retrieving document information: {e}")
 
     return {'enabled': False}
 
@@ -303,6 +283,6 @@ def get_rag_info():
 
         return info
     except Exception as e:
-        print(f"RAG 정보 조회 중 오류 발생: {e}")
+        logger.error(f"Error occurred while retrieving RAG information: {e}")
 
     return {'enabled': False, 'loaded': False}

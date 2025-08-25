@@ -1,6 +1,9 @@
 from typing import List, Dict, Any, Optional
+import logging
 from .chroma_manager import ChromaManager
 from .document_chunker import DocumentChunker
+
+logger = logging.getLogger(__name__)
 
 class RAGManager:
     """RAG (Retrieval-Augmented Generation) 시스템 통합 관리 클래스"""
@@ -24,7 +27,7 @@ class RAGManager:
         self.chroma_manager = ChromaManager(persist_directory, embedding_model, local_model_path)
         self.document_chunker = DocumentChunker(chunk_size, chunk_overlap)
         
-        print("RAG 시스템 초기화 완료")
+        logger.info("RAG 시스템 초기화 완료")
     
     def add_git_analysis(self, git_analysis_text: str, repo_path: str) -> int:
         """
@@ -42,7 +45,7 @@ class RAGManager:
             chunks = self.document_chunker.chunk_git_analysis(git_analysis_text, repo_path)
             
             if not chunks:
-                print("청크가 생성되지 않았습니다.")
+                logger.warning("청크가 생성되지 않았습니다.")
                 return 0
             
             # 벡터 DB에 추가
@@ -55,7 +58,7 @@ class RAGManager:
             return len(chunks)
             
         except Exception as e:
-            print(f"Git 분석 데이터 추가 중 오류 발생: {e}")
+            logger.error(f"Git 분석 데이터 추가 중 오류 발생: {e}")
             return 0
     
     def add_document(self, document_text: str, document_type: str, source_path: str = "") -> int:
@@ -75,7 +78,7 @@ class RAGManager:
             chunks = self.document_chunker.chunk_document(document_text, document_type, source_path)
             
             if not chunks:
-                print("청크가 생성되지 않았습니다.")
+                logger.warning("청크가 생성되지 않았습니다.")
                 return 0
             
             # 벡터 DB에 추가
@@ -88,7 +91,7 @@ class RAGManager:
             return len(chunks)
             
         except Exception as e:
-            print(f"문서 추가 중 오류 발생: {e}")
+            logger.error(f"문서 추가 중 오류 발생: {e}")
             return 0
     
     def add_test_scenarios(self, test_scenarios: List[Dict[str, Any]]) -> int:
@@ -106,7 +109,7 @@ class RAGManager:
             chunks = self.document_chunker.chunk_test_scenarios(test_scenarios)
             
             if not chunks:
-                print("테스트 시나리오 청크가 생성되지 않았습니다.")
+                logger.warning("테스트 시나리오 청크가 생성되지 않았습니다.")
                 return 0
             
             # 벡터 DB에 추가
@@ -119,7 +122,7 @@ class RAGManager:
             return len(chunks)
             
         except Exception as e:
-            print(f"테스트 시나리오 추가 중 오류 발생: {e}")
+            logger.error(f"테스트 시나리오 추가 중 오류 발생: {e}")
             return 0
     
     def search_relevant_context(self, query: str, n_results: int = 5, source_filter: Optional[str] = None) -> Dict[str, Any]:
@@ -168,7 +171,7 @@ class RAGManager:
             }
             
         except Exception as e:
-            print(f"컨텍스트 검색 중 오류 발생: {e}")
+            logger.error(f"컨텍스트 검색 중 오류 발생: {e}")
             return {'context': '', 'search_results': {}, 'query': query}
     
     def _build_context(self, search_results: Dict[str, Any]) -> str:
@@ -211,9 +214,9 @@ class RAGManager:
             self.chroma_manager.delete_collection()
             # 컬렉션 재생성
             self.chroma_manager.collection = self.chroma_manager._get_or_create_collection()
-            print("벡터 데이터베이스가 초기화되었습니다.")
+            logger.info("벡터 데이터베이스가 초기화되었습니다.")
         except Exception as e:
-            print(f"데이터베이스 초기화 중 오류 발생: {e}")
+            logger.error(f"데이터베이스 초기화 중 오류 발생: {e}")
     
     def create_enhanced_prompt(self, base_prompt: str, git_analysis: str, use_rag: bool = True) -> str:
         """
@@ -232,57 +235,57 @@ class RAGManager:
         
         try:
             # 디버깅: Git 분석 내용 확인
-            print(f"[DEBUG] Git 분석 내용 길이: {len(git_analysis) if git_analysis else 0}")
-            print(f"[DEBUG] Git 분석 내용 미리보기: {repr(git_analysis[:100]) if git_analysis else 'None'}")
+            logger.debug(f"[DEBUG] Git 분석 내용 길이: {len(git_analysis) if git_analysis else 0}")
+            logger.debug(f"[DEBUG] Git 분석 내용 미리보기: {repr(git_analysis[:100]) if git_analysis else 'None'}")
             
             # Git 분석 내용 검증
             if not git_analysis or not git_analysis.strip():
-                print("Git 분석 내용이 비어있어 RAG를 사용할 수 없습니다.")
+                logger.warning("Git 분석 내용이 비어있어 RAG를 사용할 수 없습니다.")
                 return base_prompt.format(git_analysis=git_analysis)
             
             # 공백문자, 탭, 줄바꿈만 있는지 검사
             clean_analysis = git_analysis.strip()
             if not clean_analysis or len(clean_analysis) < 10:
-                print("Git 분석 내용이 너무 짧아 RAG를 사용할 수 없습니다.")
+                logger.warning("Git 분석 내용이 너무 짧아 RAG를 사용할 수 없습니다.")
                 return base_prompt.format(git_analysis=git_analysis)
             
             # 유의미한 텍스트가 있는지 확인 (알파벳, 숫자, 한글이 포함되어야 함)
             import re
             if not re.search(r'[a-zA-Z0-9가-힣]', clean_analysis):
-                print("Git 분석 내용에 유의미한 텍스트가 없어 RAG를 사용할 수 없습니다.")
+                logger.warning("Git 분석 내용에 유의미한 텍스트가 없어 RAG를 사용할 수 없습니다.")
                 return base_prompt.format(git_analysis=git_analysis)
             
             # Git 분석 내용을 쿼리로 사용하여 관련 컨텍스트 검색
             query = clean_analysis  # 전체 Git 분석 내용을 쿼리로 사용
-            print(f"[DEBUG] 검색 쿼리 길이: {len(query)}")
-            print(f"[DEBUG] 검색 쿼리 미리보기: {repr(query[:100])}")
+            logger.debug(f"[DEBUG] 검색 쿼리 길이: {len(query)}")
+            logger.debug(f"[DEBUG] 검색 쿼리 미리보기: {repr(query[:100])}")
             
             if not query or len(query.strip()) < 2:
-                print("쿼리가 유효하지 않아 RAG를 사용할 수 없습니다.")
+                logger.warning("쿼리가 유효하지 않아 RAG를 사용할 수 없습니다.")
                 return base_prompt.format(git_analysis=git_analysis)
                 
             rag_results = self.search_relevant_context(query, n_results=3)
-            print(f"[DEBUG] RAG 검색 결과: {len(rag_results.get('documents', []))}개 문서")
+            logger.debug(f"[DEBUG] RAG 검색 결과: {len(rag_results.get('documents', []))}개 문서")
             
             enhanced_prompt = base_prompt
             
             # 관련 컨텍스트가 있으면 프롬프트에 추가
             context = rag_results.get('context', '')
-            print(f"[DEBUG] 검색된 컨텍스트 길이: {len(context)}")
-            print(f"[DEBUG] 컨텍스트 미리보기: {repr(context[:100])}")
+            logger.debug(f"[DEBUG] 검색된 컨텍스트 길이: {len(context)}")
+            logger.debug(f"[DEBUG] 컨텍스트 미리보기: {repr(context[:100])}")
             
             if context and context.strip():
                 enhanced_prompt = enhanced_prompt.replace(
                     "### 분석할 Git 변경 내역:",
                     f"### 관련 참조 정보:\n{context}\n\n### 분석할 Git 변경 내역:"
                 )
-                print("[DEBUG] RAG 컨텍스트가 프롬프트에 추가됨")
+                logger.debug("[DEBUG] RAG 컨텍스트가 프롬프트에 추가됨")
             else:
-                print("[DEBUG] 검색된 컨텍스트가 없어 기본 프롬프트 사용")
+                logger.debug("[DEBUG] 검색된 컨텍스트가 없어 기본 프롬프트 사용")
             
             return enhanced_prompt.format(git_analysis=git_analysis)
             
         except Exception as e:
-            print(f"RAG 프롬프트 생성 중 오류 발생: {e}")
-            print("기본 프롬프트를 사용합니다.")
+            logger.error(f"RAG 프롬프트 생성 중 오류 발생: {e}")
+            logger.info("기본 프롬프트를 사용합니다.")
             return base_prompt.format(git_analysis=git_analysis)
