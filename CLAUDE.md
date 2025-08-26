@@ -90,28 +90,50 @@ pip install -r requirements.txt -c pip.constraints.txt  # ✅ 올바른 방법
 
 ### Development Commands
 ```bash
+# Environment setup
+cd webservice && source .venv/bin/activate
+export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ modules
+
 # Server management
 cd webservice/backend && python -m uvicorn main:app --reload --port 8000
 cd webservice/frontend && npm run dev
 
-# Testing (E2E is MANDATORY)
-cd webservice/frontend && npm run test:all
-cd webservice/frontend && npm run test:e2e  # Required for functionality verification
+# Testing (hierarchical structure)
+cd webservice && pytest tests/unit/                    # Unit tests
+cd webservice && pytest tests/api/                     # API tests  
+cd webservice && pytest tests/integration/             # Integration tests
+cd webservice/frontend && npm run test                 # Frontend unit tests
+cd webservice/frontend && npm run test:e2e             # E2E tests (MANDATORY)
+cd webservice/frontend && npm run test:all             # All tests
 
-# Building
-cd webservice/frontend && npm run build
+# Single test file
+cd webservice && pytest tests/unit/test_config_loader.py
+cd webservice && pytest tests/api/v2/test_scenario_v2.py -v
+
+# Development workflow
+cd webservice/frontend && npm run lint                 # ESLint check
+cd webservice/frontend && npm run build               # Production build
 ```
 
 ### Architecture Details
-- **Legacy `src/` modules**: Core analysis logic
+- **Legacy `src/` modules**: Core analysis logic (git_analyzer, excel_writer, llm_handler)
 - **FastAPI Routers** (`backend/routers/`): Domain-based API endpoints
-- **React SPA** (`frontend/`): Components with WebSocket updates
-- **RAG System**: ChromaDB + ko-sroberta-multitask
+  - `/api/scenario` - v1 scenario generation (legacy)
+  - `/api/v2/scenario` - v2 scenario generation (CLI integration)  
+  - `/api/v2/ws/progress/{client_id}` - WebSocket progress updates
+  - `/api/rag` - RAG system management
+  - `/api/feedback` - User feedback collection
+  - `/api/files` - File management operations
+- **React SPA** (`frontend/`): Material-UI components with real-time WebSocket updates
+- **RAG System**: ChromaDB + ko-sroberta-multitask embedding model
+- **V2 API Architecture**: CLI-focused endpoints with WebSocket-based progress tracking
 
 ### Critical WebSocket Integration
-- Real-time progress via `/api/scenario/generate-ws`
+- **V1 WebSocket**: `/api/scenario/generate-ws` (legacy web interface)
+- **V2 WebSocket**: `/api/v2/ws/progress/{client_id}` (CLI integration)
 - Progress: 10% → 20% → 30% → 80% → 90% → 100%
 - Test requires ~60 second wait time
+- V2 uses structured message format with status enums (analyzing_git, generating_scenarios, etc.)
 
 ### Webservice-Specific Guidelines
 - **명확한 명령이나 지시가 있기 전까지는 기존 기능 삭제 금지**
@@ -146,16 +168,31 @@ export AUTODOC_DATA_PATH="/path/to/autodoc/data"        # 프로덕션 전용
 ```bash
 # Setup
 cd cli && source .venv/bin/activate
-pip install -e .
+pip install -e .  # Editable install
 
-# Testing
-pytest --cov=ts_cli --cov-report=html
+# Testing (with coverage)
+pytest --cov=ts_cli --cov-report=html         # All tests with coverage
+pytest tests/unit/ -v                         # Unit tests only
+pytest tests/integration/ -v                  # Integration tests only  
+pytest tests/e2e/ -v                         # E2E tests only
+pytest -m "not e2e"                          # Skip E2E tests
 
-# Building
-python scripts/build.py
+# Code quality
+black ts_cli/ tests/                          # Format code
+isort ts_cli/ tests/                          # Sort imports
+flake8 ts_cli/ tests/                         # Lint code
+mypy ts_cli/                                  # Type checking
 
-# macOS Helper App
-python scripts/build_helper_app.py  # Solves browser sandbox restrictions
+# Building  
+python scripts/build.py                      # Cross-platform executables
+python scripts/build_helper_app.py           # macOS Helper App (sandbox bypass)
+
+# CLI commands
+ts-cli --help                                # Show help
+ts-cli analyze /path/to/repo                 # Analyze repository
+ts-cli info /path/to/repo                    # Repository information
+ts-cli config-show                           # Show configuration
+ts-cli version                               # Version information
 ```
 
 ### Architecture Details
@@ -176,14 +213,19 @@ python scripts/build_helper_app.py  # Solves browser sandbox restrictions
 - **Documents**: python-docx (Word), openpyxl (Excel)
 - **HTML Parsing**: BeautifulSoup4 + lxml
 
-### Development Commands
+### Development Commands  
 ```bash
 # Setup & Run
 cd autodoc_service && source .venv312/bin/activate
-python run_autodoc_service.py
+python run_autodoc_service.py                # Development server
 
 # Testing
-pytest app/tests/ -v
+pytest app/tests/ -v                         # All tests
+pytest app/tests/test_html_parser.py -v      # Specific test file
+
+# Code quality (follows root pyproject.toml)
+black app/ --line-length 88                  # Format code
+isort app/                                    # Sort imports
 ```
 
 ### Architecture Details
@@ -256,11 +298,26 @@ logger.info("서비스 시작...")
 
 ## Development Workflow
 
-1. **Environment Setup**: Activate service-specific venv
-2. **Development**: Work within subproject directories
-3. **Testing**: Run service-specific test suites
-4. **Quality Check**: Black, isort, flake8, mypy
+1. **Environment Setup**: Activate service-specific venv (`webservice/.venv`, `cli/.venv`, `autodoc_service/.venv312`)
+2. **Development**: Work within subproject directories, maintain independent dependencies
+3. **Testing**: Run service-specific test suites before commits
+   - Webservice: `pytest tests/` + `npm run test:e2e` (mandatory)
+   - CLI: `pytest --cov=ts_cli` 
+   - AutoDoc: `pytest app/tests/`
+4. **Quality Check**: Black, isort, flake8, mypy (configured in root `pyproject.toml`)
 5. **Commit Convention**: Use `[webservice]`, `[cli]`, or `[autodoc_service]` prefixes
+
+### Test Organization
+- **Unit tests**: Fast, isolated component tests (`tests/unit/`)
+- **API tests**: HTTP endpoint validation (`tests/api/`)
+- **Integration tests**: Multi-component workflows (`tests/integration/`)  
+- **E2E tests**: Full user journey validation (Playwright in `tests/e2e/`)
+
+### Jenkins Integration
+- Main `Jenkinsfile` detects service changes via git diff
+- Parallel pipeline execution for modified services only
+- Automatic rollback on deployment failures
+- Service health checks post-deployment
 
 ## Critical Configuration Files
 
@@ -291,6 +348,30 @@ logger.info("서비스 시작...")
 - **AutoDoc**: Label-based Word mapping (more resilient)
 - **Font Consistency**: 맑은 고딕 enforced across all documents
 
+## Key Debugging Patterns
+
+### Webservice Startup Issues
+- **RAG System Failures**: Check `startup_rag_system()` in main.py:31
+- **Module Import Errors**: Verify `PYTHONPATH=$(pwd):$PYTHONPATH` for src/ modules
+- **WebSocket Connection Issues**: Check v2 progress endpoints vs legacy endpoints
+- **Config Loading**: Use `test_config_paths.py` to debug environment variable paths
+
+### Service Communication
+- **Port Conflicts**: Webservice (8000), AutoDoc (8001), Frontend (80)
+- **NSSM Service Status**: `nssm status webservice`, `nssm status autodoc_service`
+- **Health Endpoints**: `/api/health` (webservice), `/health` (autodoc_service)
+- **CORS Issues**: Check FastAPI middleware settings for React dev server
+
+### Testing Patterns
+- **E2E Test Failures**: Often indicate WebSocket timing issues (~60s scenarios)
+- **ChromaDB Lock Issues**: Clear vector database: `rm -rf webservice/vector_db_data/`  
+- **Dependency Conflicts**: Always use `pip install -r requirements.txt -c pip.constraints.txt`
+
+### CLI Integration Issues
+- **V2 API Mismatch**: Check client_id parameter consistency between CLI and WebSocket
+- **URL Protocol Handler**: macOS requires helper app for `testscenariomaker://` URLs
+- **Cross-platform Paths**: Always use `pathlib.Path`, convert to string for subprocess
+
 ## Notes
 
 - **Python Versions**: 3.13 default, 3.12 for AutoDoc (document stability)
@@ -298,3 +379,4 @@ logger.info("서비스 시작...")
 - **Korean Content**: All user-facing text in Korean
 - **E2E Testing**: Mandatory for webservice functionality verification
 - **NSSM Services**: Windows service management for production deployment
+- **Unicode Logging**: No emojis in logs for Windows compatibility
