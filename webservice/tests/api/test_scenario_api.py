@@ -124,7 +124,7 @@ def test_generate_scenario_config_error(client, mock_dependencies):
         progress = json.loads(data)
         
         assert progress["status"] == "error"
-        assert "유효한 Git 저장소 경로를 입력해주세요" in progress["message"]
+        assert "Git 저장소 경로를 입력해주세요" in progress["message"]
 
 def test_generate_scenario_llm_error(client, mock_dependencies):
     """LLM 호출 실패 테스트 (WebSocket)"""
