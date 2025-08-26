@@ -4,7 +4,7 @@
 """
 
 from typing import Dict, List, Tuple, Optional
-from src.feedback_manager import FeedbackManager
+from .feedback_manager import FeedbackManager
 import re
 import json
 

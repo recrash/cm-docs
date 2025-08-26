@@ -25,7 +25,7 @@ from ....core.llm_handler import call_ollama_llm, OllamaAPIError
 from ....core.excel_writer import save_results_to_excel
 from ....core.config_loader import load_config
 from ....core.prompt_loader import create_final_prompt, add_git_analysis_to_rag
-from src.paths import get_templates_dir
+from ....core.paths import get_templates_dir
 
 # 로거 설정
 logger = logging.getLogger(__name__)

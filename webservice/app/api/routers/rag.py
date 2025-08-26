@@ -105,7 +105,7 @@ async def get_rag_status():
     
     try:
         # 설정에서 RAG 활성화 여부 먼저 확인
-        from src.config_loader import load_config
+        from ...core.config_loader import load_config
         config = load_config()
         
         if not config or not config.get('rag', {}).get('enabled', False):
@@ -173,7 +173,7 @@ async def get_auto_activation_status():
     logger.info("RAG 자동 활성화 상태 조회 요청")
     
     try:
-        from src.config_loader import load_config
+        from ...core.config_loader import load_config
         logger.info("[RAG_ENDPOINT_DEBUG] RAG 자동 활성화 상태 조회 - config 로딩 시작")
         config = load_config()
         logger.info(f"[RAG_ENDPOINT_DEBUG] config 로딩 결과: {config is not None}")
@@ -232,7 +232,7 @@ async def debug_rag_system():
     logger.info("RAG 시스템 디버깅 정보 조회 요청")
     
     try:
-        from src.config_loader import load_config
+        from ...core.config_loader import load_config
         config = load_config()
         
         debug_info = {
