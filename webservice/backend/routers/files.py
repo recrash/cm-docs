@@ -15,6 +15,7 @@ from typing import List
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 
 from src.excel_writer import save_results_to_excel
+from src.paths import get_outputs_dir
 from backend.models.files import (
     RepoPathValidationRequest, 
     RepoPathValidationResponse,
@@ -55,6 +56,7 @@ async def upload_file(file: UploadFile = File(...)):
         logger.error(f"파일 업로드 실패: filename={file.filename}, error={str(e)}")
         raise HTTPException(status_code=500, detail=f"파일 업로드 중 오류가 발생했습니다: {str(e)}")
 
+
 @router.get("/download/excel/{filename:path}")
 async def download_excel_file(filename: str):
     """Excel 파일 다운로드 API"""
@@ -64,8 +66,8 @@ async def download_excel_file(filename: str):
     try:
         import urllib.parse
         
-        # outputs 폴더에서 파일 찾기
-        outputs_dir = os.path.join(os.path.dirname(__file__), '../../outputs')
+        # 환경변수 기반 outputs 폴더에서 파일 찾기
+        outputs_dir = str(get_outputs_dir())
         
         # URL 디코딩 처리
         decoded_filename = urllib.parse.unquote(filename)
@@ -120,7 +122,7 @@ async def list_output_files():
     logger.info("출력 파일 목록 조회 요청")
     
     try:
-        outputs_dir = os.path.join(os.path.dirname(__file__), '../../outputs')
+        outputs_dir = str(get_outputs_dir())
         
         if not os.path.exists(outputs_dir):
             logger.info("outputs 디렉토리가 존재하지 않음")
@@ -156,7 +158,7 @@ async def delete_output_file(filename: str):
     logger.info(f"출력 파일 삭제 요청: filename={filename}")
     
     try:
-        outputs_dir = os.path.join(os.path.dirname(__file__), '../../outputs')
+        outputs_dir = str(get_outputs_dir())
         file_path = os.path.join(outputs_dir, filename)
         
         if not os.path.exists(file_path):
