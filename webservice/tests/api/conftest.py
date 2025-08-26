@@ -137,7 +137,8 @@ def mock_dependencies():
          patch('shutil.copy') as mock_shutil_copy, \
          patch('os.path.isdir') as mock_isdir, \
          patch('pathlib.Path.exists') as mock_path_exists, \
-         patch('pathlib.Path.mkdir') as mock_path_mkdir:
+         patch('pathlib.Path.mkdir') as mock_path_mkdir, \
+         patch('src.git_analyzer.get_git_analysis_text') as mock_get_git_analysis_text:
         
         # 파일 시스템 Mock (CI 환경 호환)
         mock_isdir.return_value = True
@@ -151,6 +152,17 @@ def mock_dependencies():
         mock_workbook.active = mock_sheet
         mock_load_workbook.return_value = mock_workbook
         
+        # Git Analyzer Mock (내부 모듈이지만 파일 시스템 의존성으로 인해 Mock 필요)
+        mock_get_git_analysis_text.return_value = """### 커밋 메시지 목록:
+- feat: Mock 기능 추가
+- fix: Mock 버그 수정
+
+### 주요 코드 변경 내용 (diff):
+--- 파일: test.py ---
++def mock_function():
++    return "Mock implementation"
+"""
+
         # Ollama API Mock (외부 HTTP 호출)
         mock_response = MagicMock()
         mock_response.json.return_value = {"response": """
@@ -180,5 +192,6 @@ def mock_dependencies():
             'shutil_copy': mock_shutil_copy,
             'isdir': mock_isdir,
             'path_exists': mock_path_exists,
-            'path_mkdir': mock_path_mkdir
+            'path_mkdir': mock_path_mkdir,
+            'get_git_analysis_text': mock_get_git_analysis_text
         }
