@@ -4,7 +4,7 @@ git_analyzer.py 모듈 테스트
 import pytest
 import git
 from unittest.mock import Mock, patch, MagicMock
-from src.git_analyzer import get_git_analysis_text
+from app.core.git_analyzer import get_git_analysis_text
 
 
 class TestGitAnalyzer:

@@ -13,8 +13,8 @@ import sys
 # 프로젝트 경로 설정
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
-from backend.main import app
-from backend.routers.v2.models import (
+from app.main import app
+from app.routers.v2.models import (
     V2GenerationRequest,
     V2GenerationResponse,
     V2GenerationStatus
@@ -191,8 +191,8 @@ class TestV2BackgroundGeneration:
     @pytest.mark.asyncio
     async def test_handle_v2_generation_success_flow(self):
         """성공적인 생성 플로우 테스트 (모킹)"""
-        from backend.routers.v2.scenario_v2 import _handle_v2_generation
-        from backend.routers.v2.models import V2GenerationRequest
+        from app.routers.v2.scenario_v2 import _handle_v2_generation
+        from app.routers.v2.models import V2GenerationRequest
         
         request = V2GenerationRequest(
             client_id="test_flow_client",
@@ -219,8 +219,8 @@ class TestV2BackgroundGeneration:
     @pytest.mark.asyncio
     async def test_handle_v2_generation_git_analysis_failure(self):
         """Git 분석 실패 테스트"""
-        from backend.routers.v2.scenario_v2 import _handle_v2_generation
-        from backend.routers.v2.models import V2GenerationRequest
+        from app.routers.v2.scenario_v2 import _handle_v2_generation
+        from app.routers.v2.models import V2GenerationRequest
         
         request = V2GenerationRequest(
             client_id="test_fail_client",
@@ -238,7 +238,7 @@ class TestV2BackgroundGeneration:
             await _handle_v2_generation("test_fail_client", request)
             
             # 오류 메시지가 전송되었는지 확인: 호출 인자의 status가 ERROR인지 검사
-            from backend.routers.v2.models import V2GenerationStatus
+            from app.routers.v2.models import V2GenerationStatus
             found_error = False
             for call in mock_send.call_args_list:
                 # args: (client_id, progress_message)

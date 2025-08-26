@@ -17,7 +17,7 @@ try:
 except ImportError:
     portalocker = None
 
-from src.vector_db.document_indexer import DocumentIndexer
+from app.core.vector_db.document_indexer import DocumentIndexer
 
 
 class TestDocumentIndexerCache:

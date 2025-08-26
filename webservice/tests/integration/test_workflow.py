@@ -6,10 +6,10 @@ import tempfile
 import os
 import json
 from unittest.mock import patch, Mock
-from src.git_analyzer import get_git_analysis_text
-from src.llm_handler import call_ollama_llm
-from src.excel_writer import save_results_to_excel
-from src.config_loader import load_config
+from app.core.git_analyzer import get_git_analysis_text
+from app.core.llm_handler import call_ollama_llm
+from app.core.excel_writer import save_results_to_excel
+from app.core.config_loader import load_config
 
 
 class TestWorkflowIntegration:

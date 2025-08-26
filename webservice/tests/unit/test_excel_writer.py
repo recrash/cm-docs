@@ -5,7 +5,7 @@ import pytest
 import os
 import json
 from unittest.mock import patch, Mock
-from src.excel_writer import save_results_to_excel
+from app.core.excel_writer import save_results_to_excel
 
 
 class TestExcelWriter:

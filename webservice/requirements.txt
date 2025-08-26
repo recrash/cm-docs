@@ -1,10 +1,5 @@
-# PyTorch 공식 서버를 추가 검색 위치로 지정
+#Cuda 12.1 버전 설치
 --extra-index-url https://download.pytorch.org/whl/cu121
-
-
-torch==2.5.1
-torchvision
-torchaudio
 
 annotated-types==0.7.0
 anyio==4.10.0
@@ -56,6 +51,7 @@ mpmath==1.3.0
 networkx==3.5
 numpy==2.3.2
 oauthlib==3.3.1
+onnxruntime==1.22.1
 onnxruntime-gpu==1.22.0
 openpyxl==3.1.5
 opentelemetry-api==1.36.0

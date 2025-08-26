@@ -17,7 +17,7 @@ sys.path.insert(0, str(project_root))
 # PYTHONPATH 환경변수 설정 (Jenkins CI 환경 호환)
 os.environ['PYTHONPATH'] = str(project_root) + os.pathsep + os.environ.get('PYTHONPATH', '')
 
-from backend.main import app
+from app.main import app
 
 @pytest.fixture
 def client():

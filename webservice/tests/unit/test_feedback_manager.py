@@ -6,7 +6,7 @@ import sqlite3
 import os
 import tempfile
 from unittest.mock import patch
-from src.feedback_manager import FeedbackManager
+from app.core.feedback_manager import FeedbackManager
 
 
 class TestFeedbackManager:

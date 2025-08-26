@@ -4,7 +4,7 @@ llm_handler.py 모듈 테스트
 import pytest
 import requests
 from unittest.mock import Mock, patch
-from src.llm_handler import call_ollama_llm
+from app.core.llm_handler import call_ollama_llm
 
 
 class TestLLMHandler:

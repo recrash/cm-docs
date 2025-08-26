@@ -4,7 +4,7 @@ config_loader.py 모듈 테스트
 import pytest
 import json
 import os
-from src.config_loader import load_config
+from app.core.config_loader import load_config
 
 
 class TestConfigLoader:

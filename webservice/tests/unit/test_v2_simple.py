@@ -15,7 +15,7 @@ def test_v2_models():
     print("🧪 v2 데이터 모델 테스트 시작")
     
     try:
-        from backend.routers.v2.models import (
+        from app.routers.v2.models import (
             V2GenerationRequest, 
             V2GenerationResponse, 
             V2ProgressMessage,
@@ -79,8 +79,8 @@ def test_v2_connection_manager():
     print("\n🧪 v2 연결 관리자 테스트 시작")
     
     try:
-        from backend.routers.v2.progress_websocket import V2ConnectionManager
-        from backend.routers.v2.models import V2ProgressMessage, V2GenerationStatus
+        from app.routers.v2.progress_websocket import V2ConnectionManager
+        from app.routers.v2.models import V2ProgressMessage, V2GenerationStatus
         
         # 연결 관리자 생성
         manager = V2ConnectionManager()
@@ -113,7 +113,7 @@ def test_v2_api_endpoints():
     
     try:
         from fastapi.testclient import TestClient
-        from backend.main import app
+        from app.main import app
         
         client = TestClient(app)
         
