@@ -121,6 +121,14 @@ def get_git_analysis_text(repo_path: str, base_branch: str = 'origin/develop', h
         # 4. 모든 정보를 하나의 텍스트로 결합
         return "\n".join(commit_messages) + "\n\n" + "\n".join(code_changes)
 
+    except git.exc.InvalidGitRepositoryError:
+        return "오류: Git 저장소가 아니거나 손상되었습니다."
+    except git.exc.NoSuchPathError:
+        return "오류: 지정된 경로를 찾을 수 없습니다."
+    except git.exc.GitCommandError as e:
+        return f"오류: Git 명령 실행 중 문제가 발생했습니다 - {str(e)}"
+    except PermissionError:
+        return "오류: Git 저장소에 대한 접근 권한이 없습니다."
     except Exception as e:
         return f"{GIT_ERROR_PREFIX}{e}"
 

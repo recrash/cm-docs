@@ -76,8 +76,8 @@ async def generate_scenario_ws(websocket: WebSocket):
         data = await websocket.receive_text()
         request = ScenarioGenerationRequest(**json.loads(data))
 
-        if not (request.repo_path and Path(request.repo_path).is_dir()):
-            await _handle_generation_error(websocket, "유효한 Git 저장소 경로를 입력해주세요.")
+        if not request.repo_path or not request.repo_path.strip():
+            await _handle_generation_error(websocket, "Git 저장소 경로를 입력해주세요.")
             return
         
         config = load_config()

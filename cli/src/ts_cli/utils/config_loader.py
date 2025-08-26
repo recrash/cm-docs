@@ -45,24 +45,29 @@ class ConfigLoader:
         if config_path:
             return config_path
 
-        # 현재 작업 디렉토리의 config.ini 확인
+        # 1순위: 배포 환경 설정 파일 경로
+        deploy_config = Path("C:/deploys/data/cli/config.ini")
+        if deploy_config.exists():
+            return deploy_config
+
+        # 2순위: 현재 작업 디렉토리의 config.ini 확인
         current_config = Path.cwd() / "config.ini"
         if current_config.exists():
             return current_config
 
-        # 패키지 내의 기본 config 디렉토리 확인
+        # 3순위: 패키지 내의 기본 config 디렉토리 확인
         package_root = Path(__file__).parent.parent.parent.parent
         default_config = package_root / "config" / "config.ini"
         if default_config.exists():
             return default_config
 
-        # config 디렉토리의 기본 설정 파일
+        # 4순위: config 디렉토리의 기본 설정 파일
         config_dir = package_root / "config"
         if config_dir.exists():
             return config_dir / "config.ini"
 
-        # 최후의 수단: 현재 디렉토리에 config.ini 생성
-        return Path.cwd() / "config.ini"
+        # 최후의 수단: 배포 환경 경로에 config.ini 생성 (권한 문제 방지)
+        return deploy_config
 
     def _load_config(self) -> None:
         """설정 파일 로드"""
