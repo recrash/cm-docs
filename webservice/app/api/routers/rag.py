@@ -49,7 +49,7 @@ async def index_documents(request: IndexingRequest):
     
     try:
         # 싱글톤 인스턴스 강제 리셋 (path fix 적용)
-        import src.prompt_loader as pl
+        from ...core import prompt_loader as pl
         pl._document_indexer = None
         
         result = index_documents_folder(force_reindex=request.force_reindex)
