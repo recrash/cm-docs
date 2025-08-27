@@ -4,13 +4,13 @@ git_analyzer.py 모듈 테스트
 import pytest
 import git
 from unittest.mock import Mock, patch, MagicMock
-from src.git_analyzer import get_git_analysis_text
+from app.core.git_analyzer import get_git_analysis_text
 
 
 class TestGitAnalyzer:
     """Git 분석기 테스트"""
     
-    @patch('src.git_analyzer.git.Repo')
+    @patch('app.core.git_analyzer.git.Repo')
     def test_successful_git_analysis(self, mock_repo_class):
         """성공적인 Git 분석 테스트"""
         # Mock 설정
@@ -50,7 +50,7 @@ class TestGitAnalyzer:
         assert "src/test.py" in result
         assert "+def new_function():" in result
     
-    @patch('src.git_analyzer.git.Repo')
+    @patch('app.core.git_analyzer.git.Repo')
     def test_no_merge_base_found(self, mock_repo_class):
         """공통 조상을 찾을 수 없는 경우 테스트"""
         mock_repo = Mock()
@@ -61,17 +61,16 @@ class TestGitAnalyzer:
         
         assert "오류: 공통 조상을 찾을 수 없습니다." in result
     
-    @patch('src.git_analyzer.git.Repo')
+    @patch('app.core.git_analyzer.git.Repo')
     def test_git_repo_not_found(self, mock_repo_class):
         """Git 저장소를 찾을 수 없는 경우 테스트"""
         mock_repo_class.side_effect = git.exc.InvalidGitRepositoryError("Not a git repository")
         
         result = get_git_analysis_text("/invalid/repo")
         
-        assert "Git 분석 중 오류 발생:" in result
-        assert "Not a git repository" in result
+        assert "오류: Git 저장소가 아니거나 손상되었습니다." in result
     
-    @patch('src.git_analyzer.git.Repo')
+    @patch('app.core.git_analyzer.git.Repo')
     def test_long_diff_truncation(self, mock_repo_class):
         """긴 diff 내용 잘림 테스트"""
         mock_repo = Mock()
@@ -104,7 +103,7 @@ class TestGitAnalyzer:
         assert "+line 19" in result  # 20줄까지는 포함
         assert "+line 24" not in result  # 21줄부터는 제외
     
-    @patch('src.git_analyzer.git.Repo')
+    @patch('app.core.git_analyzer.git.Repo')
     def test_unicode_handling_in_diff(self, mock_repo_class):
         """diff에서 유니코드 처리 테스트"""
         mock_repo = Mock()
@@ -134,7 +133,7 @@ class TestGitAnalyzer:
         assert "한글 주석 추가" in result
         assert "def 함수():" in result
     
-    @patch('src.git_analyzer.git.Repo')
+    @patch('app.core.git_analyzer.git.Repo')
     def test_multiple_commits_ordering(self, mock_repo_class):
         """여러 커밋의 순서 테스트"""
         mock_repo = Mock()

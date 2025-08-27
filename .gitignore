@@ -1,6 +1,6 @@
 # ===================================
 # TestscenarioMaker 모노레포 .gitignore
-# Backend (React + FastAPI) + CLI (Python CLI) 통합
+# 서비스별 독립 환경: webservice/ + cli/ + autodoc_service/
 # ===================================
 
 # ===================================
@@ -115,10 +115,10 @@ ENV/
 env.bak/
 venv.bak/
 
-# MSA 서비스별 독립 가상환경
-webservice/.venv/
-cli/.venv/
-autodoc_service/.venv312/
+# MSA 서비스별 독립 가상환경 (최신 구조)
+webservice/.venv/          # Python 3.13 + AI/ML dependencies  
+cli/.venv/                 # Python 3.13 + CLI tool dependencies
+autodoc_service/.venv312/  # Python 3.12 + document processing (stability)
 
 # Spyder project settings
 .spyderproject
@@ -154,11 +154,15 @@ yarn-error.log*
 .npm
 .yarn-integrity
 
-# React build outputs
+# React build outputs (Vite + TypeScript)
 /webservice/frontend/dist/
+/webservice/frontend/build/
 /webservice/dist/
 /webservice/build/
 /webservice/coverage/
+/webservice/app/data/outputs/
+# Vite specific
+/webservice/frontend/.vite/
 
 # TypeScript
 *.tsbuildinfo
@@ -169,6 +173,7 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+
 # Package manager locks (선택적으로 주석해제)
 # webservice/package-lock.json
 # webservice/yarn.lock
@@ -176,15 +181,21 @@ yarn-error.log*
 # ===================================
 # 테스팅 관련
 # ===================================
-# Playwright test results (Webservice E2E)
+# Playwright test results (Webservice E2E - MANDATORY)
 /webservice/test-results/
 /webservice/playwright-report/
 /webservice/blob-report/
 /webservice/playwright/.cache/
+/webservice/frontend/test-results/
+/webservice/frontend/playwright-report/
 
-# 테스트 결과 파일
+# pytest 및 coverage 결과
 test_results/
 test_outputs/
+.coverage/
+
+# Vitest 결과 (Frontend)
+/webservice/frontend/coverage/
 
 # ===================================
 # IDE 및 에디터 관련
@@ -253,16 +264,18 @@ $RECYCLE.BIN/
 # ===================================
 # 프로젝트별 설정 및 데이터 파일
 # ===================================
-# Webservice 설정 파일 (민감한 정보 포함 가능)
-
+# Webservice 설정 파일 (config.json은 커밋, 민감한 정보는 환경변수 사용)
+webservice/config.local.json
 webservice/config.ini
 webservice/settings.json
 
-# CLI 설정 파일 (개발용 제외)
+# CLI 설정 파일 (계층적 설정 로딩)
 cli/config/config.local.ini
+cli/config.local.json
 
 # AutoDoc Service 설정 파일
-
+autodoc_service/config.local.json
+autodoc_service/config.ini
 
 # Claude Code 설정 파일들
 .claude/settings.local.json
@@ -271,6 +284,14 @@ cli/config/config.local.ini
 # ===================================
 # 출력 및 생성 파일들
 # ===================================
+# 환경변수 기반 데이터 디렉토리 (프로덕션: WEBSERVICE_DATA_PATH, AUTODOC_DATA_PATH)
+*/data/logs/
+*/data/models/
+*/data/documents/
+*/data/templates/
+*/data/outputs/
+*/data/db/
+
 # Webservice: 생성된 엑셀 파일들
 webservice/outputs/*.xlsx
 webservice/outputs/*.xls
@@ -283,16 +304,18 @@ webservice/backups/
 autodoc_service/documents/*.docx
 autodoc_service/documents/*.xlsx
 
-# CLI: 빌드 결과물
+# CLI: 빌드 결과물 (.whl 패키지 포함)
 cli/dist/
 cli/build/
 cli/test-build/
 cli/*.dmg
 cli/*.exe
 cli/*.msi
+cli/*.whl
 
-# CLI: AppleScript 컴파일된 파일
+# CLI: AppleScript 및 macOS Helper 컴파일된 파일
 cli/*.scpt
+cli/helper_app/
 
 # 아카이브 파일
 *.zip
@@ -302,13 +325,15 @@ cli/*.scpt
 # ===================================
 # AI/ML 및 데이터베이스 관련
 # ===================================
-# RAG & Vector Database (Webservice)
+# RAG & Vector Database (Webservice - ChromaDB)
 webservice/vector_db_data/
+webservice/data/db/
 *.sqlite3
 *.db
 
-# 한국어 임베딩 모델 (대용량 파일, 스크립트로 다운로드 가능)
+# 한국어 임베딩 모델 (ko-sroberta-multitask, 대용량 파일)
 webservice/models/
+webservice/data/models/
 cli/models/
 
 # ML 모델 파일들
@@ -316,13 +341,20 @@ cli/models/
 *.pt
 *.pth
 *.model
+*.onnx
 
-# Sentence Transformers 모델 캐시
+# Sentence Transformers 및 Hugging Face 모델 캐시
 ~/.cache/torch/
 ~/.cache/huggingface/
+.cache/torch/
+.cache/huggingface/
+
+# Ollama 관련 (qwen3:8b model)
+.ollama/
 
 # 문서 폴더 내 항목들
 webservice/documents/
+webservice/data/documents/
 
 # ===================================
 # 캐시 및 임시 파일
@@ -347,16 +379,77 @@ temp_*.py
 dev_tools/
 
 # ===================================
-# 로그 파일
+# 로그 파일 (환경변수 기반 경로 포함)
 # ===================================
 *.log
 webservice/logs/
+webservice/data/logs/
 cli/logs/
+cli/data/logs/
 autodoc_service/logs/
+autodoc_service/data/logs/
 
-# autodoc_service 문서 폴더
+# NSSM 서비스 로그 (Windows 배포)
+nssm-*.log
+
+# ===================================
+# 서비스별 데이터 디렉토리 (완전 구조)
+# ===================================
+# Webservice 데이터 (AI/ML + Excel 출력)
+webservice/data/
+webservice/vector_db_data/
+
+# CLI 데이터
+cli/data/
+
+# AutoDoc Service 데이터 (문서 생성)
 autodoc_service/data/
 autodoc_service/testHTML/
 
-webservice/data/
-webservice/frontend/test-results/
+# ===================================
+# 배포 관련 (Jenkins CI/CD)
+# ===================================
+# Jenkins 워크스페이스 아티팩트
+jenkins/
+.jenkins/
+build-artifacts/
+deploy/
+
+# 빌드 패키지 (.whl files for deployment)
+packages/
+
+# ===================================
+# 개발 및 디버깅 관련
+# ===================================
+# 디버깅용 임시 파일들 (workspace hygiene)
+debug_*.py
+temp_*.py
+test_*.py
+scratch.*
+debug.*
+
+# 개발 중 생성되는 스크립트들
+scripts/temp/
+tools/temp/
+
+# 백업 파일들
+*.bak
+*.backup
+*.old
+
+# ===================================
+# 특수 파일들 (프로젝트 구조 관련)
+# ===================================
+# Private Claude 설정 (개인별 설정)
+CLAUDE.local.md
+
+# 임시 스크린샷 및 첨부파일
+screenshots/
+attachments/
+*.png.temp
+*.jpg.temp
+
+# 특정 환경에서만 생성되는 파일들
+.python-version
+.ruby-version
+.node-version

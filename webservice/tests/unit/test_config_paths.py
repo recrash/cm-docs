@@ -13,8 +13,8 @@ from pathlib import Path
 # src 모듈 import를 위한 경로 추가
 sys.path.append(str(Path(__file__).parent / "src"))
 
-from src.config_loader import load_config, verify_environment, _is_development_environment
-from src.paths import get_data_root, verify_data_directories
+from app.core.config_loader import load_config, verify_environment, _is_development_environment
+from app.core.paths import get_data_root, verify_data_directories
 
 def test_environment_detection():
     """Environment detection test"""

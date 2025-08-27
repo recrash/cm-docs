@@ -5,6 +5,7 @@ import pytest
 import os
 import tempfile
 import json
+from unittest.mock import patch
 
 
 @pytest.fixture
@@ -112,3 +113,5 @@ def mock_ollama_response():
     return {
         "response": '{"Test Cases": [{"ID": "TC_001", "절차": "테스트 절차"}]}'
     }
+
+

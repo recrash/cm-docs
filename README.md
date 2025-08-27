@@ -17,8 +17,14 @@ Git 저장소 변경사항을 분석하여 한국어 테스트 시나리오를 �
 cm-docs/
 ├── webservice/          # TestscenarioMaker 웹 서비스
 │   ├── frontend/        # React + TypeScript 프론트엔드
-│   ├── backend/         # FastAPI 백엔드 서비스
-│   ├── src/             # 핵심 분석 모듈
+│   ├── app/             # FastAPI 애플리케이션 (리팩토링됨)
+│   │   ├── api/         # API 라우터 및 모델
+│   │   │   ├── routers/ # 도메인별 API 엔드포인트
+│   │   │   └── models/  # Pydantic 데이터 모델
+│   │   ├── core/        # 핵심 비즈니스 로직 (기존 src/)
+│   │   │   ├── vector_db/    # RAG 벡터 데이터베이스
+│   │   │   └── *.py     # 분석 모듈들
+│   │   └── main.py      # FastAPI 애플리케이션 진입점
 │   ├── data/            # 환경변수 기반 데이터 디렉토리 (개발환경 기본값)
 │   │   ├── logs/        # 로그 파일
 │   │   ├── models/      # AI 임베딩 모델
@@ -46,7 +52,7 @@ cm-docs/
 
 ### 기술 스택
 - **프론트엔드**: React 18 + TypeScript + Material-UI + Vite
-- **백엔드**: FastAPI + Python (Pseudo-MSA 아키텍처)
+- **백엔드**: FastAPI + Python 3.12 (Pseudo-MSA 아키텍처, 리팩토링됨)
 - **AI/LLM**: Ollama 통합 (qwen3:8b 모델)
 - **벡터 DB**: ChromaDB (RAG 시스템)
 - **테스팅**: Vitest + Playwright (E2E) + pytest (API)
@@ -78,10 +84,10 @@ cm-docs/
 각 서비스는 독립된 Python 가상환경과 환경변수 기반 데이터 경로를 사용합니다:
 
 ```bash
-# Webservice (Python 3.13 환경)
+# Webservice (Python 3.12 환경 - 리팩토링 후)
 cd webservice
 source .venv/bin/activate
-python --version  # Python 3.13.5
+python --version  # Python 3.12.x
 
 # CLI (Python 3.13 환경) 
 cd cli
@@ -115,15 +121,15 @@ source .venv/bin/activate
 pip install -r requirements.txt -c pip.constraints.txt  # 제약조건 파일 필수!
 npm install
 
-# PYTHONPATH 설정 (필수 - src/ 모듈 임포트용)
+# PYTHONPATH 설정 (필수 - app.core 모듈 임포트용)
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
 # 프로덕션 환경변수 (선택적 - 미설정시 data/ 서브디렉토리 사용)
 export WEBSERVICE_DATA_PATH="/path/to/webservice/data"    # 프로덕션 전용
 export AUTODOC_DATA_PATH="/path/to/autodoc/data"          # 프로덕션 전용
 
-# 백엔드 서버 시작 (포트 8000)
-cd webservice/backend && python -m uvicorn main:app --reload --port 8000
+# 백엔드 서버 시작 (포트 8000) - 리팩토링된 구조
+cd webservice && python -m uvicorn app.main:app --reload --port 8000
 
 # 프론트엔드 개발 서버 시작 (개발: 3000, 배포: 80) - 프로젝트 루트에서 실행
 npm run dev
@@ -318,7 +324,7 @@ pytest --cov=app --cov-report=html app/tests/
 ## 🛠 공통 개발 환경
 
 ### MSA 기반 독립 환경 관리
-- **Webservice**: Python 3.13 환경 (`webservice/.venv/`) + `requirements.txt` + `package.json`
+- **Webservice**: Python 3.12 환경 (`webservice/.venv/`) + `requirements.txt` + `package.json` (리팩토링됨)
 - **CLI**: Python 3.13 환경 (`cli/.venv/`) + `requirements.txt` + `requirements-dev.txt`  
 - **AutoDoc Service**: Python 3.12 환경 (`autodoc_service/.venv312/`) + `requirements.txt`
 - **공통**: 루트 `pyproject.toml` (개발 도구 설정)
@@ -356,15 +362,15 @@ AUTODOC_DATA_PATH=C:\deploys\data\autodoc_service
 
 ### 코드 품질
 ```bash
-# 코드 포맷팅 (프로젝트 루트에서)
-black webservice/src webservice/backend cli/src cli/tests autodoc_service/app
-isort webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+# 코드 포맷팅 (프로젝트 루트에서) - 리팩토링된 구조 반영
+black webservice/app cli/src cli/tests autodoc_service/app
+isort webservice/app cli/src cli/tests autodoc_service/app
 
 # 린팅
-flake8 webservice/src webservice/backend cli/src cli/tests autodoc_service/app
+flake8 webservice/app cli/src cli/tests autodoc_service/app
 
 # 타입 체크
-mypy webservice/src cli/src autodoc_service/app
+mypy webservice/app cli/src autodoc_service/app
 ```
 
 ### Git 관리
@@ -399,14 +405,14 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 #### 🚀 MSA 기반 독립 배포
 
 ```bash
-# Webservice 프로덕션 배포 (Python 3.13)
+# Webservice 프로덕션 배포 (Python 3.12) - 리팩토링된 구조
 cd webservice
 source .venv/bin/activate
-export PYTHONPATH=$(pwd):$PYTHONPATH  # 필수: src/ 모듈 임포트
+export PYTHONPATH=$(pwd):$PYTHONPATH  # 필수: app.core 모듈 임포트
 
 # 프로덕션 환경변수 설정 (선택적)
 export WEBSERVICE_DATA_PATH="/opt/data/webservice"  # 프로덕션용
-python -m uvicorn main:app --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # 한국어 임베딩 모델 다운로드 (오프라인 환경용)
 python scripts/download_embedding_model.py
@@ -465,13 +471,13 @@ server {
 ## 📊 품질 보증
 
 ### 테스트 커버리지 목표
-- **Webservice**: ≥80% 단위 테스트, ≥70% 통합 테스트 (Python 3.13 환경)
+- **Webservice**: ≥80% 단위 테스트, ≥70% 통합 테스트 (Python 3.12 환경, 리팩토링됨)
 - **CLI**: ≥85% 전체 커버리지 (Python 3.13 환경)
 - **AutoDoc Service**: ≥85% 전체 커버리지 (Python 3.12 환경)
 - **E2E**: 주요 사용자 워크플로우 100% 커버
 
 ### 성능 기준
-- **Webservice API**: 응답시간 <200ms, WebSocket 연결 <1초 (Python 3.13)
+- **Webservice API**: 응답시간 <200ms, WebSocket 연결 <1초, RAG 초기화 <25초 (Python 3.12)
 - **CLI**: 저장소 분석 <30초, URL 프로토콜 처리 <5초 (Python 3.13)
 - **AutoDoc Service**: HTML 파싱 <1초, Word 생성 <3초, Excel 생성 <2초 (Python 3.12)
 - **빌드**: 전체 빌드 시간 <10분
@@ -480,7 +486,7 @@ server {
 
 ### 개발 워크플로우
 1. 해당 서브프로젝트 디렉토리에서 독립 환경 활성화
-   - `cd webservice && source .venv/bin/activate` (Python 3.13)
+   - `cd webservice && source .venv/bin/activate` (Python 3.12, 리팩토링됨)
    - `cd cli && source .venv/bin/activate` (Python 3.13)
    - `cd autodoc_service && source .venv312/bin/activate` (Python 3.12)
 2. 독립적인 테스트 슈트 실행 및 통과 확인

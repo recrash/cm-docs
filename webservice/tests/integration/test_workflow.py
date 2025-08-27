@@ -6,10 +6,10 @@ import tempfile
 import os
 import json
 from unittest.mock import patch, Mock
-from src.git_analyzer import get_git_analysis_text
-from src.llm_handler import call_ollama_llm
-from src.excel_writer import save_results_to_excel
-from src.config_loader import load_config
+from app.core.git_analyzer import get_git_analysis_text
+from app.core.llm_handler import call_ollama_llm
+from app.core.excel_writer import save_results_to_excel
+from app.core.config_loader import load_config
 
 
 class TestWorkflowIntegration:
@@ -22,7 +22,7 @@ class TestWorkflowIntegration:
         assert config is not None
         
         # 2. Git 분석 (Mock 사용)
-        with patch('src.git_analyzer.git.Repo') as mock_repo_class:
+        with patch('app.core.git_analyzer.git.Repo') as mock_repo_class:
             # Mock 설정
             mock_repo = Mock()
             mock_repo_class.return_value = mock_repo
@@ -43,7 +43,7 @@ class TestWorkflowIntegration:
             assert "### 커밋 메시지 목록:" in analysis_result
             assert "### 주요 코드 변경 내용 (diff):" in analysis_result
     
-    @patch('src.llm_handler.requests.post')
+    @patch('app.core.llm_handler.requests.post')
     def test_llm_to_excel_workflow(self, mock_post, temp_dir, mock_excel_template):
         """LLM 호출부터 Excel 생성까지의 워크플로우 테스트"""
         # 1. LLM 호출 Mock 설정
@@ -79,13 +79,14 @@ class TestWorkflowIntegration:
         outputs_dir = os.path.join(temp_dir, "outputs")
         os.makedirs(outputs_dir, exist_ok=True)
         
-        with patch('src.excel_writer.datetime') as mock_datetime:
+        with patch('app.core.excel_writer.datetime') as mock_datetime:
             mock_datetime.now.return_value.strftime.return_value = "20240101_120000"
             
             excel_path = save_results_to_excel(result_json, mock_excel_template)
             
             assert excel_path is not None
-            assert "outputs/20240101_120000" in excel_path
+            # 절대 경로로 반환되므로 파일명만 확인
+            assert excel_path.endswith("20240101_120000_테스트_시나리오_결과.xlsx")
             assert os.path.exists(excel_path)
     
     def test_full_pipeline_with_mocks(self, temp_dir, config_file, mock_excel_template):
@@ -94,7 +95,7 @@ class TestWorkflowIntegration:
         config = load_config(config_file)
         
         # 2. Git 분석 Mock
-        with patch('src.git_analyzer.git.Repo') as mock_repo_class:
+        with patch('app.core.git_analyzer.git.Repo') as mock_repo_class:
             mock_repo = Mock()
             mock_repo_class.return_value = mock_repo
             
@@ -120,7 +121,7 @@ class TestWorkflowIntegration:
             git_analysis = get_git_analysis_text(config["repo_path"])
             
             # 3. LLM 호출 Mock
-            with patch('src.llm_handler.requests.post') as mock_post:
+            with patch('app.core.llm_handler.requests.post') as mock_post:
                 mock_response = Mock()
                 mock_response.json.return_value = {
                     'response': json.dumps({
@@ -148,7 +149,7 @@ class TestWorkflowIntegration:
                 outputs_dir = os.path.join(temp_dir, "outputs")
                 os.makedirs(outputs_dir, exist_ok=True)
                 
-                with patch('src.excel_writer.datetime') as mock_datetime:
+                with patch('app.core.excel_writer.datetime') as mock_datetime:
                     mock_datetime.now.return_value.strftime.return_value = "20240101_120000"
                     
                     excel_path = save_results_to_excel(result_json, mock_excel_template)
@@ -178,7 +179,7 @@ class TestWorkflowIntegration:
         assert "Git 분석 중 오류 발생:" in git_analysis
         
         # LLM 호출 실패 테스트
-        with patch('src.llm_handler.requests.post') as mock_post:
+        with patch('app.core.llm_handler.requests.post') as mock_post:
             from requests.exceptions import RequestException
             mock_post.side_effect = RequestException("Network error")
             

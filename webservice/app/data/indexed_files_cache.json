@@ -1,0 +1,62 @@
+{
+  "cache_version": "1.0",
+  "last_updated": "2025-08-26T22:56:11.426220",
+  "indexed_files": {
+    "C:\\Users\\RECRAS~1\\AppData\\Local\\Temp\\2\\tmp0_louwbj\\documents\\test1.txt": {
+      "mtime": 1756216571.0515628,
+      "hash": "bb9ce983948e60fe1e546274aba3a014",
+      "last_indexed": "2025-08-26T22:56:11.060396",
+      "chunks_count": 5,
+      "file_size": 16
+    },
+    "C:\\Users\\RECRAS~1\\AppData\\Local\\Temp\\2\\tmp0_louwbj\\documents\\test2.md": {
+      "mtime": 1756216570.8483975,
+      "hash": "6a3c71f226346a653775d38504f8ad96",
+      "last_indexed": "2025-08-26T22:56:10.848397",
+      "chunks_count": 5,
+      "file_size": 50
+    },
+    "C:\\Users\\RECRAS~1\\AppData\\Local\\Temp\\2\\tmp1byh58km\\documents\\test1.txt": {
+      "mtime": 1756216571.0662446,
+      "hash": "edd5eb9436435b22993f1432366f867b",
+      "last_indexed": "2025-08-26T22:56:11.087652",
+      "chunks_count": 5,
+      "file_size": 34
+    },
+    "C:\\Users\\RECRAS~1\\AppData\\Local\\Temp\\2\\tmp1byh58km\\documents\\test2.md": {
+      "mtime": 1756216571.071611,
+      "hash": "944630c0d040eabd037dfdf6eb6a4181",
+      "last_indexed": "2025-08-26T22:56:11.092036",
+      "chunks_count": 5,
+      "file_size": 50
+    },
+    "C:\\Users\\RECRAS~1\\AppData\\Local\\Temp\\2\\tmp5mobvmr1\\documents\\korean.txt": {
+      "mtime": 1756216571.2951405,
+      "hash": "73662d6e76a52eafd0a900e277950f34",
+      "last_indexed": "2025-08-26T22:56:11.307988",
+      "chunks_count": 3,
+      "file_size": 85
+    },
+    "C:\\Users\\RECRAS~1\\AppData\\Local\\Temp\\2\\tmp5mobvmr1\\documents\\large.txt": {
+      "mtime": 1756216571.4212456,
+      "hash": "a8c085d99636c7b64ffa9e72f83f633f",
+      "last_indexed": "2025-08-26T22:56:11.426220",
+      "chunks_count": 3,
+      "file_size": 7040
+    },
+    "C:\\Users\\RECRAS~1\\AppData\\Local\\Temp\\2\\tmp5mobvmr1\\documents\\medium.md": {
+      "mtime": 1756216571.2951405,
+      "hash": "3b4c1c4c036611f7d8f6abab5fa43960",
+      "last_indexed": "2025-08-26T22:56:11.307988",
+      "chunks_count": 3,
+      "file_size": 732
+    },
+    "C:\\Users\\RECRAS~1\\AppData\\Local\\Temp\\2\\tmp5mobvmr1\\documents\\small.txt": {
+      "mtime": 1756216571.2951405,
+      "hash": "39549fa1c6ed4840c77897c0b466f8ee",
+      "last_indexed": "2025-08-26T22:56:11.307988",
+      "chunks_count": 3,
+      "file_size": 33
+    }
+  }
+}

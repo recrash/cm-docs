@@ -5,8 +5,9 @@ import pytest
 import sqlite3
 import os
 import tempfile
+import json
 from unittest.mock import patch
-from src.feedback_manager import FeedbackManager
+from app.core.feedback_manager import FeedbackManager
 
 
 class TestFeedbackManager:
@@ -39,6 +40,10 @@ class TestFeedbackManager:
             # testcase_feedback 테이블 확인
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='testcase_feedback'")
             assert cursor.fetchone() is not None
+        
+        # FeedbackManager 연결 명시적으로 닫기
+        if hasattr(feedback_manager, 'conn'):
+            feedback_manager.conn.close()
     
     def test_save_feedback(self, temp_db):
         """피드백 저장 테스트"""
@@ -102,14 +107,14 @@ class TestFeedbackManager:
         
         feedback_manager.save_feedback(
             git_analysis="analysis1",
-            scenario_content={"test": "scenario1"},
+            scenario_content=json.dumps({"test": "scenario1"}),
             feedback_data=feedback_data_good,
             repo_path="/repo1"
         )
         
         feedback_manager.save_feedback(
-            git_analysis="analysis2",
-            scenario_content={"test": "scenario2"},
+            git_analysis="analysis2", 
+            scenario_content=json.dumps({"test": "scenario2"}),
             feedback_data=feedback_data_bad,
             repo_path="/repo2"
         )
@@ -169,7 +174,7 @@ class TestFeedbackManager:
         assert good_examples[0]["comments"] == "훌륭한 시나리오"
         assert bad_examples[0]["comments"] == "많은 개선 필요"
     
-    @patch('src.feedback_manager.datetime')
+    @patch('app.core.feedback_manager.datetime')
     def test_export_feedback_data(self, mock_datetime, temp_db):
         """피드백 데이터 내보내기 테스트"""
         feedback_manager = FeedbackManager(temp_db)
@@ -201,7 +206,7 @@ class TestFeedbackManager:
             if os.path.exists(export_path):
                 os.unlink(export_path)
     
-    @patch('src.feedback_manager.datetime')
+    @patch('app.core.feedback_manager.datetime')
     def test_clear_all_feedback(self, mock_datetime, temp_db):
         """전체 피드백 삭제 테스트"""
         mock_datetime.now.return_value.strftime.return_value = "20240101_120000"
@@ -236,7 +241,7 @@ class TestFeedbackManager:
             cursor.execute("SELECT COUNT(*) FROM scenario_feedback")
             assert cursor.fetchone()[0] == 0
     
-    @patch('src.feedback_manager.datetime')
+    @patch('app.core.feedback_manager.datetime')
     def test_clear_feedback_by_category(self, mock_datetime, temp_db):
         """카테고리별 피드백 삭제 테스트"""
         mock_datetime.now.return_value.strftime.return_value = "20240101_120000"

@@ -14,13 +14,13 @@ import sys
 # 프로젝트 경로 설정
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
-from backend.main import app
-from backend.routers.v2.progress_websocket import (
+from app.main import app
+from app.api.routers.v2.progress_websocket import (
     V2ConnectionManager, 
     v2_connection_manager,
     handle_v2_websocket
 )
-from backend.routers.v2.models import V2ProgressMessage, V2GenerationStatus
+from app.api.routers.v2.models import V2ProgressMessage, V2GenerationStatus
 
 
 class TestV2ConnectionManager:
@@ -258,7 +258,7 @@ class TestV2WebSocketIntegration:
         # 여기서는 엔드포인트가 등록되어 있는지만 확인
         
         # 라우터에 WebSocket 엔드포인트가 등록되어 있는지 확인
-        from backend.main import app
+        from app.main import app
         websocket_routes = [route for route in app.routes if hasattr(route, 'path') and 'ws' in route.path]
         
         # v2 WebSocket 경로가 있는지 확인

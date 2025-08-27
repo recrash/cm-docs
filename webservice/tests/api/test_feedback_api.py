@@ -19,7 +19,7 @@ def test_get_feedback_stats(client, mock_dependencies):
         "average_scores": {"overall": 4.2, "usefulness": 4.0}
     }
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
+    with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_feedback_stats.return_value = mock_stats
         
         response = client.get("/api/feedback/stats")
@@ -33,7 +33,7 @@ def test_get_feedback_stats(client, mock_dependencies):
 def test_submit_feedback_success(client, mock_dependencies):
     """피드백 제출 성공 테스트"""
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
+    with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.save_feedback.return_value = True
         
         request_data = {
@@ -61,7 +61,7 @@ def test_submit_feedback_success(client, mock_dependencies):
 def test_submit_feedback_failure(client, mock_dependencies):
     """피드백 제출 실패 테스트"""
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
+    with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.save_feedback.return_value = False
         
         request_data = {
@@ -90,7 +90,7 @@ def test_get_feedback_examples(client):
         }
     ]
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
+    with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_feedback_examples.return_value = mock_examples
         
         response = client.get("/api/feedback/examples/good?limit=5")
@@ -109,7 +109,7 @@ def test_get_improvement_insights(client):
         "sample_negative_comments": ["부정확합니다", "불완전합니다"]
     }
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
+    with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_improvement_insights.return_value = mock_insights
         
         response = client.get("/api/feedback/insights")
@@ -129,7 +129,7 @@ def test_get_prompt_enhancement_info(client):
         "bad_examples_available": 2
     }
     
-    with patch('backend.routers.feedback.get_prompt_enhancer') as mock_enhancer:
+    with patch('app.api.routers.feedback.get_prompt_enhancer') as mock_enhancer:
         mock_instance = MagicMock()
         mock_instance.get_enhancement_summary.return_value = mock_summary
         mock_enhancer.return_value = mock_instance
@@ -147,7 +147,7 @@ def test_get_enhancement_preview_available(client):
     
     mock_summary = {"feedback_count": 5}
     
-    with patch('backend.routers.feedback.get_prompt_enhancer') as mock_enhancer:
+    with patch('app.api.routers.feedback.get_prompt_enhancer') as mock_enhancer:
         mock_instance = MagicMock()
         mock_instance.get_enhancement_summary.return_value = mock_summary
         mock_instance.get_enhanced_prompt_preview.return_value = "개선된 프롬프트 미리보기"
@@ -165,7 +165,7 @@ def test_get_enhancement_preview_not_available(client):
     
     mock_summary = {"feedback_count": 1}
     
-    with patch('backend.routers.feedback.get_prompt_enhancer') as mock_enhancer:
+    with patch('app.api.routers.feedback.get_prompt_enhancer') as mock_enhancer:
         mock_instance = MagicMock()
         mock_instance.get_enhancement_summary.return_value = mock_summary
         mock_instance.get_enhanced_prompt_preview.return_value = "기본 프롬프트"
@@ -211,7 +211,7 @@ def test_get_feedback_count_by_category(client):
     
     mock_counts = {"good": 5, "bad": 3, "neutral": 2}
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
+    with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_feedback_count_by_category.return_value = mock_counts
         
         response = client.get("/api/feedback/count-by-category")
@@ -228,7 +228,7 @@ def test_get_feedback_count_by_category(client):
 def test_reset_all_feedback(client):
     """전체 피드백 초기화 테스트"""
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
+    with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         
         mock_manager.reset_all_feedback.return_value = True
         
@@ -242,7 +242,7 @@ def test_reset_all_feedback(client):
 def test_reset_feedback_by_category(client):
     """카테고리별 피드백 초기화 테스트"""
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
+    with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         
         mock_manager.reset_feedback_by_category.return_value = True
         
@@ -274,7 +274,7 @@ def test_list_backup_files_success(client):
         }
     ]
     
-    with patch('backend.routers.feedback.PathlibPath') as mock_path:
+    with patch('app.api.routers.feedback.PathlibPath') as mock_path:
         # 백업 디렉토리 존재 설정
         mock_backup_dir = MagicMock()
         mock_backup_dir.exists.return_value = True
@@ -305,7 +305,7 @@ def test_list_backup_files_success(client):
 def test_list_backup_files_no_directory(client):
     """백업 폴더가 없는 경우 테스트"""
     
-    with patch('backend.routers.feedback.PathlibPath') as mock_path:
+    with patch('app.api.routers.feedback.PathlibPath') as mock_path:
         mock_backup_dir = MagicMock()
         mock_backup_dir.exists.return_value = False
         mock_path.return_value = mock_backup_dir
@@ -321,7 +321,7 @@ def test_delete_backup_file_success(client):
     
     filename = "feedback_backup_20240101_120000.json"
     
-    with patch('backend.routers.feedback.PathlibPath') as mock_path_class:
+    with patch('app.api.routers.feedback.PathlibPath') as mock_path_class:
         # Mock the path construction chain
         mock_backup_dir = MagicMock()
         mock_file = MagicMock()
@@ -356,7 +356,7 @@ def test_delete_backup_file_not_found(client):
     
     filename = "feedback_backup_20240101_120000.json"
     
-    with patch('backend.routers.feedback.PathlibPath') as mock_path_class:
+    with patch('app.api.routers.feedback.PathlibPath') as mock_path_class:
         # Mock the path construction chain
         mock_backup_dir = MagicMock()
         mock_file = MagicMock()
@@ -377,8 +377,8 @@ def test_download_backup_file_success(client):
     
     filename = "feedback_backup_20240101_120000.json"
     
-    with patch('backend.routers.feedback.PathlibPath') as mock_path, \
-         patch('backend.routers.feedback.FileResponse') as mock_file_response:
+    with patch('app.api.routers.feedback.PathlibPath') as mock_path, \
+         patch('app.api.routers.feedback.FileResponse') as mock_file_response:
         
         mock_file = MagicMock()
         mock_file.exists.return_value = True
@@ -420,7 +420,7 @@ def test_generate_summary_report_success(client):
         "improvement_suggestions": ["더 상세한 분석 필요"]
     }
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
+    with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_feedback_stats.return_value = mock_stats
         mock_manager.get_improvement_insights.return_value = mock_insights
         
@@ -447,7 +447,7 @@ def test_generate_summary_report_success(client):
 def test_generate_summary_report_error(client):
     """요약 보고서 생성 실패 테스트"""
     
-    with patch('backend.routers.feedback.feedback_manager') as mock_manager:
+    with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_feedback_stats.side_effect = Exception("Database error")
         
         response = client.post("/api/feedback/summary-report")
