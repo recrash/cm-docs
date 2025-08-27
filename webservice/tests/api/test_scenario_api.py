@@ -66,8 +66,8 @@ def test_generate_scenario_success(client, mock_dependencies):
             json.dump(config_data, f, ensure_ascii=False, indent=2)
         
         # Git 분석/엑셀 저장만 Mock
-        with patch('src.git_analyzer.get_git_analysis_text', return_value="Mock Git analysis for testing"), \
-             patch('src.excel_writer.save_results_to_excel', return_value=str(temp_outputs_path / "test_result.xlsx")):
+        with patch('app.core.git_analyzer.get_git_analysis_text', return_value="Mock Git analysis for testing"), \
+             patch('app.core.excel_writer.save_results_to_excel', return_value=str(temp_outputs_path / "test_result.xlsx")):
             
             # WebSocket 연결 테스트
             with client.websocket_connect("/api/scenario/generate-ws") as websocket:
@@ -151,8 +151,8 @@ def test_generate_scenario_llm_error(client, mock_dependencies):
         mock_dependencies['requests_post'].return_value.json.return_value = {"response": None}
         
         # 라우터 모듈 네임스페이스에 맞춰 패치
-        with patch('backend.routers.scenario.load_config', return_value=config_data), \
-             patch('backend.routers.scenario.get_git_analysis_text', return_value="Mock Git analysis"), \
+        with patch('app.api.routers.scenario.load_config', return_value=config_data), \
+             patch('app.api.routers.scenario.get_git_analysis_text', return_value="Mock Git analysis"), \
              patch('pathlib.Path.is_dir', return_value=True):
             
             with client.websocket_connect("/api/scenario/generate-ws") as websocket:
@@ -179,7 +179,7 @@ def test_generate_scenario_json_parse_error(client, mock_dependencies):
     mock_dependencies['requests_post'].return_value.json.return_value = {"response": "Invalid JSON response without tags"}
     
     # Git 경로 검증 우회 및 Git 분석만 Mock
-    with patch('backend.routers.scenario.get_git_analysis_text', return_value="Mock Git analysis"), \
+    with patch('app.api.routers.scenario.get_git_analysis_text', return_value="Mock Git analysis"), \
          patch('pathlib.Path.is_dir', return_value=True):
         with client.websocket_connect("/api/scenario/generate-ws") as websocket:
             request_data = {
@@ -241,8 +241,8 @@ def test_generate_scenario_from_text_success(client, mock_dependencies):
         
         # 실제 내부 모듈을 사용하되, Excel 생성만 Mock
         # 라우터 모듈 네임스페이스에 맞춰 패치
-        with patch('backend.routers.scenario.load_config', return_value=config_data), \
-             patch('backend.routers.scenario.save_results_to_excel', return_value=str(expected_excel_path)):
+        with patch('app.api.routers.scenario.load_config', return_value=config_data), \
+             patch('app.api.routers.scenario.save_results_to_excel', return_value=str(expected_excel_path)):
             
             request_data = {
                 "analysis_text": "Git 저장소 분석 결과: 주요 변경사항은 사용자 인증 기능 개선입니다."
@@ -266,7 +266,7 @@ def test_generate_scenario_from_text_config_error(client, mock_dependencies):
         invalid_config_path = Path(temp_dir) / "nonexistent_config.json"
         
         # 라우터 네임스페이스에서 패치
-        with patch('backend.routers.scenario.load_config', return_value=None):
+        with patch('app.api.routers.scenario.load_config', return_value=None):
             request_data = {
                 "analysis_text": "Git 저장소 분석 결과"
             }
@@ -292,8 +292,8 @@ def test_generate_scenario_from_text_prompt_error(client, mock_dependencies):
             json.dump(config_data, f, ensure_ascii=False, indent=2)
         
         # 프롬프트 생성 실패 Mock
-        with patch('backend.routers.scenario.load_config', return_value=config_data), \
-             patch('backend.routers.scenario.create_final_prompt', return_value=None):
+        with patch('app.api.routers.scenario.load_config', return_value=config_data), \
+             patch('app.api.routers.scenario.create_final_prompt', return_value=None):
             
             request_data = {
                 "analysis_text": "Git 저장소 분석 결과"
@@ -309,7 +309,7 @@ def test_generate_scenario_from_text_llm_error(client, mock_dependencies):
     
     # LLM 호출 실패 Mock - 라우터에서 직접 LLM 호출 결과를 None으로 반환시켜 500 처리
     # (본 코드에서는 응답 None 시 "LLM으로부터 응답을 받지 못했습니다"로 처리)
-    with patch('backend.routers.scenario.call_ollama_llm', return_value=None):
+    with patch('app.api.routers.scenario.call_ollama_llm', return_value=None):
         request_data = {
             "analysis_text": "Git 저장소 분석 결과"
         }
@@ -347,7 +347,7 @@ def test_generate_scenario_from_text_excel_error(client, mock_dependencies):
     """}
     
     # Excel 파일 생성 실패 Mock (라우터 네임스페이스 기준)
-    with patch('backend.routers.scenario.save_results_to_excel', return_value=None):
+    with patch('app.api.routers.scenario.save_results_to_excel', return_value=None):
         request_data = {
             "analysis_text": "Git 저장소 분석 결과"
         }

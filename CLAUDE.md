@@ -13,7 +13,7 @@ Git subtree-based monorepo combining three independent projects:
 **MSA-based Independent Environment Structure**:
 ```
 cm-docs/
-├── webservice/.venv/          # Python 3.13 + AI/ML dependencies
+├── webservice/.venv/          # Python 3.12 + AI/ML dependencies
 ├── cli/.venv/                 # Python 3.13 + CLI tool dependencies
 └── autodoc_service/.venv312/  # Python 3.12 + document processing (stability)
 ```
