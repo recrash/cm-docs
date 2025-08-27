@@ -212,8 +212,23 @@ async def generate_scenario_v2(request: V2GenerationRequest, background_tasks: B
         task = asyncio.create_task(_handle_v2_generation(request.client_id, request))
         active_generations[request.client_id] = task
 
-        # WebSocket URL 생성
-        websocket_url = f"ws://localhost:8000/api/v2/ws/progress/{request.client_id}"
+        # WebSocket URL 생성 (config.json의 base_url 사용)
+        config = load_config()
+        base_url = config.get("base_url", "https://cm-docs.cloud")
+        
+        # 프로토콜 결정: http면 ws, https면 wss 사용
+        if base_url.startswith("https://"):
+            protocol = "wss"
+            host = base_url.replace("https://", "")
+        elif base_url.startswith("http://"):
+            protocol = "ws"
+            host = base_url.replace("http://", "")
+        else:
+            # 프로토콜이 없으면 기본값 사용 (폐쇄망의 경우 http 가능성 높음)
+            protocol = "ws"
+            host = base_url
+            
+        websocket_url = f"{protocol}://{host}/api/v2/ws/progress/{request.client_id}"
 
         response = V2GenerationResponse(
             client_id=request.client_id,
