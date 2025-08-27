@@ -14,7 +14,7 @@ import sys
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
 from app.main import app
-from app.routers.v2.models import (
+from app.api.routers.v2.models import (
     V2GenerationRequest,
     V2GenerationResponse,
     V2GenerationStatus
@@ -191,8 +191,8 @@ class TestV2BackgroundGeneration:
     @pytest.mark.asyncio
     async def test_handle_v2_generation_success_flow(self):
         """성공적인 생성 플로우 테스트 (모킹)"""
-        from app.routers.v2.scenario_v2 import _handle_v2_generation
-        from app.routers.v2.models import V2GenerationRequest
+        from app.api.routers.v2.scenario_v2 import _handle_v2_generation
+        from app.api.routers.v2.models import V2GenerationRequest
         
         request = V2GenerationRequest(
             client_id="test_flow_client",
@@ -201,14 +201,14 @@ class TestV2BackgroundGeneration:
         )
         
         # 모든 의존성 모킹
-        with patch('backend.routers.v2.scenario_v2.v2_connection_manager.send_progress') as mock_send, \
+        with patch('app.api.routers.v2.scenario_v2.v2_connection_manager.send_progress') as mock_send, \
              patch('pathlib.Path.exists', return_value=True), \
              patch('pathlib.Path.is_dir', return_value=True), \
-             patch('src.git_analyzer.get_git_analysis_text', return_value="test git analysis"), \
-             patch('src.prompt_loader.add_git_analysis_to_rag', return_value=5), \
-             patch('src.prompt_loader.create_final_prompt', return_value="test prompt"), \
-             patch('src.llm_handler.call_ollama_llm', return_value="<json>{'test': 'result'}</json>"), \
-             patch('src.excel_writer.save_results_to_excel', return_value="/test/output.xlsx"):
+             patch('app.core.git_analyzer.get_git_analysis_text', return_value="test git analysis"), \
+             patch('app.core.prompt_loader.add_git_analysis_to_rag', return_value=5), \
+             patch('app.core.prompt_loader.create_final_prompt', return_value="test prompt"), \
+             patch('app.core.llm_handler.call_ollama_llm', return_value="<json>{'test': 'result'}</json>"), \
+             patch('app.core.excel_writer.save_results_to_excel', return_value="/test/output.xlsx"):
             
             # 생성 로직 실행 (예외가 발생하지 않으면 성공)
             await _handle_v2_generation("test_flow_client", request)
@@ -219,8 +219,8 @@ class TestV2BackgroundGeneration:
     @pytest.mark.asyncio
     async def test_handle_v2_generation_git_analysis_failure(self):
         """Git 분석 실패 테스트"""
-        from app.routers.v2.scenario_v2 import _handle_v2_generation
-        from app.routers.v2.models import V2GenerationRequest
+        from app.api.routers.v2.scenario_v2 import _handle_v2_generation
+        from app.api.routers.v2.models import V2GenerationRequest
         
         request = V2GenerationRequest(
             client_id="test_fail_client",
@@ -228,17 +228,17 @@ class TestV2BackgroundGeneration:
             use_performance_mode=True
         )
         
-        with patch('backend.routers.v2.scenario_v2.v2_connection_manager.send_progress') as mock_send, \
+        with patch('app.api.routers.v2.scenario_v2.v2_connection_manager.send_progress') as mock_send, \
              patch('pathlib.Path.exists', return_value=True), \
              patch('pathlib.Path.is_dir', return_value=True), \
-             patch('backend.routers.v2.scenario_v2.load_config', return_value={"model_name": "test_model"}), \
-             patch('backend.routers.v2.scenario_v2.get_git_analysis_text', return_value=""):  # 빈 분석 결과
+             patch('app.api.routers.v2.scenario_v2.load_config', return_value={"model_name": "test_model"}), \
+             patch('app.api.routers.v2.scenario_v2.get_git_analysis_text', return_value=""):  # 빈 분석 결과
             
             # 생성 로직 실행 (오류 처리 확인)
             await _handle_v2_generation("test_fail_client", request)
             
             # 오류 메시지가 전송되었는지 확인: 호출 인자의 status가 ERROR인지 검사
-            from app.routers.v2.models import V2GenerationStatus
+            from app.api.routers.v2.models import V2GenerationStatus
             found_error = False
             for call in mock_send.call_args_list:
                 # args: (client_id, progress_message)

@@ -17,7 +17,9 @@ sys.path.insert(0, str(project_root))
 # PYTHONPATH 환경변수 설정 (Jenkins CI 환경 호환)
 os.environ['PYTHONPATH'] = str(project_root) + os.pathsep + os.environ.get('PYTHONPATH', '')
 
-from app.main import app
+# 테스트 환경에서 로깅 설정 Mock (권한 문제 방지)
+with patch('app.core.logging_config.setup_logging'):
+    from app.main import app
 
 @pytest.fixture
 def client():
@@ -138,7 +140,8 @@ def mock_dependencies():
          patch('os.path.isdir') as mock_isdir, \
          patch('pathlib.Path.exists') as mock_path_exists, \
          patch('pathlib.Path.mkdir') as mock_path_mkdir, \
-         patch('src.git_analyzer.get_git_analysis_text') as mock_get_git_analysis_text:
+         patch('app.core.git_analyzer.get_git_analysis_text') as mock_get_git_analysis_text, \
+         patch('app.core.prompt_loader.load_prompt') as mock_load_prompt:
         
         # 파일 시스템 Mock (CI 환경 호환)
         mock_isdir.return_value = True
@@ -186,6 +189,9 @@ def mock_dependencies():
         mock_response.raise_for_status.return_value = None
         mock_requests_post.return_value = mock_response
         
+        # Prompt Loader Mock (파일 시스템 의존성)
+        mock_load_prompt.return_value = "테스트용 프롬프트 템플릿 내용입니다."
+        
         yield {
             'requests_post': mock_requests_post,
             'load_workbook': mock_load_workbook,
@@ -193,5 +199,6 @@ def mock_dependencies():
             'isdir': mock_isdir,
             'path_exists': mock_path_exists,
             'path_mkdir': mock_path_mkdir,
-            'get_git_analysis_text': mock_get_git_analysis_text
+            'get_git_analysis_text': mock_get_git_analysis_text,
+            'load_prompt': mock_load_prompt
         }

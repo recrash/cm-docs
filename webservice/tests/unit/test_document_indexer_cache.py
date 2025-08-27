@@ -23,6 +23,28 @@ from app.core.vector_db.document_indexer import DocumentIndexer
 class TestDocumentIndexerCache:
     """DocumentIndexer 캐시 시스템 테스트"""
     
+    def setup_method(self):
+        """각 테스트 전에 캐시 초기화"""
+        # 모든 가능한 캐시 파일 경로를 초기화
+        possible_cache_paths = [
+            Path("indexed_files_cache.json"),
+            Path("C:/deploys/data/webservice/indexed_files_cache.json"),
+            Path("webservice/indexed_files_cache.json")
+        ]
+        
+        for cache_file in possible_cache_paths:
+            try:
+                if cache_file.exists():
+                    cache_file.unlink()
+            except:
+                pass
+    
+    def teardown_method(self):
+        """각 테스트 후 캐시 정리"""
+        cache_file = Path("indexed_files_cache.json")
+        if cache_file.exists():
+            cache_file.unlink()
+    
     @pytest.fixture
     def temp_dir(self):
         """임시 디렉토리 생성"""
@@ -66,9 +88,9 @@ class TestDocumentIndexerCache:
         return docs_dir
     
     @pytest.fixture
-    def indexer(self, mock_rag_manager, sample_documents_dir):
+    def indexer(self, mock_rag_manager, sample_documents_dir, temp_dir):
         """DocumentIndexer 인스턴스 생성"""
-        with patch('src.vector_db.document_indexer.DocumentReader') as mock_reader_class:
+        with patch('app.core.vector_db.document_indexer.DocumentReader') as mock_reader_class:
             mock_reader = Mock()
             mock_reader.is_supported_file.side_effect = lambda path: path.endswith(('.txt', '.md'))
             mock_reader.get_supported_extensions.return_value = ['.txt', '.md']
@@ -81,14 +103,26 @@ class TestDocumentIndexerCache:
             }
             mock_reader_class.return_value = mock_reader
             
+            # 임시 캐시 파일 경로 사용
+            temp_cache_path = temp_dir / "test_cache.json"
+            
             indexer = DocumentIndexer(
                 rag_manager=mock_rag_manager,
                 documents_folder=str(sample_documents_dir)
             )
+            
+            # 캐시 파일 경로를 임시 경로로 변경
+            indexer.cache_file_path = temp_cache_path
+            
             return indexer
     
     def test_cache_initialization_empty(self, indexer):
         """최초 실행: 캐시 파일이 없을 때 빈 캐시로 초기화되는지 검증"""
+        # 테스트를 위해 기존 캐시 파일 삭제
+        if indexer.cache_file_path.exists():
+            indexer.cache_file_path.unlink()
+        indexer.indexed_files_cache = {}  # 캐시 초기화
+        
         # 캐시 파일이 존재하지 않음을 확인
         assert not indexer.cache_file_path.exists()
         
@@ -143,7 +177,7 @@ class TestDocumentIndexerCache:
     def test_cache_loading(self, temp_dir, mock_rag_manager, sample_documents_dir):
         """DocumentIndexer 재시작 시 기존 캐시를 정확하게 불러오는지 검증"""
         # 첫 번째 인덱서 인스턴스로 캐시 생성
-        with patch('src.vector_db.document_indexer.DocumentReader') as mock_reader_class:
+        with patch('app.core.vector_db.document_indexer.DocumentReader') as mock_reader_class:
             mock_reader = Mock()
             mock_reader.is_supported_file.side_effect = lambda path: path.endswith(('.txt', '.md'))
             mock_reader.read_document.return_value = {
@@ -166,7 +200,7 @@ class TestDocumentIndexerCache:
             assert stats['total_cached_chunks'] == 10  # 2 files * 5 chunks each
         
         # 두 번째 인덱서 인스턴스로 캐시 로드 테스트
-        with patch('src.vector_db.document_indexer.DocumentReader') as mock_reader_class2:
+        with patch('app.core.vector_db.document_indexer.DocumentReader') as mock_reader_class2:
             mock_reader2 = Mock()
             mock_reader2.is_supported_file.side_effect = lambda path: path.endswith(('.txt', '.md'))
             mock_reader_class2.return_value = mock_reader2
@@ -220,7 +254,7 @@ class TestDocumentIndexerCache:
             f.write("{ invalid json content")
         
         # 새 인스턴스 생성 시 손상된 캐시가 복구되는지 확인
-        with patch('src.vector_db.document_indexer.DocumentReader') as mock_reader_class:
+        with patch('app.core.vector_db.document_indexer.DocumentReader') as mock_reader_class:
             mock_reader = Mock()
             mock_reader.is_supported_file.side_effect = lambda path: path.endswith(('.txt', '.md'))
             mock_reader_class.return_value = mock_reader
@@ -255,7 +289,7 @@ class TestDocumentIndexerCache:
             json.dump(fake_cache, f)
         
         # 새 인스턴스 생성
-        with patch('src.vector_db.document_indexer.DocumentReader') as mock_reader_class:
+        with patch('app.core.vector_db.document_indexer.DocumentReader') as mock_reader_class:
             mock_reader = Mock()
             mock_reader.is_supported_file.side_effect = lambda path: path.endswith(('.txt', '.md'))
             mock_reader_class.return_value = mock_reader
@@ -285,7 +319,7 @@ class TestDocumentIndexerCache:
         threads = []
         for i in range(3):
             # 각 스레드별로 별도의 인덱서 인스턴스 생성 (같은 캐시 파일 공유)
-            with patch('src.vector_db.document_indexer.DocumentReader') as mock_reader_class:
+            with patch('app.core.vector_db.document_indexer.DocumentReader') as mock_reader_class:
                 mock_reader = Mock()
                 mock_reader.is_supported_file.side_effect = lambda path: path.endswith(('.txt', '.md'))
                 mock_reader.read_document.return_value = {
@@ -574,7 +608,7 @@ class TestDocumentIndexerIntegration:
         docs_dir = real_temp_dir / "documents"
         
         # 실제 DocumentIndexer 생성 (DocumentReader mock 사용)
-        with patch('src.vector_db.document_indexer.DocumentReader') as mock_reader_class:
+        with patch('app.core.vector_db.document_indexer.DocumentReader') as mock_reader_class:
             mock_reader = Mock()
             mock_reader.is_supported_file.side_effect = lambda path: path.endswith(('.txt', '.md'))
             mock_reader.read_document.side_effect = lambda path: {

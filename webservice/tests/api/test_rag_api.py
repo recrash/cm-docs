@@ -23,7 +23,7 @@ def test_get_rag_system_info(client):
         }
     }
     
-    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info:
+    with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info:
         mock_get_rag_info.return_value = mock_rag_info
         
         response = client.get("/api/rag/info")
@@ -44,7 +44,8 @@ def test_index_documents_success(client):
         "message": "인덱싱 완료"
     }
     
-    with patch('backend.routers.rag.index_documents_folder') as mock_index:
+    with patch('app.api.routers.rag.index_documents_folder') as mock_index, \
+         patch('app.core.vector_db.document_indexer.DocumentIndexer'):
         mock_index.return_value = mock_result
         
         request_data = {"force_reindex": False}
@@ -66,7 +67,8 @@ def test_index_documents_force_reindex(client):
         "message": "재인덱싱 완료"
     }
     
-    with patch('backend.routers.rag.index_documents_folder') as mock_index:
+    with patch('app.api.routers.rag.index_documents_folder') as mock_index, \
+         patch('app.core.vector_db.document_indexer.DocumentIndexer'):
         mock_index.return_value = mock_result
         
         request_data = {"force_reindex": True}
@@ -80,7 +82,7 @@ def test_index_documents_force_reindex(client):
 def test_index_documents_failure(client):
     """문서 인덱싱 실패 테스트"""
     
-    with patch('backend.routers.rag.index_documents_folder') as mock_index:
+    with patch('app.api.routers.rag.index_documents_folder') as mock_index:
         mock_index.side_effect = Exception("인덱싱 오류")
         
         request_data = {"force_reindex": False}
@@ -92,7 +94,7 @@ def test_index_documents_failure(client):
 def test_clear_vector_database_success(client):
     """벡터 데이터베이스 초기화 성공 테스트"""
     
-    with patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
+    with patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
         
@@ -106,7 +108,7 @@ def test_clear_vector_database_success(client):
 def test_clear_vector_database_no_manager(client):
     """RAG 매니저가 없는 경우 테스트"""
     
-    with patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
+    with patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
         mock_get_manager.return_value = None
         
         response = client.delete("/api/rag/clear")
@@ -117,7 +119,7 @@ def test_clear_vector_database_no_manager(client):
 def test_clear_vector_database_failure(client):
     """벡터 데이터베이스 초기화 실패 테스트"""
     
-    with patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
+    with patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
         mock_manager = MagicMock()
         mock_manager.clear_database.side_effect = Exception("초기화 오류")
         mock_get_manager.return_value = mock_manager
@@ -140,7 +142,7 @@ def test_get_documents_info(client):
         }
     }
     
-    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info:
+    with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info:
         mock_get_rag_info.return_value = mock_rag_info
         
         response = client.get("/api/rag/documents/info")
@@ -163,8 +165,8 @@ def test_get_rag_status_active(client):
         "chunk_size": 1000
     }
     
-    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info, \
-         patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
+    with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info, \
+         patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
         
         mock_get_rag_info.return_value = mock_rag_info
         mock_manager = MagicMock()
@@ -187,8 +189,8 @@ def test_get_rag_status_inactive(client):
         "chunk_size": 0
     }
     
-    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info, \
-         patch('backend.routers.rag.get_rag_manager') as mock_get_manager:
+    with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info, \
+         patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
         
         mock_get_rag_info.return_value = mock_rag_info
         mock_get_manager.return_value = None
@@ -203,7 +205,7 @@ def test_get_rag_status_inactive(client):
 def test_get_rag_status_error(client):
     """RAG 시스템 오류 상태 테스트"""
     
-    with patch('backend.routers.rag.get_rag_info') as mock_get_rag_info:
+    with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info:
         mock_get_rag_info.side_effect = Exception("RAG 오류")
         
         response = client.get("/api/rag/status")

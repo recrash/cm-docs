@@ -15,12 +15,12 @@ import sys
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
 from app.main import app
-from app.routers.v2.progress_websocket import (
+from app.api.routers.v2.progress_websocket import (
     V2ConnectionManager, 
     v2_connection_manager,
     handle_v2_websocket
 )
-from app.routers.v2.models import V2ProgressMessage, V2GenerationStatus
+from app.api.routers.v2.models import V2ProgressMessage, V2GenerationStatus
 
 
 class TestV2ConnectionManager:

@@ -10,7 +10,7 @@ from app.core.llm_handler import call_ollama_llm
 class TestLLMHandler:
     """LLM 핸들러 테스트"""
     
-    @patch('src.llm_handler.requests.post')
+    @patch('app.core.llm_handler.requests.post')
     def test_successful_llm_call(self, mock_post, mock_ollama_response):
         """성공적인 LLM 호출 테스트"""
         mock_response = Mock()
@@ -30,7 +30,7 @@ class TestLLMHandler:
         assert call_args[1]['json']['prompt'] == "test prompt"
         assert call_args[1]['json']['stream'] == False
     
-    @patch('src.llm_handler.requests.post')
+    @patch('app.core.llm_handler.requests.post')
     def test_llm_call_with_json_format(self, mock_post, mock_ollama_response):
         """JSON 형식 LLM 호출 테스트"""
         mock_response = Mock()
@@ -46,7 +46,7 @@ class TestLLMHandler:
         call_args = mock_post.call_args
         assert call_args[1]['json']['format'] == 'json'
     
-    @patch('src.llm_handler.requests.post')
+    @patch('app.core.llm_handler.requests.post')
     def test_llm_call_with_custom_timeout(self, mock_post, mock_ollama_response):
         """커스텀 타임아웃 LLM 호출 테스트"""
         mock_response = Mock()
@@ -62,30 +62,28 @@ class TestLLMHandler:
         call_args = mock_post.call_args
         assert call_args[1]['timeout'] == 300
     
-    @patch('src.llm_handler.requests.post')
-    def test_llm_call_network_error(self, mock_post, capsys):
+    @patch('app.core.llm_handler.requests.post')
+    def test_llm_call_network_error(self, mock_post, caplog):
         """네트워크 오류 테스트"""
         mock_post.side_effect = requests.exceptions.RequestException("Network error")
         
         result = call_ollama_llm("test prompt")
         
         assert result is None
-        captured = capsys.readouterr()
-        assert "Ollama API 호출 중 오류 발생" in captured.out
+        assert "Ollama API Error" in caplog.text
     
-    @patch('src.llm_handler.requests.post')
-    def test_llm_call_timeout_error(self, mock_post, capsys):
+    @patch('app.core.llm_handler.requests.post')
+    def test_llm_call_timeout_error(self, mock_post, caplog):
         """타임아웃 오류 테스트"""
         mock_post.side_effect = requests.exceptions.Timeout("Timeout error")
         
         result = call_ollama_llm("test prompt", timeout=1)
         
         assert result is None
-        captured = capsys.readouterr()
-        assert "Ollama API 호출 중 오류 발생" in captured.out
+        assert "Ollama API Error" in caplog.text
     
-    @patch('src.llm_handler.requests.post')
-    def test_llm_call_http_error(self, mock_post, capsys):
+    @patch('app.core.llm_handler.requests.post')
+    def test_llm_call_http_error(self, mock_post, caplog):
         """HTTP 오류 테스트"""
         mock_response = Mock()
         mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found")
@@ -94,10 +92,9 @@ class TestLLMHandler:
         result = call_ollama_llm("test prompt")
         
         assert result is None
-        captured = capsys.readouterr()
-        assert "Ollama API 호출 중 오류 발생" in captured.out
+        assert "Ollama API Error" in caplog.text
     
-    @patch('src.llm_handler.requests.post')
+    @patch('app.core.llm_handler.requests.post')
     def test_llm_call_empty_response(self, mock_post):
         """빈 응답 테스트"""
         mock_response = Mock()
@@ -107,9 +104,9 @@ class TestLLMHandler:
         
         result = call_ollama_llm("test prompt")
         
-        assert result == ""
+        assert result is None
     
-    @patch('src.llm_handler.requests.post')
+    @patch('app.core.llm_handler.requests.post')
     def test_llm_call_missing_response_field(self, mock_post):
         """응답 필드 누락 테스트"""
         mock_response = Mock()
@@ -119,4 +116,4 @@ class TestLLMHandler:
         
         result = call_ollama_llm("test prompt")
         
-        assert result == ""
+        assert result is None

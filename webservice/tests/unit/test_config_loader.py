@@ -20,24 +20,24 @@ class TestConfigLoader:
         assert result["model_name"] == "qwen3:8b"
         assert result["timeout"] == 600
     
-    def test_load_nonexistent_config(self, temp_dir, capsys):
+    def test_load_nonexistent_config(self, temp_dir, caplog):
         """존재하지 않는 설정 파일 테스트"""
         nonexistent_path = os.path.join(temp_dir, "nonexistent.json")
         result = load_config(nonexistent_path)
         
         assert result is None
-        captured = capsys.readouterr()
-        assert "설정 파일" in captured.out
-        assert "찾을 수 없습니다" in captured.out
+        assert "설정 파일을 찾을 수 없습니다" in caplog.text
     
-    def test_load_invalid_json(self, temp_dir, capsys):
+    def test_load_invalid_json(self, temp_dir, caplog):
         """잘못된 JSON 형식 파일 테스트"""
         invalid_json_path = os.path.join(temp_dir, "invalid.json")
         with open(invalid_json_path, 'w') as f:
             f.write("invalid json content {")
         
-        with pytest.raises(json.JSONDecodeError):
-            load_config(invalid_json_path)
+        result = load_config(invalid_json_path)
+        
+        assert result is None
+        assert "JSON 파싱 오류" in caplog.text
     
     def test_load_empty_config(self, temp_dir):
         """빈 설정 파일 테스트"""

@@ -15,7 +15,7 @@ def test_v2_models():
     print("🧪 v2 데이터 모델 테스트 시작")
     
     try:
-        from app.routers.v2.models import (
+        from app.api.routers.v2.models import (
             V2GenerationRequest, 
             V2GenerationResponse, 
             V2ProgressMessage,
@@ -65,13 +65,12 @@ def test_v2_models():
         print("✅ JSON 직렬화 테스트 성공")
         
         print("🎉 모든 v2 모델 테스트 성공!")
-        return True
         
     except Exception as e:
         print(f"❌ v2 모델 테스트 실패: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False, f"v2 모델 테스트 실패: {e}"
 
 
 def test_v2_connection_manager():
@@ -79,8 +78,8 @@ def test_v2_connection_manager():
     print("\n🧪 v2 연결 관리자 테스트 시작")
     
     try:
-        from app.routers.v2.progress_websocket import V2ConnectionManager
-        from app.routers.v2.models import V2ProgressMessage, V2GenerationStatus
+        from app.api.routers.v2.progress_websocket import V2ConnectionManager
+        from app.api.routers.v2.models import V2ProgressMessage, V2GenerationStatus
         
         # 연결 관리자 생성
         manager = V2ConnectionManager()
@@ -98,13 +97,12 @@ def test_v2_connection_manager():
         print("✅ 연결 상태 관리 테스트 성공")
         
         print("🎉 v2 연결 관리자 테스트 성공!")
-        return True
         
     except Exception as e:
         print(f"❌ v2 연결 관리자 테스트 실패: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False, f"v2 연결 관리자 테스트 실패: {e}"
 
 
 def test_v2_api_endpoints():
@@ -133,13 +131,12 @@ def test_v2_api_endpoints():
         print("✅ API 루트 엔드포인트 테스트 성공")
         
         print("🎉 v2 API 엔드포인트 테스트 성공!")
-        return True
         
     except Exception as e:
         print(f"❌ v2 API 엔드포인트 테스트 실패: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False, f"v2 API 엔드포인트 테스트 실패: {e}"
 
 
 def main():
