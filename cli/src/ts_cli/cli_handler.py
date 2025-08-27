@@ -402,16 +402,14 @@ class CLIHandler:
 
             result_panel = Panel(
                 f"파일명: {filename}\n"
-                f"메시지: {message}\n"
-                f"웹 UI 다운로드: http://localhost:8000{download_url}",
+                f"메시지: {message}",                
                 title="시나리오 생성 완료",
                 border_style="green",
             )
             self.console.print(result_panel)
 
             # 추가 안내 메시지
-            self.console.print("\n[bold blue]웹 UI에서 결과를 확인하고 다운로드하세요:[/bold blue]")
-            self.console.print(f"[cyan]http://localhost:8000{download_url}[/cyan]")
+            self.console.print("\n[bold blue]웹 UI에서 결과를 확인하고 다운로드하세요:[/bold blue]")            
 
     def _get_current_timestamp(self) -> str:
         """현재 타임스탬프 반환"""

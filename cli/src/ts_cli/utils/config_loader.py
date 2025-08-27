@@ -5,6 +5,7 @@ configparser를 사용하여 INI 형식의 설정 파일을 읽고 관리합니�
 """
 
 import os
+import sys
 import logging
 from pathlib import Path
 from configparser import ConfigParser
@@ -12,6 +13,35 @@ from typing import Dict, Any, Optional, Union
 
 
 logger = logging.getLogger(__name__)
+
+
+def get_bundled_config_path() -> Optional[Path]:
+    """
+    PyInstaller로 번들된 config.ini 파일 경로를 반환합니다.
+    macOS와 Windows 모두에서 작동합니다.
+    
+    Returns:
+        번들된 config.ini 경로 또는 None (번들되지 않았거나 파일이 없는 경우)
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # PyInstaller로 번들된 실행 파일인 경우
+            if hasattr(sys, '_MEIPASS'):
+                # 임시 디렉토리에서 번들된 파일에 접근 (macOS/Windows 공통)
+                bundled_config = Path(sys._MEIPASS) / "config" / "config.ini"
+                if bundled_config.exists():
+                    return bundled_config
+            
+            # 실행 파일과 같은 디렉토리에서 config 폴더 찾기 (추가 fallback)
+            exe_dir = Path(sys.executable).parent
+            config_near_exe = exe_dir / "config" / "config.ini"
+            if config_near_exe.exists():
+                return config_near_exe
+                
+        return None
+    except Exception as e:
+        logger.debug(f"번들된 설정 파일 검색 중 오류: {e}")
+        return None
 
 
 class ConfigLoader:
@@ -45,28 +75,33 @@ class ConfigLoader:
         if config_path:
             return config_path
 
-        # 1순위: 배포 환경 설정 파일 경로
-        deploy_config = Path("C:/deploys/data/cli/config.ini")
-        if deploy_config.exists():
-            return deploy_config
+        # 1순위: PyInstaller로 번들된 설정 파일 (macOS/Windows 공통)
+        bundled_config = get_bundled_config_path()
+        if bundled_config:
+            return bundled_config
 
         # 2순위: 현재 작업 디렉토리의 config.ini 확인
         current_config = Path.cwd() / "config.ini"
         if current_config.exists():
             return current_config
 
-        # 3순위: 패키지 내의 기본 config 디렉토리 확인
+        # 3순위: 패키지 내의 기본 config 디렉토리 확인 (개발환경)
         package_root = Path(__file__).parent.parent.parent.parent
         default_config = package_root / "config" / "config.ini"
         if default_config.exists():
             return default_config
 
-        # 4순위: config 디렉토리의 기본 설정 파일
+        # 4순위: config 디렉토리의 기본 설정 파일 (개발환경)
         config_dir = package_root / "config"
         if config_dir.exists():
             return config_dir / "config.ini"
 
-        # 최후의 수단: 배포 환경 경로에 config.ini 생성 (권한 문제 방지)
+        # 5순위: Windows 배포 환경 설정 파일 경로 (Windows 전용)
+        deploy_config = Path("C:/deploys/data/cli/config.ini")
+        if deploy_config.exists():
+            return deploy_config
+
+        # 최후의 수단: Windows 배포 환경 경로에 config.ini 생성 (권한 문제 방지)
         return deploy_config
 
     def _load_config(self) -> None:
@@ -105,7 +140,7 @@ class ConfigLoader:
         """기본 설정 값 로드"""
         # API 설정
         self.config["api"] = {
-            "base_url": "http://localhost:8000",
+            "base_url": "https://cm-docs.cloud",
             "timeout": "30",
             "max_retries": "3",
             "retry_delay": "1.0",

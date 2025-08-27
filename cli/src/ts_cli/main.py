@@ -735,5 +735,8 @@ def version() -> None:
     console.print(f"TestscenarioMaker CLI v{__version__}")
 
 
+# CLI 엔트리 포인트 별칭 (setup.py에서 사용)
+cli = main
+
 if __name__ == "__main__":
     main()
