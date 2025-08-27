@@ -17,7 +17,7 @@ webservice_root = current_dir.parent
 sys.path.append(str(webservice_root))
 
 try:
-    from src.paths import get_models_dir, get_default_model_path
+    from app.core.paths import get_models_dir, get_default_model_path
 except ImportError:
     # 경로 설정 실패시 기본 경로 사용
     print("⚠️ 경로 모듈 임포트 실패, 기본 경로 사용")
