@@ -210,8 +210,39 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    """헬스 체크 엔드포인트"""
-    return {"status": "healthy"}
+    """헬스 체크 엔드포인트 - RAG 시스템 초기화 상태 포함"""
+    try:
+        # 기본 서비스 상태
+        health_status = {
+            "status": "healthy",
+            "service": "webservice",
+            "timestamp": time.time()
+        }
+        
+        # RAG 시스템 초기화 상태 확인
+        try:
+            from .core.prompt_loader import get_rag_manager
+            rag_manager = get_rag_manager(lazy_load=True)
+            
+            if rag_manager:
+                health_status["rag_status"] = "initialized"
+            else:
+                health_status["rag_status"] = "not_initialized"
+                health_status["message"] = "RAG system initialization in progress"
+                
+        except Exception as rag_e:
+            health_status["rag_status"] = "initializing"
+            health_status["message"] = "RAG system startup in progress"
+            
+        return health_status
+        
+    except Exception as e:
+        logger.error(f"헬스체크 중 오류: {str(e)}")
+        return {
+            "status": "degraded", 
+            "error": str(e),
+            "timestamp": time.time()
+        }
 
 if __name__ == "__main__":
     # This is for development purposes only. 

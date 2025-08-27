@@ -251,8 +251,8 @@ pipeline {
         stage('API Health Check') {
             steps {
                 script {
-                    // 서비스 시작 대기
-                    sleep(time: 15, unit: 'SECONDS')
+                    // 서비스 시작 및 RAG 초기화 대기 (RAG 임베딩 모델 로딩 ~17초 소요)
+                    sleep(time: 25, unit: 'SECONDS')
                     
                     def endpoints = [
                         "${env.HEALTH_CHECK_URL}": "기본 헬스체크",
