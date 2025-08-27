@@ -92,10 +92,10 @@ pip install -r requirements.txt -c pip.constraints.txt  # ✅ 올바른 방법
 ```bash
 # Environment setup
 cd webservice && source .venv/bin/activate
-export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ modules
+export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for app.core modules
 
-# Server management
-cd webservice/backend && python -m uvicorn main:app --reload --port 8000
+# Server management  
+cd webservice && python -m uvicorn app.main:app --reload --port 8000
 cd webservice/frontend && npm run dev
 
 # Testing (hierarchical structure)
@@ -116,8 +116,8 @@ cd webservice/frontend && npm run build               # Production build
 ```
 
 ### Architecture Details
-- **Legacy `src/` modules**: Core analysis logic (git_analyzer, excel_writer, llm_handler)
-- **FastAPI Routers** (`backend/routers/`): Domain-based API endpoints
+- **Core modules** (`app/core/`): Refactored analysis logic (git_analyzer, excel_writer, llm_handler)
+- **FastAPI Routers** (`app/api/routers/`): Domain-based API endpoints
   - `/api/scenario` - v1 scenario generation (legacy)
   - `/api/v2/scenario` - v2 scenario generation (CLI integration)  
   - `/api/v2/ws/progress/{client_id}` - WebSocket progress updates
@@ -127,6 +127,13 @@ cd webservice/frontend && npm run build               # Production build
 - **React SPA** (`frontend/`): Material-UI components with real-time WebSocket updates
 - **RAG System**: ChromaDB + ko-sroberta-multitask embedding model
 - **V2 API Architecture**: CLI-focused endpoints with WebSocket-based progress tracking
+
+### ESLint Configuration
+**Frontend Rules** (`.eslintrc.cjs`):
+- TypeScript strict mode with React hooks validation
+- No unused variables warnings, no explicit any warnings
+- React refresh and hot reload support
+- Test files: Vitest globals, relaxed any restrictions
 
 ### Critical WebSocket Integration
 - **V1 WebSocket**: `/api/scenario/generate-ws` (legacy web interface)
@@ -351,8 +358,8 @@ logger.info("서비스 시작...")
 ## Key Debugging Patterns
 
 ### Webservice Startup Issues
-- **RAG System Failures**: Check `startup_rag_system()` in main.py:31
-- **Module Import Errors**: Verify `PYTHONPATH=$(pwd):$PYTHONPATH` for src/ modules
+- **RAG System Failures**: Check `startup_rag_system()` in app/main.py:31
+- **Module Import Errors**: Verify `PYTHONPATH=$(pwd):$PYTHONPATH` for app.core modules
 - **WebSocket Connection Issues**: Check v2 progress endpoints vs legacy endpoints
 - **Config Loading**: Use `test_config_paths.py` to debug environment variable paths
 
