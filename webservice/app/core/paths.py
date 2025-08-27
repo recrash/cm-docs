@@ -74,6 +74,17 @@ def get_templates_dir() -> Path:
     return templates_dir
 
 
+def get_prompts_dir() -> Path:
+    """프롬프트 디렉터리 경로 반환
+    
+    Returns:
+        Path: 프롬프트 디렉터리 경로 (자동 생성됨)
+    """
+    prompts_dir = get_data_root() / "prompts"
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    return prompts_dir
+
+
 def get_outputs_dir() -> Path:
     """Excel 출력 디렉터리 경로 반환
     
@@ -116,6 +127,7 @@ def verify_data_directories() -> bool:
         get_models_dir(),
         get_documents_dir(),
         get_templates_dir(),
+        get_prompts_dir(),
         get_outputs_dir(),
         get_vector_db_dir()
     ]
