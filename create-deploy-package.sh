@@ -106,6 +106,13 @@ TARGET_DIR="$DATA_DIR/autodoc_service/templates"
 mkdir -p "$TARGET_DIR"
 cp -r "$SOURCE_DIR"/* "$TARGET_DIR/"
 
+# --- Webservice 프롬프트 파일 복사 ---
+echo "    - 'webservice'의 프롬프트 파일을 복사합니다."
+SOURCE_DIR="$PROJECT_ROOT/webservice/prompts"
+TARGET_DIR="$DATA_DIR/webservice/prompts"
+mkdir -p "$TARGET_DIR"
+cp -r "$SOURCE_DIR"/* "$TARGET_DIR/"
+
 # --- 임베딩 모델 다운로드 및 복사 ---
 echo "    - 'webservice'의 임베딩 모델을 다운로드 및 복사합니다. (시간이 걸릴 수 있습니다)"
 (

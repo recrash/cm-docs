@@ -115,6 +115,12 @@ $sourceDir = Join-Path $ProjectRoot "autodoc_service\templates"
 $targetDir = Join-Path $DataDir "autodoc_service\templates"
 Copy-Item -Path $sourceDir -Destination $targetDir -Recurse -Force
 
+# --- Webservice 프롬프트 파일 복사 ---
+Write-Host "    - 'webservice'의 프롬프트 파일을 복사합니다."
+$sourceDir = Join-Path $ProjectRoot "webservice\prompts"
+$targetDir = Join-Path $DataDir "webservice\prompts"
+Copy-Item -Path $sourceDir -Destination $targetDir -Recurse -Force
+
 # --- 임베딩 모델 다운로드 및 복사 ---
 Write-Host "    - 'webservice'의 임베딩 모델을 다운로드 및 복사합니다. (시간이 걸릴 수 있습니다)"
 try {
