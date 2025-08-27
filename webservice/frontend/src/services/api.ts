@@ -226,7 +226,7 @@ export const v2Api = {
    */
   getWebSocketUrl: (clientId: string) => {
     const baseUrl = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = process.env.NODE_ENV === 'development' ? 'localhost:8000' : window.location.host;
+    const host = import.meta.env.DEV ? 'localhost:8000' : window.location.host;
     return `${baseUrl}//${host}/api/v2/ws/progress/${clientId}`;
   }
 };

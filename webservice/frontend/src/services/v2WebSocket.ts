@@ -3,6 +3,8 @@
  * CLI 연동을 위한 실시간 진행 상황 관리
  */
 
+import { buildWsUrl } from './wsUrl'
+
 export interface V2ProgressMessage {
   client_id: string
   status: V2GenerationStatus
@@ -54,7 +56,8 @@ export class V2ProgressWebSocket {
   connect(): void {
     try {
       // WebSocket URL 구성 (개발 환경에서는 localhost:8000)
-      const wsUrl = `ws://localhost:8000/api/v2/ws/progress/${this.clientId}`
+      // const wsUrl = `ws://localhost:8000/api/v2/ws/progress/${this.clientId}`
+      const wsUrl = buildWsUrl(`/api/v2/ws/progress/${this.clientId}`)
       
       console.log(`🔌 v2 WebSocket 연결 시도: ${wsUrl}`)
       
