@@ -75,12 +75,41 @@ export default function ScenarioGenerationTab() {
   const validateRepoPath = async (path: string) => {
     if (!path.trim()) return false
     
-    try {
-      const validation = await filesApi.validateRepoPath(path)
-      return validation.valid
-    } catch (error) {
+    // 클라이언트사이드 기본 검증
+    const isValidFormat = isValidPathFormat(path)
+    if (!isValidFormat) return false
+    
+    // 로컬 환경에서만 서버 검증 수행
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      try {
+        const validation = await filesApi.validateRepoPath(path)
+        return validation.valid
+      } catch (error) {
+        console.warn('서버 검증 실패, 클라이언트 검증 사용:', error)
+      }
+    }
+    
+    // 원격 환경이거나 서버 검증 실패시 클라이언트 검증 결과 사용
+    return true
+  }
+
+  // 클라이언트사이드 경로 형식 검증
+  const isValidPathFormat = (path: string): boolean => {
+    // 기본 보안 검증
+    if (path.includes('..') || path.includes('<') || path.includes('>')) {
       return false
     }
+    
+    // 빈 경로 제외
+    if (path.trim().length === 0) {
+      return false
+    }
+    
+    // 기본적인 경로 형식 검증 (Windows, Unix 경로 모두 지원)
+    // Windows: C:\path\to\repo or D:/path/to/repo
+    // Unix: /path/to/repo or ~/path/to/repo or ./path/to/repo
+    const pathPattern = /^([a-zA-Z]:[/\\]|[/\\~.]|\.\.?[/\\])?[\w\s\-_./\\]+$/
+    return pathPattern.test(path)
   }
 
   const handleGenerate = async () => {

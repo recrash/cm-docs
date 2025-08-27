@@ -57,16 +57,16 @@ def reset_feedback_cache():
     _prompt_enhancer = None
     logger.info("Feedback related cache has been reset.")
 
-def load_prompt(path="prompts/final_prompt.txt"):
+def load_prompt(path="final_prompt.txt"):
     """텍스트 파일에서 프롬프트 템플릿을 읽어옵니다."""
     try:
-        # 상대 경로인 경우 프로젝트 루트에서 찾기
+        # 환경변수 기반 프롬프트 디렉토리 사용
+        from .paths import get_prompts_dir
+        
+        # 상대 경로인 경우 환경변수 기반 prompts 디렉토리에서 찾기
         if not os.path.isabs(path):
-            # 현재 파일의 절대 경로를 기준으로 프로젝트 루트 찾기
-            current_file = os.path.abspath(__file__)
-            # /path/to/project/src/prompt_loader.py -> /path/to/project
-            project_root = os.path.dirname(os.path.dirname(current_file))
-            path = os.path.join(project_root, path)
+            prompts_dir = get_prompts_dir()
+            path = prompts_dir / path
         
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
