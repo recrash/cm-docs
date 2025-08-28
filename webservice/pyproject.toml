@@ -9,23 +9,50 @@ description = "Git 변경사항 분석 및 테스트 시나리오 생성 웹 서
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    # Core FastAPI & Web Server
     "fastapi==0.116.1",
     "uvicorn[standard]==0.35.0",
-    "chromadb==1.0.17",
+    "pydantic==2.11.7",
+    "python-multipart==0.0.20",
+    "websockets==15.0.1",
+    
+    # Configuration & Environment
+    "python-dotenv==1.1.1",
+    "PyYAML==6.0.2",
+    
+    # Vector DB & AI/ML
+    "chromadb==1.0.20",
     "sentence-transformers==5.1.0",
+    "torch==2.5.1",
+    "transformers==4.55.4",
+    "scikit-learn==1.7.1",
+    "numpy==2.3.2",
+    
+    # Data Processing
+    "pandas==2.3.2",
     "openpyxl==3.1.5",
     "python-docx==1.2.0",
+    "python-calamine==0.4.0",
+    "lxml==6.0.1",
+    
+    # Git & VCS
     "GitPython==3.1.45",
+    
+    # HTTP & Network
     "requests==2.32.4",
-    "pandas==2.3.1",
+    "httpx==0.28.1",
+    
+    # Logging & Console
+    "rich==14.1.0",
+    
+    # File Handling
+    "portalocker==3.2.0",
+    
+    # Testing (Development)
     "pytest==8.4.1",
     "pytest-mock==3.14.1",
     "pytest-cov==6.2.1",
-    "httpx==0.28.1",
     "pytest-asyncio==1.1.0",
-    "portalocker==3.2.0",
-    "python-multipart==0.0.20",
-    "websockets==15.0.1",
 ]
 
 [tool.setuptools]
