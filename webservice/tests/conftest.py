@@ -6,6 +6,37 @@ import os
 import tempfile
 import json
 from unittest.mock import patch
+from pathlib import Path
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_config():
+    """테스트 세션 전체에 걸쳐 config 경로를 설정"""
+    # webservice 루트의 config.test.json 경로 설정
+    webservice_root = Path(__file__).parent.parent
+    test_config_path = webservice_root / "config.test.json"
+    
+    # 환경변수 백업
+    original_cmdocs_config = os.getenv("CMDOCS_CONFIG")
+    original_webservice_data = os.getenv("WEBSERVICE_DATA_PATH")
+    
+    # 테스트용 환경변수 설정
+    os.environ["CMDOCS_CONFIG"] = str(test_config_path)
+    
+    # 기존 WEBSERVICE_DATA_PATH가 있다면 임시로 제거 (CMDOCS_CONFIG 우선순위 보장)
+    if original_webservice_data:
+        del os.environ["WEBSERVICE_DATA_PATH"]
+    
+    yield
+    
+    # 환경변수 복원
+    if original_cmdocs_config:
+        os.environ["CMDOCS_CONFIG"] = original_cmdocs_config
+    elif "CMDOCS_CONFIG" in os.environ:
+        del os.environ["CMDOCS_CONFIG"]
+        
+    if original_webservice_data:
+        os.environ["WEBSERVICE_DATA_PATH"] = original_webservice_data
 
 
 @pytest.fixture
