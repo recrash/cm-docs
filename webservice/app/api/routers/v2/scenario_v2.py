@@ -6,6 +6,10 @@ CLI 연동을 위한 비동기 시나리오 생성 처리
 import logging
 import asyncio
 import uuid
+import json
+import re
+import time
+import concurrent.futures
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pathlib import Path
@@ -103,11 +107,7 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         })
         
         # LLM 응답 시간 측정 + 웹소켓 연결 유지를 위한 주기적 업데이트
-        import time
         start_time = time.time()
-        
-        # LLM 호출 중 주기적 상태 업데이트를 위한 백그라운드 태스크
-        import asyncio
         
         async def heartbeat_during_llm():
             """LLM 처리 중 웹소켓 연결 유지를 위한 heartbeat"""
@@ -131,8 +131,6 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         
         try:
             # 별도 스레드에서 LLM 호출 (논블로킹)
-            import concurrent.futures
-            import threading
             
             def call_llm_sync():
                 return call_ollama_llm(final_prompt, model=model_name, timeout=timeout)
@@ -168,9 +166,6 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
             "llm_response_time": llm_response_time
         })
         await asyncio.sleep(0.5)
-
-        import json
-        import re
         
         json_match = re.search(r'<json>(.*?)</json>', raw_response, re.DOTALL)
         if not json_match:
