@@ -59,11 +59,6 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         if not request.is_valid_git_repo:
             raise ValueError(f"CLI에서 검증한 결과, 유효하지 않은 Git 저장소입니다: {request.repo_path}")
         
-        # 경로 존재 여부만 간단히 확인 (CLI에서 이미 Git 검증 완료)
-        repo_path = Path(request.repo_path)
-        if not repo_path.exists() or not repo_path.is_dir():
-            raise ValueError(f"저장소 경로에 접근할 수 없습니다: {request.repo_path}")
-
         # 3. 설정 로드
         config = load_config()
         if not config:
