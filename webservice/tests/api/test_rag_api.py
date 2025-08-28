@@ -165,12 +165,21 @@ def test_get_rag_status_active(client):
         "chunk_size": 1000
     }
     
+    # Mock config to enable RAG
+    mock_config = {
+        "rag": {
+            "enabled": True
+        }
+    }
+    
     with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info, \
-         patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
+         patch('app.api.routers.rag.get_rag_manager') as mock_get_manager, \
+         patch('app.core.config_loader.load_config') as mock_load_config:
         
         mock_get_rag_info.return_value = mock_rag_info
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
+        mock_load_config.return_value = mock_config
         
         response = client.get("/api/rag/status")
         
