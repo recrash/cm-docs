@@ -67,13 +67,22 @@ pipeline {
         stage('Test') {
             steps {
                 dir("${WORKSPACE}/webservice") {
-                    // 전체 테스트 실행 (Windows 콘솔 인코딩 문제 해결)
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/ -v -x --tb=short --disable-warnings\""
+                    // CMDOCS_CONFIG 환경변수로 CI 전용 config 사용
+                    script {
+                        env.CMDOCS_CONFIG = "${WORKSPACE}\\webservice\\config.ci.json"
+                        echo "Jenkins CI Config 설정: ${env.CMDOCS_CONFIG}"
+                    }
+                    
+                    // 전체 테스트 실행 (Windows 콘솔 인코딩 문제 해결 + CI config)
+                    bat "powershell -NoProfile -Command \"\$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/ -v -x --tb=short --disable-warnings\""
                     
                     // 특별히 중요한 테스트 개별 실행
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/test_scenario_api.py -v\""
+                    bat "powershell -NoProfile -Command \"\$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/test_scenario_api.py -v\""
                     
-                    echo "Webservice API 테스트 완료 (Jenkins Workspace)"
+                    // V2 API 시나리오 테스트 (config 통합 로딩 검증)
+                    bat "powershell -NoProfile -Command \"\$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/v2/test_scenario_v2.py -v\""
+                    
+                    echo "Webservice API 테스트 완료 (Jenkins CI Config)"
                 }
             }
         }
@@ -81,14 +90,11 @@ pipeline {
         stage('Integration Test') {
             steps {
                 dir("${WORKSPACE}/webservice") {
-                    // PYTHONPATH 설정 및 통합 테스트 실행 (모듈 임포트 테스트만)
-                    bat "powershell -NoProfile -Command \"\$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -c 'import app.core.config_loader'\""
+                    // PYTHONPATH 및 CMDOCS_CONFIG 설정 후 통합 테스트 실행
+                    bat "powershell -NoProfile -Command \"\$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from app.core.config_loader import load_config; config = load_config(); print('Config loaded:', config is not None)\\\"\""
                     
-                    // 모듈 임포트 성공 확인
-                    echo "Module import OK - app.core.config_loader 임포트 성공"
-                    
-                    // 추가 통합 테스트가 있다면 여기서 실행
-                    echo "통합 테스트 완료 (Jenkins Workspace)"
+                    // 모듈 임포트 및 config 로딩 성공 확인
+                    echo "통합 테스트 완료 - config_loader 임포트 및 CI config 로딩 성공"
                 }
             }
         }

@@ -242,9 +242,16 @@ class CLIHandler:
             API 응답 또는 None
         """
         try:
-            # v2 API 호출을 위한 비동기 함수
+                            # v2 API 호출을 위한 비동기 함수
             async def run_v2_generation():
                 client_id = None
+                
+                # Git 저장소 유효성 검증 (로컬에서)
+                analyzer = self._validate_repository(repo_path)
+                if not analyzer:
+                    return None
+                    
+                is_valid_git_repo = analyzer.validate_repository()
                 
                 with Progress(
                     SpinnerColumn(),
@@ -263,6 +270,7 @@ class CLIHandler:
                     response = await self.api_client.send_analysis_v2(
                         repo_path=str(repo_path.resolve()),
                         use_performance_mode=True,
+                        is_valid_git_repo=is_valid_git_repo,
                         progress_callback=api_progress_callback,
                     )
                     
@@ -402,16 +410,14 @@ class CLIHandler:
 
             result_panel = Panel(
                 f"파일명: {filename}\n"
-                f"메시지: {message}\n"
-                f"웹 UI 다운로드: http://localhost:8000{download_url}",
+                f"메시지: {message}",                
                 title="시나리오 생성 완료",
                 border_style="green",
             )
             self.console.print(result_panel)
 
             # 추가 안내 메시지
-            self.console.print("\n[bold blue]웹 UI에서 결과를 확인하고 다운로드하세요:[/bold blue]")
-            self.console.print(f"[cyan]http://localhost:8000{download_url}[/cyan]")
+            self.console.print("\n[bold blue]웹 UI에서 결과를 확인하고 다운로드하세요:[/bold blue]")            
 
     def _get_current_timestamp(self) -> str:
         """현재 타임스탬프 반환"""
