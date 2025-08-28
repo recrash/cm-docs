@@ -102,10 +102,59 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
             "prompt_size": len(final_prompt)
         })
         
-        # LLM 응답 시간 측정
+        # LLM 응답 시간 측정 + 웹소켓 연결 유지를 위한 주기적 업데이트
         import time
         start_time = time.time()
-        raw_response = call_ollama_llm(final_prompt, model=model_name, timeout=timeout)
+        
+        # LLM 호출 중 주기적 상태 업데이트를 위한 백그라운드 태스크
+        import asyncio
+        
+        async def heartbeat_during_llm():
+            """LLM 처리 중 웹소켓 연결 유지를 위한 heartbeat"""
+            heartbeat_count = 0
+            while True:
+                await asyncio.sleep(30)  # 30초마다
+                heartbeat_count += 1
+                elapsed = time.time() - start_time
+                await send_progress(V2GenerationStatus.CALLING_LLM, 
+                                  f"LLM 응답 대기 중... ({elapsed:.0f}초 경과)", 
+                                  60 + (heartbeat_count % 10),  # 60-70% 사이 진동
+                                  {
+                                      "added_chunks": added_chunks,
+                                      "prompt_size": len(final_prompt),
+                                      "elapsed_time": elapsed,
+                                      "heartbeat": heartbeat_count
+                                  })
+        
+        # Heartbeat 태스크 시작
+        heartbeat_task = asyncio.create_task(heartbeat_during_llm())
+        
+        try:
+            # 별도 스레드에서 LLM 호출 (논블로킹)
+            import concurrent.futures
+            import threading
+            
+            def call_llm_sync():
+                return call_ollama_llm(final_prompt, model=model_name, timeout=timeout)
+            
+            # 스레드풀에서 LLM 호출
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(call_llm_sync)
+                
+                # LLM 완료까지 대기 (heartbeat과 함께)
+                while not future.done():
+                    await asyncio.sleep(1)
+                
+                raw_response = future.result()
+                
+        finally:
+            # Heartbeat 태스크 종료
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+        
         end_time = time.time()
         llm_response_time = end_time - start_time
         

@@ -45,8 +45,9 @@ export class V2ProgressWebSocket {
   private clientId: string
   private callbacks: V2WebSocketCallbacks
   private reconnectAttempts = 0
-  private maxReconnectAttempts = 3
-  private reconnectDelay = 2000
+  private maxReconnectAttempts = 5  // 재연결 시도 횟수 증가
+  private reconnectDelay = 3000     // 재연결 대기 시간 증가
+  private pingInterval: number | null = null
 
   constructor(clientId: string, callbacks: V2WebSocketCallbacks) {
     this.clientId = clientId
@@ -66,6 +67,14 @@ export class V2ProgressWebSocket {
       this.ws.onopen = () => {
         console.log(`✅ v2 WebSocket 연결 성공: ${this.clientId}`)
         this.reconnectAttempts = 0
+        
+        // 클라이언트에서 서버로 주기적 ping 전송 (60초마다)
+        this.pingInterval = window.setInterval(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.sendMessage('ping')
+            console.log(`🏓 v2 클라이언트 ping 전송: ${this.clientId}`)
+          }
+        }, 60000)
       }
 
       this.ws.onmessage = (event) => {
@@ -123,6 +132,12 @@ export class V2ProgressWebSocket {
   }
 
   disconnect(): void {
+    // ping 인터벌 정리
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval)
+      this.pingInterval = null
+    }
+    
     if (this.ws) {
       console.log(`🔌 v2 WebSocket 연결 종료 요청: ${this.clientId}`)
       this.ws.close(1000, 'Client disconnect')

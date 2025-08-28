@@ -162,22 +162,42 @@ async def handle_v2_websocket(websocket: WebSocket, client_id: str):
         # 연결 설정
         await v2_connection_manager.connect(client_id, websocket)
         
-        # 연결 유지 루프
+        # 연결 유지 루프 + 주기적 ping 전송
+        last_ping_time = asyncio.get_event_loop().time()
+        ping_interval = 30  # 30초마다 ping 전송
+        
         while True:
             try:
-                # 클라이언트로부터 메시지 수신 (연결 상태 확인용)
-                data = await websocket.receive_text()
-                logger.debug(f"클라이언트 메시지 수신 {client_id}: {data}")
-                
-                # 핑/퐁이나 상태 확인 메시지 처리
-                if data.strip().lower() in ['ping', 'status']:
-                    pong_msg = V2ProgressMessage(
-                        client_id=client_id,
-                        status="received",
-                        message="연결 상태 정상",
-                        progress=0
-                    )
-                    await v2_connection_manager.send_progress(client_id, pong_msg)
+                # 타임아웃을 짧게 설정하여 주기적 ping 전송 가능
+                try:
+                    data = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
+                    logger.debug(f"클라이언트 메시지 수신 {client_id}: {data}")
+                    
+                    # 핑/퐁이나 상태 확인 메시지 처리
+                    if data.strip().lower() in ['ping', 'status']:
+                        pong_msg = V2ProgressMessage(
+                            client_id=client_id,
+                            status="received",
+                            message="연결 상태 정상",
+                            progress=0
+                        )
+                        await v2_connection_manager.send_progress(client_id, pong_msg)
+                        
+                except asyncio.TimeoutError:
+                    # 타임아웃은 정상 - 주기적 ping 전송 체크
+                    current_time = asyncio.get_event_loop().time()
+                    if current_time - last_ping_time >= ping_interval:
+                        # 서버에서 클라이언트로 ping 전송
+                        ping_msg = V2ProgressMessage(
+                            client_id=client_id,
+                            status="received",
+                            message="서버 ping - 연결 유지",
+                            progress=0,
+                            details={"type": "ping", "timestamp": current_time}
+                        )
+                        await v2_connection_manager.send_progress(client_id, ping_msg)
+                        last_ping_time = current_time
+                        logger.debug(f"서버 ping 전송: {client_id}")
                     
             except WebSocketDisconnect:
                 logger.info(f"클라이언트가 연결을 종료했습니다: {client_id}")
