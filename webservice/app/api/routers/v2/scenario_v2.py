@@ -214,7 +214,20 @@ async def generate_scenario_v2(request: V2GenerationRequest, background_tasks: B
 
         # WebSocket URL 생성 (config.json의 base_url 사용)
         config = load_config()
-        base_url = config.get("base_url", "https://cm-docs.cloud")
+        if not config:
+            raise HTTPException(
+                status_code=500,
+                detail="서버 설정을 로드할 수 없습니다. 관리자에게 문의하세요."
+            )
+        
+        base_url = config.get("base_url")
+        if not base_url:
+            raise HTTPException(
+                status_code=500, 
+                detail="서버 설정에서 base_url을 찾을 수 없습니다. 관리자에게 문의하세요."
+            )
+        
+        logger.info(f"설정에서 base_url 로드됨: {base_url}")
         
         # 프로토콜 결정: http면 ws, https면 wss 사용
         if base_url.startswith("https://"):

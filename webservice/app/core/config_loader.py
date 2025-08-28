@@ -35,9 +35,10 @@ def _resolve_config_path():
     # 2순위: Development 환경에서만 상대 경로 허용
     if _is_development_environment():
         try:
-            # 개발환경: src 폴더에서 webservice 폴더로 이동
-            src_dir = Path(__file__).parent  # src 폴더
-            webservice_root = src_dir.parent  # webservice 폴더  
+            # 개발환경: app/core에서 webservice 폴더로 이동
+            core_dir = Path(__file__).parent  # app/core 폴더
+            app_dir = core_dir.parent  # app 폴더  
+            webservice_root = app_dir.parent  # webservice 폴더  
             config_path = webservice_root / "config.json"
             logger.info(f"[CONFIG_DEBUG] 개발환경 기반 경로 확인: {config_path}")
             
@@ -46,6 +47,13 @@ def _resolve_config_path():
                 return str(config_path)
             else:
                 logger.warning(f"[CONFIG_DEBUG] 개발환경 설정 파일이 존재하지 않음: {config_path}")
+                
+                # 추가 검색: 현재 작업 디렉토리에서 config.json 찾기
+                cwd_config = Path.cwd() / "config.json"
+                logger.info(f"[CONFIG_DEBUG] 현재 작업 디렉토리 경로 확인: {cwd_config}")
+                if cwd_config.exists():
+                    logger.info(f"[CONFIG_DEBUG] 현재 작업 디렉토리에서 설정 파일 사용: {cwd_config}")
+                    return str(cwd_config)
                 
         except Exception as e:
             logger.error(f"[CONFIG_DEBUG] 개발환경 경로 처리 중 오류: {e}")

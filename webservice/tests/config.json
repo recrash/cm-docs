@@ -1,0 +1,8 @@
+{
+  "model_name": "qwen3:8b",
+  "timeout": 600,
+  "repo_path": "",
+  "rag": {
+    "enabled": false
+  }
+}

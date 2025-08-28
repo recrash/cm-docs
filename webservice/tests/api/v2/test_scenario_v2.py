@@ -57,17 +57,28 @@ class TestV2ScenarioAPI:
             # 값 검증
             assert data["client_id"] == sample_request["client_id"]
             assert data["status"] == "accepted"
-            assert "ws://localhost:8000/api/v2/ws/progress/" in data["websocket_url"]
+            # config.json의 base_url 설정에 따라 동적으로 생성된 WebSocket URL 검증
+            expected_path = f"api/v2/ws/progress/{sample_request['client_id']}"
+            assert expected_path in data["websocket_url"]
+            assert data["websocket_url"].startswith(("ws://", "wss://"))
     
     def test_generate_endpoint_invalid_repo_path(self, client):
         """잘못된 저장소 경로 테스트"""
         invalid_request = {
-            "client_id": "test_client_12345",
+            "client_id": "test_client_12345", 
             "repo_path": "/nonexistent/path",
             "use_performance_mode": True
         }
         
-        with patch('pathlib.Path.exists', return_value=False):
+        # 백그라운드 작업에서 repo_path 검증 실패로 오류 발생 예상
+        # config는 정상 로드되고, repo_path만 invalid하므로 200 응답 후 WebSocket으로 오류 전송
+        with patch('app.api.routers.v2.scenario_v2.Path') as mock_path_class:
+            # Path 생성자가 호출될 때 mock 객체 반환
+            mock_path_instance = mock_path_class.return_value
+            # repo_path에 대해서만 exists()가 False, is_dir()도 False
+            mock_path_instance.exists.return_value = False
+            mock_path_instance.is_dir.return_value = False
+            
             response = client.post("/api/v2/scenario/generate", json=invalid_request)
             
             # 백그라운드 작업에서 처리되므로 일단은 200으로 응답하고 WebSocket으로 오류 전송
