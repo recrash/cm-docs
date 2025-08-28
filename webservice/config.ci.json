@@ -4,6 +4,6 @@
   "timeout": 600,
   "repo_path": "",
   "rag": {
-    "enabled": false
+    "enabled": true
   }
 }
