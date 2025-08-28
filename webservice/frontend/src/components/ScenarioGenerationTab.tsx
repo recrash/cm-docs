@@ -114,13 +114,13 @@ export default function ScenarioGenerationTab() {
 
   const handleGenerate = async () => {
     if (!repoPath.trim()) {
-      setError('Git 저장소 경로를 입력해주세요.')
+      setError('저장소 경로를 입력해주세요.')
       return
     }
 
     const isValid = await validateRepoPath(repoPath)
     if (!isValid) {
-      setError('유효한 Git 저장소 경로를 입력해주세요.')
+      setError('유효한 저장소 경로를 입력해주세요.')
       return
     }
 
@@ -254,10 +254,10 @@ export default function ScenarioGenerationTab() {
           
           <TextField
             fullWidth
-            label="Git 저장소 경로"
+            label="저장소 경로"
             value={repoPath}
             onChange={(e) => setRepoPath(e.target.value)}
-            placeholder="/path/to/your/git/repository"
+            placeholder="/path/to/your/repository"
             disabled={isGenerating}
             sx={{ 
               mb: 3,
@@ -268,7 +268,7 @@ export default function ScenarioGenerationTab() {
                 }
               }
             }}
-            helperText="분석할 Git 저장소의 로컬 경로를 입력하세요"
+            helperText="분석할 저장소의 로컬 경로를 입력하세요 (Git 또는 SVN 저장소 지원)"
           />
 
 

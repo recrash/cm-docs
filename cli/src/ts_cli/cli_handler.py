@@ -162,9 +162,26 @@ class CLIHandler:
 
         except Exception as e:
             self.logger.error(f"저장소 검증 중 오류: {e}")
-            self.console.print(
-                f"[red]저장소 검증 중 오류가 발생했습니다: {str(e)}[/red]"
-            )
+            
+            # SVN 관련 특화 에러 메시지 처리
+            error_message = str(e)
+            if "SVN 명령어가 설치되지 않았습니다" in error_message:
+                self.console.print(
+                    f"[red]SVN 클라이언트가 설치되지 않았습니다.[/red]\n"
+                    f"[yellow]SVN 설치 방법:[/yellow]\n"
+                    f"• Windows: TortoiseSVN + Command Line Tools\n"
+                    f"• macOS: brew install subversion\n"
+                    f"• Linux: apt-get install subversion 또는 yum install subversion"
+                )
+            elif "svn" in error_message.lower() and "command not found" in error_message.lower():
+                self.console.print(
+                    f"[red]SVN 명령어를 찾을 수 없습니다.[/red]\n"
+                    f"[yellow]PATH 환경변수에 SVN 경로가 포함되어 있는지 확인해주세요.[/yellow]"
+                )
+            else:
+                self.console.print(
+                    f"[red]저장소 검증 중 오류가 발생했습니다: {error_message}[/red]"
+                )
             return None
 
     def _analyze_changes(self, analyzer: Any, base_branch: str = "origin/develop", head_branch: str = "HEAD") -> Optional[Dict[str, Any]]:
@@ -211,11 +228,23 @@ class CLIHandler:
             if self.verbose:
                 self.console.print("[green]✓[/green] 저장소 분석 완료")
                 self.console.print(f"  변경사항 크기: {len(changes_text)} 문자")
-                self.console.print(f"  기준 브랜치: {base_branch}")
-                self.console.print(f"  대상 브랜치: {head_branch}")
+                
+                # VCS 타입별 상세 정보 표시
+                vcs_type = analyzer.get_vcs_type().upper()
+                if vcs_type == "GIT":
+                    self.console.print(f"  기준 브랜치: {base_branch}")
+                    self.console.print(f"  대상 브랜치: {head_branch}")
+                elif vcs_type == "SVN":
+                    self.console.print("  비교 모드: Working Directory vs HEAD")
+                    repo_info = analyzer.get_repository_info()
+                    if repo_info.get("current_revision"):
+                        self.console.print(f"  현재 리비전: {repo_info['current_revision']}")
 
                 if not changes_text.strip():
-                    self.console.print("  [yellow]변경사항이 없습니다.[/yellow]")
+                    if vcs_type == "SVN":
+                        self.console.print("  [yellow]Working Directory에 변경사항이 없습니다.[/yellow]")
+                    else:
+                        self.console.print("  [yellow]변경사항이 없습니다.[/yellow]")
 
             return analysis_result
 

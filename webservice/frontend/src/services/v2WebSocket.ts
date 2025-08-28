@@ -208,7 +208,7 @@ export function generateClientId(): string {
 export function getV2StatusMessage(status: V2GenerationStatus): string {
   const statusMessages: Record<V2GenerationStatus, string> = {
     [V2GenerationStatus.RECEIVED]: '요청을 수신했습니다.',
-    [V2GenerationStatus.ANALYZING_GIT]: 'Git 변경 내역을 분석 중입니다...',
+    [V2GenerationStatus.ANALYZING_GIT]: '저장소 변경 내역을 분석 중입니다...',
     [V2GenerationStatus.STORING_RAG]: '분석 결과를 RAG 시스템에 저장 중입니다...',
     [V2GenerationStatus.CALLING_LLM]: 'LLM을 호출하여 시나리오를 생성 중입니다...',
     [V2GenerationStatus.PARSING_RESPONSE]: 'LLM 응답을 파싱 중입니다...',

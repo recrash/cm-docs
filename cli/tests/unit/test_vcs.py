@@ -16,6 +16,7 @@ from ts_cli.vcs.base_analyzer import (
     InvalidRepositoryError,
 )
 from ts_cli.vcs.git_analyzer import GitAnalyzer
+from ts_cli.vcs.svn_analyzer import SVNAnalyzer
 
 
 class TestVCSFactory:
@@ -33,8 +34,33 @@ class TestVCSFactory:
         assert isinstance(analyzer, GitAnalyzer)
         assert analyzer.repo_path == tmp_path.resolve()
 
-    def test_get_analyzer_with_non_git_repository(self, tmp_path):
-        """Git이 아닌 디렉토리에 대한 테스트"""
+    def test_get_analyzer_with_svn_repository(self, tmp_path):
+        """SVN 저장소에 대한 분석기 반환 테스트"""
+        # SVN 저장소 시뮬레이션
+        svn_dir = tmp_path / ".svn"
+        svn_dir.mkdir()
+
+        analyzer = get_analyzer(tmp_path)
+
+        assert analyzer is not None
+        assert isinstance(analyzer, SVNAnalyzer)
+        assert analyzer.repo_path == tmp_path.resolve()
+
+    def test_get_analyzer_git_priority_over_svn(self, tmp_path):
+        """Git과 SVN이 모두 있을 때 Git 우선순위 테스트"""
+        # Git과 SVN 디렉토리 모두 생성
+        git_dir = tmp_path / ".git"
+        svn_dir = tmp_path / ".svn"
+        git_dir.mkdir()
+        svn_dir.mkdir()
+
+        analyzer = get_analyzer(tmp_path)
+
+        assert analyzer is not None
+        assert isinstance(analyzer, GitAnalyzer)  # Git이 우선
+
+    def test_get_analyzer_with_non_vcs_repository(self, tmp_path):
+        """VCS가 아닌 디렉토리에 대한 테스트"""
         # 일반 디렉토리 (VCS 없음)
         analyzer = get_analyzer(tmp_path)
 
@@ -62,7 +88,8 @@ class TestVCSFactory:
 
         assert isinstance(supported_types, list)
         assert "git" in supported_types
-        assert len(supported_types) >= 1
+        assert "svn" in supported_types
+        assert len(supported_types) >= 2
 
 
 class TestGitAnalyzer:
