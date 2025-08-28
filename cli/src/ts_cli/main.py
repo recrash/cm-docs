@@ -128,10 +128,14 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
             import uuid
             client_id = f"ts_cli_{uuid.uuid4().hex[:8]}"
             
+        # Git 저장소 유효성 검증 수행 (로컬에서만)
+        is_valid_git_repo = analyzer.validate_repository()
+        
         request_data = {
             "client_id": client_id,
             "repo_path": str(repo_path.resolve()),
-            "use_performance_mode": True
+            "use_performance_mode": True,
+            "is_valid_git_repo": is_valid_git_repo
         }
         
         # v2 API 엔드포인트 URL 구성

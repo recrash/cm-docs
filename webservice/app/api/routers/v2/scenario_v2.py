@@ -55,10 +55,14 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         await send_progress(V2GenerationStatus.RECEIVED, "요청을 수신했습니다.", 5)
         await asyncio.sleep(0.5)
 
-        # 2. Git 저장소 경로 검증
+        # 2. Git 저장소 유효성 검증 (CLI에서 전달받은 결과 사용)
+        if not request.is_valid_git_repo:
+            raise ValueError(f"CLI에서 검증한 결과, 유효하지 않은 Git 저장소입니다: {request.repo_path}")
+        
+        # 경로 존재 여부만 간단히 확인 (CLI에서 이미 Git 검증 완료)
         repo_path = Path(request.repo_path)
         if not repo_path.exists() or not repo_path.is_dir():
-            raise ValueError(f"유효하지 않은 Git 저장소 경로: {request.repo_path}")
+            raise ValueError(f"저장소 경로에 접근할 수 없습니다: {request.repo_path}")
 
         # 3. 설정 로드
         config = load_config()
@@ -198,7 +202,7 @@ async def generate_scenario_v2(request: V2GenerationRequest, background_tasks: B
         즉시 응답과 WebSocket URL 제공
     """
     try:
-        logger.info(f"v2 시나리오 생성 요청 수신: client_id={request.client_id}, repo_path={request.repo_path}")
+        logger.info(f"v2 시나리오 생성 요청 수신: client_id={request.client_id}, repo_path={request.repo_path}, git_valid={request.is_valid_git_repo}")
         
         # 이미 진행 중인 작업인지 확인
         if request.client_id in active_generations:

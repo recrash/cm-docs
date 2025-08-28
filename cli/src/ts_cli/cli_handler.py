@@ -242,9 +242,16 @@ class CLIHandler:
             API 응답 또는 None
         """
         try:
-            # v2 API 호출을 위한 비동기 함수
+                            # v2 API 호출을 위한 비동기 함수
             async def run_v2_generation():
                 client_id = None
+                
+                # Git 저장소 유효성 검증 (로컬에서)
+                analyzer = self._validate_repository(repo_path)
+                if not analyzer:
+                    return None
+                    
+                is_valid_git_repo = analyzer.validate_repository()
                 
                 with Progress(
                     SpinnerColumn(),
@@ -263,6 +270,7 @@ class CLIHandler:
                     response = await self.api_client.send_analysis_v2(
                         repo_path=str(repo_path.resolve()),
                         use_performance_mode=True,
+                        is_valid_git_repo=is_valid_git_repo,
                         progress_callback=api_progress_callback,
                     )
                     

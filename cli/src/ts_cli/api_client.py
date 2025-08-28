@@ -116,6 +116,7 @@ class APIClient:
         repo_path: str,
         client_id: Optional[str] = None,
         use_performance_mode: bool = True,
+        is_valid_git_repo: bool = True,
         progress_callback: Optional[Callable[[str, int], None]] = None,
     ) -> Dict[str, Any]:
         """
@@ -148,7 +149,8 @@ class APIClient:
             request_data = {
                 "client_id": client_id,
                 "repo_path": repo_path,
-                "use_performance_mode": use_performance_mode
+                "use_performance_mode": use_performance_mode,
+                "is_valid_git_repo": is_valid_git_repo
             }
 
             if progress_callback:
