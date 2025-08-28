@@ -162,7 +162,9 @@ async def handle_v2_websocket(websocket: WebSocket, client_id: str):
         # 연결 설정
         await v2_connection_manager.connect(client_id, websocket)
         
-        # 연결 유지 루프 (클라이언트 측 60초 ping에 의존)
+        # 연결 유지 루프 + 양방향 ping/pong
+        last_ping_time = asyncio.get_event_loop().time()
+        ping_interval = 30  # 30초마다 ping 전송
         
         while True:
             try:
@@ -179,8 +181,18 @@ async def handle_v2_websocket(websocket: WebSocket, client_id: str):
                         logger.debug(f"클라이언트 ping에 pong 응답: {client_id}")
                         
                 except asyncio.TimeoutError:
-                    # 타임아웃은 정상 - 클라이언트 ping에만 의존하여 연결 유지
-                    pass
+                    # 타임아웃은 정상 - 서버에서 주기적 ping 전송으로 연결 유지
+                    current_time = asyncio.get_event_loop().time()
+                    if current_time - last_ping_time >= ping_interval:
+                        # WebSocket 표준 ping 프레임 전송 (브라우저에 노출되지 않음)
+                        try:
+                            await websocket.ping()
+                            last_ping_time = current_time
+                            logger.debug(f"WebSocket ping 전송: {client_id}")
+                        except Exception as ping_error:
+                            logger.warning(f"WebSocket ping 실패 {client_id}: {ping_error}")
+                            # ping 실패는 연결 문제일 수 있으므로 루프 종료
+                            break
                     
             except WebSocketDisconnect:
                 logger.info(f"클라이언트가 연결을 종료했습니다: {client_id}")

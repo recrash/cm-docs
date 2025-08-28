@@ -72,7 +72,7 @@ export class V2ProgressWebSocket {
         this.pingInterval = window.setInterval(() => {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.sendMessage('ping')
-            console.log(`🏓 v2 클라이언트 ping 전송: ${this.clientId}`)
+            console.debug(`🏓 v2 클라이언트 ping 전송: ${this.clientId}`)
           }
         }, 60000)
       }
@@ -80,24 +80,47 @@ export class V2ProgressWebSocket {
       this.ws.onmessage = (event) => {
         try {
           const data: V2ProgressMessage = JSON.parse(event.data)
-          console.log(`📨 v2 진행 상황 수신:`, data)
           
-          // 상태에 따른 콜백 호출
-          switch (data.status) {
-            case V2GenerationStatus.ERROR:
-              this.callbacks.onError(data.message)
-              break
-              
-            case V2GenerationStatus.COMPLETED:
-              if (data.result) {
-                this.callbacks.onComplete(data.result)
-              }
-              this.callbacks.onProgress(data)
-              break
-              
-            default:
-              this.callbacks.onProgress(data)
-              break
+          // 임시 디버깅: 모든 메시지 구조 확인
+          console.log(`🔍 디버그 - 수신된 메시지:`, {
+            status: data.status,
+            message: data.message,
+            progress: data.progress,
+            details: data.details
+          })
+          
+          // ping/pong 관련 메시지 필터링 (브라우저에 표시하지 않음)
+          const isPingMessage = data.details?.type === 'ping' || 
+                               data.message?.includes('ping') || 
+                               data.message?.includes('연결 유지') ||
+                               data.message?.includes('연결 상태 정상') ||
+                               data.message?.includes('WebSocket 연결이 설정되었습니다')
+          
+          if (!isPingMessage) {
+            console.log(`📨 v2 진행 상황 수신:`, data)
+          } else {
+            // ping 메시지는 디버그 로그로만 출력
+            console.debug(`🔔 ping 메시지 필터링됨:`, data.message)
+          }
+          
+          // ping 메시지가 아닌 경우에만 상태에 따른 콜백 호출
+          if (!isPingMessage) {
+            switch (data.status) {
+              case V2GenerationStatus.ERROR:
+                this.callbacks.onError(data.message)
+                break
+                
+              case V2GenerationStatus.COMPLETED:
+                if (data.result) {
+                  this.callbacks.onComplete(data.result)
+                }
+                this.callbacks.onProgress(data)
+                break
+                
+              default:
+                this.callbacks.onProgress(data)
+                break
+            }
           }
           
         } catch (error) {
