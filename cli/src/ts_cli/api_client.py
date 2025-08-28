@@ -215,19 +215,20 @@ class APIClient:
             import websockets.client
             timeout_config = websockets.client.WebSocketClientProtocol
             
+            # Context7 FastAPI WebSocket RPC 패턴: 안정적인 연결 설정
             async with websockets.connect(
                 websocket_url,
-                open_timeout=30,  # 연결 대기 시간
-                close_timeout=10,  # 종료 대기 시간
-                ping_timeout=20,   # ping 대기 시간
-                ping_interval=None  # ping 간격 (None으로 비활성화)
+                open_timeout=30,     # 연결 대기 시간
+                close_timeout=10,    # 종료 대기 시간
+                ping_timeout=30,     # ping 대기 시간 증가
+                ping_interval=15     # Context7 패턴: 15초 간격 ping
             ) as websocket:
                 self.logger.info("WebSocket 연결 완료")
 
                 while True:
                     try:
-                        # WebSocket으로부터 메시지 수신
-                        message = await asyncio.wait_for(websocket.recv(), timeout=30)
+                        # Context7 FastAPI WebSocket RPC 패턴: 장기간 대기 가능하도록 timeout 증가
+                        message = await asyncio.wait_for(websocket.recv(), timeout=60)
                         
                         # JSON 파싱
                         try:
@@ -238,6 +239,18 @@ class APIClient:
                         
                         if not progress_data:
                             self.logger.warning("빈 진행 상황 데이터 수신")
+                            continue
+                        
+                        # Context7 패턴: 시스템 메시지 필터링
+                        details = progress_data.get("details", {})
+                        is_system_message = (
+                            progress_data.get("status") == "keepalive" or
+                            progress_data.get("progress") == -1 or
+                            (isinstance(details, dict) and details.get("type") in ["ping", "keepalive"])
+                        )
+                        
+                        if is_system_message:
+                            self.logger.debug("시스템 메시지 필터링됨")
                             continue
                             
                         status = progress_data.get("status", "")

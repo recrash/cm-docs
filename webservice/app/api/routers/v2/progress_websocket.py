@@ -162,36 +162,51 @@ async def handle_v2_websocket(websocket: WebSocket, client_id: str):
         # 연결 설정
         await v2_connection_manager.connect(client_id, websocket)
         
-        # 연결 유지 루프 + 양방향 ping/pong
-        last_ping_time = asyncio.get_event_loop().time()
-        ping_interval = 30  # 30초마다 ping 전송
+        # Context7 FastAPI WebSocket RPC 패턴 적용
+        # 장기간 연결 유지를 위한 활성 연결 상태 확인 루프
+        ping_interval = 25  # 25초마다 연결 상태 확인
+        last_activity = asyncio.get_event_loop().time()
         
         while True:
             try:
-                # 타임아웃을 설정하여 연결 상태 주기적 확인
+                # 짧은 타임아웃으로 주기적 연결 상태 확인
                 try:
-                    data = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
+                    data = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+                    last_activity = asyncio.get_event_loop().time()
                     logger.debug(f"클라이언트 메시지 수신 {client_id}: {data}")
                     
-                    # 핑/퐁이나 상태 확인 메시지 처리 (브라우저에 표시하지 않음)
+                    # ping/pong 처리 (브라우저에 표시하지 않음)
                     if data.strip().lower() in ['ping', 'status']:
-                        # 클라이언트 ping에 대한 응답은 WebSocket pong으로 처리
-                        # 프로그레스 메시지로 보내지 않아 브라우저 UI에 영향 없음
-                        await websocket.pong()
-                        logger.debug(f"클라이언트 ping에 pong 응답: {client_id}")
+                        # FastAPI WebSocket RPC 패턴: 단순 ACK로 연결 유지 확인
+                        logger.debug(f"클라이언트 ping 수신 - 연결 유지 확인: {client_id}")
+                        # 연결이 활성 상태임을 기록
+                        last_activity = asyncio.get_event_loop().time()
                         
                 except asyncio.TimeoutError:
-                    # 타임아웃은 정상 - 서버에서 주기적 ping 전송으로 연결 유지
+                    # Context7 패턴: 주기적 연결 상태 점검
                     current_time = asyncio.get_event_loop().time()
-                    if current_time - last_ping_time >= ping_interval:
-                        # WebSocket 표준 ping 프레임 전송 (브라우저에 노출되지 않음)
+                    
+                    # 비활성 상태가 너무 오래 지속되면 연결 종료
+                    if current_time - last_activity > 300:  # 5분 비활성
+                        logger.warning(f"비활성 연결 감지 - 연결 종료: {client_id}")
+                        break
+                    
+                    # 주기적으로 연결 상태 확인 메시지 전송
+                    if current_time - last_activity > ping_interval:
                         try:
-                            await websocket.ping()
-                            last_ping_time = current_time
-                            logger.debug(f"WebSocket ping 전송: {client_id}")
-                        except Exception as ping_error:
-                            logger.warning(f"WebSocket ping 실패 {client_id}: {ping_error}")
-                            # ping 실패는 연결 문제일 수 있으므로 루프 종료
+                            # FastAPI WebSocket RPC 스타일 활성 상태 확인
+                            keepalive_msg = V2ProgressMessage(
+                                client_id=client_id,
+                                status="keepalive",
+                                message="연결 상태 확인",
+                                progress=-1,  # -1로 UI 업데이트 방지
+                                details={"type": "keepalive", "timestamp": current_time}
+                            )
+                            await v2_connection_manager.send_progress(client_id, keepalive_msg)
+                            last_activity = current_time
+                            logger.debug(f"연결 유지 메시지 전송: {client_id}")
+                        except Exception as keepalive_error:
+                            logger.warning(f"연결 유지 메시지 전송 실패 {client_id}: {keepalive_error}")
                             break
                     
             except WebSocketDisconnect:
