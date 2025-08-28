@@ -91,7 +91,7 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/webservice") {
                     // PYTHONPATH 및 CMDOCS_CONFIG 설정 후 통합 테스트 실행
-                    bat "powershell -NoProfile -Command \"\$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -c 'import app.core.config_loader; from app.core.config_loader import load_config; print(f\\\"Config loaded: {load_config() is not None}\\\")'\""
+                    bat "powershell -NoProfile -Command \"\$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from app.core.config_loader import load_config; config = load_config(); print('Config loaded:', config is not None)\\\"\""
                     
                     // 모듈 임포트 및 config 로딩 성공 확인
                     echo "통합 테스트 완료 - config_loader 임포트 및 CI config 로딩 성공"
