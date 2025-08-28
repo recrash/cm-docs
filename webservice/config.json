@@ -1,4 +1,5 @@
 {
+    "base_url": "https://cm-docs.cloud",
     "repo_path": "/Users/recrash/Documents/Workspace/CPMES",
     "model_name": "qwen3:8b",
     "timeout": 600,

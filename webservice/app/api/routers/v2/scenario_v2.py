@@ -6,6 +6,10 @@ CLI 연동을 위한 비동기 시나리오 생성 처리
 import logging
 import asyncio
 import uuid
+import json
+import re
+import time
+import concurrent.futures
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pathlib import Path
@@ -55,11 +59,10 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         await send_progress(V2GenerationStatus.RECEIVED, "요청을 수신했습니다.", 5)
         await asyncio.sleep(0.5)
 
-        # 2. Git 저장소 경로 검증
-        repo_path = Path(request.repo_path)
-        if not repo_path.exists() or not repo_path.is_dir():
-            raise ValueError(f"유효하지 않은 Git 저장소 경로: {request.repo_path}")
-
+        # 2. Git 저장소 유효성 검증 (CLI에서 전달받은 결과 사용)
+        if not request.is_valid_git_repo:
+            raise ValueError(f"CLI에서 검증한 결과, 유효하지 않은 Git 저장소입니다: {request.repo_path}")
+        
         # 3. 설정 로드
         config = load_config()
         if not config:
@@ -103,10 +106,53 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
             "prompt_size": len(final_prompt)
         })
         
-        # LLM 응답 시간 측정
-        import time
+        # LLM 응답 시간 측정 + 웹소켓 연결 유지를 위한 주기적 업데이트
         start_time = time.time()
-        raw_response = call_ollama_llm(final_prompt, model=model_name, timeout=timeout)
+        
+        async def heartbeat_during_llm():
+            """LLM 처리 중 웹소켓 연결 유지를 위한 heartbeat"""
+            heartbeat_count = 0
+            while True:
+                await asyncio.sleep(30)  # 30초마다
+                heartbeat_count += 1
+                elapsed = time.time() - start_time
+                await send_progress(V2GenerationStatus.CALLING_LLM, 
+                                  f"LLM 응답 대기 중... ({elapsed:.0f}초 경과)", 
+                                  60 + (heartbeat_count % 10),  # 60-70% 사이 진동
+                                  {
+                                      "added_chunks": added_chunks,
+                                      "prompt_size": len(final_prompt),
+                                      "elapsed_time": elapsed,
+                                      "heartbeat": heartbeat_count
+                                  })
+        
+        # Heartbeat 태스크 시작
+        heartbeat_task = asyncio.create_task(heartbeat_during_llm())
+        
+        try:
+            # 별도 스레드에서 LLM 호출 (논블로킹)
+            
+            def call_llm_sync():
+                return call_ollama_llm(final_prompt, model=model_name, timeout=timeout)
+            
+            # 스레드풀에서 LLM 호출
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(call_llm_sync)
+                
+                # LLM 완료까지 대기 (heartbeat과 함께)
+                while not future.done():
+                    await asyncio.sleep(1)
+                
+                raw_response = future.result()
+                
+        finally:
+            # Heartbeat 태스크 종료
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+        
         end_time = time.time()
         llm_response_time = end_time - start_time
         
@@ -120,9 +166,6 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
             "llm_response_time": llm_response_time
         })
         await asyncio.sleep(0.5)
-
-        import json
-        import re
         
         json_match = re.search(r'<json>(.*?)</json>', raw_response, re.DOTALL)
         if not json_match:
@@ -198,7 +241,7 @@ async def generate_scenario_v2(request: V2GenerationRequest, background_tasks: B
         즉시 응답과 WebSocket URL 제공
     """
     try:
-        logger.info(f"v2 시나리오 생성 요청 수신: client_id={request.client_id}, repo_path={request.repo_path}")
+        logger.info(f"v2 시나리오 생성 요청 수신: client_id={request.client_id}, repo_path={request.repo_path}, git_valid={request.is_valid_git_repo}")
         
         # 이미 진행 중인 작업인지 확인
         if request.client_id in active_generations:
@@ -212,8 +255,36 @@ async def generate_scenario_v2(request: V2GenerationRequest, background_tasks: B
         task = asyncio.create_task(_handle_v2_generation(request.client_id, request))
         active_generations[request.client_id] = task
 
-        # WebSocket URL 생성
-        websocket_url = f"ws://localhost:8000/api/v2/ws/progress/{request.client_id}"
+        # WebSocket URL 생성 (config.json의 base_url 사용)
+        config = load_config()
+        if not config:
+            raise HTTPException(
+                status_code=500,
+                detail="서버 설정을 로드할 수 없습니다. 관리자에게 문의하세요."
+            )
+        
+        base_url = config.get("base_url")
+        if not base_url:
+            raise HTTPException(
+                status_code=500, 
+                detail="서버 설정에서 base_url을 찾을 수 없습니다. 관리자에게 문의하세요."
+            )
+        
+        logger.info(f"설정에서 base_url 로드됨: {base_url}")
+        
+        # 프로토콜 결정: http면 ws, https면 wss 사용
+        if base_url.startswith("https://"):
+            protocol = "wss"
+            host = base_url.replace("https://", "")
+        elif base_url.startswith("http://"):
+            protocol = "ws"
+            host = base_url.replace("http://", "")
+        else:
+            # 프로토콜이 없으면 기본값 사용 (폐쇄망의 경우 http 가능성 높음)
+            protocol = "ws"
+            host = base_url
+            
+        websocket_url = f"{protocol}://{host}/api/v2/ws/progress/{request.client_id}"
 
         response = V2GenerationResponse(
             client_id=request.client_id,

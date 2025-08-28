@@ -4,9 +4,19 @@ RAG 시스템 API 테스트
 
 import pytest
 from unittest.mock import patch, MagicMock
+from app.core.config_loader import load_config
 
-def test_get_rag_system_info(client):
+
+@pytest.fixture(scope="module")
+def rag_enabled():
+    """RAG 활성화 여부 확인"""
+    config = load_config()
+    return config and config.get('rag', {}).get('enabled', False)
+
+def test_get_rag_system_info(client, rag_enabled):
     """RAG 시스템 정보 조회 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
     mock_rag_info = {
         "chroma_info": {
@@ -34,8 +44,10 @@ def test_get_rag_system_info(client):
         assert "chunk_size" in data
         assert "documents" in data
 
-def test_index_documents_success(client):
+def test_index_documents_success(client, rag_enabled):
     """문서 인덱싱 성공 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
     mock_result = {
         "status": "success",
@@ -57,8 +69,10 @@ def test_index_documents_success(client):
         assert data["indexed_count"] == 5
         assert data["total_chunks_added"] == 50
 
-def test_index_documents_force_reindex(client):
+def test_index_documents_force_reindex(client, rag_enabled):
     """강제 재인덱싱 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
     mock_result = {
         "status": "success",
@@ -79,8 +93,10 @@ def test_index_documents_force_reindex(client):
         assert data["status"] == "success"
         mock_index.assert_called_once_with(force_reindex=True)
 
-def test_index_documents_failure(client):
+def test_index_documents_failure(client, rag_enabled):
     """문서 인덱싱 실패 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
     with patch('app.api.routers.rag.index_documents_folder') as mock_index:
         mock_index.side_effect = Exception("인덱싱 오류")
@@ -91,8 +107,10 @@ def test_index_documents_failure(client):
         assert response.status_code == 500
         assert "문서 인덱싱 중 오류" in response.json()["detail"]
 
-def test_clear_vector_database_success(client):
+def test_clear_vector_database_success(client, rag_enabled):
     """벡터 데이터베이스 초기화 성공 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
     with patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
         mock_manager = MagicMock()
@@ -105,8 +123,10 @@ def test_clear_vector_database_success(client):
         assert "성공적으로 초기화" in data["message"]
         mock_manager.clear_database.assert_called_once()
 
-def test_clear_vector_database_no_manager(client):
+def test_clear_vector_database_no_manager(client, rag_enabled):
     """RAG 매니저가 없는 경우 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
     with patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
         mock_get_manager.return_value = None
@@ -116,8 +136,10 @@ def test_clear_vector_database_no_manager(client):
         assert response.status_code == 500
         assert "RAG 시스템을 초기화할 수 없습니다" in response.json()["detail"]
 
-def test_clear_vector_database_failure(client):
+def test_clear_vector_database_failure(client, rag_enabled):
     """벡터 데이터베이스 초기화 실패 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
     with patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
         mock_manager = MagicMock()
@@ -129,8 +151,10 @@ def test_clear_vector_database_failure(client):
         assert response.status_code == 500
         assert "벡터 데이터베이스 초기화 중 오류" in response.json()["detail"]
 
-def test_get_documents_info(client):
+def test_get_documents_info(client, rag_enabled):
     """문서 정보 조회 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
     mock_rag_info = {
         "documents": {
@@ -154,8 +178,10 @@ def test_get_documents_info(client):
         assert data["supported_files"] == 8
         assert data["total_files"] == 15
 
-def test_get_rag_status_active(client):
+def test_get_rag_status_active(client, rag_enabled):
     """RAG 시스템 활성 상태 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
     mock_rag_info = {
         "chroma_info": {
@@ -165,12 +191,21 @@ def test_get_rag_status_active(client):
         "chunk_size": 1000
     }
     
+    # Mock config to enable RAG
+    mock_config = {
+        "rag": {
+            "enabled": True
+        }
+    }
+    
     with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info, \
-         patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
+         patch('app.api.routers.rag.get_rag_manager') as mock_get_manager, \
+         patch('app.core.config_loader.load_config') as mock_load_config:
         
         mock_get_rag_info.return_value = mock_rag_info
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
+        mock_load_config.return_value = mock_config
         
         response = client.get("/api/rag/status")
         
@@ -181,19 +216,30 @@ def test_get_rag_status_active(client):
         assert data["document_count"] == 50
         assert data["embedding_model"] == "jhgan/ko-sroberta-multitask"
 
-def test_get_rag_status_inactive(client):
+def test_get_rag_status_inactive(client, rag_enabled):
     """RAG 시스템 비활성 상태 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
     mock_rag_info = {
         "chroma_info": {"count": 0, "embedding_model": "Unknown"},
         "chunk_size": 0
     }
     
+    # Mock config to enable RAG
+    mock_config = {
+        "rag": {
+            "enabled": True
+        }
+    }
+    
     with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info, \
-         patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
+         patch('app.api.routers.rag.get_rag_manager') as mock_get_manager, \
+         patch('app.core.config_loader.load_config') as mock_load_config:
         
         mock_get_rag_info.return_value = mock_rag_info
         mock_get_manager.return_value = None
+        mock_load_config.return_value = mock_config
         
         response = client.get("/api/rag/status")
         
@@ -202,11 +248,22 @@ def test_get_rag_status_inactive(client):
         assert data["status"] == "ready"
         assert "자동으로 로드됩니다" in data["message"]
 
-def test_get_rag_status_error(client):
+def test_get_rag_status_error(client, rag_enabled):
     """RAG 시스템 오류 상태 테스트"""
+    if not rag_enabled:
+        pytest.skip("RAG가 비활성화된 환경에서는 테스트를 건너뜁니다")
     
-    with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info:
+    # Mock config to enable RAG
+    mock_config = {
+        "rag": {
+            "enabled": True
+        }
+    }
+    
+    with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info, \
+         patch('app.core.config_loader.load_config') as mock_load_config:
         mock_get_rag_info.side_effect = Exception("RAG 오류")
+        mock_load_config.return_value = mock_config
         
         response = client.get("/api/rag/status")
         

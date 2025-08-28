@@ -25,6 +25,7 @@ class V2GenerationRequest(BaseModel):
     client_id: str = Field(..., description="고유 클라이언트 식별자")
     repo_path: str = Field(..., description="Git 저장소 경로")
     use_performance_mode: bool = Field(True, description="성능 최적화 모드 사용 여부")
+    is_valid_git_repo: bool = Field(True, description="CLI에서 검증한 Git 저장소 유효성")
 
 
 class V2ProgressMessage(BaseModel):
