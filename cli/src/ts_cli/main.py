@@ -118,30 +118,56 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
             console.print(f"[red]유효하지 않은 저장소입니다: {repo_path}[/red]")
             return False
             
-        changes_data = analyzer.get_changes("origin/develop", "HEAD")
+        # VCS 타입 및 유효성 정보 수집
+        vcs_type = analyzer.get_vcs_type()
+        is_valid_repo = analyzer.validate_repository()
+        
+        console.print(f"[cyan]감지된 VCS 타입: {vcs_type.upper()}[/cyan]")
+        
+        # VCS 타입에 따른 변경사항 분석 수행
+        if vcs_type.lower() == "git":
+            # Git: 브랜치 간 비교 분석
+            changes_data = analyzer.get_changes("origin/develop", "HEAD")
+            console.print("[dim]Git 브랜치 비교: origin/develop → HEAD[/dim]")
+        elif vcs_type.lower() == "svn":
+            # SVN: Working Directory vs HEAD 비교 (브랜치 파라미터 무시됨)
+            try:
+                changes_data = analyzer.get_changes()
+                console.print("[dim]SVN Working Directory vs HEAD 비교[/dim]")
+            except Exception as e:
+                console.print(f"[red]SVN 분석 중 오류 발생: {str(e)}[/red]")
+                console.print("[yellow]SVN 명령어가 설치되었는지 확인해주세요.[/yellow]")
+                return False
+        else:
+            console.print(f"[red]지원되지 않는 VCS 타입입니다: {vcs_type}[/red]")
+            return False
+            
         if not changes_data:
             console.print("[yellow]변경사항이 없습니다.[/yellow]")
             return True
+            
+        console.print(f"[green]{vcs_type.upper()} 저장소 분석 완료[/green]")
+        console.print(f"[dim]변경사항 크기: {len(changes_data)} 문자[/dim]")
             
         # v2 API 요청 데이터 준비
         if not client_id:
             import uuid
             client_id = f"ts_cli_{uuid.uuid4().hex[:8]}"
             
-        # Git 저장소 유효성 검증 수행 (로컬에서만)
-        is_valid_git_repo = analyzer.validate_repository()
-        
+        # 새로운 V2 API 구조에 맞는 요청 데이터
         request_data = {
             "client_id": client_id,
             "repo_path": str(repo_path.resolve()),
             "use_performance_mode": True,
-            "is_valid_git_repo": is_valid_git_repo
+            "is_valid_repo": is_valid_repo,
+            "vcs_type": vcs_type,
+            "changes_text": changes_data  # CLI에서 분석한 결과 전달
         }
         
         # v2 API 엔드포인트 URL 구성
         api_url = f"{server_url.rstrip('/')}/api/v2/scenario/generate"
         
-        console.print("[cyan]Sending API request...[/cyan]")
+        console.print(f"[cyan]Sending {vcs_type.upper()} analysis to API server...[/cyan]")
         
         # requests를 사용한 동기 API 호출
         with requests.Session() as session:
@@ -192,6 +218,10 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
             console.print("[red]접근 권한이 없습니다.[/red]")
         elif status_code == 404:
             console.print("[red]API 엔드포인트를 찾을 수 없습니다.[/red]")
+        elif status_code == 422:
+            console.print("[red]요청 데이터 검증 실패. 서버와 CLI 버전을 확인해주세요.[/red]")
+            # 디버깅을 위한 요청 데이터 출력
+            console.print(f"[dim]Request data: {request_data}[/dim]")
         elif status_code >= 500:
             console.print("[red]서버 내부 오류가 발생했습니다.[/red]")
             
@@ -460,12 +490,32 @@ def validate_repository_path(repo_path: Path) -> None:
         console.print(f"[red]디렉토리가 아닙니다: {repo_path}[/red]")
         sys.exit(1)
         
-    # Git 저장소인지 확인
-    git_dir = repo_path / ".git"
-    if not git_dir.exists():
-        console.print(f"[red]Git 저장소가 아닙니다: {repo_path}[/red]")
-        console.print("[red].git 디렉토리를 찾을 수 없습니다.[/red]")
+    # VCS 저장소인지 확인 (Git 또는 SVN)
+    try:
+        from .vcs import get_analyzer
+    except ImportError:
+        from ts_cli.vcs import get_analyzer
+        
+    analyzer = get_analyzer(repo_path)
+    if not analyzer:
+        supported_types = ", ".join(["Git", "SVN"])
+        console.print(f"[red]지원되지 않는 저장소 타입입니다: {repo_path}[/red]")
+        console.print(f"[yellow]지원되는 VCS: {supported_types}[/yellow]")
+        console.print("[dim].git 또는 .svn 디렉토리가 있는지 확인해주세요.[/dim]")
         sys.exit(1)
+        
+    if not analyzer.validate_repository():
+        vcs_type = analyzer.get_vcs_type().upper()
+        console.print(f"[red]유효하지 않은 {vcs_type} 저장소입니다: {repo_path}[/red]")
+        if vcs_type == "GIT":
+            console.print("[red].git 디렉토리가 손상되었거나 올바르지 않습니다.[/red]")
+        elif vcs_type == "SVN":
+            console.print("[red].svn 디렉토리가 손상되었거나 SVN 명령어를 찾을 수 없습니다.[/red]")
+        sys.exit(1)
+        
+    # 성공적으로 검증된 경우 VCS 타입 표시
+    vcs_type = analyzer.get_vcs_type().upper()
+    console.print(f"[green]✓ {vcs_type} 저장소 확인됨: {repo_path}[/green]")
 
 
 def handle_url_protocol() -> None:

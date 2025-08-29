@@ -65,9 +65,10 @@ def test_validate_repo_path_not_git_repo(client):
     with patch('os.path.exists') as mock_exists, \
          patch('os.path.isdir') as mock_isdir:
 
-        # .git 경로만 존재하지 않는 것으로 시뮬레이션 (정규화 비교)
+        # .git과 .svn 경로 모두 존재하지 않는 것으로 시뮬레이션 (정규화 비교)
         git_dir = os.path.normpath(os.path.join("/test/repo", ".git"))
-        mock_exists.side_effect = lambda path: os.path.normpath(path) != git_dir
+        svn_dir = os.path.normpath(os.path.join("/test/repo", ".svn"))
+        mock_exists.side_effect = lambda path: os.path.normpath(path) not in [git_dir, svn_dir]
         mock_isdir.return_value = True
         
         response = client.post("/api/files/validate/repo-path", json={"repo_path": "/test/repo"})
@@ -75,7 +76,7 @@ def test_validate_repo_path_not_git_repo(client):
         assert response.status_code == 200
         data = response.json()
         assert data["valid"] is False
-        assert "Git 저장소가 아닙니다" in data["message"]
+        assert "Git 또는 SVN 저장소가 아닙니다" in data["message"]
 
 def test_validate_repo_path_empty(client):
     """빈 경로 검증 테스트"""

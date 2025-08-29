@@ -50,13 +50,19 @@ on open location this_URL
 			return
 		end try
 		
-		-- URL을 CLI 인자로 전달하여 백그라운드에서 실행
-		-- > /dev/null 2>&1 & 구문으로 터미널 창 없이 조용히 실행
-		set cli_command to quoted form of cli_path & " " & quoted form of this_URL & " > /dev/null 2>&1 &"
+				-- URL을 CLI 인자로 전달하여 백그라운드에서 실행
+		-- 터미널 환경과 유사하게 만들기 위해 환경 변수와 작업 디렉토리 설정
+		set escaped_cli_path to quoted form of cli_path
+		set escaped_url to quoted form of this_URL
+		
+		-- 백그라운드에서 실행 (간단한 환경변수 설정)
+		set user_home to POSIX path of (path to home folder)
+		set log_file to user_home & "testscenariomaker_cli_debug.log"
+		set cli_command to "export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin && export LANG=ko_KR.UTF-8 && " & escaped_cli_path & " " & escaped_url & " >> " & quoted form of log_file & " 2>&1 &"
 		
 		my log_debug("실행할 명령어: " & cli_command)
 		
-		-- CLI 실행
+		-- CLI 실행 (개선된 백그라운드 환경에서)
 		do shell script cli_command
 		
 		my log_debug("CLI 실행 완료 - 백그라운드에서 처리 중")

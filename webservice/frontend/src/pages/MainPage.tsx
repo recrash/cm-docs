@@ -56,7 +56,7 @@ export default function MainPage() {
       >
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Typography variant="body1" sx={{ fontWeight: 500 }}>
-            🚀 Git 저장소의 변경사항을 분석하여 테스트 시나리오 엑셀 파일을 자동으로 생성합니다.
+            🚀 저장소의 변경사항을 분석하여 테스트 시나리오 엑셀 파일을 자동으로 생성합니다.
           </Typography>
         </Box>
       </Alert>

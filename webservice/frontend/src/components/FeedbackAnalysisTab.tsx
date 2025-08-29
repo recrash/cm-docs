@@ -215,7 +215,7 @@ export default function FeedbackAnalysisTab() {
                   좋은 예시
                 </Typography>
                 <Typography variant="caption" display="block">
-                  ({((stats.category_distribution.good || 0) / stats.total_feedback * 100).toFixed(1)}%)
+                  ({((stats.category_distribution.good || 0) / Math.max(stats.total_feedback, 1) * 100).toFixed(1)}%)
                 </Typography>
               </Paper>
             </Grid>
@@ -229,7 +229,7 @@ export default function FeedbackAnalysisTab() {
                   개선 필요
                 </Typography>
                 <Typography variant="caption" display="block">
-                  ({((stats.category_distribution.bad || 0) / stats.total_feedback * 100).toFixed(1)}%)
+                  ({((stats.category_distribution.bad || 0) / Math.max(stats.total_feedback, 1) * 100).toFixed(1)}%)
                 </Typography>
               </Paper>
             </Grid>
@@ -237,7 +237,7 @@ export default function FeedbackAnalysisTab() {
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: 'center' }}>
                 <Typography variant="h4" color="primary">
-                  {stats.average_scores.overall?.toFixed(1) || '0.0'}
+                  {(stats.average_scores.overall ?? 0).toFixed(1)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   평균 만족도 (/5.0)
@@ -265,7 +265,7 @@ export default function FeedbackAnalysisTab() {
                     <Grid item xs={12} sm={6} md={3} key={key}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
                         <Typography variant="h6">
-                          {(score as number).toFixed(1)}/5.0
+                          {(typeof score === 'number' ? score : 0).toFixed(1)}/5.0
                         </Typography>
                         <Typography variant="caption">
                           {labels[key] || key}
