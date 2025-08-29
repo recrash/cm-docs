@@ -453,3 +453,7 @@ attachments/
 .python-version
 .ruby-version
 .node-version
+
+
+# Serena Model
+.serena/   

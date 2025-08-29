@@ -114,13 +114,13 @@ export default function ScenarioGenerationTab() {
 
   const handleGenerate = async () => {
     if (!repoPath.trim()) {
-      setError('Git 저장소 경로를 입력해주세요.')
+      setError('저장소 경로를 입력해주세요.')
       return
     }
 
     const isValid = await validateRepoPath(repoPath)
     if (!isValid) {
-      setError('유효한 Git 저장소 경로를 입력해주세요.')
+      setError('유효한 저장소 경로를 입력해주세요.')
       return
     }
 
@@ -254,10 +254,10 @@ export default function ScenarioGenerationTab() {
           
           <TextField
             fullWidth
-            label="Git 저장소 경로"
+            label="저장소 경로"
             value={repoPath}
             onChange={(e) => setRepoPath(e.target.value)}
-            placeholder="/path/to/your/git/repository"
+            placeholder="/path/to/your/repository"
             disabled={isGenerating}
             sx={{ 
               mb: 3,
@@ -268,7 +268,7 @@ export default function ScenarioGenerationTab() {
                 }
               }
             }}
-            helperText="분석할 Git 저장소의 로컬 경로를 입력하세요"
+            helperText="분석할 저장소의 로컬 경로를 입력하세요 (Git 또는 SVN 저장소 지원)"
           />
 
 
@@ -392,14 +392,14 @@ export default function ScenarioGenerationTab() {
               </Box>
               <Box sx={{ flexGrow: 1 }}>
                 <Typography variant="h5" fontWeight={700} color="primary.main">
-                  생성 진행 상황
+                  {(v2Progress.progress ?? 0) > 0 ? '생성 진행 상황' : '연결 대기 중'}
                 </Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
                   {v2Progress.message}
                 </Typography>
               </Box>
               <Chip
-                label={`${v2Progress.progress.toFixed(0)}%`}
+                label={`${(v2Progress.progress ?? 0).toFixed(0)}%`}
                 color="primary"
                 sx={{
                   fontSize: '1rem',
@@ -413,7 +413,7 @@ export default function ScenarioGenerationTab() {
             <Box sx={{ mb: 2 }}>
               <LinearProgress
                 variant="determinate"
-                value={v2Progress.progress}
+                value={v2Progress.progress ?? 0}
                 color={getProgressColor()}
                 sx={{ 
                   height: 12,

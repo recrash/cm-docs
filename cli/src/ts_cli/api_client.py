@@ -116,16 +116,21 @@ class APIClient:
         repo_path: str,
         client_id: Optional[str] = None,
         use_performance_mode: bool = True,
-        is_valid_git_repo: bool = True,
+        is_valid_repo: bool = True,
+        vcs_type: str = "git",
+        changes_text: str = "",
         progress_callback: Optional[Callable[[str, int], None]] = None,
     ) -> Dict[str, Any]:
         """
         v2 API로 시나리오 생성 요청을 전송
 
         Args:
-            repo_path: Git 저장소 경로
+            repo_path: 저장소 경로
             client_id: 클라이언트 ID (None이면 자동 생성)
             use_performance_mode: 성능 모드 사용 여부
+            is_valid_repo: 저장소 유효성 검증 결과
+            vcs_type: VCS 타입 (git 또는 svn)
+            changes_text: CLI에서 분석한 변경사항 텍스트
             progress_callback: 진행 상황 콜백 함수 (message, progress)
 
         Returns:
@@ -140,7 +145,7 @@ class APIClient:
                 import uuid
                 client_id = f"ts_cli_{uuid.uuid4().hex[:8]}"
 
-            self.logger.info(f"v2 API로 시나리오 생성 요청 시작 - client_id: {client_id}")
+            self.logger.info(f"v2 API로 시나리오 생성 요청 시작 - client_id: {client_id}, vcs_type: {vcs_type}")
 
             if progress_callback:
                 progress_callback("API 요청 준비 중...", 10)
@@ -150,7 +155,9 @@ class APIClient:
                 "client_id": client_id,
                 "repo_path": repo_path,
                 "use_performance_mode": use_performance_mode,
-                "is_valid_git_repo": is_valid_git_repo
+                "is_valid_repo": is_valid_repo,
+                "vcs_type": vcs_type,
+                "changes_text": changes_text
             }
 
             if progress_callback:

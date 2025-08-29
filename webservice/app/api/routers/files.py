@@ -180,9 +180,9 @@ async def delete_output_file(filename: str):
 
 @router.post("/validate/repo-path", response_model=RepoPathValidationResponse)
 async def validate_repo_path(request: RepoPathValidationRequest):
-    """Git 저장소 경로 유효성 검사 API"""
+    """저장소 경로 유효성 검사 API (Git 또는 SVN)"""
     
-    logger.info(f"Git 저장소 경로 유효성 검사 요청: repo_path={request.repo_path}")
+    logger.info(f"저장소 경로 유효성 검사 요청: repo_path={request.repo_path}")
     
     try:
         repo_path = request.repo_path
@@ -208,23 +208,29 @@ async def validate_repo_path(request: RepoPathValidationRequest):
                 message="디렉토리가 아닙니다."
             )
         
-        # .git 폴더 확인
+        # VCS 폴더 확인 (Git 또는 SVN)
         git_dir = os.path.join(repo_path, '.git')
-        if not os.path.exists(git_dir):
-            logger.warning(f"Git 저장소가 아님: {repo_path}")
+        svn_dir = os.path.join(repo_path, '.svn')
+        
+        if os.path.exists(git_dir):
+            vcs_type = "Git"
+        elif os.path.exists(svn_dir):
+            vcs_type = "SVN"
+        else:
+            logger.warning(f"VCS 저장소가 아님: {repo_path}")
             return RepoPathValidationResponse(
                 valid=False, 
-                message="Git 저장소가 아닙니다."
+                message="Git 또는 SVN 저장소가 아닙니다."
             )
         
-        logger.info(f"Git 저장소 경로 유효성 검사 성공: {repo_path}")
+        logger.info(f"{vcs_type} 저장소 경로 유효성 검사 성공: {repo_path}")
         return RepoPathValidationResponse(
             valid=True, 
-            message="유효한 Git 저장소입니다."
+            message=f"유효한 {vcs_type} 저장소입니다."
         )
         
     except Exception as e:
-        logger.error(f"Git 저장소 경로 유효성 검사 실패: repo_path={request.repo_path}, error={str(e)}")
+        logger.error(f"저장소 경로 유효성 검사 실패: repo_path={request.repo_path}, error={str(e)}")
         return RepoPathValidationResponse(
             valid=False, 
             message=f"경로 검사 중 오류가 발생했습니다: {str(e)}"

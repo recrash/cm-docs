@@ -35,7 +35,10 @@ class TestV2ScenarioAPI:
         return {
             "client_id": "test_client_12345",
             "repo_path": "/test/repo/path",
-            "use_performance_mode": True
+            "use_performance_mode": True,
+            "is_valid_repo": True,
+            "vcs_type": "git",
+            "changes_text": "=== Git 변경사항 ===\ntest changes content"
         }
     
     def test_generate_endpoint_success(self, client, sample_request):
@@ -67,7 +70,10 @@ class TestV2ScenarioAPI:
         invalid_request = {
             "client_id": "test_client_12345", 
             "repo_path": "/nonexistent/path",
-            "use_performance_mode": True
+            "use_performance_mode": True,
+            "is_valid_repo": False,
+            "vcs_type": "git",
+            "changes_text": "오류: 저장소를 찾을 수 없습니다"
         }
         
         # 백그라운드 작업에서 repo_path 검증 실패로 오류 발생 예상
@@ -104,7 +110,7 @@ class TestV2ScenarioAPI:
         """필수 필드 누락 테스트"""
         incomplete_request = {
             "client_id": "test_client_12345"
-            # repo_path 누락
+            # repo_path, changes_text 누락
         }
         
         response = client.post("/api/v2/scenario/generate", json=incomplete_request)
@@ -159,29 +165,41 @@ class TestV2Models:
         valid_data = {
             "client_id": "test_client_123",
             "repo_path": "/test/path",
-            "use_performance_mode": True
+            "use_performance_mode": True,
+            "is_valid_repo": True,
+            "vcs_type": "git",
+            "changes_text": "test changes"
         }
         request = V2GenerationRequest(**valid_data)
         assert request.client_id == "test_client_123"
         assert request.repo_path == "/test/path"
         assert request.use_performance_mode is True
+        assert request.is_valid_repo is True
+        assert request.vcs_type == "git"
+        assert request.changes_text == "test changes"
     
     def test_v2_generation_request_defaults(self):
         """V2GenerationRequest 기본값 테스트"""
         minimal_data = {
             "client_id": "test_client_123",
-            "repo_path": "/test/path"
+            "repo_path": "/test/path",
+            "changes_text": "test changes"
         }
         request = V2GenerationRequest(**minimal_data)
         assert request.use_performance_mode is True  # 기본값
+        assert request.is_valid_repo is True  # 기본값
+        assert request.vcs_type == "git"  # 기본값
     
     def test_v2_generation_request_missing_required_fields(self):
         """V2GenerationRequest 필수 필드 누락 테스트"""
         with pytest.raises(ValueError):
-            V2GenerationRequest(client_id="test")  # repo_path 누락
+            V2GenerationRequest(client_id="test")  # repo_path, changes_text 누락
         
         with pytest.raises(ValueError):
-            V2GenerationRequest(repo_path="/test/path")  # client_id 누락
+            V2GenerationRequest(repo_path="/test/path")  # client_id, changes_text 누락
+            
+        with pytest.raises(ValueError):
+            V2GenerationRequest(client_id="test", repo_path="/test/path")  # changes_text 누락
     
     def test_v2_generation_response_creation(self):
         """V2GenerationResponse 모델 생성 테스트"""
@@ -208,14 +226,16 @@ class TestV2BackgroundGeneration:
         request = V2GenerationRequest(
             client_id="test_flow_client",
             repo_path="/test/repo",
-            use_performance_mode=True
+            use_performance_mode=True,
+            is_valid_repo=True,
+            vcs_type="git",
+            changes_text="=== Test Git Changes ===\ntest content"
         )
         
         # 모든 의존성 모킹
         with patch('app.api.routers.v2.scenario_v2.v2_connection_manager.send_progress') as mock_send, \
              patch('pathlib.Path.exists', return_value=True), \
              patch('pathlib.Path.is_dir', return_value=True), \
-             patch('app.core.git_analyzer.get_git_analysis_text', return_value="test git analysis"), \
              patch('app.core.prompt_loader.add_git_analysis_to_rag', return_value=5), \
              patch('app.core.prompt_loader.create_final_prompt', return_value="test prompt"), \
              patch('app.core.llm_handler.call_ollama_llm', return_value="<json>{'test': 'result'}</json>"), \
@@ -236,14 +256,16 @@ class TestV2BackgroundGeneration:
         request = V2GenerationRequest(
             client_id="test_fail_client",
             repo_path="/test/repo",
-            use_performance_mode=True
+            use_performance_mode=True,
+            is_valid_repo=False,  # 실패 케이스
+            vcs_type="git",
+            changes_text=""  # 빈 분석 결과로 실패 유도
         )
         
         with patch('app.api.routers.v2.scenario_v2.v2_connection_manager.send_progress') as mock_send, \
              patch('pathlib.Path.exists', return_value=True), \
              patch('pathlib.Path.is_dir', return_value=True), \
-             patch('app.api.routers.v2.scenario_v2.load_config', return_value={"model_name": "test_model"}), \
-             patch('app.api.routers.v2.scenario_v2.get_git_analysis_text', return_value=""):  # 빈 분석 결과
+             patch('app.api.routers.v2.scenario_v2.load_config', return_value={"model_name": "test_model"}):
             
             # 생성 로직 실행 (오류 처리 확인)
             await _handle_v2_generation("test_fail_client", request)

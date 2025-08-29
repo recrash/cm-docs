@@ -136,11 +136,66 @@ class ConfigLoader:
         except Exception as e:
             logger.error(f"기본 설정 파일 생성 실패: {e}")
 
+    def _get_default_api_url(self) -> str:
+        """
+        개발/운영 환경에 따른 기본 API URL 결정
+        
+        1. localhost:8000 서버 감지 시 → http://localhost:8000
+        2. webservice/config.json의 base_url 사용 (폐쇄망 대응)
+        3. 최종 fallback → https://cm-docs.cloud
+        
+        Returns:
+            환경에 맞는 API 기본 URL
+        """
+        import socket
+        import json
+        
+        try:
+            # 1. localhost:8000 연결 테스트로 로컬 개발서버 감지
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)  # 1초 타임아웃
+            result = sock.connect_ex(('localhost', 8000))
+            sock.close()
+            
+            if result == 0:
+                logger.debug("로컬 개발서버 감지됨, localhost API 사용")
+                return "http://localhost:8000"
+            
+            # 2. webservice/config.json에서 base_url 읽기
+            try:
+                # CLI 프로젝트에서 webservice 설정 파일 경로 찾기
+                cli_root = Path(__file__).parent.parent.parent.parent
+                webservice_config = cli_root.parent / "webservice" / "config.json"
+                
+                if webservice_config.exists():
+                    with open(webservice_config, 'r', encoding='utf-8') as f:
+                        webservice_data = json.load(f)
+                        base_url = webservice_data.get('base_url')
+                        if base_url:
+                            logger.debug(f"webservice 설정에서 base_url 사용: {base_url}")
+                            return base_url
+                            
+            except Exception as e:
+                logger.debug(f"webservice 설정 읽기 실패: {e}")
+            
+            # 3. 최종 fallback
+            logger.debug("fallback으로 운영 서버 사용")
+            return "https://cm-docs.cloud"
+                
+        except Exception as e:
+            logger.debug(f"서버 감지 실패, fallback 사용: {e}")
+            return "https://cm-docs.cloud"
+
     def _load_default_values(self) -> None:
         """기본 설정 값 로드"""
+        # 환경 기반 API URL 결정
+        # 개발환경(로컬): localhost 감지 시 로컬 서버 사용
+        # 운영환경: 기본값으로 운영 서버 사용
+        default_base_url = self._get_default_api_url()
+        
         # API 설정
         self.config["api"] = {
-            "base_url": "https://cm-docs.cloud",
+            "base_url": default_base_url,
             "timeout": "30",
             "max_retries": "3",
             "retry_delay": "1.0",

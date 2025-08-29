@@ -9,6 +9,7 @@ from typing import Optional
 
 from .base_analyzer import RepositoryAnalyzer
 from .git_analyzer import GitAnalyzer
+from .svn_analyzer import SVNAnalyzer
 
 
 def get_analyzer(path: Path) -> Optional[RepositoryAnalyzer]:
@@ -29,9 +30,12 @@ def get_analyzer(path: Path) -> Optional[RepositoryAnalyzer]:
     if git_dir.exists():
         return GitAnalyzer(path)
 
+    # SVN 저장소 확인
+    svn_dir = path / ".svn"
+    if svn_dir.exists():
+        return SVNAnalyzer(path)
+
     # 향후 다른 VCS 지원 추가 가능
-    # if (path / ".svn").exists():
-    #     return SVNAnalyzer(path)
     # if (path / ".hg").exists():
     #     return MercurialAnalyzer(path)
 
@@ -45,7 +49,7 @@ def get_supported_vcs_types() -> list[str]:
     Returns:
         지원하는 VCS 타입 문자열 리스트
     """
-    return ["git"]
+    return ["git", "svn"]
 
 
 __all__ = [
@@ -53,4 +57,5 @@ __all__ = [
     "get_supported_vcs_types",
     "RepositoryAnalyzer",
     "GitAnalyzer",
+    "SVNAnalyzer",
 ]

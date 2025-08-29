@@ -81,7 +81,16 @@ export class V2ProgressWebSocket {
 
       this.ws.onmessage = (event) => {
         try {
-          const data: V2ProgressMessage = JSON.parse(event.data)
+          // 먼저 raw 메시지가 pong 응답인지 확인
+          const rawMessage = event.data.trim()
+          
+          // JSON pong 응답 처리 (서버에서 {"type":"pong","timestamp":...} 형태로 전송)
+          if (rawMessage.startsWith('{"type":"pong"')) {
+            console.debug(`🏓 v2 pong 응답 수신: ${this.clientId}`, rawMessage)
+            return // pong 메시지는 여기서 처리 완료
+          }
+          
+          const data: V2ProgressMessage = JSON.parse(rawMessage)
           
           // Context7 FastAPI WebSocket RPC 패턴: keepalive 및 연결 관리 메시지 필터링
           const isSystemMessage = data.details?.type === 'ping' || 
@@ -105,6 +114,7 @@ export class V2ProgressWebSocket {
             switch (data.status) {
               case V2GenerationStatus.ERROR:
                 this.callbacks.onError(data.message)
+                this.disconnect() // 오류 시 연결 종료
                 break
                 
               case V2GenerationStatus.COMPLETED:
@@ -112,6 +122,7 @@ export class V2ProgressWebSocket {
                   this.callbacks.onComplete(data.result)
                 }
                 this.callbacks.onProgress(data)
+                this.disconnect() // 완료 시 연결 종료
                 break
                 
               default:
@@ -208,7 +219,7 @@ export function generateClientId(): string {
 export function getV2StatusMessage(status: V2GenerationStatus): string {
   const statusMessages: Record<V2GenerationStatus, string> = {
     [V2GenerationStatus.RECEIVED]: '요청을 수신했습니다.',
-    [V2GenerationStatus.ANALYZING_GIT]: 'Git 변경 내역을 분석 중입니다...',
+    [V2GenerationStatus.ANALYZING_GIT]: '저장소 변경 내역을 분석 중입니다...',
     [V2GenerationStatus.STORING_RAG]: '분석 결과를 RAG 시스템에 저장 중입니다...',
     [V2GenerationStatus.CALLING_LLM]: 'LLM을 호출하여 시나리오를 생성 중입니다...',
     [V2GenerationStatus.PARSING_RESPONSE]: 'LLM 응답을 파싱 중입니다...',
