@@ -275,12 +275,19 @@ class CLIHandler:
             async def run_v2_generation():
                 client_id = None
                 
-                # Git 저장소 유효성 검증 (로컬에서)
+                # 저장소 유효성 검증 (로컬에서)
                 analyzer = self._validate_repository(repo_path)
                 if not analyzer:
                     return None
                     
-                is_valid_git_repo = analyzer.validate_repository()
+                is_valid_repo = analyzer.validate_repository()
+                vcs_type = analyzer.get_vcs_type()  # VCS 타입 정보 추출
+                
+                # CLI에서 변경사항 분석 수행 (중복 분석 방지)
+                changes_text = analyzer.get_changes()
+                if not changes_text:
+                    self.console.print("[yellow]변경사항이 없어 시나리오 생성을 건너뜁니다.[/yellow]")
+                    return None
                 
                 with Progress(
                     SpinnerColumn(),
@@ -299,7 +306,9 @@ class CLIHandler:
                     response = await self.api_client.send_analysis_v2(
                         repo_path=str(repo_path.resolve()),
                         use_performance_mode=True,
-                        is_valid_git_repo=is_valid_git_repo,
+                        is_valid_repo=is_valid_repo,
+                        vcs_type=vcs_type,  # VCS 타입 전달
+                        changes_text=changes_text,  # 분석 결과 전달
                         progress_callback=api_progress_callback,
                     )
                     

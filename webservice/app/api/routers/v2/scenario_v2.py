@@ -59,27 +59,36 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         await send_progress(V2GenerationStatus.RECEIVED, "요청을 수신했습니다.", 5)
         await asyncio.sleep(0.5)
 
-        # 2. Git 저장소 유효성 검증 (CLI에서 전달받은 결과 사용)
-        if not request.is_valid_git_repo:
-            raise ValueError(f"CLI에서 검증한 결과, 유효하지 않은 Git 저장소입니다: {request.repo_path}")
+        # 2. 저장소 유효성 검증 (CLI에서 전달받은 결과 사용)
+        if not request.is_valid_repo:
+            raise ValueError(f"CLI에서 검증한 결과, 유효하지 않은 {request.vcs_type.upper()} 저장소입니다: {request.repo_path}")
         
         # 3. 설정 로드
         config = load_config()
         if not config:
             raise ValueError("설정 파일을 로드할 수 없습니다.")
 
-        # 4. Git 분석
-        await send_progress(V2GenerationStatus.ANALYZING_GIT, "Git 변경 내역을 분석 중입니다...", 15)
-        await asyncio.sleep(1)
-        git_analysis = get_git_analysis_text(request.repo_path)
+        # 4. CLI에서 전달받은 분석 결과 사용 (중복 분석 방지)
+        vcs_type = request.vcs_type.lower()
+        if vcs_type == "git":
+            await send_progress(V2GenerationStatus.ANALYZING_GIT, "CLI에서 분석한 Git 변경 내역을 처리 중입니다...", 15)
+        elif vcs_type == "svn":
+            await send_progress(V2GenerationStatus.ANALYZING_GIT, "CLI에서 분석한 SVN 변경 내역을 처리 중입니다...", 15)
+        else:
+            raise ValueError(f"지원되지 않는 VCS 타입입니다: {vcs_type}")
+            
+        await asyncio.sleep(0.5)
         
-        if not git_analysis:
-            raise ValueError("Git 분석 결과를 얻을 수 없습니다.")
+        # CLI에서 전달받은 분석 결과 사용
+        vcs_analysis = request.changes_text
+        
+        if not vcs_analysis or vcs_analysis.startswith("오류:"):
+            raise ValueError(f"{vcs_type.upper()} 분석 결과가 유효하지 않습니다: {vcs_analysis}")
 
         # 5. RAG 저장
         await send_progress(V2GenerationStatus.STORING_RAG, "분석 결과를 RAG 시스템에 저장 중입니다...", 25)
         await asyncio.sleep(1)
-        added_chunks = add_git_analysis_to_rag(git_analysis, request.repo_path)
+        added_chunks = add_git_analysis_to_rag(vcs_analysis, request.repo_path)
 
         # 6. LLM 호출
         await send_progress(V2GenerationStatus.CALLING_LLM, "LLM을 호출하여 시나리오를 생성 중입니다...", 40, {
@@ -91,7 +100,7 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         timeout = config.get("timeout", 600)
 
         final_prompt = create_final_prompt(
-            git_analysis,
+            vcs_analysis,
             use_rag=True,
             use_feedback_enhancement=True,
             performance_mode=request.use_performance_mode
@@ -139,7 +148,7 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(call_llm_sync)
                 
-                # LLM 완료까지 대기 (heartbeat과 함께)
+                # LLM 완료까지 대기 (heartbeat와 함께)
                 while not future.done():
                     await asyncio.sleep(1)
                 
@@ -209,7 +218,7 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
             result=result_data.model_dump()
         )
 
-        logger.info(f"클라이언트 {client_id}의 시나리오 생성 완료: {filename}")
+        logger.info(f"클라이언트 {client_id}의 시나리오 생성 완료: {filename} (VCS: {vcs_type})")
 
     except Exception as e:
         logger.exception(f"클라이언트 {client_id}의 시나리오 생성 중 오류 발생")
@@ -241,7 +250,7 @@ async def generate_scenario_v2(request: V2GenerationRequest, background_tasks: B
         즉시 응답과 WebSocket URL 제공
     """
     try:
-        logger.info(f"v2 시나리오 생성 요청 수신: client_id={request.client_id}, repo_path={request.repo_path}, git_valid={request.is_valid_git_repo}")
+        logger.info(f"v2 시나리오 생성 요청 수신: client_id={request.client_id}, repo_path={request.repo_path}, vcs_type={request.vcs_type}, repo_valid={request.is_valid_repo}")
         
         # 이미 진행 중인 작업인지 확인
         if request.client_id in active_generations:
@@ -291,7 +300,7 @@ async def generate_scenario_v2(request: V2GenerationRequest, background_tasks: B
             websocket_url=websocket_url
         )
 
-        logger.info(f"v2 생성 작업 시작됨: {request.client_id}")
+        logger.info(f"v2 생성 작업 시작됨: {request.client_id} (VCS: {request.vcs_type})")
         return response
 
     except HTTPException:

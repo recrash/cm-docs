@@ -392,7 +392,7 @@ export default function ScenarioGenerationTab() {
               </Box>
               <Box sx={{ flexGrow: 1 }}>
                 <Typography variant="h5" fontWeight={700} color="primary.main">
-                  생성 진행 상황
+                  {(v2Progress.progress ?? 0) > 0 ? '생성 진행 상황' : '연결 대기 중'}
                 </Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
                   {v2Progress.message}

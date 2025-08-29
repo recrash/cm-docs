@@ -132,6 +132,9 @@ def get_git_analysis_text(repo_path: str, base_branch: str = 'origin/develop', h
     except Exception as e:
         return f"{GIT_ERROR_PREFIX}{e}"
 
+
+
+
 # 테스트 및 개발용 직접 실행
 if __name__ == "__main__":
     import sys
