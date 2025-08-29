@@ -6,6 +6,7 @@ v2 WebSocket 진행 상황 관리 시스템
 import logging
 import json
 import asyncio
+import time
 from fastapi import WebSocket, WebSocketDisconnect
 from typing import Dict, Optional
 from pathlib import Path
@@ -169,10 +170,10 @@ async def handle_v2_websocket(websocket: WebSocket, client_id: str):
                 data = await websocket.receive_text()
                 logger.debug(f"클라이언트 메시지 수신 {client_id}: {data}")
                 
-                # ping 메시지에 대한 pong 응답 (표준 패턴)
+                # ping 메시지에 대한 JSON 응답 (프론트엔드 호환)
                 if data.strip().lower() == 'ping':
-                    await websocket.send_text('pong')
-                    logger.debug(f"클라이언트 ping에 pong 응답: {client_id}")
+                    await websocket.send_text('{"type":"pong","timestamp":' + str(time.time()) + '}')
+                    logger.debug(f"클라이언트 ping에 JSON pong 응답: {client_id}")
                     continue
                     
             except WebSocketDisconnect:
