@@ -284,9 +284,24 @@ class CLIHandler:
                 vcs_type = analyzer.get_vcs_type()  # VCS 타입 정보 추출
                 
                 # CLI에서 변경사항 분석 수행 (중복 분석 방지)
+                print(f"🔍 DEBUG: {vcs_type.upper()} 저장소에서 변경사항 분석 시작...")
                 changes_text = analyzer.get_changes()
-                if not changes_text:
-                    self.console.print("[yellow]변경사항이 없어 시나리오 생성을 건너뜁니다.[/yellow]")
+                
+                # 디버깅: 분석 결과 확인
+                print(f"📊 DEBUG: {vcs_type.upper()} 분석 결과")
+                print(f"   - 길이: {len(changes_text) if changes_text else 0}")
+                print(f"   - 타입: {type(changes_text)}")
+                print(f"   - 내용 미리보기: {repr(changes_text[:200]) if changes_text else 'None'}")
+                
+                if vcs_type.lower() == "svn":
+                    self.logger.info(f"SVN 분석 결과 - 길이: {len(changes_text) if changes_text else 0}, 타입: {type(changes_text)}, 내용: {repr(changes_text[:200]) if changes_text else 'None'}")
+                
+                if not changes_text or changes_text.strip() == "변경사항이 없습니다. Working Directory가 HEAD와 동일합니다.":
+                    vcs_type = analyzer.get_vcs_type()
+                    if vcs_type.lower() == "svn":
+                        self.console.print("[yellow]SVN Working Directory에 변경사항이 없어 시나리오 생성을 건너뜁니다.[/yellow]")
+                    else:
+                        self.console.print("[yellow]변경사항이 없어 시나리오 생성을 건너뜁니다.[/yellow]")
                     return None
                 
                 with Progress(

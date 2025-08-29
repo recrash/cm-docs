@@ -50,14 +50,18 @@ on open location this_URL
 			return
 		end try
 		
-		-- URL을 CLI 인자로 전달하여 백그라운드에서 실행
-		-- > /dev/null 2>&1 & 구문으로 터미널 창 없이 조용히 실행
-		set cli_command to quoted form of cli_path & " " & quoted form of this_URL & " > /dev/null 2>&1 &"
+		-- URL을 CLI 인자로 전달하여 터미널에서 실행 (디버깅 모드)
+		-- 터미널 창을 열어서 디버깅 출력을 볼 수 있게 함
+		-- URL을 따옴표로 감싸서 zsh 파싱 오류 방지
+		-- CLI 경로와 URL을 모두 이스케이프
+		set escaped_cli_path to quoted form of cli_path
+        set escaped_url to quoted form of this_URL
+        set cli_command to "tell application \"Terminal\" to do script \"" & escaped_cli_path & " " & escaped_url & "\""
 		
 		my log_debug("실행할 명령어: " & cli_command)
 		
-		-- CLI 실행
-		do shell script cli_command
+		-- CLI 실행 (터미널에서)
+		run script cli_command
 		
 		my log_debug("CLI 실행 완료 - 백그라운드에서 처리 중")
 		
