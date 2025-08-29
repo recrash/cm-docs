@@ -399,7 +399,7 @@ export default function ScenarioGenerationTab() {
                 </Typography>
               </Box>
               <Chip
-                label={`${v2Progress.progress.toFixed(0)}%`}
+                label={`${(v2Progress.progress ?? 0).toFixed(0)}%`}
                 color="primary"
                 sx={{
                   fontSize: '1rem',
@@ -413,7 +413,7 @@ export default function ScenarioGenerationTab() {
             <Box sx={{ mb: 2 }}>
               <LinearProgress
                 variant="determinate"
-                value={v2Progress.progress}
+                value={v2Progress.progress ?? 0}
                 color={getProgressColor()}
                 sx={{ 
                   height: 12,
