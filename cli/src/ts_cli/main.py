@@ -485,12 +485,32 @@ def validate_repository_path(repo_path: Path) -> None:
         console.print(f"[red]디렉토리가 아닙니다: {repo_path}[/red]")
         sys.exit(1)
         
-    # Git 저장소인지 확인
-    git_dir = repo_path / ".git"
-    if not git_dir.exists():
-        console.print(f"[red]Git 저장소가 아닙니다: {repo_path}[/red]")
-        console.print("[red].git 디렉토리를 찾을 수 없습니다.[/red]")
+    # VCS 저장소인지 확인 (Git 또는 SVN)
+    try:
+        from .vcs import get_analyzer
+    except ImportError:
+        from ts_cli.vcs import get_analyzer
+        
+    analyzer = get_analyzer(repo_path)
+    if not analyzer:
+        supported_types = ", ".join(["Git", "SVN"])
+        console.print(f"[red]지원되지 않는 저장소 타입입니다: {repo_path}[/red]")
+        console.print(f"[yellow]지원되는 VCS: {supported_types}[/yellow]")
+        console.print("[dim].git 또는 .svn 디렉토리가 있는지 확인해주세요.[/dim]")
         sys.exit(1)
+        
+    if not analyzer.validate_repository():
+        vcs_type = analyzer.get_vcs_type().upper()
+        console.print(f"[red]유효하지 않은 {vcs_type} 저장소입니다: {repo_path}[/red]")
+        if vcs_type == "GIT":
+            console.print("[red].git 디렉토리가 손상되었거나 올바르지 않습니다.[/red]")
+        elif vcs_type == "SVN":
+            console.print("[red].svn 디렉토리가 손상되었거나 SVN 명령어를 찾을 수 없습니다.[/red]")
+        sys.exit(1)
+        
+    # 성공적으로 검증된 경우 VCS 타입 표시
+    vcs_type = analyzer.get_vcs_type().upper()
+    console.print(f"[green]✓ {vcs_type} 저장소 확인됨: {repo_path}[/green]")
 
 
 def handle_url_protocol() -> None:
