@@ -83,6 +83,7 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         vcs_analysis = request.changes_text
         
         if not vcs_analysis or vcs_analysis.startswith("오류:"):
+            logger.error(f"SVN 분석 데이터 유효성 검사 실패 - VCS타입: {vcs_type}, 데이터: {vcs_analysis[:200]}..." if vcs_analysis else "None")
             raise ValueError(f"{vcs_type.upper()} 분석 결과가 유효하지 않습니다: {vcs_analysis}")
 
         # 5. RAG 저장
@@ -222,12 +223,14 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
 
     except Exception as e:
         logger.exception(f"클라이언트 {client_id}의 시나리오 생성 중 오류 발생")
+        logger.error(f"SVN 오류 세부사항 - VCS타입: {request.vcs_type}, 저장소경로: {request.repo_path}, 분석데이터크기: {len(request.changes_text) if request.changes_text else 0}")
+        logger.error(f"오류 타입: {type(e).__name__}, 오류 메시지: {str(e)}")
         
         error_msg = V2ProgressMessage(
             client_id=client_id,
             status=V2GenerationStatus.ERROR,
             message=f"시나리오 생성 중 오류가 발생했습니다: {str(e)}",
-            progress=0
+            progress=50  # 오류 발생 시 중간 진행률로 설정 (0%로 돌아가지 않도록)
         )
         await v2_connection_manager.send_progress(client_id, error_msg)
     

@@ -131,8 +131,13 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
             console.print("[dim]Git 브랜치 비교: origin/develop → HEAD[/dim]")
         elif vcs_type.lower() == "svn":
             # SVN: Working Directory vs HEAD 비교 (브랜치 파라미터 무시됨)
-            changes_data = analyzer.get_changes()
-            console.print("[dim]SVN Working Directory vs HEAD 비교[/dim]")
+            try:
+                changes_data = analyzer.get_changes()
+                console.print("[dim]SVN Working Directory vs HEAD 비교[/dim]")
+            except Exception as e:
+                console.print(f"[red]SVN 분석 중 오류 발생: {str(e)}[/red]")
+                console.print("[yellow]SVN 명령어가 설치되었는지 확인해주세요.[/yellow]")
+                return False
         else:
             console.print(f"[red]지원되지 않는 VCS 타입입니다: {vcs_type}[/red]")
             return False
