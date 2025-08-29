@@ -1,15 +1,16 @@
 # TestscenarioMaker 모노레포
 
-Git 저장소 변경사항을 분석하여 한국어 테스트 시나리오를 자동 생성하는 AI 기반 통합 솔루션
+Git/SVN 저장소 변경사항을 분석하여 한국어 테스트 시나리오를 자동 생성하는 AI 기반 통합 솔루션
 
 ## 🌟 프로젝트 개요
 
-이 모노레포는 TestscenarioMaker 생태계의 두 가지 주요 컴포넌트를 통합합니다:
+이 모노레포는 TestscenarioMaker 생태계의 세 가지 주요 컴포넌트를 통합합니다:
 
 - **Webservice (웹 서비스)**: Pseudo-MSA 아키텍처 기반의 풀스택 웹 애플리케이션
-- **CLI (명령줄 도구)**: 브라우저 통합 및 URL 프로토콜을 지원하는 크로스플랫폼 CLI 도구
+- **CLI (명령줄 도구)**: Git/SVN 저장소를 지원하는 크로스플랫폼 CLI 도구
+- **AutoDoc Service**: HTML 기반 문서 자동화 서비스
 
-두 프로젝트는 독립적으로 개발되고 배포되지만, 공통된 목표를 가지고 상호 보완적으로 작동합니다.
+세 프로젝트는 독립적으로 개발되고 배포되지만, **다중 VCS 지원**과 **AI 기반 분석**이라는 공통된 목표를 가지고 상호 보완적으로 작동합니다.
 
 ## 📁 프로젝트 구조
 
@@ -60,10 +61,13 @@ cm-docs/
 ### 주요 기능
 
 #### 🧠 AI 기반 시나리오 생성
-- Git 커밋 메시지 및 코드 diff 자동 분석
+- **다중 VCS 지원**: Git 및 SVN 저장소 모두 완전 지원
+- **자동 저장소 감지**: Git/SVN 저장소 타입 자동 인식 및 분석
+- 커밋 메시지 및 코드 diff 자동 분석 (Git 브랜치, SVN 리비전)
 - Ollama qwen3 모델을 활용한 지능형 시나리오 생성
 - 표준화된 Excel 템플릿 기반 테스트 시나리오 출력
 - WebSocket 기반 실시간 생성 진행상황 표시
+- **강화된 JSON 파싱**: LLM 응답 다중 형식 지원 (`<json>` 태그, ````json` 블록)
 
 #### 🔍 RAG(검색 증강 생성) 시스템
 - ChromaDB를 활용한 벡터 기반 문서 검색
@@ -147,15 +151,18 @@ npm run test:all
 
 ### 기술 스택
 - **코어**: Python 3.8+ + Click + Rich
+- **VCS 지원**: GitPython (Git), subprocess (SVN)
 - **네트워킹**: httpx + tenacity (재시도 로직)
 - **빌드**: PyInstaller (크로스플랫폼 실행파일)
 - **테스팅**: pytest (단위/통합/E2E)
 
 ### 주요 기능
 
-#### 🔧 로컬 저장소 분석
-- Git 저장소 변경사항 자동 분석
-- 브랜치 간 차이점 비교 (기본: origin/develop → HEAD)
+#### 🔧 다중 VCS 저장소 분석
+- **Git 저장소**: 브랜치 간 차이점 비교 (기본: origin/develop → HEAD), 커밋 히스토리 분석
+- **SVN 저장소**: 리비전 기반 변경사항 분석, 작업 복사본 상태 검사
+- **자동 감지**: `.git` 또는 `.svn` 디렉토리 자동 탐지로 저장소 타입 결정
+- **크로스 플랫폼**: Windows, macOS, Linux 모든 환경에서 일관된 동작
 - 작업 중인 변경사항 포함 분석
 
 #### 🌐 브라우저 통합
@@ -188,8 +195,8 @@ source .venv/bin/activate
 # 개발 모드 설치
 pip install -e .
 
-# CLI 실행
-ts-cli analyze /path/to/repository
+# CLI 실행 (Git 또는 SVN 저장소 모두 지원)
+ts-cli analyze /path/to/git-or-svn-repository
 ```
 
 #### 빌드
@@ -478,9 +485,10 @@ server {
 
 ### 성능 기준
 - **Webservice API**: 응답시간 <200ms, WebSocket 연결 <1초, RAG 초기화 <25초 (Python 3.12)
-- **CLI**: 저장소 분석 <30초, URL 프로토콜 처리 <5초 (Python 3.13)
+- **CLI**: Git/SVN 저장소 분석 <30초, URL 프로토콜 처리 <5초 (Python 3.13)
 - **AutoDoc Service**: HTML 파싱 <1초, Word 생성 <3초, Excel 생성 <2초 (Python 3.12)
 - **빌드**: 전체 빌드 시간 <10분
+- **VCS 호환성**: Git 및 SVN 저장소 모두에서 일관된 성능 보장
 
 ## 🤝 기여 가이드라인
 
@@ -496,7 +504,8 @@ server {
 ### 이슈 및 PR
 - 서브프로젝트별로 라벨링: `webservice`, `cli`, `autodoc_service`, `monorepo`
 - 독립적인 Python 환경 및 CI/CD 파이프라인 고려사항 명시
-- 크로스플랫폼 호환성 검증 필수
+- 크로스플랫폼 호환성 검증 필수 (Windows, macOS, Linux)
+- **VCS 호환성 테스트**: Git 및 SVN 저장소 모두에서 동작 확인
 - MSA 원칙 준수: 서비스별 독립성 보장
 
 ## 📝 라이선스
@@ -512,4 +521,4 @@ MIT License - 각 서브프로젝트의 라이선스 파일 참조
 
 ---
 
-각 서브프로젝트는 독립적으로 개발되고 배포되며, 이 모노레포는 통합된 이슈 트래킹과 개발 환경을 제공합니다.
+각 서브프로젝트는 독립적으로 개발되고 배포되며, **Git 및 SVN 저장소 모두를 지원**하는 통합된 이슈 트래킹과 개발 환경을 제공합니다.
