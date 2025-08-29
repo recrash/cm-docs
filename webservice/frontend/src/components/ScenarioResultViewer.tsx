@@ -24,8 +24,9 @@ interface ScenarioResultViewerProps {
 }
 
 export default function ScenarioResultViewer({ result, onFeedback }: ScenarioResultViewerProps) {
-  // 텍스트에서 \n을 실제 줄바꿈으로 변환
-  const formatText = (text: string) => {
+  // 텍스트에서 \n을 실제 줄바꿈으로 변환 (안전한 처리)
+  const formatText = (text: string | null | undefined) => {
+    if (!text) return ''
     return text.replace(/\\n/g, '\n')
   }
 
