@@ -177,8 +177,14 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         })
         await asyncio.sleep(0.5)
         
+        # SVN 디버깅을 위한 LLM 응답 로깅
+        logger.error(f"[SVN DEBUG] LLM Raw Response (first 500 chars): {raw_response[:500]}")
+        logger.error(f"[SVN DEBUG] Final prompt (last 300 chars): {final_prompt[-300:]}")
+        
         json_match = re.search(r'<json>(.*?)</json>', raw_response, re.DOTALL)
         if not json_match:
+            # SVN 디버깅: 전체 응답 로깅
+            logger.error(f"[SVN DEBUG] Full LLM Response: {raw_response}")
             raise ValueError("LLM 응답에서 JSON 블록을 찾을 수 없습니다.")
 
         result_json = json.loads(json_match.group(1).strip())
