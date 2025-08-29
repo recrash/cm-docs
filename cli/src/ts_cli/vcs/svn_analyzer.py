@@ -105,7 +105,7 @@ class SVNAnalyzer(RepositoryAnalyzer):
             return full_changes
 
         except subprocess.CalledProcessError as e:
-            error_msg = f"SVN 명령어 실행 실패: {e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)}"
+            error_msg = f"SVN 명령어 실행 실패: {e.stderr if e.stderr else str(e)}"
             logger.error(error_msg)
             raise RepositoryError(error_msg, self.repo_path)
         
@@ -223,7 +223,7 @@ class SVNAnalyzer(RepositoryAnalyzer):
         
         except subprocess.CalledProcessError as e:
             # SVN 명령어가 설치되지 않은 경우 특별 처리
-            stderr_msg = e.stderr.decode('utf-8', errors='ignore') if e.stderr else ""
+            stderr_msg = e.stderr if e.stderr else ""
             if "not found" in str(e) or "command not found" in stderr_msg:
                 error_msg = (
                     "SVN 명령어가 설치되지 않았습니다. "
@@ -236,7 +236,7 @@ class SVNAnalyzer(RepositoryAnalyzer):
                 raise RepositoryError(error_msg, self.repo_path)
             
             # 기타 SVN 오류
-            stderr_msg = e.stderr.decode('utf-8', errors='ignore') if e.stderr else "알 수 없는 오류"
+            stderr_msg = e.stderr if e.stderr else "알 수 없는 오류"
             error_msg = f"SVN 명령어 실행 실패: {stderr_msg}"
             logger.error(error_msg)
             raise RepositoryError(error_msg, self.repo_path)
