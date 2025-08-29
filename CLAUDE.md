@@ -142,6 +142,17 @@ cd webservice/frontend && npm run build               # Production build
 - Test requires ~60 second wait time
 - V2 uses structured message format with status enums (analyzing_git, generating_scenarios, etc.)
 
+### JSON Parsing & Error Handling
+**LLM Response Format Support**:
+- Primary: `<json>...</json>` XML-style tags (as specified in prompt)
+- Fallback: ````json ... ``` markdown code blocks (actual LLM behavior)
+- Both formats supported via dual regex patterns in `scenario_v2.py`
+
+**Frontend Safety Patterns**:
+- All text processing functions handle null/undefined values
+- `formatText()` function includes defensive null checks
+- Test case field rendering protected against missing data
+
 ### Webservice-Specific Guidelines
 - **명확한 명령이나 지시가 있기 전까지는 기존 기능 삭제 금지**
 - 프론트엔드 코드를 수정 할 때는 ESlint 정의를 확인하고, 수정을 한 다음에는 Typescript 컴파일 에러를 확인할 것
@@ -207,11 +218,17 @@ ts-cli version                               # Version information
 - **URL Protocol**: `testscenariomaker://` handler
 - **macOS Helper**: AppleScript-based helper bypasses sandbox
 
-### CLI Commands
+### CLI Commands & VCS Support
 - `ts-cli analyze`: Main analysis with branch comparison
 - `ts-cli info <path>`: Show repository information
 - `ts-cli config-show`: Display configuration
 - `ts-cli version`: Version information
+
+**VCS Support**:
+- **Git repositories**: Full support with branch comparison and commit analysis
+- **SVN repositories**: Full support with revision analysis and change detection
+- **Auto-detection**: CLI automatically detects repository type (Git vs SVN)
+- **Cross-platform paths**: Uses `pathlib.Path` for Windows/macOS/Linux compatibility
 
 ## AutoDoc Service Development
 
@@ -379,11 +396,46 @@ logger.info("서비스 시작...")
 - **URL Protocol Handler**: macOS requires helper app for `testscenariomaker://` URLs
 - **Cross-platform Paths**: Always use `pathlib.Path`, convert to string for subprocess
 
+### SVN-Specific Debugging Patterns
+- **JSON Parsing Issues**: LLM responses may use ````json` blocks instead of `<json>` tags
+- **Repository Detection**: SVN repositories detected via `.svn` directory presence
+- **Path Handling**: SVN working copies require absolute paths for analysis
+- **Revision Analysis**: SVN uses revision numbers instead of commit hashes
+- **Frontend Error Recovery**: Null/undefined values in test case fields cause JavaScript errors
+
+## VCS Repository Support
+
+### Supported Version Control Systems
+- **Git**: Full support with branch comparison, commit history analysis, and diff generation
+- **SVN**: Full support with revision analysis, change detection, and path handling
+- **Auto-Detection**: Repository type automatically detected via `.git` or `.svn` directories
+
+### VCS-Specific Implementation Details
+**Git Integration** (`git_analyzer.py`):
+- Uses GitPython library for repository operations
+- Supports branch comparison (default: `origin/develop` → `HEAD`)
+- Extracts commit messages and code diffs between commits
+- Handles merge base detection for accurate comparisons
+
+**SVN Integration** (`cli/src/ts_cli/vcs/svn_analyzer.py`):
+- Uses subprocess calls to `svn` command-line client
+- Analyzes working copy changes and committed revisions
+- Supports path-based change detection and diff generation
+- Handles SVN-specific revision numbering system
+
+### Cross-Platform Path Considerations
+- Always use `pathlib.Path` for cross-platform compatibility
+- Convert `Path` objects to strings when passing to subprocess calls
+- SVN working copies require absolute paths for reliable analysis
+- Git repositories work with both relative and absolute paths
+
 ## Notes
 
 - **Python Versions**: 3.13 default, 3.12 for AutoDoc (document stability)
+- **VCS Support**: Both Git and SVN repositories fully supported with auto-detection
 - **Path Management**: Always use pathlib.Path, convert to string for subprocess
 - **Korean Content**: All user-facing text in Korean
 - **E2E Testing**: Mandatory for webservice functionality verification
 - **NSSM Services**: Windows service management for production deployment
 - **Unicode Logging**: No emojis in logs for Windows compatibility
+- **JSON Parsing**: Dual format support for LLM responses (XML tags + markdown blocks)
