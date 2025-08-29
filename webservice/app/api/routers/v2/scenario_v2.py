@@ -181,7 +181,12 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         logger.error(f"[SVN DEBUG] LLM Raw Response (first 500 chars): {raw_response[:500]}")
         logger.error(f"[SVN DEBUG] Final prompt (last 300 chars): {final_prompt[-300:]}")
         
+        # <json> 태그 또는 ```json 코드 블록 모두 지원
         json_match = re.search(r'<json>(.*?)</json>', raw_response, re.DOTALL)
+        if not json_match:
+            # markdown 스타일 ```json 블록도 시도
+            json_match = re.search(r'```json\s*(.*?)\s*```', raw_response, re.DOTALL)
+        
         if not json_match:
             # SVN 디버깅: 전체 응답 로깅
             logger.error(f"[SVN DEBUG] Full LLM Response: {raw_response}")
