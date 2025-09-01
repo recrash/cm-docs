@@ -9,6 +9,13 @@ pipeline {
         WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'
         BACKUP_ROOT = 'C:\\deploys\\backup'
         
+        // 테스트 인스턴스 환경 (브랜치별)
+        DEPLOY_ROOT = 'C:\\deploys\\tests'
+        PY_PATH = '%LOCALAPPDATA%\\Programs\\Python\\Python312\\python.exe'
+        NSSM_PATH = 'nssm'
+        NGINX_PATH = 'C:\\nginx\\nginx.exe'
+        NGINX_CONF_DIR = 'C:\\nginx\\conf\\conf.d'
+        
         // 프로젝트 경로
         WEBSERVICE_PATH = "${CM_DOCS_ROOT}\\webservice"
         AUTODOC_PATH = "${CM_DOCS_ROOT}\\autodoc_service"
@@ -47,6 +54,19 @@ pipeline {
         ANONYMIZED_TELEMETRY = 'False'
     }
     
+    // 브랜치별 테스트 인스턴스 유틸 함수
+    @NonCPS
+    def sanitizeId(String s) {
+        return s.replaceAll('[^A-Za-z0-9-]', '-').toLowerCase()
+    }
+    
+    @NonCPS
+    def pickPort(String b, int base, int span) {
+        def c = new java.util.zip.CRC32()
+        c.update(b.getBytes('UTF-8'))
+        return (int)(base + (c.getValue() % span))
+    }
+    
     stages {
         stage('소스코드 체크아웃 및 변경 감지') {
             steps {
@@ -83,6 +103,35 @@ pipeline {
                     
                     변경된 파일들:
                     ${changedFiles.join('\n')}
+                    ===========================================
+                    """
+                }
+            }
+        }
+        
+        stage('Branch Detect') {
+            steps {
+                script {
+                    env.IS_TEST = (env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/')) ? 'true' : 'false'
+                    env.BID = sanitizeId(env.BRANCH_NAME)
+                    env.BACK_PORT = pickPort(env.BRANCH_NAME, 8100, 200).toString()
+                    env.AUTO_PORT = pickPort(env.BRANCH_NAME, 8500, 200).toString()
+
+                    env.WEB_BACK_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\webservice\\backend"
+                    env.WEB_FRONT_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\webservice\\frontend"
+                    env.AUTO_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\autodoc"
+                    env.URL_PREFIX = "/tests/${env.BID}/"
+                    
+                    echo """
+                    ===========================================
+                    🔧 브랜치 설정
+                    ===========================================
+                    • 브랜치: ${env.BRANCH_NAME}
+                    • 테스트 인스턴스: ${env.IS_TEST}
+                    • BID: ${env.BID}
+                    • Backend Port: ${env.BACK_PORT}
+                    • AutoDoc Port: ${env.AUTO_PORT}
+                    • URL Prefix: ${env.URL_PREFIX}
                     ===========================================
                     """
                 }
@@ -439,6 +488,42 @@ pipeline {
                     
                     echo "==========================================="
                 }
+            }
+        }
+        
+        stage('🧪 Deploy Test Instance') {
+            when { 
+                expression { env.IS_TEST == 'true' } 
+            }
+            steps {
+                powershell '''
+                    $ErrorActionPreference = "Stop"
+                    ./scripts/deploy_test_env.ps1 `
+                        -Bid "${env:BID}" `
+                        -BackPort ${env:BACK_PORT} `
+                        -AutoPort ${env:AUTO_PORT} `
+                        -Py "${env:PY_PATH}" `
+                        -Nssm "${env:NSSM_PATH}" `
+                        -Nginx "${env:NGINX_PATH}" `
+                        -NginxConfDir "${env:NGINX_CONF_DIR}" `
+                        -WebSrc "$env:WORKSPACE\\webservice" `
+                        -AutoSrc "$env:WORKSPACE\\autodoc_service" `
+                        -WebBackDst "${env:WEB_BACK_DST}" `
+                        -WebFrontDst "${env:WEB_FRONT_DST}" `
+                        -AutoDst "${env:AUTO_DST}" `
+                        -UrlPrefix "${env:URL_PREFIX}"
+                '''
+                echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
+            }
+        }
+        
+        stage('🚀 Deploy Develop') {
+            when { 
+                branch 'develop' 
+            }
+            steps {
+                echo 'Deploying develop to the shared dev environment...'
+                // 기존 배포 스크립트/하위 잡 호출 유지
             }
         }
         
