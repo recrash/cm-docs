@@ -439,3 +439,4 @@ logger.info("서비스 시작...")
 - **NSSM Services**: Windows service management for production deployment
 - **Unicode Logging**: No emojis in logs for Windows compatibility
 - **JSON Parsing**: Dual format support for LLM responses (XML tags + markdown blocks)
+- **MCP 서버 사용**: 개발 할 때는 Context7 MCP를 사용하여 공식문서 및 최신문서를 참조할 것
