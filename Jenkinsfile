@@ -135,7 +135,7 @@ pipeline {
                         script {
                             try {
                                 echo "AutoDoc Service 빌드/배포 시작"
-                                build job: 'autodoc-service-pipeline', 
+                                build job: 'autodoc_service-pipeline', 
                                       parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
                                 
                                 env.AUTODOC_DEPLOY_STATUS = 'SUCCESS'
