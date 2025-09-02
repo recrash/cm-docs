@@ -208,6 +208,9 @@ pipeline {
                                             bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -r requirements-dev.txt\""
                                         }
                                         
+                                        // CLI 패키지 editable install (테스트 실행을 위해 필요)
+                                        bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -e .\""
+                                        
                                         echo "CLI 환경 구축 완료"
                                     }
                                     
