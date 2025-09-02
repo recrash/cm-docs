@@ -139,10 +139,6 @@ pipeline {
         }
         
         stage('🚀 1단계: 독립 서비스 병렬 빌드') {
-            when {
-                expression { env.BRANCH_NAME == 'develop' }
-            }
-
             parallel {
                 stage('🔧 AutoDoc Service CI/CD') {
                     when {
@@ -224,9 +220,6 @@ pipeline {
         
         stage('🎨 2단계: Webservice Frontend CI/CD') {
             when {
-                expression { env.BRANCH_NAME == 'develop' }
-            }
-
                 allOf {
                     expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
                     expression { env.CRITICAL_FAILURE == 'false' }  // Backend 성공 시에만 실행
@@ -264,8 +257,6 @@ pipeline {
             parallel {
                 stage('E2E 테스트') {
                     when {
-                        expression { env.BRANCH_NAME == 'develop' }
-                    }
                         allOf {
                             expression { env.WEBSERVICE_CHANGED == 'true' }
                             expression { env.WEBSERVICE_BACKEND_STATUS == 'SUCCESS' }
@@ -296,9 +287,6 @@ pipeline {
                 }
                 
                 stage('서비스 간 통신 테스트') {
-                    when {
-                        expression { env.BRANCH_NAME == 'develop' }
-                    }
                     steps {
                         script {
                             try {
@@ -381,10 +369,6 @@ pipeline {
         }
         
         stage('🚀 4단계: 스마트 배포 완료') {
-            when {
-                expression { env.BRANCH_NAME == 'develop' }
-            }
-
             steps {
                 script {
                     // 배포 상태 종합 분석
@@ -528,10 +512,6 @@ pipeline {
         }
         
         stage('🔍 배포 상태 확인') {
-            when {
-                expression { env.BRANCH_NAME == 'develop' }
-            }
-
             steps {
                 script {
                     echo "최종 배포 상태 확인 중..."
