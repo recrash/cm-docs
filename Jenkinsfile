@@ -190,7 +190,7 @@ pipeline {
                                         
                                         // 기존 가상환경 완전 삭제 후 새로 생성
                                         bat 'if exist ".venv" rmdir /s /q ".venv"'
-                                        bat '"%LOCALAPPDATA%\Programs\Python\Launcher\py.exe" -3.13 -m venv .venv'
+                                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
                                         
                                         // 휠하우스 활용 고속 설치
                                         def wheelHouseExists = bat(
