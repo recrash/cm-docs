@@ -52,20 +52,7 @@ pipeline {
         
         // 기타 설정
         ANONYMIZED_TELEMETRY = 'False'
-    }
-    
-    // 브랜치별 테스트 인스턴스 유틸 함수
-    @NonCPS
-    def sanitizeId(String s) {
-        return s.replaceAll('[^A-Za-z0-9-]', '-').toLowerCase()
-    }
-    
-    @NonCPS
-    def pickPort(String b, int base, int span) {
-        def c = new java.util.zip.CRC32()
-        c.update(b.getBytes('UTF-8'))
-        return (int)(base + (c.getValue() % span))
-    }
+    }        
     
     stages {
         stage('소스코드 체크아웃 및 변경 감지') {
@@ -667,4 +654,17 @@ pipeline {
             echo "워크스페이스 정리 완료 (폐쇄망 환경 고려)"
         }
     }
+}
+
+// 브랜치별 테스트 인스턴스 유틸 함수
+@NonCPS
+def sanitizeId(String s) {
+    return s.replaceAll('[^A-Za-z0-9-]', '-').toLowerCase()
+}
+
+@NonCPS
+def pickPort(String b, int base, int span) {
+    def c = new java.util.zip.CRC32()
+    c.update(b.getBytes('UTF-8'))
+    return (int)(base + (c.getValue() % span))
 }
