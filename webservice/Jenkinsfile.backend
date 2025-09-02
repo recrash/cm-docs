@@ -3,6 +3,7 @@ pipeline {
     agent any
     environment {
         // Jenkins Workspace (빌드/테스트용)
+        // 테스트용 주석입니다.
         WORKSPACE_PYTHON_CMD = "${WORKSPACE}\\webservice\\.venv\\Scripts\\python.exe"
         WORKSPACE_PIP_CMD = "${WORKSPACE}\\webservice\\.venv\\Scripts\\pip.exe"
         
