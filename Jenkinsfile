@@ -199,13 +199,13 @@ pipeline {
                                         ).contains('found')
                                         
                                         if (wheelHouseExists) {
-                                            echo "휠하우스 발견 - 오프라인 고속 설치 모드"
+                                            echo "휠하우스 발견 - 오프라인 고속 설치 모드 (CI용 개발 의존성 포함)"
                                             bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
-                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements.txt\""
+                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements-dev.txt\""
                                         } else {
-                                            echo "휠하우스 없음 - 온라인 설치"
+                                            echo "휠하우스 없음 - 온라인 설치 (CI용 개발 의존성 포함)"
                                             bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
-                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -r requirements.txt\""
+                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -r requirements-dev.txt\""
                                         }
                                         
                                         echo "CLI 환경 구축 완료"
