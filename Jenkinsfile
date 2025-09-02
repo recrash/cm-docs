@@ -184,10 +184,35 @@ pipeline {
                             try {
                                 echo "CLI 빌드/패키징 시작"
                                 
-                                dir("${env.CLI_PATH}") {
-                                    // CLI는 서비스 배포가 아닌 빌드만 실행
-                                    bat 'powershell -Command "& .\\.venv\\Scripts\\python.exe -m pytest --cov=ts_cli --cov-report=html"'
-                                    bat 'powershell -Command "& .\\.venv\\Scripts\\python.exe scripts/build.py"'
+                                dir("${WORKSPACE}/cli") {
+                                    script {
+                                        echo "CLI Python 환경 구축 (Python 3.13 + wheelhouse)"
+                                        
+                                        // Python 3.13 가상환경 생성
+                                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
+                                        
+                                        // 휠하우스 활용 고속 설치
+                                        def wheelHouseExists = bat(
+                                            script: "if exist \"${env.WHEELHOUSE_PATH}\\*.whl\" echo found",
+                                            returnStdout: true
+                                        ).contains('found')
+                                        
+                                        if (wheelHouseExists) {
+                                            echo "휠하우스 발견 - 오프라인 고속 설치 모드"
+                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements.txt\""
+                                        } else {
+                                            echo "휠하우스 없음 - 온라인 설치"
+                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -r requirements.txt\""
+                                        }
+                                        
+                                        echo "CLI 환경 구축 완료"
+                                    }
+                                    
+                                    // CLI 테스트 및 빌드 실행
+                                    bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pytest --cov=ts_cli --cov-report=html\""
+                                    bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' scripts/build.py\""
                                 }
                                 
                                 env.CLI_BUILD_STATUS = 'SUCCESS'

@@ -42,14 +42,14 @@ pipeline {
                         // 휠하우스 활용 고속 설치
                         script {
                             def wheelHouseExists = bat(
-                                script: 'if exist "C:\\deploys\\packages\\wheelhouse\\*.whl" echo found',
+                                script: 'if exist "${env.WHEELHOUSE_PATH}\\*.whl" echo found',
                                 returnStdout: true
                             ).contains('found')
                             
                             if (wheelHouseExists) {
                                 echo "휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)"
                                 bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=C:/deploys/packages/wheelhouse -r requirements.txt -c pip.constraints.txt\""
+                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements.txt -c pip.constraints.txt\""
                             } else {
                                 echo "휠하우스 없음 - 온라인 설치 (PyTorch CUDA 포함)"
                                 bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
@@ -221,9 +221,9 @@ pipeline {
                             Write-Host "초고속 설치 시작: \$(\$deployWhl.Name)"
                             
                             # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
-                            if (Test-Path "C:\\deploys\\packages\\wheelhouse\\*.whl") {
+                            if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
                                 Write-Host "휠하우스 발견 - 오프라인 초고속 설치 (webservice 패키지만 강제 재설치)"
-                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=C:/deploys/packages/wheelhouse --force-reinstall --no-deps
+                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --force-reinstall --no-deps
                             } else {
                                 Write-Host "휠하우스 없음 - webservice 패키지만 강제 재설치"
                                 & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --force-reinstall --no-deps
@@ -341,15 +341,15 @@ pipeline {
                 =========================================
                 폐쇄망 환경 배포 가이드 (휠하우스 활용):
                 
-                1. C:\\deploys\\packages\\wheelhouse\\ 에 의존성 준비
+                1. ${env.WHEELHOUSE_PATH}\\ 에 의존성 준비
                 2. 환경변수 설정: set WEBSERVICE_DATA_PATH=C:\\deploys\\data\\webservice
                 3. 가상환경 생성: py -3.12 -m venv .venv
                 4. 가상환경 활성화: .venv\\Scripts\\activate
-                5. 오프라인 설치: pip install --no-index --find-links=C:/deploys/packages/wheelhouse webservice-*.whl
+                5. 오프라인 설치: pip install --no-index --find-links=${env.WHEELHOUSE_PATH} webservice-*.whl
                 
                 휠하우스 준비 (CUDA 포함):
                 - pip download --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements.txt -c pip.constraints.txt -d wheelhouse
-                - wheelhouse 내용을 C:\\deploys\\packages\\wheelhouse\\ 로 복사
+                - wheelhouse 내용을 ${env.WHEELHOUSE_PATH}\\ 로 복사
                 - 이후 모든 배포는 인터넷 없이 초고속 진행 (PyTorch CUDA 포함)
                 =========================================
                 """

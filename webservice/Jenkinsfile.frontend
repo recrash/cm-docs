@@ -52,10 +52,10 @@ pipeline {
                         if (packageChanged) {
                             echo "패키지 파일 변경 감지됨 - 의존성 업데이트 실행 (폐쇄망 모드)"
                             // 캐시 디렉토리 생성
-                            bat "if not exist \"${env.WORKSPACE_CACHE_DIR}\" mkdir \"${env.WORKSPACE_CACHE_DIR}\""
+                            bat "if not exist \"C:\deploys\packages\npm-cache\" mkdir \"C:\deploys\packages\npm-cache\""
                             // 폐쇄망 환경: 오프라인 우선 시도, 실패 시 경고만 출력
                             def installResult = bat(
-                                script: "npm ci --cache \"${env.WORKSPACE_CACHE_DIR}\" --offline",
+                                script: "npm ci --cache \"C:\deploys\packages\npm-cache\" ",
                                 returnStatus: true
                             )
                             if (installResult != 0) {

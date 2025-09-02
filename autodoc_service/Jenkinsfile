@@ -46,7 +46,7 @@ pipeline {
                             if (wheelHouseExists) {
                                 echo "휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)"
                                 bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=C:/deploys/packages/wheelhouse -r requirements.txt\""
+                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements.txt\""
                             } else {
                                 echo "휠하우스 없음 - 온라인 설치 (느림)"
                                 bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
@@ -242,7 +242,7 @@ pipeline {
                                 # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
                                 if (Test-Path "C:\\deploys\\packages\\wheelhouse\\*.whl") {
                                     Write-Host "휠하우스 발견 - 오프라인 초고속 설치"
-                                    & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=C:/deploys/packages/wheelhouse --upgrade
+                                    & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --upgrade
                                 } else {
                                     Write-Host "휠하우스 없음 - 기본 업그레이드 설치"
                                     & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --upgrade
@@ -411,7 +411,7 @@ pipeline {
                 2. 환경변수 설정: set AUTODOC_DATA_PATH=C:\\deploys\\data\\autodoc_service
                 3. 가상환경 생성: py -3.12 -m venv .venv312
                 4. 가상환경 활성화: .venv312\\Scripts\\activate
-                5. 오프라인 설치: pip install --no-index --find-links=C:/deploys/packages/wheelhouse autodoc_service-*.whl
+                5. 오프라인 설치: pip install --no-index --find-links=${env.WHEELHOUSE_PATH} autodoc_service-*.whl
                 
                 휠하우스 준비:
                 - download-all-dependencies.sh 실행 → wheelhouse 폴더 생성
