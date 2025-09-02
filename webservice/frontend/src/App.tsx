@@ -9,7 +9,7 @@ function App() {
   return (
     <ThemeProvider theme={customTheme}>
       <CssBaseline />
-      <Router>
+      <Router basename={import.meta.env.BASE_URL}>
         <Box sx={{ flexGrow: 1, minHeight: '100vh', backgroundColor: 'background.default' }}>
           <AppBar 
             position="static" 
