@@ -492,9 +492,9 @@ pipeline {
                 expression { env.IS_TEST == 'true' } 
             }
             steps {
-                powershell '''
-                    $ErrorActionPreference = "Stop"
-                    ./scripts/deploy_test_env.ps1 `
+                bat '''
+                    chcp 65001
+                    powershell -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $ErrorActionPreference = 'Stop'; ./scripts/deploy_test_env.ps1 `
                         -Bid "${env:BID}" `
                         -BackPort ${env:BACK_PORT} `
                         -AutoPort ${env:AUTO_PORT} `
@@ -507,7 +507,7 @@ pipeline {
                         -WebBackDst "${env:WEB_BACK_DST}" `
                         -WebFrontDst "${env:WEB_FRONT_DST}" `
                         -AutoDst "${env:AUTO_DST}" `
-                        -UrlPrefix "${env:URL_PREFIX}"
+                        -UrlPrefix \"${env:URL_PREFIX}\""
                 '''
                 echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
             }
