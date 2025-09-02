@@ -32,15 +32,31 @@ try {
     # 1. 백엔드/autodoc 파일 배치
     Write-Host "📦 1단계: 백엔드 및 AutoDoc 파일 배치 중..."
     
-    New-Item -ItemType Directory -Force -Path $WebBackDst, $AutoDst | Out-Null
-    Write-Host "디렉토리 생성 완료: $WebBackDst, $AutoDst"
+    # 테스트 인스턴스용 데이터 경로 생성 (먼저 생성)
+    $TestWebDataPath = "$WebBackDst\..\..\data\webservice"
+    $TestAutoDataPath = "$AutoDst\..\data\autodoc_service"
     
-    # 백엔드 파일 복사 (app 디렉토리만)
+    New-Item -ItemType Directory -Force -Path $WebBackDst, $AutoDst, $TestWebDataPath, $TestAutoDataPath | Out-Null
+    Write-Host "디렉토리 생성 완료: $WebBackDst, $AutoDst"
+    Write-Host "테스트 데이터 디렉토리 생성 완료: $TestWebDataPath, $TestAutoDataPath"
+    
+    # 백엔드 파일 복사 (app 디렉토리, config 파일 포함)
     Copy-Item -Recurse -Force "$WebSrc\app" "$WebBackDst\app"
     Copy-Item -Force "$WebSrc\main.py" "$WebBackDst\main.py"
     Copy-Item -Force "$WebSrc\requirements.txt" "$WebBackDst\requirements.txt"
     if (Test-Path "$WebSrc\pip.constraints.txt") {
         Copy-Item -Force "$WebSrc\pip.constraints.txt" "$WebBackDst\pip.constraints.txt"
+    }
+    
+    # 테스트 인스턴스용 config 파일을 데이터 경로에 복사
+    if (Test-Path "$WebSrc\config.test.json") {
+        Copy-Item -Force "$WebSrc\config.test.json" "$TestWebDataPath\config.json"
+        Write-Host "테스트용 config 파일 복사 완료: $TestWebDataPath\config.json"
+    } elseif (Test-Path "$WebSrc\config.json") {
+        Copy-Item -Force "$WebSrc\config.json" "$TestWebDataPath\config.json"
+        Write-Host "기본 config 파일 복사 완료: $TestWebDataPath\config.json"
+    } else {
+        Write-Warning "config 파일을 찾을 수 없습니다"
     }
     Write-Host "백엔드 파일 복사 완료"
     
@@ -48,18 +64,50 @@ try {
     Copy-Item -Recurse -Force "$AutoSrc\*" $AutoDst
     Write-Host "AutoDoc 파일 복사 완료"
     
-    # 가상환경 및 의존성 설치 준비 (주석으로 가이드 제공)
-    <#
-    # 필요 시 아래 코드 활성화하여 독립적인 가상환경 생성
+    # 2. 가상환경 및 의존성 설치 (휠하우스 활용)
+    Write-Host "`n📦 2단계: 가상환경 및 의존성 설치 중..."
+    
+    # 공유 휠하우스 경로
+    $WheelhousePath = "C:\deploys\packages\wheelhouse"
+    
+    # 웹서비스 가상환경 생성 및 의존성 설치
+    Write-Host "웹서비스 가상환경 설정 중..."
     & $Py -m venv "$WebBackDst\.venv"
-    & "$WebBackDst\.venv\Scripts\pip.exe" install -r "$WebBackDst\requirements.txt"
     
+    if (Test-Path "$WheelhousePath\*.whl") {
+        Write-Host "휠하우스 발견 - 오프라인 고속 설치"
+        $ConstraintFile = "$WebBackDst\pip.constraints.txt"
+        if (Test-Path $ConstraintFile) {
+            & "$WebBackDst\.venv\Scripts\pip.exe" install -r "$WebBackDst\requirements.txt" -c $ConstraintFile --no-index --find-links="$WheelhousePath"
+        } else {
+            & "$WebBackDst\.venv\Scripts\pip.exe" install -r "$WebBackDst\requirements.txt" --no-index --find-links="$WheelhousePath"
+        }
+    } else {
+        Write-Host "휠하우스 없음 - 온라인 설치"
+        $ConstraintFile = "$WebBackDst\pip.constraints.txt"
+        if (Test-Path $ConstraintFile) {
+            & "$WebBackDst\.venv\Scripts\pip.exe" install -r "$WebBackDst\requirements.txt" -c $ConstraintFile
+        } else {
+            & "$WebBackDst\.venv\Scripts\pip.exe" install -r "$WebBackDst\requirements.txt"
+        }
+    }
+    Write-Host "웹서비스 의존성 설치 완료"
+    
+    # AutoDoc 가상환경 생성 및 의존성 설치
+    Write-Host "AutoDoc 가상환경 설정 중..."
     & $Py -m venv "$AutoDst\.venv312"
-    & "$AutoDst\.venv312\Scripts\pip.exe" install -r "$AutoDst\requirements.txt"
-    #>
     
-    # 2. 프론트엔드 빌드 (Vite 기본)
-    Write-Host "`n🎨 2단계: 프론트엔드 빌드 중..."
+    if (Test-Path "$WheelhousePath\*.whl") {
+        Write-Host "휠하우스 발견 - 오프라인 고속 설치"
+        & "$AutoDst\.venv312\Scripts\pip.exe" install -r "$AutoDst\requirements.txt" --no-index --find-links="$WheelhousePath"
+    } else {
+        Write-Host "휠하우스 없음 - 온라인 설치"
+        & "$AutoDst\.venv312\Scripts\pip.exe" install -r "$AutoDst\requirements.txt"
+    }
+    Write-Host "AutoDoc 의존성 설치 완료"
+    
+    # 3. 프론트엔드 빌드 (Vite 기본)
+    Write-Host "`n🎨 3단계: 프론트엔드 빌드 중..."
     
     Push-Location "$WebSrc\frontend"
     try {
@@ -90,8 +138,8 @@ try {
         throw "프론트엔드 빌드 결과가 없습니다: dist 폴더를 찾을 수 없음"
     }
     
-    # 3. NSSM 서비스 등록/재시작
-    Write-Host "`n⚙️ 3단계: NSSM 서비스 등록 중..."
+    # 4. NSSM 서비스 등록/재시작
+    Write-Host "`n⚙️ 4단계: NSSM 서비스 등록 중..."
     
     # 기존 서비스 정리 (에러 무시)
     & $Nssm stop "cm-web-$Bid" 2>$null
@@ -109,6 +157,9 @@ try {
     & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
     & $Nssm set "cm-web-$Bid" AppStdout "$LogDir\web-$Bid.out.log"
     & $Nssm set "cm-web-$Bid" AppStderr "$LogDir\web-$Bid.err.log"
+    
+    # 테스트 인스턴스용 환경변수 설정
+    & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
     & $Nssm restart "cm-web-$Bid"
     Write-Host "웹서비스 백엔드 서비스 시작 완료 (Port: $BackPort)"
     
@@ -118,11 +169,14 @@ try {
     & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
     & $Nssm set "cm-autodoc-$Bid" AppStdout "$AutoDst\..\logs\autodoc-$Bid.out.log"
     & $Nssm set "cm-autodoc-$Bid" AppStderr "$AutoDst\..\logs\autodoc-$Bid.err.log"
+    
+    # 테스트 인스턴스용 환경변수 설정
+    & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
     & $Nssm restart "cm-autodoc-$Bid"
     Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
     
-    # 4. Nginx location 파일 생성 + reload
-    Write-Host "`n🌐 4단계: Nginx 설정 적용 중..."
+    # 5. Nginx location 파일 생성 + reload
+    Write-Host "`n🌐 5단계: Nginx 설정 적용 중..."
     
     $templatePath = "$PSScriptRoot\..\infra\nginx\tests.template.conf"
     if (-not (Test-Path $templatePath)) {
@@ -140,8 +194,8 @@ try {
     & $Nginx -s reload
     Write-Host "Nginx 리로드 완료"
     
-    # 5. 서비스 시작 확인
-    Write-Host "`n✅ 5단계: 서비스 시작 확인 중..."
+    # 6. 서비스 시작 확인
+    Write-Host "`n✅ 6단계: 서비스 시작 확인 중..."
     Start-Sleep -Seconds 5
     
     $webStatus = & $Nssm status "cm-web-$Bid"

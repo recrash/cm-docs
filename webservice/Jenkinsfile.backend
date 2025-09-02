@@ -165,6 +165,12 @@ pipeline {
         }
         
         stage('Deploy') {
+            when { 
+                anyOf {
+                    branch 'main'
+                    branch 'develop'  
+                }
+            }
             steps {
                 script {
                     try {
