@@ -1,6 +1,9 @@
 // webservice/Jenkinsfile.backend
 pipeline {
     agent any
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to build')
+    }
     environment {
         // Jenkins Workspace (빌드/테스트용)
         // 테스트용 주석입니다.
@@ -24,8 +27,12 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
-                echo "소스코드 체크아웃 완료"
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "${params.BRANCH}"]],
+                    userRemoteConfigs: [[url: 'https://github.com/recrash/cm-docs.git', credentialsId: 'cmdocs']]
+                ])
+                echo "소스코드 체크아웃 완료 - 브랜치: ${params.BRANCH}"
             }
         }
         
