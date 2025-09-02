@@ -43,12 +43,10 @@ for SERVICE_INFO in "${SERVICES[@]}"; do
     IFS=':' read -r SERVICE_DIR VENV_DIR <<< "$SERVICE_INFO"
     SERVICE_PATH="$PROJECT_ROOT/$SERVICE_DIR"
     REQ_FILE="$SERVICE_PATH/requirements.txt"
+    REQ_DEV_FILE="$SERVICE_PATH/requirements-dev.txt"
     VENV_PATH="$SERVICE_PATH/$VENV_DIR"
     
     if [ -f "$REQ_FILE" ] && [ -d "$VENV_PATH" ]; then
-        # ✨ 제약 조건 파일 경로를 동적으로 확인
-        CONSTRAINT_FILE="$SERVICE_PATH/pip.constraints.txt"
-        
         # 가상환경의 pip 경로
         if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
             PIP_PATH="$VENV_PATH/Scripts/pip"
@@ -56,18 +54,28 @@ for SERVICE_INFO in "${SERVICES[@]}"; do
             PIP_PATH="$VENV_PATH/bin/pip"
         fi
         
+        # ✨ 제약 조건 파일 경로를 동적으로 확인
+        CONSTRAINT_FILE="$SERVICE_PATH/pip.constraints.txt"
+        
+        # 운영 의존성 다운로드
         PIP_COMMAND="\"$PIP_PATH\" download -r \"$REQ_FILE\" -d \"$WHEELHOUSE_DIR\" --prefer-binary"
-
-        # ✨ 제약 조건 파일이 존재하면 명령어에 추가
         if [ -f "$CONSTRAINT_FILE" ]; then
             echo "    - '$REQ_FILE' 파일의 의존성을 제약 조건('-c')을 포함하여 다운로드합니다."
             PIP_COMMAND+=" -c \"$CONSTRAINT_FILE\""
         else
             echo "    - '$REQ_FILE' 파일의 의존성을 다운로드합니다."
         fi
-        
-        # 명령어 실행
         eval $PIP_COMMAND
+        
+        # 개발 의존성 다운로드 (requirements-dev.txt가 있는 경우)
+        if [ -f "$REQ_DEV_FILE" ]; then
+            echo "    - '$REQ_DEV_FILE' 파일의 개발 의존성을 다운로드합니다."
+            DEV_PIP_COMMAND="\"$PIP_PATH\" download -r \"$REQ_DEV_FILE\" -d \"$WHEELHOUSE_DIR\" --prefer-binary"
+            if [ -f "$CONSTRAINT_FILE" ]; then
+                DEV_PIP_COMMAND+=" -c \"$CONSTRAINT_FILE\""
+            fi
+            eval $DEV_PIP_COMMAND
+        fi
     else
         if [ ! -f "$REQ_FILE" ]; then
             echo -e "    - ${YELLOW}경고: '$REQ_FILE' 파일을 찾을 수 없습니다.${NC}"

@@ -31,22 +31,33 @@ Write-Host "🚀 모든 Python 의존성 .whl 파일을 수확합니다..." -For
 foreach ($service in $Services) {
     $servicePath = Join-Path $ProjectRoot $service.Dir
     $reqFile = Join-Path $servicePath "requirements.txt"
+    $reqDevFile = Join-Path $servicePath "requirements-dev.txt"
     $venvPath = Join-Path $servicePath $service.VenvDir
     
     if ((Test-Path $reqFile) -and (Test-Path $venvPath)) {
-        # ✨ 제약 조건 파일 경로를 동적으로 확인
-        $constraintFile = Join-Path $servicePath "pip.constraints.txt"
-        
         # 가상환경의 pip 경로
         $pipPath = Join-Path $venvPath "Scripts\pip.exe"
         
-        # ✨ 제약 조건 파일이 존재하면 명령어에 추가
+        # ✨ 제약 조건 파일 경로를 동적으로 확인
+        $constraintFile = Join-Path $servicePath "pip.constraints.txt"
+        
+        # 운영 의존성 다운로드
         if (Test-Path $constraintFile) {
             Write-Host "    - '$reqFile' 파일의 의존성을 제약 조건('-c')을 포함하여 다운로드합니다."
             & $pipPath download -r $reqFile -d $WheelhouseDir --prefer-binary -c $constraintFile
         } else {
             Write-Host "    - '$reqFile' 파일의 의존성을 다운로드합니다."
             & $pipPath download -r $reqFile -d $WheelhouseDir --prefer-binary
+        }
+        
+        # 개발 의존성 다운로드 (requirements-dev.txt가 있는 경우)
+        if (Test-Path $reqDevFile) {
+            Write-Host "    - '$reqDevFile' 파일의 개발 의존성을 다운로드합니다."
+            if (Test-Path $constraintFile) {
+                & $pipPath download -r $reqDevFile -d $WheelhouseDir --prefer-binary -c $constraintFile
+            } else {
+                & $pipPath download -r $reqDevFile -d $WheelhouseDir --prefer-binary
+            }
         }
     } else {
         if (-not (Test-Path $reqFile)) {
