@@ -664,7 +664,8 @@ def sanitizeId(String s) {
 
 @NonCPS
 def pickPort(String b, int base, int span) {
-    def c = new java.util.zip.CRC32()
-    c.update(b.getBytes('UTF-8'))
-    return (int)(base + (c.getValue() % span))
+    // Jenkins 보안 정책으로 CRC32 사용 불가, 간단한 해시 대체
+    int hash = b.hashCode()
+    if (hash < 0) hash = -hash  // 음수 처리
+    return (int)(base + (hash % span))
 }
