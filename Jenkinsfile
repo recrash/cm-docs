@@ -200,23 +200,23 @@ pipeline {
                                         
                                         if (wheelHouseExists) {
                                             echo "휠하우스 발견 - 오프라인 고속 설치 모드 (CI용 개발 의존성 포함)"
-                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
-                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements-dev.txt\""
+                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements-dev.txt\""
                                         } else {
                                             echo "휠하우스 없음 - 온라인 설치 (CI용 개발 의존성 포함)"
-                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
-                                            bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -r requirements-dev.txt\""
+                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -r requirements-dev.txt\""
                                         }
                                         
                                         // CLI 패키지 editable install (테스트 실행을 위해 필요)
-                                        bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -e .\""
+                                        bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -e .\""
                                         
                                         echo "CLI 환경 구축 완료"
                                     }
                                     
                                     // CLI 테스트 및 빌드 실행
-                                    bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pytest --cov=ts_cli --cov-report=html\""
-                                    bat "powershell -Command \"& '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' scripts/build.py\""
+                                    bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pytest --cov=ts_cli --cov-report=html\""
+                                    bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' scripts/build.py\""
                                 }
                                 
                                 env.CLI_BUILD_STATUS = 'SUCCESS'
@@ -498,7 +498,7 @@ pipeline {
             steps {
                 bat '''
                     chcp 65001
-                    powershell -ExecutionPolicy Bypass -InputFormat None -OutputFormat Text -File scripts/deploy_test_env.ps1 -Bid "%BID%" -BackPort %BACK_PORT% -AutoPort %AUTO_PORT% -Py "%PY_PATH%" -Nssm "%NSSM_PATH%" -Nginx "%NGINX_PATH%" -NginxConfDir "%NGINX_CONF_DIR%" -WebSrc "%WORKSPACE%\\webservice" -AutoSrc "%WORKSPACE%\\autodoc_service" -WebBackDst "%WEB_BACK_DST%" -WebFrontDst "%WEB_FRONT_DST%" -AutoDst "%AUTO_DST%" -UrlPrefix "%URL_PREFIX%"
+                    powershell -ExecutionPolicy Bypass -InputFormat None -OutputFormat Text -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & scripts/deploy_test_env.ps1 -Bid '%BID%' -BackPort %BACK_PORT% -AutoPort %AUTO_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -NginxConfDir '%NGINX_CONF_DIR%' -WebSrc '%WORKSPACE%\\webservice' -AutoSrc '%WORKSPACE%\\autodoc_service' -WebBackDst '%WEB_BACK_DST%' -WebFrontDst '%WEB_FRONT_DST%' -AutoDst '%AUTO_DST%' -UrlPrefix '%URL_PREFIX%'"
                 '''
                 echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
             }
