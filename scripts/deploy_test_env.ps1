@@ -236,10 +236,11 @@ try {
             Write-Warning "  -> 서비스 중지/제거 중 오류 발생 (무시하고 계속): $($_.Exception.Message)"
         }
 
-        # 최종 확인: 서비스가 정말로 제거되었는지 확인
+        # 최종 확인: 서비스가 정말로 제거되었는지 확인 (개선된 로직)
         $finalStatus = & $Nssm status $webServiceName 2>$null
-        if ($finalStatus) {
-            throw "오류: 기존 서비스 '$webServiceName'을 제거하지 못했습니다. Jenkins 서버에서 수동으로 서비스를 제거한 후 다시 시도해주세요."
+        # $finalStatus에 값이 있고(non-empty), 그 내용에 "SERVICE_" 문자열이 포함된 경우에만 서비스가 존재하는 것으로 간주
+        if ($finalStatus -and $finalStatus.Contains("SERVICE_")) {
+            throw "오류: 기존 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $finalStatus). 수동으로 제거 후 다시 시도해주세요."
         }
         Write-Host "  -> 서비스 제거 최종 확인 완료."
     } else {
@@ -264,9 +265,11 @@ try {
         }
         
         # 최종 확인
-        $finalAutodocStatus = & $Nssm status $autodocServiceName 2>$null
-        if ($finalAutodocStatus) {
-            throw "오류: 기존 서비스 '$autodocServiceName'을 제거하지 못했습니다. 수동으로 제거 후 다시 시도하세요."
+        # 최종 확인: 서비스가 정말로 제거되었는지 확인 (개선된 로직)
+        $finalStatus = & $Nssm status $autodocServiceName 2>$null
+        # $finalStatus에 값이 있고(non-empty), 그 내용에 "SERVICE_" 문자열이 포함된 경우에만 서비스가 존재하는 것으로 간주
+        if ($finalStatus -and $finalStatus.Contains("SERVICE_")) {
+            throw "오류: 기존 서비스 '$autodocServiceName'을 제거하지 못했습니다 (상태: $finalStatus). 수동으로 제거 후 다시 시도해주세요."
         }
         Write-Host "  -> 서비스 제거 최종 확인 완료."
     } else {
