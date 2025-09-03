@@ -278,7 +278,7 @@ class TestCLIHandler:
     @patch("ts_cli.cli_handler.CLIHandler._validate_repository")
     @patch("ts_cli.cli_handler.CLIHandler._analyze_changes")
     @patch("ts_cli.cli_handler.CLIHandler._send_to_api_v2")
-    @patch("ts_cli.cli_handler.CLIHandler._display_final_result")
+    @patch("ts_cli.cli_handler.CLIHandler._display_final_result_v2")
     def test_analyze_repository_full_success(
         self,
         mock_display,

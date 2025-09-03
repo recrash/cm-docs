@@ -5,6 +5,7 @@ rich>=13.0.0
 
 # HTTP 클라이언트
 httpx>=0.24.0
+requests>=2.25.0
 tenacity>=8.0.0
 websockets>=11.0.0
 
