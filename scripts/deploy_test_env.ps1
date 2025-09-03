@@ -327,40 +327,50 @@ try {
     & $Nssm start "cm-autodoc-$Bid"
     Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
     
-    # 6. Nginx 설정
+    # 6. Nginx 설정 (Include 방식: Upstream + Location 분리)
     Write-Host "`n단계 6: Nginx 설정 적용 중..."
     
-    $templatePath = "$PSScriptRoot\..\infra\nginx\tests.template.conf"
-    if (-not (Test-Path $templatePath)) {
-        throw "Nginx 템플릿 파일을 찾을 수 없습니다: $templatePath"
+    # 템플릿 파일 경로
+    $upstreamTemplatePath = "$PSScriptRoot\..\infra\nginx\tests.upstream.template.conf"
+    $locationTemplatePath = "$PSScriptRoot\..\infra\nginx\tests.template.conf"
+    
+    if (-not (Test-Path $upstreamTemplatePath)) {
+        throw "Upstream 템플릿 파일을 찾을 수 없습니다: $upstreamTemplatePath"
+    }
+    if (-not (Test-Path $locationTemplatePath)) {
+        throw "Location 템플릿 파일을 찾을 수 없습니다: $locationTemplatePath"
     }
     
-    $tpl = Get-Content -Raw $templatePath
-    $conf = $tpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", "$BackPort").Replace("{{AUTO_PORT}}", "$AutoPort")
-    $out = Join-Path $NginxConfDir "tests-$Bid.conf"
-    # BOM 없는 UTF8 인코딩 사용 (PowerShell 버전 호환성)
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText($out, $conf, $utf8NoBom)
-    
-    # Nginx conf 디렉토리 생성 확인 (상위 디렉토리 포함)
-    $nginxConfParent = Split-Path $NginxConfDir -Parent
-    if (-not (Test-Path $nginxConfParent)) {
-        New-Item -ItemType Directory -Force -Path $nginxConfParent | Out-Null
-        Write-Host "Nginx 상위 디렉토리 생성: $nginxConfParent"
-    }
-    
-    # 최종 디렉토리 존재 확인
-    if (-not (Test-Path $NginxConfDir)) {
-        New-Item -ItemType Directory -Force -Path $NginxConfDir | Out-Null
-        Write-Host "Nginx conf.d 디렉토리 생성: $NginxConfDir"
-    }
-    
-    # 6. Nginx 리로드
-    Write-Host "Nginx 설정 파일 생성 완료: $out"
-            
+    # nginx tests 디렉토리 생성
     $nginxRoot = Split-Path $Nginx -Parent
+    $testsDir = Join-Path "$nginxRoot" "tests"
+    if (-not (Test-Path $testsDir)) {
+        New-Item -ItemType Directory -Force -Path $testsDir | Out-Null
+        Write-Host "Nginx tests 디렉토리 생성: $testsDir"
+    }
+    
+    # Upstream 설정 파일 생성
+    $upstreamTpl = Get-Content -Raw $upstreamTemplatePath
+    $upstreamConf = $upstreamTpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", "$BackPort").Replace("{{AUTO_PORT}}", "$AutoPort")
+    $upstreamOut = Join-Path $testsDir "tests-$Bid.upstream.conf"
+    
+    # Location 설정 파일 생성  
+    $locationTpl = Get-Content -Raw $locationTemplatePath
+    $locationConf = $locationTpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", "$BackPort").Replace("{{AUTO_PORT}}", "$AutoPort")
+    $locationOut = Join-Path $testsDir "tests-$Bid.location.conf"
+    
+    # BOM 없는 UTF8 인코딩으로 파일 저장
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($upstreamOut, $upstreamConf, $utf8NoBom)
+    [System.IO.File]::WriteAllText($locationOut, $locationConf, $utf8NoBom)
+    
+    Write-Host "Nginx 설정 파일 생성 완료:"
+    Write-Host "  Upstream: $upstreamOut"
+    Write-Host "  Location: $locationOut"
+    
+    # Nginx 리로드
     & $Nginx -p "$nginxRoot" -s reload
-    Write-Host "Nginx 리로드 완료"
+    Write-Host "Nginx 리로드 완료 (Include 방식 설정 적용)"
     
     # 7. 서비스 상태 확인 및 Smoke 테스트  
     Write-Host "`n단계 7: 서비스 확인 및 Smoke 테스트 중..."
@@ -372,13 +382,27 @@ try {
     Write-Host "웹서비스 상태: $webStatus"
     Write-Host "AutoDoc 상태: $autodocStatus"
     
-    # 서비스 상태 검증 (공백 및 특수문자 제거)
-    $webStatusClean = ([string]$webStatus).Trim().Replace("`r", "").Replace("`n", "").Replace("`t", " ").Trim()
-    $autodocStatusClean = ([string]$autodocStatus).Trim().Replace("`r", "").Replace("`n", "").Replace("`t", " ").Trim()
+    # 서비스 상태 검증 (강력한 정리: 모든 공백 및 제어문자 제거)
+    $webStatusRaw = [string]$webStatus
+    $autodocStatusRaw = [string]$autodocStatus
     
-    Write-Host "원본 웹서비스 상태 길이: $($webStatus.Length), 내용: [$webStatus]"
-    Write-Host "정리된 웹서비스 상태 길이: $($webStatusClean.Length), 내용: [$webStatusClean]"
-    Write-Host "정리된 AutoDoc 상태: [$autodocStatusClean]"
+    # 정규식으로 모든 공백 문자 제거 후 순수 텍스트만 추출
+    $webStatusClean = $webStatusRaw -replace '\s+', ' '
+    $webStatusClean = $webStatusClean.Trim()
+    # 추가 안전장치: SERVICE_RUNNING만 추출
+    if ($webStatusClean -match '(SERVICE_\w+)') {
+        $webStatusClean = $matches[1]
+    }
+    
+    $autodocStatusClean = $autodocStatusRaw -replace '\s+', ' ' 
+    $autodocStatusClean = $autodocStatusClean.Trim()
+    if ($autodocStatusClean -match '(SERVICE_\w+)') {
+        $autodocStatusClean = $matches[1]
+    }
+    
+    Write-Host "원본 웹서비스 상태: [$webStatusRaw] (길이: $($webStatusRaw.Length))"
+    Write-Host "정리된 웹서비스 상태: [$webStatusClean] (길이: $($webStatusClean.Length))"
+    Write-Host "정리된 AutoDoc 상태: [$autodocStatusClean] (길이: $($autodocStatusClean.Length))"
     
     if ($webStatusClean -ne "SERVICE_RUNNING") {
         throw "웹서비스가 정상 실행되지 않았습니다 (상태: [$webStatusClean])"
