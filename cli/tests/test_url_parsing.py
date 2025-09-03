@@ -48,7 +48,7 @@ class TestURLParsing:
         with patch('sys.argv', ['ts-cli', test_url]), \
              patch('ts_cli.main.console') as mock_console, \
              patch('sys.exit') as mock_exit, \
-             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+             patch('ts_cli.vcs.get_analyzer') as mock_get_analyzer:
             
             # Mock analyzer 설정
             mock_analyzer = Mock()
@@ -80,7 +80,7 @@ class TestURLParsing:
         with patch('sys.argv', ['ts-cli', test_url]), \
              patch('ts_cli.main.console') as mock_console, \
              patch('sys.exit') as mock_exit, \
-             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+             patch('ts_cli.vcs.get_analyzer') as mock_get_analyzer:
             
             # Mock analyzer 설정
             mock_analyzer = Mock()
@@ -111,7 +111,7 @@ class TestURLParsing:
         with patch('sys.argv', ['ts-cli', test_url]), \
              patch('ts_cli.main.console') as mock_console, \
              patch('sys.exit') as mock_exit, \
-             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+             patch('ts_cli.vcs.get_analyzer') as mock_get_analyzer:
             
             # Mock analyzer 설정
             mock_analyzer = Mock()
@@ -191,7 +191,7 @@ class TestURLParsing:
              patch('sys.argv', ['ts-cli', test_url]), \
              patch('builtins.print') as mock_print, \
              patch('sys.exit') as mock_exit, \
-             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+             patch('ts_cli.vcs.get_analyzer') as mock_get_analyzer:
             
             # Mock analyzer 설정
             mock_analyzer = Mock()
@@ -220,7 +220,7 @@ class TestURLParsing:
              patch('sys.argv', ['ts-cli', test_url]), \
              patch('ts_cli.main.console') as mock_console, \
              patch('sys.exit') as mock_exit, \
-             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+             patch('ts_cli.vcs.get_analyzer') as mock_get_analyzer:
             
             # Mock analyzer 설정
             mock_analyzer = Mock()
@@ -246,7 +246,7 @@ class TestURLParsing:
         with patch('sys.argv', ['ts-cli'] + test_parts), \
              patch('ts_cli.main.console') as mock_console, \
              patch('sys.exit') as mock_exit, \
-             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+             patch('ts_cli.vcs.get_analyzer') as mock_get_analyzer:
             
             # Mock analyzer 설정
             mock_analyzer = Mock()

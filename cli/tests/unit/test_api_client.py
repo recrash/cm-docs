@@ -118,13 +118,13 @@ class TestAPIClient:
     @patch("httpx.AsyncClient.post")
     async def test_send_analysis_success(self, mock_post, api_client):
         """분석 데이터 전송 성공 테스트"""
-        # Mock 응답 설정
+        # Mock 응답 설정 (v2 API)
         mock_response = Mock()
         mock_response.is_success = True
         mock_response.json.return_value = {
-            "filename": "test-scenario.zip",
-            "download_url": "/download/test-scenario.zip",
-            "message": "시나리오 생성 완료",
+            "client_id": "test_client_123",
+            "websocket_url": "ws://test.com/ws/test_client_123",
+            "message": "시나리오 생성 요청이 접수되었습니다",
         }
         mock_post.return_value = mock_response
 
@@ -141,20 +141,22 @@ class TestAPIClient:
 
         result = await api_client.send_analysis_v2(analysis_data, progress_callback)
 
-        assert result["filename"] == "test-scenario.zip"
-        assert result["download_url"] == "/download/test-scenario.zip"
+        assert result["client_id"] == "test_client_123"
+        assert result["websocket_url"] == "ws://test.com/ws/test_client_123"
 
-        # 요청이 올바르게 호출되었는지 확인
+        # 요청이 올바르게 호출되었는지 확인 (v2 API)
         mock_post.assert_called_once()
         call_args = mock_post.call_args
-        assert call_args[0][0] == "/api/scenario/v1/generate-from-text"
-        assert call_args[1]["json"] == {"analysis_text": "Test changes"}
+        assert call_args[0][0] == "/api/v2/scenario/generate"
+        # v2 API는 더 복잡한 구조이므로 주요 필드만 확인
+        assert "client_id" in call_args[1]["json"]
+        assert call_args[1]["json"]["repo_path"] == analysis_data
 
-        # 진행 상황 콜백이 호출되었는지 확인
-        progress_callback.assert_any_call(10)
-        progress_callback.assert_any_call(30)
-        progress_callback.assert_any_call(70)
-        progress_callback.assert_any_call(100)
+        # 진행 상황 콜백이 호출되었는지 확인 (v2 API는 메시지와 진행률을 함께 전달)
+        assert progress_callback.call_count >= 4  # 최소 4번 호출되어야 함
+        # 첫 번째 호출이 문자열과 숫자 인자를 가지는지 확인
+        first_call = progress_callback.call_args_list[0]
+        assert len(first_call[0]) == 2  # (message, progress) 형태
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient.post")

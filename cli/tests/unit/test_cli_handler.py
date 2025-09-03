@@ -299,7 +299,7 @@ class TestCLIHandler:
         assert result is True
         mock_validate.assert_called_once_with(tmp_path)
         mock_analyze.assert_called_once_with(mock_analyzer, "origin/develop", "HEAD")
-        mock_send.assert_called_once_with({"test": "data"})
+        mock_send.assert_called_once_with(tmp_path)
         mock_display.assert_called_once_with({"status": "success"})
 
     @patch("ts_cli.cli_handler.CLIHandler._validate_repository")

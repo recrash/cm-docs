@@ -78,14 +78,14 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_send_analysis_full_workflow(self, api_client, mock_server):
         """분석 데이터 전송 전체 워크플로우 테스트"""
-        # Mock 서버 응답 설정
+        # Mock 서버 응답 설정 (v2 API)
         mock_server.add_response(
             "POST",
-            "/api/scenario/v1/generate-from-text",
+            "/api/v2/scenario/generate",
             {
-                "filename": "test-scenario.zip",
-                "download_url": "/download/test-scenario.zip",
-                "message": "시나리오 생성 완료",
+                "client_id": "test_client_123",
+                "websocket_url": "ws://test.com/ws/test_client_123",
+                "message": "시나리오 생성 요청이 접수되었습니다",
             },
         )
 
@@ -107,23 +107,26 @@ class TestAPIIntegration:
             mock_response = Mock()
             mock_response.is_success = True
             mock_response.json.return_value = mock_server.responses[
-                "POST:/api/scenario/v1/generate-from-text"
+                "POST:/api/v2/scenario/generate"
             ]["data"]
             mock_post.return_value = mock_response
 
             result = await api_client.send_analysis_v2(analysis_data)
 
-            # 응답 검증
-            assert result["filename"] == "test-scenario.zip"
-            assert result["download_url"] == "/download/test-scenario.zip"
+            # 응답 검증 (v2 API 응답 구조)
+            assert result["client_id"] == "test_client_123"
+            assert result["websocket_url"] == "ws://test.com/ws/test_client_123"
 
-            # 요청이 올바르게 호출되었는지 확인
-            mock_post.assert_called_once_with(
-                "/api/scenario/v1/generate-from-text",
-                json={
-                    "analysis_text": analysis_data["changes_text"],
-                },
-            )
+            # 요청이 올바르게 호출되었는지 확인 (v2 API 엔드포인트)
+            mock_post.assert_called_once()
+            call_args = mock_post.call_args
+            assert call_args[0][0] == "/api/v2/scenario/generate"
+            request_json = call_args[1]["json"]
+            assert "client_id" in request_json
+            assert request_json["repo_path"] == analysis_data
+            assert request_json["use_performance_mode"] == True
+            assert request_json["is_valid_repo"] == True
+            assert request_json["vcs_type"] == "git"
 
     @pytest.mark.asyncio
     async def test_get_analysis_status_workflow(self, api_client):
@@ -235,9 +238,9 @@ class TestAPIIntegration:
                 httpx.NetworkError("Network error 1"),
                 httpx.NetworkError("Network error 2"),
                 Mock(is_success=True, json=lambda: {
-                    "filename": "test-scenario.zip",
-                    "download_url": "/download/test-scenario.zip",
-                    "message": "시나리오 생성 완료",
+                    "client_id": "test_client_123",
+                    "websocket_url": "ws://test.com/ws/test_client_123",
+                    "message": "시나리오 생성 요청이 접수되었습니다",
                 }),
             ]
 
@@ -245,9 +248,9 @@ class TestAPIIntegration:
             with patch.object(api_client, "_handle_response"):
                 result = await api_client.send_analysis_v2(analysis_data)
 
-                # 재시도 후 성공했는지 확인
-                assert result["filename"] == "test-scenario.zip"
-                assert result["download_url"] == "/download/test-scenario.zip"
+                # 재시도 후 성공했는지 확인 (v2 API 응답)
+                assert result["client_id"] == "test_client_123"
+                assert result["websocket_url"] == "ws://test.com/ws/test_client_123"
 
     @pytest.mark.asyncio
     async def test_health_check_integration(self, api_client):
@@ -295,11 +298,11 @@ class TestFullWorkflowIntegration:
             returncode=0, stdout="M  test.py\nA  new_file.py", stderr=""
         )
 
-        # API 호출 모킹 (다운로드 기능 제거됨)
+        # API 호출 모킹 (v2 API 응답 구조)
         api_response = {
-            "filename": "test-scenario.zip",
-            "download_url": "/download/test-scenario.zip",
-            "message": "시나리오 생성 완료",
+            "client_id": "test_client_123",
+            "websocket_url": "ws://test.com/ws/test_client_123",
+            "message": "시나리오 생성 요청이 접수되었습니다",
         }
 
         mock_asyncio_run.return_value = api_response
@@ -326,7 +329,7 @@ class TestFullWorkflowIntegration:
         assert result is True
         # Dry run 모드에서는 API 호출이 없어야 함
 
-    @patch("ts_cli.cli_handler.get_analyzer")
+    @patch("ts_cli.vcs.get_analyzer")
     def test_full_analysis_workflow_unsupported_vcs(
         self, mock_get_analyzer, cli_handler_integration, tmp_path
     ):
