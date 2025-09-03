@@ -165,11 +165,32 @@ try {
     # 5. NSSM 서비스 등록
     Write-Host "`n단계 5: NSSM 서비스 등록 중..."
     
-    # 기존 서비스 정리
-    & $Nssm stop "cm-web-$Bid" 2>$null
-    & $Nssm remove "cm-web-$Bid" confirm 2>$null
-    & $Nssm stop "cm-autodoc-$Bid" 2>$null
-    & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+    # 기존 서비스 정리 (안전한 방식)
+    Write-Host "기존 서비스 확인 및 정리 중..."
+    
+    # 웹서비스 정리
+    try {
+        $webStatus = & $Nssm status "cm-web-$Bid" 2>$null
+        if ($webStatus) {
+            Write-Host "기존 웹서비스 중지 중: cm-web-$Bid (상태: $webStatus)"
+            & $Nssm stop "cm-web-$Bid" 2>$null
+            & $Nssm remove "cm-web-$Bid" confirm 2>$null
+        }
+    } catch {
+        Write-Host "웹서비스가 존재하지 않음 (정상): cm-web-$Bid"
+    }
+    
+    # AutoDoc 서비스 정리
+    try {
+        $autodocStatus = & $Nssm status "cm-autodoc-$Bid" 2>$null
+        if ($autodocStatus) {
+            Write-Host "기존 AutoDoc 서비스 중지 중: cm-autodoc-$Bid (상태: $autodocStatus)"
+            & $Nssm stop "cm-autodoc-$Bid" 2>$null
+            & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+        }
+    } catch {
+        Write-Host "AutoDoc 서비스가 존재하지 않음 (정상): cm-autodoc-$Bid"
+    }
     
     # 웹서비스 서비스 등록
     Write-Host "웹서비스 서비스 등록 중..."
