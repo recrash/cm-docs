@@ -34,6 +34,48 @@ Write-Host "• Packages Root: $PackagesRoot"
 Write-Host "===========================================`n"
 
 try {
+    # 0. 기존 소문자 폴더 정리 (대소문자 중복 방지)
+    Write-Host "단계 0: 기존 폴더 정리 중..."
+    $testRoot = "C:\deploys\tests"
+    $currentBranch = $Bid
+    $lowerBranch = $currentBranch.ToLower()
+    
+    # 소문자 버전 폴더가 존재하고 현재 브랜치명과 다른 경우 정리
+    $lowerBranchPath = "$testRoot\$lowerBranch"
+    if (($currentBranch -ne $lowerBranch) -and (Test-Path $lowerBranchPath)) {
+        Write-Host "기존 소문자 브랜치 폴더 발견: $lowerBranchPath"
+        
+        # 기존 서비스 중지
+        try {
+            $oldWebService = "cm-web-$lowerBranch"
+            $oldAutoService = "cm-autodoc-$lowerBranch"
+            
+            $webStatus = & $Nssm status $oldWebService 2>$null
+            if ($webStatus) {
+                Write-Host "기존 웹서비스 중지: $oldWebService"
+                & $Nssm stop $oldWebService 2>$null
+                & $Nssm remove $oldWebService confirm 2>$null
+            }
+            
+            $autoStatus = & $Nssm status $oldAutoService 2>$null
+            if ($autoStatus) {
+                Write-Host "기존 AutoDoc 서비스 중지: $oldAutoService"
+                & $Nssm stop $oldAutoService 2>$null
+                & $Nssm remove $oldAutoService confirm 2>$null
+            }
+        } catch {
+            Write-Host "기존 서비스 정리 중 오류 (무시): $($_.Exception.Message)"
+        }
+        
+        # 기존 폴더 삭제
+        try {
+            Remove-Item -Path $lowerBranchPath -Recurse -Force
+            Write-Host "기존 소문자 브랜치 폴더 삭제 완료: $lowerBranchPath"
+        } catch {
+            Write-Host "경고: 기존 폴더 삭제 실패: $($_.Exception.Message)"
+        }
+    }
+    
     # 1. 디렉토리 구조 생성
     Write-Host "단계 1: 디렉토리 구조 생성 중..."
     
@@ -101,15 +143,19 @@ try {
         throw "webservice wheel 파일을 찾을 수 없습니다: $BranchWebWheelPath 또는 $GlobalWheelPath\webservice"
     }
     
-    # 웹서비스 wheel 설치
-    & "$WebBackDst\.venv\Scripts\pip.exe" install --no-index --find-links="$WebWheelSource" webservice
-    
-    # 추가 의존성 설치 (constraints 파일 활용)
+    # 1. 의존성 먼저 설치 (wheelhouse에서)
+    Write-Host "  - 의존성 설치 (from wheelhouse)..."
+    $webPip = "$WebBackDst\.venv\Scripts\pip.exe"
     if (Test-Path "$WebSrc\pip.constraints.txt") {
-        & "$WebBackDst\.venv\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
+        & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
     } else {
-        & "$WebBackDst\.venv\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
+        & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
     }
+    
+    # 2. 의존성 검사 없이 .whl 패키지 설치
+    Write-Host "  - webservice.whl 패키지 설치 (--no-deps)..."
+    $webWheelFile = Get-ChildItem -Path "$WebWheelSource" -Filter "webservice-*.whl" | Select-Object -First 1
+    & $webPip install $webWheelFile.FullName --no-deps
     Write-Host "웹서비스 설치 완료"
     
     # AutoDoc 설치
@@ -128,7 +174,12 @@ try {
         throw "autodoc_service wheel 파일을 찾을 수 없습니다: $BranchAutoWheelPath 또는 $GlobalWheelPath\autodoc_service"
     }
     
-    # AutoDoc wheel 설치
+    # 1. AutoDoc 의존성 먼저 설치 (wheelhouse에서)
+    Write-Host "  - AutoDoc 의존성 설치 (from wheelhouse)..."
+    $autoPip = "$AutoDst\.venv312\Scripts\pip.exe"
+    & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
+    
+    # 2. AutoDoc wheel 설치
     & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$AutoWheelSource" autodoc_service
     
     # AutoDoc 추가 의존성 설치
@@ -223,6 +274,14 @@ try {
     $tpl = Get-Content -Raw $templatePath
     $conf = $tpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", "$BackPort").Replace("{{AUTO_PORT}}", "$AutoPort")
     $out = Join-Path $NginxConfDir "tests-$Bid.conf"
+    
+    # Nginx conf 디렉토리 생성 확인 (상위 디렉토리 포함)
+    $nginxConfParent = Split-Path $NginxConfDir -Parent
+    if (-not (Test-Path $nginxConfParent)) {
+        New-Item -ItemType Directory -Force -Path $nginxConfParent | Out-Null
+        Write-Host "Nginx 상위 디렉토리 생성: $nginxConfParent"
+    }
+    
     $conf | Set-Content -Encoding UTF8 $out
     
     Write-Host "Nginx 설정 파일 생성 완료: $out"
