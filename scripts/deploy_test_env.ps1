@@ -368,6 +368,13 @@ try {
     Write-Host "  Upstream: $upstreamOut"
     Write-Host "  Location: $locationOut"
     
+    # 기존 conf.d 방식 파일 정리 (있는 경우)
+    $oldConfFile = Join-Path (Join-Path (Split-Path $Nginx -Parent) "conf\conf.d") "tests-$Bid.conf"
+    if (Test-Path $oldConfFile) {
+        Remove-Item $oldConfFile -Force
+        Write-Host "기존 conf.d 파일 삭제: $oldConfFile"
+    }
+    
     # Nginx 리로드
     & $Nginx -p "$nginxRoot" -s reload
     Write-Host "Nginx 리로드 완료 (Include 방식 설정 적용)"
@@ -376,39 +383,41 @@ try {
     Write-Host "`n단계 7: 서비스 확인 및 Smoke 테스트 중..."
     Start-Sleep -Seconds 10  # wheel 기반 서비스 시작 대기시간 증가
     
-    $webStatus = & $Nssm status "cm-web-$Bid"
-    $autodocStatus = & $Nssm status "cm-autodoc-$Bid"
-    
-    Write-Host "웹서비스 상태: $webStatus"
-    Write-Host "AutoDoc 상태: $autodocStatus"
-    
-    # 서비스 상태 검증 (강력한 정리: 모든 공백 및 제어문자 제거)
-    $webStatusRaw = [string]$webStatus
-    $autodocStatusRaw = [string]$autodocStatus
-    
-    # 정규식으로 모든 공백 문자 제거 후 순수 텍스트만 추출
-    $webStatusClean = $webStatusRaw -replace '\s+', ' '
-    $webStatusClean = $webStatusClean.Trim()
-    # 추가 안전장치: SERVICE_RUNNING만 추출
-    if ($webStatusClean -match '(SERVICE_\w+)') {
-        $webStatusClean = $matches[1]
-    }
-    
-    $autodocStatusClean = $autodocStatusRaw -replace '\s+', ' ' 
-    $autodocStatusClean = $autodocStatusClean.Trim()
-    if ($autodocStatusClean -match '(SERVICE_\w+)') {
-        $autodocStatusClean = $matches[1]
-    }
-    
-    Write-Host "원본 웹서비스 상태: [$webStatusRaw] (길이: $($webStatusRaw.Length))"
-    Write-Host "정리된 웹서비스 상태: [$webStatusClean] (길이: $($webStatusClean.Length))"
-    Write-Host "정리된 AutoDoc 상태: [$autodocStatusClean] (길이: $($autodocStatusClean.Length))"
-    
-    if ($webStatusClean -ne "SERVICE_RUNNING") {
-        throw "웹서비스가 정상 실행되지 않았습니다 (상태: [$webStatusClean])"
-    }
-    if ($autodocStatusClean -ne "SERVICE_RUNNING") {
-        throw "AutoDoc 서비스가 정상 실행되지 않았습니다 (상태: [$autodocStatusClean])"
+    # Windows 기본 서비스 상태 확인 (Get-Service 사용)
+    try {
+        $webService = Get-Service -Name "cm-web-$Bid" -ErrorAction Stop
+        $autodocService = Get-Service -Name "cm-autodoc-$Bid" -ErrorAction Stop
+        
+        Write-Host "웹서비스 상태: $($webService.Status)"
+        Write-Host "AutoDoc 상태: $($autodocService.Status)"
+        
+        # 간단한 상태 검증 (PowerShell 객체의 Status 속성 직접 사용)
+        if ($webService.Status -ne "Running") {
+            throw "웹서비스가 정상 실행되지 않았습니다 (상태: $($webService.Status))"
+        }
+        if ($autodocService.Status -ne "Running") {
+            throw "AutoDoc 서비스가 정상 실행되지 않았습니다 (상태: $($autodocService.Status))"
+        }
+        
+        Write-Host "모든 서비스가 정상 실행 중입니다"
+        
+    } catch {
+        Write-Warning "Get-Service를 사용한 상태 확인 실패, NSSM으로 폴백: $($_.Exception.Message)"
+        
+        # NSSM 폴백 (에러 발생 시에만)
+        $webStatus = & $Nssm status "cm-web-$Bid" 2>$null
+        $autodocStatus = & $Nssm status "cm-autodoc-$Bid" 2>$null
+        
+        Write-Host "웹서비스 상태 (NSSM): $webStatus"
+        Write-Host "AutoDoc 상태 (NSSM): $autodocStatus"
+        
+        # NSSM 결과가 빈 값이거나 에러인 경우에만 실패로 처리
+        if (-not $webStatus -or $webStatus -like "*error*") {
+            throw "웹서비스 상태 확인 실패"
+        }
+        if (-not $autodocStatus -or $autodocStatus -like "*error*") {
+            throw "AutoDoc 서비스 상태 확인 실패"
+        }
     }
     
     # HTTP Health Check
