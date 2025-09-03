@@ -214,8 +214,8 @@ pipeline {
                                         echo "CLI 환경 구축 완료"
                                     }
                                     
-                                    // CLI 테스트 및 빌드 실행
-                                    bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pytest --cov=ts_cli --cov-report=html\""
+                                    // CLI 테스트 및 빌드 실행 (PYTHONPATH 설정)
+                                    bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; \$env:PYTHONPATH='${WORKSPACE}\\cli\\src'; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pytest --cov=ts_cli --cov-report=html\""
                                     bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' scripts/build.py\""
                                 }
                                 
