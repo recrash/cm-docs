@@ -692,7 +692,7 @@ pipeline {
 // 브랜치별 테스트 인스턴스 유틸 함수
 @NonCPS
 def sanitizeId(String s) {
-    return s.replaceAll('[^A-Za-z0-9-]', '-').toLowerCase()
+    return s.replaceAll(/[^a-zA-Z0-9_-]/, '_')
 }
 
 @NonCPS
