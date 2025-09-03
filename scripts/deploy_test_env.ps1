@@ -373,11 +373,17 @@ try {
     Write-Host "AutoDoc 상태: $autodocStatus"
     
     # 서비스 상태 검증 (공백 제거 후 비교)
-    if ($webStatus.Trim() -ne "SERVICE_RUNNING") {
-        throw "웹서비스가 정상 실행되지 않았습니다 (상태: [$($webStatus.Trim())])"
+    $webStatusClean = ([string]$webStatus).Trim()
+    $autodocStatusClean = ([string]$autodocStatus).Trim()
+    
+    Write-Host "정리된 웹서비스 상태: [$webStatusClean]"
+    Write-Host "정리된 AutoDoc 상태: [$autodocStatusClean]"
+    
+    if ($webStatusClean -ne "SERVICE_RUNNING") {
+        throw "웹서비스가 정상 실행되지 않았습니다 (상태: [$webStatusClean])"
     }
-    if ($autodocStatus.Trim() -ne "SERVICE_RUNNING") {
-        throw "AutoDoc 서비스가 정상 실행되지 않았습니다 (상태: [$($autodocStatus.Trim())])"
+    if ($autodocStatusClean -ne "SERVICE_RUNNING") {
+        throw "AutoDoc 서비스가 정상 실행되지 않았습니다 (상태: [$autodocStatusClean])"
     }
     
     # HTTP Health Check
