@@ -338,8 +338,9 @@ try {
     $tpl = Get-Content -Raw $templatePath
     $conf = $tpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", "$BackPort").Replace("{{AUTO_PORT}}", "$AutoPort")
     $out = Join-Path $NginxConfDir "tests-$Bid.conf"
-    # BOM 없는 UTF8NoBOM 인코딩 사용
-    $conf | Set-Content -Encoding UTF8NoBOM $out
+    # BOM 없는 UTF8 인코딩 사용 (PowerShell 버전 호환성)
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($out, $conf, $utf8NoBom)
     
     # Nginx conf 디렉토리 생성 확인 (상위 디렉토리 포함)
     $nginxConfParent = Split-Path $NginxConfDir -Parent
