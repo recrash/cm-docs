@@ -139,7 +139,7 @@ class TestAPIClient:
         # 진행 상황 콜백 Mock
         progress_callback = Mock()
 
-        result = await api_client.send_analysis(analysis_data, progress_callback)
+        result = await api_client.send_analysis_v2(analysis_data, progress_callback)
 
         assert result["filename"] == "test-scenario.zip"
         assert result["download_url"] == "/download/test-scenario.zip"
@@ -165,7 +165,7 @@ class TestAPIClient:
         analysis_data = {"test": "data"}
 
         with pytest.raises(NetworkError) as exc_info:
-            await api_client.send_analysis(analysis_data)
+            await api_client.send_analysis_v2(analysis_data)
 
         assert "네트워크 연결 오류" in str(exc_info.value)
 
@@ -178,7 +178,7 @@ class TestAPIClient:
         analysis_data = {"test": "data"}
 
         with pytest.raises(APIError) as exc_info:
-            await api_client.send_analysis(analysis_data)
+            await api_client.send_analysis_v2(analysis_data)
 
         assert "시간이 초과되었습니다" in str(exc_info.value)
 

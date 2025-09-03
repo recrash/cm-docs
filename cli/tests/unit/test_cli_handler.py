@@ -155,7 +155,7 @@ class TestCLIHandler:
             "cli_version": "1.0.0",
         }
 
-        result = cli_handler._send_to_api(analysis_result)
+        result = cli_handler._send_to_api_v2(analysis_result)
 
         assert result == mock_response
         mock_asyncio_run.assert_called_once()
@@ -166,7 +166,7 @@ class TestCLIHandler:
         mock_asyncio_run.side_effect = APIError("API Error")
 
         analysis_result = {"test": "data"}
-        result = cli_handler._send_to_api(analysis_result)
+        result = cli_handler._send_to_api_v2(analysis_result)
 
         assert result is None
 
@@ -277,7 +277,7 @@ class TestCLIHandler:
 
     @patch("ts_cli.cli_handler.CLIHandler._validate_repository")
     @patch("ts_cli.cli_handler.CLIHandler._analyze_changes")
-    @patch("ts_cli.cli_handler.CLIHandler._send_to_api")
+    @patch("ts_cli.cli_handler.CLIHandler._send_to_api_v2")
     @patch("ts_cli.cli_handler.CLIHandler._display_final_result")
     def test_analyze_repository_full_success(
         self,

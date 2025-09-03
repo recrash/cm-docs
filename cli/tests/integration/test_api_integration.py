@@ -111,7 +111,7 @@ class TestAPIIntegration:
             ]["data"]
             mock_post.return_value = mock_response
 
-            result = await api_client.send_analysis(analysis_data)
+            result = await api_client.send_analysis_v2(analysis_data)
 
             # 응답 검증
             assert result["filename"] == "test-scenario.zip"
@@ -190,7 +190,7 @@ class TestAPIIntegration:
 
             # 재시도 후에도 실패하므로 RetryError가 발생
             with pytest.raises(Exception) as exc_info:
-                await api_client.send_analysis(analysis_data)
+                await api_client.send_analysis_v2(analysis_data)
 
             # RetryError 또는 NetworkError가 발생했는지 확인
             assert "NetworkError" in str(exc_info.value) or "RetryError" in str(exc_info.value)
@@ -219,7 +219,7 @@ class TestAPIIntegration:
                 )
 
                 with pytest.raises(APIError) as exc_info:
-                    await api_client.send_analysis(analysis_data)
+                    await api_client.send_analysis_v2(analysis_data)
 
                 # APIError가 발생했는지 확인 (status_code는 None일 수 있음)
                 assert "서버 내부 오류" in str(exc_info.value)
@@ -243,7 +243,7 @@ class TestAPIIntegration:
 
             # _handle_response가 성공 시에는 아무것도 하지 않도록 설정
             with patch.object(api_client, "_handle_response"):
-                result = await api_client.send_analysis(analysis_data)
+                result = await api_client.send_analysis_v2(analysis_data)
 
                 # 재시도 후 성공했는지 확인
                 assert result["filename"] == "test-scenario.zip"
@@ -439,7 +439,7 @@ class TestErrorScenarios:
         async def test_timeout():
             api_client = APIClient()
             with pytest.raises(APIError) as exc_info:
-                await api_client.send_analysis({"test": "data"})
+                await api_client.send_analysis_v2({"test": "data"})
             assert "시간이 초과되었습니다" in str(exc_info.value)
 
         asyncio.run(test_timeout())

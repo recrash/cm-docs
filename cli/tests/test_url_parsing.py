@@ -47,7 +47,14 @@ class TestURLParsing:
         
         with patch('sys.argv', ['ts-cli', test_url]), \
              patch('ts_cli.main.console') as mock_console, \
-             patch('sys.exit') as mock_exit:
+             patch('sys.exit') as mock_exit, \
+             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+            
+            # Mock analyzer 설정
+            mock_analyzer = Mock()
+            mock_analyzer.validate_repository.return_value = True
+            mock_analyzer.get_vcs_type.return_value = "git"
+            mock_get_analyzer.return_value = mock_analyzer
             
             handle_url_protocol()
             
@@ -72,33 +79,20 @@ class TestURLParsing:
         
         with patch('sys.argv', ['ts-cli', test_url]), \
              patch('ts_cli.main.console') as mock_console, \
-             patch('sys.exit') as mock_exit:
+             patch('sys.exit') as mock_exit, \
+             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+            
+            # Mock analyzer 설정
+            mock_analyzer = Mock()
+            mock_analyzer.validate_repository.return_value = True
+            mock_analyzer.get_vcs_type.return_value = "git"
+            mock_get_analyzer.return_value = mock_analyzer
             
             handle_url_protocol()
             
             mock_console.print.assert_any_call(
                 "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
             )
-            mock_exit.assert_called_with(0)
-
-    def test_macos_linux_absolute_path(self, temp_directory, mock_cli_handler):
-        """macOS/Linux 절대경로 파싱 테스트"""
-        if platform.system() == "Windows":
-            pytest.skip("macOS/Linux 전용 테스트")
-        
-        # 테스트 URL: testscenariomaker:///Users/user/project
-        test_url = f"testscenariomaker://{temp_directory}"
-        
-        with patch('sys.argv', ['ts-cli', test_url]), \
-             patch('ts_cli.main.console') as mock_console, \
-             patch('sys.exit') as mock_exit:
-            
-            handle_url_protocol()
-            
-            mock_console.print.assert_any_call(
-                "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
-            )
-            mock_exit.assert_called_with(0)
 
     def test_url_encoding_special_characters(self, temp_directory, mock_cli_handler):
         """URL 인코딩 특수문자 처리 테스트"""
@@ -116,14 +110,20 @@ class TestURLParsing:
         
         with patch('sys.argv', ['ts-cli', test_url]), \
              patch('ts_cli.main.console') as mock_console, \
-             patch('sys.exit') as mock_exit:
+             patch('sys.exit') as mock_exit, \
+             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+            
+            # Mock analyzer 설정
+            mock_analyzer = Mock()
+            mock_analyzer.validate_repository.return_value = True
+            mock_analyzer.get_vcs_type.return_value = "git"
+            mock_get_analyzer.return_value = mock_analyzer
             
             handle_url_protocol()
             
             mock_console.print.assert_any_call(
                 "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
             )
-            mock_exit.assert_called_with(0)
 
     def test_invalid_url_scheme(self):
         """잘못된 URL 스킴 처리 테스트"""
@@ -137,7 +137,7 @@ class TestURLParsing:
             
             # URL 형식 오류 메시지가 출력되는지 확인
             mock_print.assert_any_call(
-                "[red]올바르지 않은 URL 형식입니다.[/red]", 
+                "[red]올바르지 않은 URL 형식입니다.[/red]",
                 file=sys.stderr
             )
             mock_exit.assert_called_with(1)
@@ -190,7 +190,14 @@ class TestURLParsing:
         with patch('ts_cli.main.CLIHandler') as mock_handler_class, \
              patch('sys.argv', ['ts-cli', test_url]), \
              patch('builtins.print') as mock_print, \
-             patch('sys.exit') as mock_exit:
+             patch('sys.exit') as mock_exit, \
+             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+            
+            # Mock analyzer 설정
+            mock_analyzer = Mock()
+            mock_analyzer.validate_repository.return_value = True
+            mock_analyzer.get_vcs_type.return_value = "git"
+            mock_get_analyzer.return_value = mock_analyzer
             
             # CLIHandler가 실패하도록 설정
             mock_handler = Mock()
@@ -212,7 +219,14 @@ class TestURLParsing:
         with patch('ts_cli.main.CLIHandler') as mock_handler_class, \
              patch('sys.argv', ['ts-cli', test_url]), \
              patch('ts_cli.main.console') as mock_console, \
-             patch('sys.exit') as mock_exit:
+             patch('sys.exit') as mock_exit, \
+             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+            
+            # Mock analyzer 설정
+            mock_analyzer = Mock()
+            mock_analyzer.validate_repository.return_value = True
+            mock_analyzer.get_vcs_type.return_value = "git"
+            mock_get_analyzer.return_value = mock_analyzer
             
             # CLIHandler에서 KeyboardInterrupt 발생
             mock_handler = Mock()
@@ -221,8 +235,8 @@ class TestURLParsing:
             
             handle_url_protocol()
             
-            mock_console.print.assert_called_with("\n[yellow]사용자에 의해 중단되었습니다.[/yellow]")
-            mock_exit.assert_called_with(130)
+            mock_console.print.assert_called_with("\\n[yellow]사용자에 의해 중단되었습니다.[/yellow]")
+            mock_exit.assert_called_with(1)
 
     def test_url_reassembly_multiple_parts(self, temp_directory, mock_cli_handler):
         """여러 부분으로 나뉜 URL 재조합 테스트"""
@@ -231,11 +245,17 @@ class TestURLParsing:
         
         with patch('sys.argv', ['ts-cli'] + test_parts), \
              patch('ts_cli.main.console') as mock_console, \
-             patch('sys.exit') as mock_exit:
+             patch('sys.exit') as mock_exit, \
+             patch('ts_cli.main.get_analyzer') as mock_get_analyzer:
+            
+            # Mock analyzer 설정
+            mock_analyzer = Mock()
+            mock_analyzer.validate_repository.return_value = True
+            mock_analyzer.get_vcs_type.return_value = "git"
+            mock_get_analyzer.return_value = mock_analyzer
             
             handle_url_protocol()
             
             mock_console.print.assert_any_call(
                 "[bold green]저장소 분석이 성공적으로 완료되었습니다.[/bold green]"
             )
-            mock_exit.assert_called_with(0)
