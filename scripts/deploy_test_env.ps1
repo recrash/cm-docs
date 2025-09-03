@@ -42,7 +42,7 @@ try {
     
     # 백엔드 파일 복사 (app 디렉토리, config 파일 포함)
     Copy-Item -Recurse -Force "$WebSrc\app" "$WebBackDst\app"
-    Copy-Item -Force "$WebSrc\main.py" "$WebBackDst\main.py"
+    # main.py는 app 디렉토리에 있으므로 복사하지 않음 (app 디렉토리 복사로 충분)
     Copy-Item -Force "$WebSrc\requirements.txt" "$WebBackDst\requirements.txt"
     if (Test-Path "$WebSrc\pip.constraints.txt") {
         Copy-Item -Force "$WebSrc\pip.constraints.txt" "$WebBackDst\pip.constraints.txt"
@@ -153,7 +153,7 @@ try {
     
     # 웹서비스 백엔드 서비스 등록
     Write-Host "웹서비스 백엔드 서비스 등록 중..."
-    & $Nssm install "cm-web-$Bid" $Py "-m uvicorn main:app --host 0.0.0.0 --port $BackPort"
+    & $Nssm install "cm-web-$Bid" $Py "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
     & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
     & $Nssm set "cm-web-$Bid" AppStdout "$LogDir\web-$Bid.out.log"
     & $Nssm set "cm-web-$Bid" AppStderr "$LogDir\web-$Bid.err.log"
@@ -165,7 +165,7 @@ try {
     
     # AutoDoc 서비스 등록
     Write-Host "AutoDoc 서비스 등록 중..."
-    & $Nssm install "cm-autodoc-$Bid" $Py "-m uvicorn main:app --host 0.0.0.0 --port $AutoPort"
+    & $Nssm install "cm-autodoc-$Bid" $Py "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
     & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
     & $Nssm set "cm-autodoc-$Bid" AppStdout "$AutoDst\..\logs\autodoc-$Bid.out.log"
     & $Nssm set "cm-autodoc-$Bid" AppStderr "$AutoDst\..\logs\autodoc-$Bid.err.log"
