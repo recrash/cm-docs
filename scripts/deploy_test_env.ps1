@@ -341,23 +341,23 @@ try {
         throw "Location 템플릿 파일을 찾을 수 없습니다: $locationTemplatePath"
     }
     
-    # nginx tests 디렉토리 생성
+    # nginx include 디렉토리 생성 (표준 경로)
     $nginxRoot = Split-Path $Nginx -Parent
-    $testsDir = Join-Path "$nginxRoot" "tests"
-    if (-not (Test-Path $testsDir)) {
-        New-Item -ItemType Directory -Force -Path $testsDir | Out-Null
-        Write-Host "Nginx tests 디렉토리 생성: $testsDir"
+    $includeDir = Join-Path "$nginxRoot" "conf\include"
+    if (-not (Test-Path $includeDir)) {
+        New-Item -ItemType Directory -Force -Path $includeDir | Out-Null
+        Write-Host "Nginx include 디렉토리 생성: $includeDir"
     }
     
     # Upstream 설정 파일 생성
     $upstreamTpl = Get-Content -Raw $upstreamTemplatePath
     $upstreamConf = $upstreamTpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", "$BackPort").Replace("{{AUTO_PORT}}", "$AutoPort")
-    $upstreamOut = Join-Path $testsDir "tests-$Bid.upstream.conf"
+    $upstreamOut = Join-Path $includeDir "tests-$Bid.upstream.conf"
     
     # Location 설정 파일 생성  
     $locationTpl = Get-Content -Raw $locationTemplatePath
     $locationConf = $locationTpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", "$BackPort").Replace("{{AUTO_PORT}}", "$AutoPort")
-    $locationOut = Join-Path $testsDir "tests-$Bid.location.conf"
+    $locationOut = Join-Path $includeDir "tests-$Bid.location.conf"
     
     # BOM 없는 UTF8 인코딩으로 파일 저장
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
