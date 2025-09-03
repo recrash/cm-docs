@@ -336,6 +336,35 @@ pipeline {
         }
         
         
+        stage('Store Branch Wheel') {
+            steps {
+                // 브랜치별 wheel 저장 (테스트 배포용)
+                script {
+                    def branchName = env.BRANCH_NAME.replaceAll(/[^a-zA-Z0-9_-]/, '_')
+                    def branchWheelPath = "C:\\deploys\\test\\${branchName}\\packages\\webservice"
+                    
+                    powershell """
+                        # 브랜치별 wheel 저장 디렉토리 생성
+                        New-Item -ItemType Directory -Force -Path "${branchWheelPath}" | Out-Null
+                        
+                        # 기존 wheel 정리 (오래된 버전 제거)
+                        Get-ChildItem -Path "${branchWheelPath}\\webservice-*.whl" | Remove-Item -Force -ErrorAction SilentlyContinue
+                        
+                        # 새 wheel 복사
+                        \$latestWhl = Get-ChildItem -Path "${WORKSPACE}\\webservice\\dist\\webservice-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                        if (\$latestWhl) {
+                            Copy-Item -Path \$latestWhl.FullName -Destination "${branchWheelPath}" -Force
+                            Write-Host "브랜치별 wheel 저장 완료: ${branchWheelPath}\\\$(\$latestWhl.Name)"
+                        } else {
+                            throw "빌드된 wheel 파일을 찾을 수 없습니다"
+                        }
+                    """
+                    
+                    echo "브랜치 ${branchName} wheel 저장 완료: ${branchWheelPath}"
+                }
+            }
+        }
+        
         stage('Archive Artifact') {
             steps {
                 // 빌드된 휠 보관

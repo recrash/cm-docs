@@ -1,5 +1,5 @@
 ﻿# scripts/deploy_test_env.ps1
-# 브랜치별 테스트 인스턴스 자동 배포 스크립트
+# 브랜치별 테스트 인스턴스 wheel 기반 배포 스크립트
 
 param(
     [Parameter(Mandatory=$true)][string]$Bid,
@@ -11,124 +11,142 @@ param(
     [Parameter(Mandatory=$true)][string]$NginxConfDir,
     [Parameter(Mandatory=$true)][string]$WebSrc,      # repo/webservice
     [Parameter(Mandatory=$true)][string]$AutoSrc,     # repo/autodoc_service
-    [Parameter(Mandatory=$true)][string]$WebBackDst,  # C:\deploys\tests\{BID}\webservice\backend
-    [Parameter(Mandatory=$true)][string]$WebFrontDst, # C:\deploys\tests\{BID}\webservice\frontend
-    [Parameter(Mandatory=$true)][string]$AutoDst,     # C:\deploys\tests\{BID}\autodoc
-    [Parameter(Mandatory=$true)][string]$UrlPrefix    # "/tests/{BID}/"
+    [Parameter(Mandatory=$true)][string]$WebBackDst,  # C:\deploys\test\{BID}\apps\webservice
+    [Parameter(Mandatory=$true)][string]$WebFrontDst, # C:\deploys\test\{BID}\frontend
+    [Parameter(Mandatory=$true)][string]$AutoDst,     # C:\deploys\test\{BID}\apps\autodoc_service
+    [Parameter(Mandatory=$true)][string]$UrlPrefix,   # "/tests/{BID}/"
+    [Parameter(Mandatory=$true)][string]$PackagesRoot # "C:\deploys\test\{BID}\packages"
 )
 
 $ErrorActionPreference = "Stop"
 
+# UTF-8 출력 설정 (한글 지원)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 Write-Host "===========================================`n"
-Write-Host "🚀 테스트 인스턴스 배포 시작`n"
+Write-Host "배포 시작: 테스트 인스턴스 (Wheel 기반)`n"
 Write-Host "===========================================`n"
 Write-Host "• BID: $Bid"
 Write-Host "• Backend Port: $BackPort"
 Write-Host "• AutoDoc Port: $AutoPort"
 Write-Host "• URL Prefix: $UrlPrefix"
+Write-Host "• Packages Root: $PackagesRoot"
 Write-Host "===========================================`n"
 
 try {
-    # 1. 백엔드/autodoc 파일 배치
-    Write-Host "📦 1단계: 백엔드 및 AutoDoc 파일 배치 중..."
+    # 1. 디렉토리 구조 생성
+    Write-Host "단계 1: 디렉토리 구조 생성 중..."
     
-    # 테스트 인스턴스용 데이터 경로 생성 (먼저 생성)
-    $TestWebDataPath = "$WebBackDst\..\..\data\webservice"
-    $TestAutoDataPath = "$AutoDst\..\data\autodoc_service"
+    # 테스트 브랜치별 데이터 경로
+    $TestWebDataPath = "$PackagesRoot\..\data\webservice"
+    $TestAutoDataPath = "$PackagesRoot\..\data\autodoc_service"
+    $TestLogsPath = "$PackagesRoot\..\logs"
     
-    New-Item -ItemType Directory -Force -Path $WebBackDst, $AutoDst, $TestWebDataPath, $TestAutoDataPath | Out-Null
-    Write-Host "디렉토리 생성 완료: $WebBackDst, $AutoDst"
-    Write-Host "테스트 데이터 디렉토리 생성 완료: $TestWebDataPath, $TestAutoDataPath"
+    New-Item -ItemType Directory -Force -Path $WebBackDst, $AutoDst, $WebFrontDst | Out-Null
+    New-Item -ItemType Directory -Force -Path $TestWebDataPath, $TestAutoDataPath, $TestLogsPath | Out-Null
+    New-Item -ItemType Directory -Force -Path "$PackagesRoot\webservice", "$PackagesRoot\autodoc_service" | Out-Null
     
-    # 백엔드 파일 복사 (app 디렉토리, config 파일 포함)
-    Copy-Item -Recurse -Force "$WebSrc\app" "$WebBackDst\app"
-    # main.py는 app 디렉토리에 있으므로 복사하지 않음 (app 디렉토리 복사로 충분)
-    Copy-Item -Force "$WebSrc\requirements.txt" "$WebBackDst\requirements.txt"
-    if (Test-Path "$WebSrc\pip.constraints.txt") {
-        Copy-Item -Force "$WebSrc\pip.constraints.txt" "$WebBackDst\pip.constraints.txt"
-    }
+    Write-Host "디렉토리 생성 완료"
+    Write-Host "  Apps: $WebBackDst, $AutoDst"
+    Write-Host "  Data: $TestWebDataPath, $TestAutoDataPath"
+    Write-Host "  Packages: $PackagesRoot"
     
-    # 테스트 인스턴스용 config 파일을 데이터 경로에 복사
+    # 2. Config 파일 준비
+    Write-Host "`n단계 2: Config 파일 준비 중..."
+    
+    # 웹서비스 config
     if (Test-Path "$WebSrc\config.test.json") {
         Copy-Item -Force "$WebSrc\config.test.json" "$TestWebDataPath\config.json"
-        Write-Host "테스트용 config 파일 복사 완료: $TestWebDataPath\config.json"
+        Write-Host "테스트용 config 복사: $TestWebDataPath\config.json"
     } elseif (Test-Path "$WebSrc\config.json") {
         Copy-Item -Force "$WebSrc\config.json" "$TestWebDataPath\config.json"
-        Write-Host "기본 config 파일 복사 완료: $TestWebDataPath\config.json"
+        Write-Host "기본 config 복사: $TestWebDataPath\config.json"
     } else {
-        Write-Warning "config 파일을 찾을 수 없습니다"
+        Write-Warning "웹서비스 config 파일을 찾을 수 없습니다"
     }
-    Write-Host "백엔드 파일 복사 완료"
     
-    # AutoDoc 파일 복사
-    Copy-Item -Recurse -Force "$AutoSrc\*" $AutoDst
-    Write-Host "AutoDoc 파일 복사 완료"
+    # 오토독 config 및 templates
+    if (Test-Path "$AutoSrc\data\templates") {
+        Copy-Item -Recurse -Force "$AutoSrc\data\templates" "$TestAutoDataPath\templates"
+        Write-Host "AutoDoc 템플릿 복사 완료"
+    }
     
-    # 2. 가상환경 및 의존성 설치 (휠하우스 활용)
-    Write-Host "`n📦 2단계: 가상환경 및 의존성 설치 중..."
+    # 3. Wheel 설치
+    Write-Host "`n단계 3: Wheel 기반 서비스 설치 중..."
     
-    # 공유 휠하우스 경로
-    $WheelhousePath = "C:\deploys\packages\wheelhouse"
-    
-    # 웹서비스 가상환경 생성 및 의존성 설치
-    Write-Host "웹서비스 가상환경 설정 중..."
-    
-    # Python 경로가 환경변수 형태일 경우 확장
+    # Python 경로 확장
     $PythonPath = $Py
     if ($PythonPath.Contains('%LOCALAPPDATA%')) {
         $PythonPath = $PythonPath.Replace('%LOCALAPPDATA%', $env:LOCALAPPDATA)
     }
     
+    # 브랜치별 wheel 경로 및 글로벌 폴백
+    $BranchWebWheelPath = "$PackagesRoot\webservice"
+    $BranchAutoWheelPath = "$PackagesRoot\autodoc_service"
+    $GlobalWheelPath = "C:\deploys\packages"
+    
+    # 웹서비스 설치
+    Write-Host "웹서비스 설치 중..."
     & $PythonPath -m venv "$WebBackDst\.venv"
     
-    if (Test-Path "$WheelhousePath\*.whl") {
-        Write-Host "휠하우스 발견 - 오프라인 고속 설치"
-        $ConstraintFile = "$WebBackDst\pip.constraints.txt"
-        if (Test-Path $ConstraintFile) {
-            & "$WebBackDst\.venv\Scripts\pip.exe" install -r "$WebBackDst\requirements.txt" -c $ConstraintFile --no-index --find-links="$WheelhousePath"
-        } else {
-            & "$WebBackDst\.venv\Scripts\pip.exe" install -r "$WebBackDst\requirements.txt" --no-index --find-links="$WheelhousePath"
-        }
+    # Wheel 경로 결정 (브랜치 → 글로벌 폴백)
+    $WebWheelSource = ""
+    if (Test-Path "$BranchWebWheelPath\webservice-*.whl") {
+        $WebWheelSource = $BranchWebWheelPath
+        Write-Host "브랜치별 webservice wheel 발견: $BranchWebWheelPath"
+    } elseif (Test-Path "$GlobalWheelPath\webservice\webservice-*.whl") {
+        $WebWheelSource = "$GlobalWheelPath\webservice"
+        Write-Host "글로벌 webservice wheel 사용: $GlobalWheelPath\webservice"
     } else {
-        Write-Host "휠하우스 없음 - 온라인 설치"
-        $ConstraintFile = "$WebBackDst\pip.constraints.txt"
-        if (Test-Path $ConstraintFile) {
-            & "$WebBackDst\.venv\Scripts\pip.exe" install -r "$WebBackDst\requirements.txt" -c $ConstraintFile
-        } else {
-            & "$WebBackDst\.venv\Scripts\pip.exe" install -r "$WebBackDst\requirements.txt"
-        }
+        throw "webservice wheel 파일을 찾을 수 없습니다: $BranchWebWheelPath 또는 $GlobalWheelPath\webservice"
     }
-    Write-Host "웹서비스 의존성 설치 완료"
     
-    # AutoDoc 가상환경 생성 및 의존성 설치
-    Write-Host "AutoDoc 가상환경 설정 중..."
+    # 웹서비스 wheel 설치
+    & "$WebBackDst\.venv\Scripts\pip.exe" install --no-index --find-links="$WebWheelSource" webservice
+    
+    # 추가 의존성 설치 (constraints 파일 활용)
+    if (Test-Path "$WebSrc\pip.constraints.txt") {
+        & "$WebBackDst\.venv\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
+    } else {
+        & "$WebBackDst\.venv\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
+    }
+    Write-Host "웹서비스 설치 완료"
+    
+    # AutoDoc 설치
+    Write-Host "AutoDoc 설치 중..."
     & $PythonPath -m venv "$AutoDst\.venv312"
     
-    if (Test-Path "$WheelhousePath\*.whl") {
-        Write-Host "휠하우스 발견 - 오프라인 고속 설치"
-        & "$AutoDst\.venv312\Scripts\pip.exe" install -r "$AutoDst\requirements.txt" --no-index --find-links="$WheelhousePath"
+    # AutoDoc Wheel 경로 결정
+    $AutoWheelSource = ""
+    if (Test-Path "$BranchAutoWheelPath\autodoc_service-*.whl") {
+        $AutoWheelSource = $BranchAutoWheelPath
+        Write-Host "브랜치별 autodoc_service wheel 발견: $BranchAutoWheelPath"
+    } elseif (Test-Path "$GlobalWheelPath\autodoc_service\autodoc_service-*.whl") {
+        $AutoWheelSource = "$GlobalWheelPath\autodoc_service"
+        Write-Host "글로벌 autodoc_service wheel 사용: $GlobalWheelPath\autodoc_service"
     } else {
-        Write-Host "휠하우스 없음 - 온라인 설치"
-        & "$AutoDst\.venv312\Scripts\pip.exe" install -r "$AutoDst\requirements.txt"
+        throw "autodoc_service wheel 파일을 찾을 수 없습니다: $BranchAutoWheelPath 또는 $GlobalWheelPath\autodoc_service"
     }
-    Write-Host "AutoDoc 의존성 설치 완료"
     
-    # 3. 프론트엔드 빌드 (Vite 기본)
-    Write-Host "`n🎨 3단계: 프론트엔드 빌드 중..."
+    # AutoDoc wheel 설치
+    & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$AutoWheelSource" autodoc_service
+    
+    # AutoDoc 추가 의존성 설치
+    & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
+    Write-Host "AutoDoc 설치 완료"
+    
+    # 4. 프론트엔드 빌드
+    Write-Host "`n단계 4: 프론트엔드 빌드 중..."
     
     Push-Location "$WebSrc\frontend"
     try {
-        if (Test-Path "package-lock.json" -or Test-Path "package.json") {
+        if (Test-Path "package.json") {
             Write-Host "npm 의존성 설치 중..."
             npm ci
             
             Write-Host "Vite 빌드 시작 (base: $UrlPrefix)"
             npm run build -- --base="$UrlPrefix"
             Write-Host "Vite 빌드 완료"
-            
-            # CRA 사용 시 대신 사용할 명령어:
-            # $env:PUBLIC_URL = $UrlPrefix
-            # npm run build
         } else {
             throw "package.json 파일을 찾을 수 없습니다"
         }
@@ -136,8 +154,7 @@ try {
         Pop-Location
     }
     
-    # 빌드 결과 복사
-    New-Item -ItemType Directory -Force -Path $WebFrontDst | Out-Null
+    # 프론트엔드 결과 복사
     if (Test-Path "$WebSrc\frontend\dist") {
         Copy-Item -Recurse -Force "$WebSrc\frontend\dist\*" $WebFrontDst
         Write-Host "프론트엔드 빌드 결과 복사 완료"
@@ -145,45 +162,37 @@ try {
         throw "프론트엔드 빌드 결과가 없습니다: dist 폴더를 찾을 수 없음"
     }
     
-    # 4. NSSM 서비스 등록/재시작
-    Write-Host "`n⚙️ 4단계: NSSM 서비스 등록 중..."
+    # 5. NSSM 서비스 등록
+    Write-Host "`n단계 5: NSSM 서비스 등록 중..."
     
-    # 기존 서비스 정리 (에러 무시)
+    # 기존 서비스 정리
     & $Nssm stop "cm-web-$Bid" 2>$null
     & $Nssm remove "cm-web-$Bid" confirm 2>$null
     & $Nssm stop "cm-autodoc-$Bid" 2>$null
     & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
     
-    # 로그 디렉토리 생성
-    $LogDir = "$WebBackDst\..\..\logs"
-    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
-    
-    # 웹서비스 백엔드 서비스 등록
-    Write-Host "웹서비스 백엔드 서비스 등록 중..."
-    & $Nssm install "cm-web-$Bid" $PythonPath "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
+    # 웹서비스 서비스 등록
+    Write-Host "웹서비스 서비스 등록 중..."
+    & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn webservice.app.main:app --host 0.0.0.0 --port $BackPort"
     & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
-    & $Nssm set "cm-web-$Bid" AppStdout "$LogDir\web-$Bid.out.log"
-    & $Nssm set "cm-web-$Bid" AppStderr "$LogDir\web-$Bid.err.log"
-    
-    # 테스트 인스턴스용 환경변수 설정
+    & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
+    & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
     & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
-    & $Nssm restart "cm-web-$Bid"
-    Write-Host "웹서비스 백엔드 서비스 시작 완료 (Port: $BackPort)"
+    & $Nssm start "cm-web-$Bid"
+    Write-Host "웹서비스 서비스 시작 완료 (Port: $BackPort)"
     
     # AutoDoc 서비스 등록
     Write-Host "AutoDoc 서비스 등록 중..."
-    & $Nssm install "cm-autodoc-$Bid" $PythonPath "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
+    & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn autodoc_service.app.main:app --host 0.0.0.0 --port $AutoPort"
     & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
-    & $Nssm set "cm-autodoc-$Bid" AppStdout "$AutoDst\..\logs\autodoc-$Bid.out.log"
-    & $Nssm set "cm-autodoc-$Bid" AppStderr "$AutoDst\..\logs\autodoc-$Bid.err.log"
-    
-    # 테스트 인스턴스용 환경변수 설정
+    & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
+    & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
     & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
-    & $Nssm restart "cm-autodoc-$Bid"
+    & $Nssm start "cm-autodoc-$Bid"
     Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
     
-    # 5. Nginx location 파일 생성 + reload
-    Write-Host "`n🌐 5단계: Nginx 설정 적용 중..."
+    # 6. Nginx 설정
+    Write-Host "`n단계 6: Nginx 설정 적용 중..."
     
     $templatePath = "$PSScriptRoot\..\infra\nginx\tests.template.conf"
     if (-not (Test-Path $templatePath)) {
@@ -201,9 +210,9 @@ try {
     & $Nginx -s reload
     Write-Host "Nginx 리로드 완료"
     
-    # 6. 서비스 시작 확인
-    Write-Host "`n✅ 6단계: 서비스 시작 확인 중..."
-    Start-Sleep -Seconds 5
+    # 7. 서비스 상태 확인 및 Smoke 테스트
+    Write-Host "`n단계 7: 서비스 확인 및 Smoke 테스트 중..."
+    Start-Sleep -Seconds 10  # wheel 기반 서비스 시작 대기시간 증가
     
     $webStatus = & $Nssm status "cm-web-$Bid"
     $autodocStatus = & $Nssm status "cm-autodoc-$Bid"
@@ -211,27 +220,45 @@ try {
     Write-Host "웹서비스 상태: $webStatus"
     Write-Host "AutoDoc 상태: $autodocStatus"
     
+    # 서비스 상태 검증
     if ($webStatus -ne "SERVICE_RUNNING") {
-        Write-Warning "웹서비스가 정상 실행되지 않았습니다"
+        throw "웹서비스가 정상 실행되지 않았습니다 (상태: $webStatus)"
     }
     if ($autodocStatus -ne "SERVICE_RUNNING") {
-        Write-Warning "AutoDoc 서비스가 정상 실행되지 않았습니다"
+        throw "AutoDoc 서비스가 정상 실행되지 않았습니다 (상태: $autodocStatus)"
+    }
+    
+    # HTTP Health Check
+    Write-Host "HTTP Health Check 수행 중..."
+    try {
+        $webHealth = Invoke-RestMethod -Uri "http://localhost:$BackPort/api/health" -TimeoutSec 30
+        Write-Host "웹서비스 Health Check: 정상"
+    } catch {
+        Write-Warning "웹서비스 Health Check 실패: $($_.Exception.Message)"
+    }
+    
+    try {
+        $autoHealth = Invoke-RestMethod -Uri "http://localhost:$AutoPort/health" -TimeoutSec 30
+        Write-Host "AutoDoc Health Check: 정상"
+    } catch {
+        Write-Warning "AutoDoc Health Check 실패: $($_.Exception.Message)"
     }
     
     Write-Host "`n===========================================`n"
-    Write-Host "🎉 테스트 인스턴스 배포 완료!`n"
+    Write-Host "테스트 인스턴스 배포 완료 (Wheel 기반)!`n"
     Write-Host "===========================================`n"
     Write-Host "• 브랜치 ID: $Bid"
     Write-Host "• 웹서비스: http://localhost:$BackPort"
     Write-Host "• AutoDoc: http://localhost:$AutoPort"
-    Write-Host "• URL: /tests/$Bid/"
-    Write-Host "• 로그: $LogDir"
+    Write-Host "• 프론트엔드 URL: /tests/$Bid/"
+    Write-Host "• 로그 디렉토리: $TestLogsPath"
+    Write-Host "• Wheel 경로: $PackagesRoot"
     Write-Host "===========================================`n"
     
 } catch {
     Write-Error "테스트 인스턴스 배포 실패: $($_.Exception.Message)"
     
-    # 실패 시 정리 시도
+    # 실패 시 정리
     Write-Host "실패 후 정리 시도 중..."
     & $Nssm stop "cm-web-$Bid" 2>$null
     & $Nssm remove "cm-web-$Bid" confirm 2>$null

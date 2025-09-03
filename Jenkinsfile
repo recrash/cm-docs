@@ -511,7 +511,8 @@ pipeline {
                     -WebBackDst "%WEB_BACK_DST%" ^
                     -WebFrontDst "%WEB_FRONT_DST%" ^
                     -AutoDst "%AUTO_DST%" ^
-                    -UrlPrefix "%URL_PREFIX%"
+                    -UrlPrefix "%URL_PREFIX%" ^
+                    -PackagesRoot "C:\\deploys\\test\\%BID%\\packages"
                 '''
                 echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
             }
