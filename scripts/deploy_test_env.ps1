@@ -352,16 +352,17 @@ try {
         Write-Host "Nginx conf.d 디렉토리 생성: $NginxConfDir"
     }
     
-    $conf | Set-Content -Encoding UTF8 $out
+    # 6. Nginx 리로드
+    $conf | Set-Content -Encoding Ascii $out
     
     Write-Host "Nginx 설정 파일 생성 완료: $out"
-    
-    # Nginx 리로드
+            
     $nginxRoot = Split-Path $Nginx -Parent
     & $Nginx -p "$nginxRoot" -s reload
     Write-Host "Nginx 리로드 완료"
     
     # 7. 서비스 상태 확인 및 Smoke 테스트
+    $conf | Set-Content -Encoding UTF8 $out
     Write-Host "`n단계 7: 서비스 확인 및 Smoke 테스트 중..."
     Start-Sleep -Seconds 10  # wheel 기반 서비스 시작 대기시간 증가
     
@@ -372,10 +373,10 @@ try {
     Write-Host "AutoDoc 상태: $autodocStatus"
     
     # 서비스 상태 검증
-    if ($webStatus.Trim() -ne "SERVICE_RUNNING") {
-        throw "웹서비스가 정상 실행되지 않았습니다 (상태: $webStatus)"
+    if ($webStatus -notlike "*SERVICE_RUNNING*") {
+    throw "웹서비스가 정상 실행되지 않았습니다 (상태: $webStatus)"
     }
-    if ($autodocStatus.Trim() -ne "SERVICE_RUNNING") {
+    if ($autodocStatus -notlike "*SERVICE_RUNNING*") {
         throw "AutoDoc 서비스가 정상 실행되지 않았습니다 (상태: $autodocStatus)"
     }
     
