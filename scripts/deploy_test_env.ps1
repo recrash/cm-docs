@@ -372,10 +372,10 @@ try {
     Write-Host "AutoDoc 상태: $autodocStatus"
     
     # 서비스 상태 검증
-    if ($webStatus -ne "SERVICE_RUNNING  ") {
+    if ($webStatus.Trim() -ne "SERVICE_RUNNING") {
         throw "웹서비스가 정상 실행되지 않았습니다 (상태: $webStatus)"
     }
-    if ($autodocStatus -ne "SERVICE_RUNNING  ") {
+    if ($autodocStatus.Trim() -ne "SERVICE_RUNNING") {
         throw "AutoDoc 서비스가 정상 실행되지 않았습니다 (상태: $autodocStatus)"
     }
     
