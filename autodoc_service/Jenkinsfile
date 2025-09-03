@@ -406,7 +406,8 @@ pipeline {
             steps {
                 // 브랜치별 wheel 저장 (테스트 배포용)
                 script {
-                    def branchName = env.BRANCH_NAME.replaceAll(/[^a-zA-Z0-9_-]/, '_')
+                    def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                    branchName = branchName.replaceAll(/[^a-zA-Z0-9_-]/, '_')
                     def branchWheelPath = "C:\\deploys\\test\\${branchName}\\packages\\autodoc_service"
                     
                     powershell """
