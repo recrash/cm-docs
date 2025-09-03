@@ -222,9 +222,10 @@ try {
     # --- 웹서비스 정리 (수정된 로직) ---
     $webServiceName = "cm-web-$Bid"
     Write-Host "기존 웹서비스 확인 및 정리: $webServiceName"
-    $webStatus = & $Nssm status $webServiceName 2>$null
+    $webStatus = & $Nssm status $webServiceName -ErrorAction SilentlyContinue 2>$null
 
-    if ($webStatus) {
+    # $webStatus에 값이 있고(non-empty), 그 내용에 "SERVICE_" 문자열이 포함된 경우에만 서비스가 존재하는 것으로 간주
+    if ($webStatus -and $webStatus.Contains("SERVICE_")) {
         Write-Host "  -> 기존 서비스 발견 (상태: $webStatus). 제거를 시도합니다..."
         try {
             & $Nssm stop $webServiceName
@@ -250,9 +251,10 @@ try {
     # --- AutoDoc 서비스 정리 (동일하게 수정) ---
     $autodocServiceName = "cm-autodoc-$Bid"
     Write-Host "기존 AutoDoc 서비스 확인 및 정리: $autodocServiceName"
-    $autodocStatus = & $Nssm status $autodocServiceName 2>$null
+    $autodocStatus = & $Nssm status $autodocServiceName -ErrorAction SilentlyContinue 2>$null
 
-    if ($autodocStatus) {
+    # $autodocStatus에 값이 있고(non-empty), 그 내용에 "SERVICE_" 문자열이 포함된 경우에만 서비스가 존재하는 것으로 간주
+    if ($autodocStatus -and $autodocStatus.Contains("SERVICE_")) {
         Write-Host "  -> 기존 서비스 발견 (상태: $autodocStatus). 제거를 시도합니다..."
         try {
             & $Nssm stop $autodocServiceName
@@ -264,7 +266,6 @@ try {
             Write-Warning "  -> 서비스 중지/제거 중 오류 발생 (무시하고 계속): $($_.Exception.Message)"
         }
         
-        # 최종 확인
         # 최종 확인: 서비스가 정말로 제거되었는지 확인 (개선된 로직)
         $finalStatus = & $Nssm status $autodocServiceName 2>$null
         # $finalStatus에 값이 있고(non-empty), 그 내용에 "SERVICE_" 문자열이 포함된 경우에만 서비스가 존재하는 것으로 간주
