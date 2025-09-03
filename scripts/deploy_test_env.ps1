@@ -72,7 +72,14 @@ try {
     
     # 웹서비스 가상환경 생성 및 의존성 설치
     Write-Host "웹서비스 가상환경 설정 중..."
-    & $Py -m venv "$WebBackDst\.venv"
+    
+    # Python 경로가 환경변수 형태일 경우 확장
+    $PythonPath = $Py
+    if ($PythonPath.Contains('%LOCALAPPDATA%')) {
+        $PythonPath = $PythonPath.Replace('%LOCALAPPDATA%', $env:LOCALAPPDATA)
+    }
+    
+    & $PythonPath -m venv "$WebBackDst\.venv"
     
     if (Test-Path "$WheelhousePath\*.whl") {
         Write-Host "휠하우스 발견 - 오프라인 고속 설치"
@@ -95,7 +102,7 @@ try {
     
     # AutoDoc 가상환경 생성 및 의존성 설치
     Write-Host "AutoDoc 가상환경 설정 중..."
-    & $Py -m venv "$AutoDst\.venv312"
+    & $PythonPath -m venv "$AutoDst\.venv312"
     
     if (Test-Path "$WheelhousePath\*.whl") {
         Write-Host "휠하우스 발견 - 오프라인 고속 설치"
@@ -153,7 +160,7 @@ try {
     
     # 웹서비스 백엔드 서비스 등록
     Write-Host "웹서비스 백엔드 서비스 등록 중..."
-    & $Nssm install "cm-web-$Bid" $Py "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
+    & $Nssm install "cm-web-$Bid" $PythonPath "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
     & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
     & $Nssm set "cm-web-$Bid" AppStdout "$LogDir\web-$Bid.out.log"
     & $Nssm set "cm-web-$Bid" AppStderr "$LogDir\web-$Bid.err.log"
@@ -165,7 +172,7 @@ try {
     
     # AutoDoc 서비스 등록
     Write-Host "AutoDoc 서비스 등록 중..."
-    & $Nssm install "cm-autodoc-$Bid" $Py "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
+    & $Nssm install "cm-autodoc-$Bid" $PythonPath "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
     & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
     & $Nssm set "cm-autodoc-$Bid" AppStdout "$AutoDst\..\logs\autodoc-$Bid.out.log"
     & $Nssm set "cm-autodoc-$Bid" AppStderr "$AutoDst\..\logs\autodoc-$Bid.err.log"
