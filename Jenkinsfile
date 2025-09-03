@@ -192,6 +192,9 @@ pipeline {
                                         bat 'if exist ".venv" rmdir /s /q ".venv"'
                                         bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
                                         
+                                        // pip 상태 확인 및 복구 (폐쇄망 환경용)
+                                        bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m ensurepip --upgrade\""
+                                        
                                         // 휠하우스 활용 고속 설치
                                         def wheelHouseExists = bat(
                                             script: "if exist \"${env.WHEELHOUSE_PATH}\\*.whl\" echo found",
@@ -512,7 +515,7 @@ pipeline {
                     -WebFrontDst "%WEB_FRONT_DST%" ^
                     -AutoDst "%AUTO_DST%" ^
                     -UrlPrefix "%URL_PREFIX%" ^
-                    -PackagesRoot "C:\\deploys\\test\\%BID%\\packages"
+                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
                 '''
                 echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
             }
