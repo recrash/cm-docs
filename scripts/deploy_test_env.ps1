@@ -202,7 +202,8 @@ try {
     $tpl = Get-Content -Raw $templatePath
     $conf = $tpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", "$BackPort").Replace("{{AUTO_PORT}}", "$AutoPort")
     $out = Join-Path $NginxConfDir "tests-$Bid.conf"
-    $conf | Set-Content -Encoding UTF8 $out
+    # BOM 없는 UTF8NoBOM 인코딩 사용
+    $conf | Set-Content -Encoding UTF8NoBOM $out
     
     Write-Host "Nginx 설정 파일 생성 완료: $out"
     
@@ -220,12 +221,12 @@ try {
     Write-Host "웹서비스 상태: $webStatus"
     Write-Host "AutoDoc 상태: $autodocStatus"
     
-    # 서비스 상태 검증
-    if ($webStatus -ne "SERVICE_RUNNING") {
-        throw "웹서비스가 정상 실행되지 않았습니다 (상태: $webStatus)"
+    # 서비스 상태 검증 (공백 제거 후 비교)
+    if ($webStatus.Trim() -ne "SERVICE_RUNNING") {
+        throw "웹서비스가 정상 실행되지 않았습니다 (상태: [$($webStatus.Trim())])"
     }
-    if ($autodocStatus -ne "SERVICE_RUNNING") {
-        throw "AutoDoc 서비스가 정상 실행되지 않았습니다 (상태: $autodocStatus)"
+    if ($autodocStatus.Trim() -ne "SERVICE_RUNNING") {
+        throw "AutoDoc 서비스가 정상 실행되지 않았습니다 (상태: [$($autodocStatus.Trim())])"
     }
     
     # HTTP Health Check
