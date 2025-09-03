@@ -92,43 +92,7 @@ try {
     Write-Host "  Apps: $WebBackDst, $AutoDst"
     Write-Host "  Data: $TestWebDataPath, $TestAutoDataPath"
     Write-Host "  Packages: $PackagesRoot"
-    
-    # 1.5 마스터 데이터 복사 및 로그 정리
-    Write-Host "`단계 1.5: 마스터 데이터 복사 및 로그 정리"
-    $MasterWebDataPath = "C:\deploys\data\webservice"
-    $MasterAutoDataPath = "C:\deploys\data\autodoc_service"
-
-    # --- Webservice 데이터 복사 ---
-    if (Test-Path $MasterWebDataPath) {
-        Write-Host "  -> 웹서비스 마스터 데이터 복사: $MasterWebDataPath -> $TestWebDataPath"
-        Copy-Item -Path "$MasterWebDataPath\*" -Destination $TestWebDataPath -Recurse -Force
-    } else {
-        Write-Warning "  -> 웹서비스 마스터 데이터 폴더를 찾을 수 없습니다: $MasterWebDataPath"
-    }
-
-    # --- AutoDoc 데이터 복사 ---
-    if (Test-Path $MasterAutoDataPath) {
-        Write-Host "  -> AutoDoc 마스터 데이터 복사: $MasterAutoDataPath -> $TestAutoDataPath"
-        Copy-Item -Path "$MasterAutoDataPath\*" -Destination $TestAutoDataPath -Recurse -Force
-    } else {
-        Write-Warning "  -> AutoDoc 마스터 데이터 폴더를 찾을 수 없습니다: $MasterAutoDataPath"
-    }
-
-    # --- 복사된 기존 로그 폴더 삭제 (요청사항 반영) ---
-    Write-Host "  -> 복사된 기존 로그 폴더 정리..."
-    $WebServiceLogPath = Join-Path $TestWebDataPath "logs"
-    $AutoDocLogPath = Join-Path $TestAutoDataPath "logs"
-
-    if (Test-Path $WebServiceLogPath) {
-        Remove-Item -Path $WebServiceLogPath -Recurse -Force
-        Write-Host "    - 웹서비스 로그 폴더 삭제 완료: $WebServiceLogPath"
-    }
-
-    if (Test-Path $AutoDocLogPath) {
-        Remove-Item -Path $AutoDocLogPath -Recurse -Force
-        Write-Host "    - AutoDoc 로그 폴더 삭제 완료: $AutoDocLogPath"
-    }
-
+        
     # 2. Config 파일 준비
     Write-Host "`n단계 2: Config 파일 준비 중..."
     
@@ -302,6 +266,43 @@ try {
         
     } catch {
         Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다. (메시지: $($_.Exception.Message.Trim()))"
+    }
+
+
+    # 마스터 데이터 복사 및 로그 정리
+    Write-Host "마스터 데이터 복사 및 로그 정리"
+    $MasterWebDataPath = "C:\deploys\data\webservice"
+    $MasterAutoDataPath = "C:\deploys\data\autodoc_service"
+
+    # --- Webservice 데이터 복사 ---
+    if (Test-Path $MasterWebDataPath) {
+        Write-Host "  -> 웹서비스 마스터 데이터 복사: $MasterWebDataPath -> $TestWebDataPath"
+        Copy-Item -Path "$MasterWebDataPath\*" -Destination $TestWebDataPath -Recurse -Force
+    } else {
+        Write-Warning "  -> 웹서비스 마스터 데이터 폴더를 찾을 수 없습니다: $MasterWebDataPath"
+    }
+
+    # --- AutoDoc 데이터 복사 ---
+    if (Test-Path $MasterAutoDataPath) {
+        Write-Host "  -> AutoDoc 마스터 데이터 복사: $MasterAutoDataPath -> $TestAutoDataPath"
+        Copy-Item -Path "$MasterAutoDataPath\*" -Destination $TestAutoDataPath -Recurse -Force
+    } else {
+        Write-Warning "  -> AutoDoc 마스터 데이터 폴더를 찾을 수 없습니다: $MasterAutoDataPath"
+    }
+
+    # --- 복사된 기존 로그 폴더 삭제 (요청사항 반영) ---
+    Write-Host "  -> 복사된 기존 로그 폴더 정리..."
+    $WebServiceLogPath = Join-Path $TestWebDataPath "logs"
+    $AutoDocLogPath = Join-Path $TestAutoDataPath "logs"
+
+    if (Test-Path $WebServiceLogPath) {
+        Remove-Item -Path $WebServiceLogPath -Recurse -Force
+        Write-Host "    - 웹서비스 로그 폴더 삭제 완료: $WebServiceLogPath"
+    }
+
+    if (Test-Path $AutoDocLogPath) {
+        Remove-Item -Path $AutoDocLogPath -Recurse -Force
+        Write-Host "    - AutoDoc 로그 폴더 삭제 완료: $AutoDocLogPath"
     }
     
     # 웹서비스 서비스 등록
