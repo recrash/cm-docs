@@ -245,7 +245,8 @@ try {
     
     # 웹서비스 서비스 등록
     Write-Host "웹서비스 서비스 등록 중..."
-    & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn webservice.app.main:app --host 0.0.0.0 --port $BackPort"
+    # & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn webservice.app.main:app --host 0.0.0.0 --port $BackPort"
+    & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
     & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
     & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
     & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
@@ -255,7 +256,8 @@ try {
     
     # AutoDoc 서비스 등록
     Write-Host "AutoDoc 서비스 등록 중..."
-    & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn autodoc_service.app.main:app --host 0.0.0.0 --port $AutoPort"
+    & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
+    # & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn autodoc_service.app.main:app --host 0.0.0.0 --port $AutoPort"
     & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
     & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
     & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
