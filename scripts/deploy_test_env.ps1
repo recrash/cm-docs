@@ -357,7 +357,8 @@ try {
     Write-Host "Nginx 설정 파일 생성 완료: $out"
     
     # Nginx 리로드
-    & $Nginx -s reload
+    $nginxRoot = Split-Path $Nginx -Parent
+    & $Nginx -p "$nginxRoot" -s reload
     Write-Host "Nginx 리로드 완료"
     
     # 7. 서비스 상태 확인 및 Smoke 테스트
