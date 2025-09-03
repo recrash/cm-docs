@@ -379,20 +379,21 @@ try {
     Write-Host "Nginx 설정 적용을 위한 서비스 재시작 중..."
     
     try {
-        # nginx reload 대신 NSSM 서비스 재시작 사용
-        & $Nssm restart "nginx-frontend"
+        # PowerShell 서비스 관리 사용 (NSSM 권한 문제 해결)
+        Write-Host "  PowerShell Restart-Service 사용..."
+        Restart-Service -Name "nginx-frontend" -Force
         Start-Sleep -Seconds 3
         
-        # 서비스 상태 확인
-        $nginxService = & $Nssm status "nginx-frontend"
-        if ($nginxService -like "*RUNNING*") {
+        # Windows 기본 서비스 상태 확인
+        $nginxService = Get-Service -Name "nginx-frontend"
+        if ($nginxService.Status -eq "Running") {
             Write-Host "Nginx 서비스 재시작 완료 (Include 방식 설정 적용)"
         } else {
-            throw "Nginx 서비스 재시작 후 상태가 비정상입니다: $nginxService"
+            throw "Nginx 서비스 재시작 후 상태가 비정상입니다: $($nginxService.Status)"
         }
         
     } catch {
-        Write-Warning "NSSM 재시작 실패, 직접 reload 시도: $($_.Exception.Message)"
+        Write-Warning "PowerShell 서비스 재시작 실패, 직접 reload 시도: $($_.Exception.Message)"
         
         # 폴백: 직접 reload 시도 (권한 에러 무시)
         try {
