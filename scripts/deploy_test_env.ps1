@@ -282,6 +282,12 @@ try {
         Write-Host "Nginx 상위 디렉토리 생성: $nginxConfParent"
     }
     
+    # 최종 디렉토리 존재 확인
+    if (-not (Test-Path $NginxConfDir)) {
+        New-Item -ItemType Directory -Force -Path $NginxConfDir | Out-Null
+        Write-Host "Nginx conf.d 디렉토리 생성: $NginxConfDir"
+    }
+    
     $conf | Set-Content -Encoding UTF8 $out
     
     Write-Host "Nginx 설정 파일 생성 완료: $out"
