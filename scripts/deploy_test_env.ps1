@@ -213,68 +213,59 @@ try {
         throw "프론트엔드 빌드 결과가 없습니다: dist 폴더를 찾을 수 없음"
     }
     
-    # 5. NSSM 서비스 등록
+   # 5. NSSM 서비스 등록
     Write-Host "`n단계 5: NSSM 서비스 등록 중..."
-    
-    # 기존 서비스 정리 (안전한 방식)
-    Write-Host "기존 서비스 확인 및 정리 중..."
-    
-    # --- 웹서비스 정리 (수정된 로직) ---
+
+    # --- 웹서비스 정리 (최종 수정된 로직) ---
     $webServiceName = "cm-web-$Bid"
     Write-Host "기존 웹서비스 확인 및 정리: $webServiceName"
-    $webStatus = & $Nssm status $webServiceName -ErrorAction SilentlyContinue 2>$null
-
-    # $webStatus에 값이 있고(non-empty), 그 내용에 "SERVICE_" 문자열이 포함된 경우에만 서비스가 존재하는 것으로 간주
-    if ($webStatus -and $webStatus.Contains("SERVICE_")) {
+    try {
+        # 서비스 상태를 확인. 서비스가 존재하면 $webStatus에 상태 문자열이 담김
+        $webStatus = & $Nssm status $webServiceName -ErrorAction Stop # 에러를 확실히 catch하기 위해 Stop으로 설정
+        
+        # 이 라인까지 실행되었다는 것은 서비스가 존재한다는 의미
         Write-Host "  -> 기존 서비스 발견 (상태: $webStatus). 제거를 시도합니다..."
-        try {
-            & $Nssm stop $webServiceName
-            Start-Sleep -Seconds 2 # 서비스가 완전히 중지될 때까지 잠시 대기
-            & $Nssm remove $webServiceName confirm
-            Start-Sleep -Seconds 2 # 서비스가 완전히 제거될 때까지 잠시 대기
-            Write-Host "  -> 서비스 제거 명령 실행 완료."
-        } catch {
-            Write-Warning "  -> 서비스 중지/제거 중 오류 발생 (무시하고 계속): $($_.Exception.Message)"
-        }
 
-        # 최종 확인: 서비스가 정말로 제거되었는지 확인 (개선된 로직)
-        $finalStatus = & $Nssm status $webServiceName 2>$null
-        # $finalStatus에 값이 있고(non-empty), 그 내용에 "SERVICE_" 문자열이 포함된 경우에만 서비스가 존재하는 것으로 간주
+        # 서비스가 존재하므로 중지 및 제거
+        & $Nssm stop $webServiceName
+        Start-Sleep -Seconds 2
+        & $Nssm remove $webServiceName confirm
+        Start-Sleep -Seconds 2
+
+        # 최종 확인
+        $finalStatus = & $Nssm status $webServiceName -ErrorAction SilentlyContinue
         if ($finalStatus -and $finalStatus.Contains("SERVICE_")) {
-            throw "오류: 기존 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $finalStatus). 수동으로 제거 후 다시 시도해주세요."
+            throw "오류: 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $finalStatus)."
         }
         Write-Host "  -> 서비스 제거 최종 확인 완료."
-    } else {
-        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다."
+
+    } catch {
+        # 'nssm status'가 실패하면 이 catch 블록으로 진입함. 즉, 서비스가 없다는 의미.
+        # $_.Exception.Message 에 "Can't open service!" 가 담겨있음
+        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다. (메시지: $($_.Exception.Message.Trim()))"
     }
-    
+
+
     # --- AutoDoc 서비스 정리 (동일하게 수정) ---
     $autodocServiceName = "cm-autodoc-$Bid"
     Write-Host "기존 AutoDoc 서비스 확인 및 정리: $autodocServiceName"
-    $autodocStatus = & $Nssm status $autodocServiceName -ErrorAction SilentlyContinue 2>$null
-
-    # $autodocStatus에 값이 있고(non-empty), 그 내용에 "SERVICE_" 문자열이 포함된 경우에만 서비스가 존재하는 것으로 간주
-    if ($autodocStatus -and $autodocStatus.Contains("SERVICE_")) {
+    try {
+        $autodocStatus = & $Nssm status $autodocServiceName -ErrorAction Stop
         Write-Host "  -> 기존 서비스 발견 (상태: $autodocStatus). 제거를 시도합니다..."
-        try {
-            & $Nssm stop $autodocServiceName
-            Start-Sleep -Seconds 2
-            & $Nssm remove $autodocServiceName confirm
-            Start-Sleep -Seconds 2
-            Write-Host "  -> 서비스 제거 명령 실행 완료."
-        } catch {
-            Write-Warning "  -> 서비스 중지/제거 중 오류 발생 (무시하고 계속): $($_.Exception.Message)"
-        }
-        
-        # 최종 확인: 서비스가 정말로 제거되었는지 확인 (개선된 로직)
-        $finalStatus = & $Nssm status $autodocServiceName 2>$null
-        # $finalStatus에 값이 있고(non-empty), 그 내용에 "SERVICE_" 문자열이 포함된 경우에만 서비스가 존재하는 것으로 간주
-        if ($finalStatus -and $finalStatus.Contains("SERVICE_")) {
-            throw "오류: 기존 서비스 '$autodocServiceName'을 제거하지 못했습니다 (상태: $finalStatus). 수동으로 제거 후 다시 시도해주세요."
+
+        & $Nssm stop $autodocServiceName
+        Start-Sleep -Seconds 2
+        & $Nssm remove $autodocServiceName confirm
+        Start-Sleep -Seconds 2
+
+        $finalAutodocStatus = & $Nssm status $autodocServiceName -ErrorAction SilentlyContinue
+        if ($finalAutodocStatus -and $finalAutodocStatus.Contains("SERVICE_")) {
+            throw "오류: 서비스 '$autodocServiceName'을 제거하지 못했습니다 (상태: $finalAutodocStatus)."
         }
         Write-Host "  -> 서비스 제거 최종 확인 완료."
-    } else {
-        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다."
+        
+    } catch {
+        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다. (메시지: $($_.Exception.Message.Trim()))"
     }
     
     # 웹서비스 서비스 등록
