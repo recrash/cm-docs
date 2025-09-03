@@ -497,8 +497,21 @@ pipeline {
             }
             steps {
                 bat '''
-                    chcp 65001
-                    powershell -ExecutionPolicy Bypass -InputFormat None -OutputFormat Text -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & scripts/deploy_test_env.ps1 -Bid '%BID%' -BackPort %BACK_PORT% -AutoPort %AUTO_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -NginxConfDir '%NGINX_CONF_DIR%' -WebSrc '%WORKSPACE%\\webservice' -AutoSrc '%WORKSPACE%\\autodoc_service' -WebBackDst '%WEB_BACK_DST%' -WebFrontDst '%WEB_FRONT_DST%' -AutoDst '%AUTO_DST%' -UrlPrefix '%URL_PREFIX%'"
+                chcp 65001 >NUL
+                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_test_env.ps1" ^
+                    -Bid "%BID%" ^
+                    -BackPort %BACK_PORT% ^
+                    -AutoPort %AUTO_PORT% ^
+                    -Py "%PY_PATH%" ^
+                    -Nssm "%NSSM_PATH%" ^
+                    -Nginx "%NGINX_PATH%" ^
+                    -NginxConfDir "%NGINX_CONF_DIR%" ^
+                    -WebSrc "%WORKSPACE%\\webservice" ^
+                    -AutoSrc "%WORKSPACE%\\autodoc_service" ^
+                    -WebBackDst "%WEB_BACK_DST%" ^
+                    -WebFrontDst "%WEB_FRONT_DST%" ^
+                    -AutoDst "%AUTO_DST%" ^
+                    -UrlPrefix "%URL_PREFIX%"
                 '''
                 echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
             }

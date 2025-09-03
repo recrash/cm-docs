@@ -1,4 +1,4 @@
-# scripts/deploy_test_env.ps1
+﻿# scripts/deploy_test_env.ps1
 # 브랜치별 테스트 인스턴스 자동 배포 스크립트
 
 param(
