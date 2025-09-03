@@ -7,7 +7,7 @@ name = "webservice"
 version = "0.1.0"
 description = "Git 변경사항 분석 및 테스트 시나리오 생성 웹 서비스"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     # Core FastAPI & Web Server
     "fastapi==0.116.1",

@@ -34,6 +34,48 @@ Write-Host "• Packages Root: $PackagesRoot"
 Write-Host "===========================================`n"
 
 try {
+    # 0. 기존 소문자 폴더 정리 (대소문자 중복 방지)
+    Write-Host "단계 0: 기존 폴더 정리 중..."
+    $testRoot = "C:\deploys\tests"
+    $currentBranch = $Bid
+    $lowerBranch = $currentBranch.ToLower()
+    
+    # 소문자 버전 폴더가 존재하고 현재 브랜치명과 다른 경우 정리
+    $lowerBranchPath = "$testRoot\$lowerBranch"
+    if (($currentBranch -ne $lowerBranch) -and (Test-Path $lowerBranchPath)) {
+        Write-Host "기존 소문자 브랜치 폴더 발견: $lowerBranchPath"
+        
+        # 기존 서비스 중지
+        try {
+            $oldWebService = "cm-web-$lowerBranch"
+            $oldAutoService = "cm-autodoc-$lowerBranch"
+            
+            $webStatus = & $Nssm status $oldWebService 2>$null
+            if ($webStatus) {
+                Write-Host "기존 웹서비스 중지: $oldWebService"
+                & $Nssm stop $oldWebService 2>$null
+                & $Nssm remove $oldWebService confirm 2>$null
+            }
+            
+            $autoStatus = & $Nssm status $oldAutoService 2>$null
+            if ($autoStatus) {
+                Write-Host "기존 AutoDoc 서비스 중지: $oldAutoService"
+                & $Nssm stop $oldAutoService 2>$null
+                & $Nssm remove $oldAutoService confirm 2>$null
+            }
+        } catch {
+            Write-Host "기존 서비스 정리 중 오류 (무시): $($_.Exception.Message)"
+        }
+        
+        # 기존 폴더 삭제
+        try {
+            Remove-Item -Path $lowerBranchPath -Recurse -Force
+            Write-Host "기존 소문자 브랜치 폴더 삭제 완료: $lowerBranchPath"
+        } catch {
+            Write-Host "경고: 기존 폴더 삭제 실패: $($_.Exception.Message)"
+        }
+    }
+    
     # 1. 디렉토리 구조 생성
     Write-Host "단계 1: 디렉토리 구조 생성 중..."
     
@@ -50,7 +92,7 @@ try {
     Write-Host "  Apps: $WebBackDst, $AutoDst"
     Write-Host "  Data: $TestWebDataPath, $TestAutoDataPath"
     Write-Host "  Packages: $PackagesRoot"
-    
+        
     # 2. Config 파일 준비
     Write-Host "`n단계 2: Config 파일 준비 중..."
     
@@ -101,15 +143,19 @@ try {
         throw "webservice wheel 파일을 찾을 수 없습니다: $BranchWebWheelPath 또는 $GlobalWheelPath\webservice"
     }
     
-    # 웹서비스 wheel 설치
-    & "$WebBackDst\.venv\Scripts\pip.exe" install --no-index --find-links="$WebWheelSource" webservice
-    
-    # 추가 의존성 설치 (constraints 파일 활용)
+    # 1. 의존성 먼저 설치 (wheelhouse에서)
+    Write-Host "  - 의존성 설치 (from wheelhouse)..."
+    $webPip = "$WebBackDst\.venv\Scripts\pip.exe"
     if (Test-Path "$WebSrc\pip.constraints.txt") {
-        & "$WebBackDst\.venv\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
+        & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
     } else {
-        & "$WebBackDst\.venv\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
+        & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
     }
+    
+    # 2. 의존성 검사 없이 .whl 패키지 설치
+    Write-Host "  - webservice.whl 패키지 설치 (--no-deps)..."
+    $webWheelFile = Get-ChildItem -Path "$WebWheelSource" -Filter "webservice-*.whl" | Select-Object -First 1
+    & $webPip install $webWheelFile.FullName --no-deps
     Write-Host "웹서비스 설치 완료"
     
     # AutoDoc 설치
@@ -128,7 +174,12 @@ try {
         throw "autodoc_service wheel 파일을 찾을 수 없습니다: $BranchAutoWheelPath 또는 $GlobalWheelPath\autodoc_service"
     }
     
-    # AutoDoc wheel 설치
+    # 1. AutoDoc 의존성 먼저 설치 (wheelhouse에서)
+    Write-Host "  - AutoDoc 의존성 설치 (from wheelhouse)..."
+    $autoPip = "$AutoDst\.venv312\Scripts\pip.exe"
+    & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
+    
+    # 2. AutoDoc wheel 설치
     & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$AutoWheelSource" autodoc_service
     
     # AutoDoc 추가 의존성 설치
@@ -162,18 +213,102 @@ try {
         throw "프론트엔드 빌드 결과가 없습니다: dist 폴더를 찾을 수 없음"
     }
     
-    # 5. NSSM 서비스 등록
+   # 5. NSSM 서비스 등록
     Write-Host "`n단계 5: NSSM 서비스 등록 중..."
-    
-    # 기존 서비스 정리
-    & $Nssm stop "cm-web-$Bid" 2>$null
-    & $Nssm remove "cm-web-$Bid" confirm 2>$null
-    & $Nssm stop "cm-autodoc-$Bid" 2>$null
-    & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+
+    # --- 웹서비스 정리 (최종 수정된 로직) ---
+    $webServiceName = "cm-web-$Bid"
+    Write-Host "기존 웹서비스 확인 및 정리: $webServiceName"
+    try {
+        # 서비스 상태를 확인. 서비스가 존재하면 $webStatus에 상태 문자열이 담김
+        $webStatus = & $Nssm status $webServiceName -ErrorAction Stop # 에러를 확실히 catch하기 위해 Stop으로 설정
+        
+        # 이 라인까지 실행되었다는 것은 서비스가 존재한다는 의미
+        Write-Host "  -> 기존 서비스 발견 (상태: $webStatus). 제거를 시도합니다..."
+
+        # 서비스가 존재하므로 중지 및 제거
+        & $Nssm stop $webServiceName
+        Start-Sleep -Seconds 2
+        & $Nssm remove $webServiceName confirm
+        Start-Sleep -Seconds 2
+
+        # 최종 확인
+        $finalStatus = & $Nssm status $webServiceName -ErrorAction SilentlyContinue
+        if ($finalStatus -and $finalStatus.Contains("SERVICE_")) {
+            throw "오류: 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $finalStatus)."
+        }
+        Write-Host "  -> 서비스 제거 최종 확인 완료."
+
+    } catch {
+        # 'nssm status'가 실패하면 이 catch 블록으로 진입함. 즉, 서비스가 없다는 의미.
+        # $_.Exception.Message 에 "Can't open service!" 가 담겨있음
+        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다. (메시지: $($_.Exception.Message.Trim()))"
+    }
+
+
+    # --- AutoDoc 서비스 정리 (동일하게 수정) ---
+    $autodocServiceName = "cm-autodoc-$Bid"
+    Write-Host "기존 AutoDoc 서비스 확인 및 정리: $autodocServiceName"
+    try {
+        $autodocStatus = & $Nssm status $autodocServiceName -ErrorAction Stop
+        Write-Host "  -> 기존 서비스 발견 (상태: $autodocStatus). 제거를 시도합니다..."
+
+        & $Nssm stop $autodocServiceName
+        Start-Sleep -Seconds 2
+        & $Nssm remove $autodocServiceName confirm
+        Start-Sleep -Seconds 2
+
+        $finalAutodocStatus = & $Nssm status $autodocServiceName -ErrorAction SilentlyContinue
+        if ($finalAutodocStatus -and $finalAutodocStatus.Contains("SERVICE_")) {
+            throw "오류: 서비스 '$autodocServiceName'을 제거하지 못했습니다 (상태: $finalAutodocStatus)."
+        }
+        Write-Host "  -> 서비스 제거 최종 확인 완료."
+        
+    } catch {
+        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다. (메시지: $($_.Exception.Message.Trim()))"
+    }
+
+
+    # 마스터 데이터 복사 및 로그 정리
+    Write-Host "마스터 데이터 복사 및 로그 정리"
+    $MasterWebDataPath = "C:\deploys\data\webservice"
+    $MasterAutoDataPath = "C:\deploys\data\autodoc_service"
+
+    # --- Webservice 데이터 복사 ---
+    if (Test-Path $MasterWebDataPath) {
+        Write-Host "  -> 웹서비스 마스터 데이터 복사: $MasterWebDataPath -> $TestWebDataPath"
+        Copy-Item -Path "$MasterWebDataPath\*" -Destination $TestWebDataPath -Recurse -Force
+    } else {
+        Write-Warning "  -> 웹서비스 마스터 데이터 폴더를 찾을 수 없습니다: $MasterWebDataPath"
+    }
+
+    # --- AutoDoc 데이터 복사 ---
+    if (Test-Path $MasterAutoDataPath) {
+        Write-Host "  -> AutoDoc 마스터 데이터 복사: $MasterAutoDataPath -> $TestAutoDataPath"
+        Copy-Item -Path "$MasterAutoDataPath\*" -Destination $TestAutoDataPath -Recurse -Force
+    } else {
+        Write-Warning "  -> AutoDoc 마스터 데이터 폴더를 찾을 수 없습니다: $MasterAutoDataPath"
+    }
+
+    # --- 복사된 기존 로그 폴더 삭제 (요청사항 반영) ---
+    Write-Host "  -> 복사된 기존 로그 폴더 정리..."
+    $WebServiceLogPath = Join-Path $TestWebDataPath "logs"
+    $AutoDocLogPath = Join-Path $TestAutoDataPath "logs"
+
+    if (Test-Path $WebServiceLogPath) {
+        Remove-Item -Path $WebServiceLogPath -Recurse -Force
+        Write-Host "    - 웹서비스 로그 폴더 삭제 완료: $WebServiceLogPath"
+    }
+
+    if (Test-Path $AutoDocLogPath) {
+        Remove-Item -Path $AutoDocLogPath -Recurse -Force
+        Write-Host "    - AutoDoc 로그 폴더 삭제 완료: $AutoDocLogPath"
+    }
     
     # 웹서비스 서비스 등록
     Write-Host "웹서비스 서비스 등록 중..."
-    & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn webservice.app.main:app --host 0.0.0.0 --port $BackPort"
+    # & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn webservice.app.main:app --host 0.0.0.0 --port $BackPort"
+    & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
     & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
     & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
     & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
@@ -183,7 +318,8 @@ try {
     
     # AutoDoc 서비스 등록
     Write-Host "AutoDoc 서비스 등록 중..."
-    & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn autodoc_service.app.main:app --host 0.0.0.0 --port $AutoPort"
+    & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
+    # & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn autodoc_service.app.main:app --host 0.0.0.0 --port $AutoPort"
     & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
     & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
     & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
@@ -205,13 +341,27 @@ try {
     # BOM 없는 UTF8NoBOM 인코딩 사용
     $conf | Set-Content -Encoding UTF8NoBOM $out
     
-    Write-Host "Nginx 설정 파일 생성 완료: $out"
+    # Nginx conf 디렉토리 생성 확인 (상위 디렉토리 포함)
+    $nginxConfParent = Split-Path $NginxConfDir -Parent
+    if (-not (Test-Path $nginxConfParent)) {
+        New-Item -ItemType Directory -Force -Path $nginxConfParent | Out-Null
+        Write-Host "Nginx 상위 디렉토리 생성: $nginxConfParent"
+    }
     
-    # Nginx 리로드
-    & $Nginx -s reload
+    # 최종 디렉토리 존재 확인
+    if (-not (Test-Path $NginxConfDir)) {
+        New-Item -ItemType Directory -Force -Path $NginxConfDir | Out-Null
+        Write-Host "Nginx conf.d 디렉토리 생성: $NginxConfDir"
+    }
+    
+    # 6. Nginx 리로드
+    Write-Host "Nginx 설정 파일 생성 완료: $out"
+            
+    $nginxRoot = Split-Path $Nginx -Parent
+    & $Nginx -p "$nginxRoot" -s reload
     Write-Host "Nginx 리로드 완료"
     
-    # 7. 서비스 상태 확인 및 Smoke 테스트
+    # 7. 서비스 상태 확인 및 Smoke 테스트  
     Write-Host "`n단계 7: 서비스 확인 및 Smoke 테스트 중..."
     Start-Sleep -Seconds 10  # wheel 기반 서비스 시작 대기시간 증가
     
