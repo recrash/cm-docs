@@ -219,28 +219,58 @@ try {
     # 기존 서비스 정리 (안전한 방식)
     Write-Host "기존 서비스 확인 및 정리 중..."
     
-    # 웹서비스 정리
-    try {
-        $webStatus = & $Nssm status "cm-web-$Bid" 2>$null
-        if ($webStatus) {
-            Write-Host "기존 웹서비스 중지 중: cm-web-$Bid (상태: $webStatus)"
-            & $Nssm stop "cm-web-$Bid" 2>$null
-            & $Nssm remove "cm-web-$Bid" confirm 2>$null
+    # --- 웹서비스 정리 (수정된 로직) ---
+    $webServiceName = "cm-web-$Bid"
+    Write-Host "기존 웹서비스 확인 및 정리: $webServiceName"
+    $webStatus = & $Nssm status $webServiceName 2>$null
+
+    if ($webStatus) {
+        Write-Host "  -> 기존 서비스 발견 (상태: $webStatus). 제거를 시도합니다..."
+        try {
+            & $Nssm stop $webServiceName
+            Start-Sleep -Seconds 2 # 서비스가 완전히 중지될 때까지 잠시 대기
+            & $Nssm remove $webServiceName confirm
+            Start-Sleep -Seconds 2 # 서비스가 완전히 제거될 때까지 잠시 대기
+            Write-Host "  -> 서비스 제거 명령 실행 완료."
+        } catch {
+            Write-Warning "  -> 서비스 중지/제거 중 오류 발생 (무시하고 계속): $($_.Exception.Message)"
         }
-    } catch {
-        Write-Host "웹서비스가 존재하지 않음 (정상): cm-web-$Bid"
+
+        # 최종 확인: 서비스가 정말로 제거되었는지 확인
+        $finalStatus = & $Nssm status $webServiceName 2>$null
+        if ($finalStatus) {
+            throw "오류: 기존 서비스 '$webServiceName'을 제거하지 못했습니다. Jenkins 서버에서 수동으로 서비스를 제거한 후 다시 시도해주세요."
+        }
+        Write-Host "  -> 서비스 제거 최종 확인 완료."
+    } else {
+        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다."
     }
     
-    # AutoDoc 서비스 정리
-    try {
-        $autodocStatus = & $Nssm status "cm-autodoc-$Bid" 2>$null
-        if ($autodocStatus) {
-            Write-Host "기존 AutoDoc 서비스 중지 중: cm-autodoc-$Bid (상태: $autodocStatus)"
-            & $Nssm stop "cm-autodoc-$Bid" 2>$null
-            & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+    # --- AutoDoc 서비스 정리 (동일하게 수정) ---
+    $autodocServiceName = "cm-autodoc-$Bid"
+    Write-Host "기존 AutoDoc 서비스 확인 및 정리: $autodocServiceName"
+    $autodocStatus = & $Nssm status $autodocServiceName 2>$null
+
+    if ($autodocStatus) {
+        Write-Host "  -> 기존 서비스 발견 (상태: $autodocStatus). 제거를 시도합니다..."
+        try {
+            & $Nssm stop $autodocServiceName
+            Start-Sleep -Seconds 2
+            & $Nssm remove $autodocServiceName confirm
+            Start-Sleep -Seconds 2
+            Write-Host "  -> 서비스 제거 명령 실행 완료."
+        } catch {
+            Write-Warning "  -> 서비스 중지/제거 중 오류 발생 (무시하고 계속): $($_.Exception.Message)"
         }
-    } catch {
-        Write-Host "AutoDoc 서비스가 존재하지 않음 (정상): cm-autodoc-$Bid"
+        
+        # 최종 확인
+        $finalAutodocStatus = & $Nssm status $autodocServiceName 2>$null
+        if ($finalAutodocStatus) {
+            throw "오류: 기존 서비스 '$autodocServiceName'을 제거하지 못했습니다. 수동으로 제거 후 다시 시도하세요."
+        }
+        Write-Host "  -> 서비스 제거 최종 확인 완료."
+    } else {
+        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다."
     }
     
     # 웹서비스 서비스 등록
