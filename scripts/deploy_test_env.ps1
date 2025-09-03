@@ -375,9 +375,34 @@ try {
         Write-Host "기존 conf.d 파일 삭제: $oldConfFile"
     }
     
-    # Nginx 리로드
-    & $Nginx -p "$nginxRoot" -s reload
-    Write-Host "Nginx 리로드 완료 (Include 방식 설정 적용)"
+    # Nginx 리로드 (권한 문제 해결: NSSM 서비스 재시작)
+    Write-Host "Nginx 설정 적용을 위한 서비스 재시작 중..."
+    
+    try {
+        # nginx reload 대신 NSSM 서비스 재시작 사용
+        & $Nssm restart "nginx-frontend"
+        Start-Sleep -Seconds 3
+        
+        # 서비스 상태 확인
+        $nginxService = & $Nssm status "nginx-frontend"
+        if ($nginxService -like "*RUNNING*") {
+            Write-Host "Nginx 서비스 재시작 완료 (Include 방식 설정 적용)"
+        } else {
+            throw "Nginx 서비스 재시작 후 상태가 비정상입니다: $nginxService"
+        }
+        
+    } catch {
+        Write-Warning "NSSM 재시작 실패, 직접 reload 시도: $($_.Exception.Message)"
+        
+        # 폴백: 직접 reload 시도 (권한 에러 무시)
+        try {
+            & $Nginx -p "$nginxRoot" -s reload 2>$null
+            Write-Host "Nginx 직접 리로드 시도 완료 (권한 에러 무시)"
+        } catch {
+            Write-Warning "Nginx 리로드 완전 실패: $($_.Exception.Message)"
+            Write-Host "참고: 수동으로 nginx 재시작 필요할 수 있습니다"
+        }
+    }
     
     # 7. 서비스 상태 확인 및 Smoke 테스트  
     Write-Host "`n단계 7: 서비스 확인 및 Smoke 테스트 중..."
