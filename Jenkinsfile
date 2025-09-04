@@ -252,9 +252,34 @@ pipeline {
                               parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
                         
                         // Frontend 빌드된 아티팩트를 현재 작업공간으로 복사
-                        def frontendWorkspace = "C:\\deploys\\jenkins\\workspace\\webservice-frontend-pipeline_${env.BRANCH_NAME}"
-                        bat "if exist \"${frontendWorkspace}\\webservice\\frontend.zip\" copy \"${frontendWorkspace}\\webservice\\frontend.zip\" \"${WORKSPACE}\\webservice\\\""
-                        echo "Frontend 빌드 완료 및 아티팩트 복사 - Build #${frontendBuild.getNumber()}"
+                        def frontendWorkspace = "C:\\\\ProgramData\\\\Jenkins\\\\.jenkins\\\\workspace\\\\webservice-frontend-pipeline"
+                        // Frontend 아티팩트 복사 로직
+                        def frontendZipPath = "${frontendWorkspace}\\\\webservice\\\\frontend.zip"
+                        def targetDir = "${WORKSPACE}\\\\webservice"
+                        def targetZipPath = "${targetDir}\\\\frontend.zip"
+                        
+                        // 대상 디렉토리 생성
+                        bat "if not exist \"${targetDir}\" mkdir \"${targetDir}\""
+                        
+                        // Frontend 아티팩트 복사 및 검증
+                        bat """
+                            if exist "${frontendZipPath}" (
+                                copy "${frontendZipPath}" "${targetZipPath}"
+                                if exist "${targetZipPath}" (
+                                    echo Frontend 아티팩트 복사 성공: frontend.zip
+                                ) else (
+                                    echo ERROR: Frontend 아티팩트 복사 실패
+                                    exit /b 1
+                                )
+                            ) else (
+                                echo ERROR: Frontend 아티팩트 없음: ${frontendZipPath}
+                                echo Frontend 파이프라인 작업공간 내용:
+                                dir "${frontendWorkspace}\\\\webservice" /b 2>nul || echo 디렉토리 없음
+                                exit /b 1
+                            )
+                        """
+                        
+                        echo "Frontend 빌드 및 아티팩트 전파 성공 - Build #${frontendBuild.getNumber()}"
                         
                         env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
                         echo "Webservice Frontend 배포 성공"
