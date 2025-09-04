@@ -248,7 +248,7 @@ pipeline {
                 script {
                     try {
                         echo "Webservice Frontend 빌드/배포 시작 (Backend 성공 확인됨)"
-                        def frontendBuild = build job: "webservice-frontend-pipeline/${env.BRANCH_NAME}",
+                        def frontendBuild = build job: "webservice-frontend-pipeline",
                               parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
                         
                         // 빌드된 아티팩트를 현재 작업 공간으로 복사
