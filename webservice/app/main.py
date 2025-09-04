@@ -91,7 +91,7 @@ async def auto_index_documents():
         
         # 직접 함수 호출 테스트
         def test_function():
-            print("[TEST] 테스트 함수 실행됨!")
+            logger.info("[TEST] 테스트 함수 실행됨!")
             return {"status": "test_success", "message": "테스트 완료"}
         
         logger.info("STEP 3.1: 테스트 함수 실행 시작")
