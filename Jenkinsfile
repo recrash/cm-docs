@@ -248,8 +248,17 @@ pipeline {
                 script {
                     try {
                         echo "Webservice Frontend 빌드/배포 시작 (Backend 성공 확인됨)"
-                        build job: 'webservice-frontend-pipeline',
+                        def frontendBuild = build job: "webservice-frontend-pipeline/${env.BRANCH_NAME}",
                               parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                        
+                        // 빌드된 아티팩트를 현재 작업 공간으로 복사
+                        copyArtifacts(
+                            projectName: "webservice-frontend-pipeline/${env.BRANCH_NAME}",
+                            filter: 'webservice/frontend.zip',
+                            target: 'webservice',
+                            selector: specific(frontendBuild.getNumber().toString())
+                        )
+                        echo "Frontend 아티팩트 (frontend.zip)를 현재 작업 공간으로 복사했습니다."
                         
                         env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
                         echo "Webservice Frontend 배포 성공"

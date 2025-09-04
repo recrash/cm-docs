@@ -186,18 +186,17 @@ try {
     & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
     Write-Host "AutoDoc 설치 완료"
     
-    # 4. Jenkins 아티팩트에서 프론트엔드 배포
-    Write-Host "`n단계 4: Jenkins 빌드 아티팩트 활용 중..."
+    # 4. 프론트엔드 아티팩트 배포 (작업 공간에서)
+    Write-Host "`n단계 4: 프론트엔드 아티팩트 배포 중..."
     
-    # Jenkins workspace에서 빌드된 frontend.zip 아티팩트 경로
-    $JenkinsWorkspace = "C:\ProgramData\Jenkins\.jenkins\workspace\cm-docs_${Bid}"
-    $FrontendZip = "$JenkinsWorkspace\webservice\frontend.zip"
+    # 현재 작업 공간에 복사된 frontend.zip 아티팩트 경로
+    $FrontendZip = "$WebSrc\frontend.zip"
     
     if (Test-Path $FrontendZip) {
-        Write-Host "Jenkins 아티팩트 발견: $FrontendZip"
+        Write-Host "프론트엔드 아티팩트 발견: $FrontendZip"
         
         # frontend.zip을 임시 폴더에 압축 해제
-        $TempExtractDir = "$Dst\temp_frontend_extract"
+        $TempExtractDir = "$WebFrontDst\temp_extract"
         if (Test-Path $TempExtractDir) {
             Remove-Item -Recurse -Force $TempExtractDir
         }
@@ -210,9 +209,9 @@ try {
         # 임시 폴더 정리
         Remove-Item -Recurse -Force $TempExtractDir
         
-        Write-Host "Jenkins 아티팩트 배포 완료"
+        Write-Host "프론트엔드 아티팩트 배포 완료"
     } else {
-        throw "Jenkins 아티팩트를 찾을 수 없습니다: $FrontendZip`n브랜치 '$Bid'의 Jenkins 빌드가 완료되었는지 확인하세요"
+        throw "프론트엔드 아티팩트를 찾을 수 없습니다: $FrontendZip`nJenkinsfile의 copyArtifacts 단계가 성공했는지 확인하세요."
     }
     
    # 5. NSSM 서비스 등록
