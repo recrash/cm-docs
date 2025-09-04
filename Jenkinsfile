@@ -268,6 +268,7 @@ pipeline {
                         env.FAILED_SERVICES += 'WebFrontend '
                         env.CRITICAL_FAILURE = 'true'  // Critical 서비스 실패
                         echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
+                        error("Webservice Frontend 배포에 실패하여 파이프라인을 중단합니다.") // 파이프라인 중단
                     }
                 }
             }
