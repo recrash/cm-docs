@@ -1,6 +1,11 @@
 // webservice/Jenkinsfile.frontend
 pipeline {
     agent any
+    
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main', description: '브랜치 이름')
+    }
+
     environment {
         // Jenkins Workspace (빌드/테스트용)
         WORKSPACE_NPM_DIR = "${WORKSPACE}\\webservice\\frontend"
@@ -18,7 +23,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                echo "소스코드 체크아웃 완료"
+                echo "소스코드 체크아웃 완료 - 브랜치: ${env.BRANCH_NAME}"
             }
         }
         
@@ -51,10 +56,10 @@ pipeline {
                         if (packageChanged) {
                             echo "패키지 파일 변경 감지됨 - 의존성 업데이트 실행 (폐쇄망 모드)"
                             // 캐시 디렉토리 생성
-                            bat "if not exist \"${env.WORKSPACE_CACHE_DIR}\" mkdir \"${env.WORKSPACE_CACHE_DIR}\""
-                            // 폐쇄망 환경: 오프라인 우선 시도, 실패 시 경고만 출력
+                            bat "if not exist \"C:\\deploys\\packages\\npm-cache\" mkdir \"C:\\deploys\\packages\\npm-cache\""
+                            // 폐쇄망 환경: npm 캐시 설정 후 오프라인 우선 시도
                             def installResult = bat(
-                                script: "npm ci --cache \"${env.WORKSPACE_CACHE_DIR}\" --offline",
+                                script: "npm config set cache C:\\deploys\\packages\\npm-cache && npm ci --prefer-offline",
                                 returnStatus: true
                             )
                             if (installResult != 0) {
@@ -122,9 +127,35 @@ pipeline {
                 dir("${env.WORKSPACE_NPM_DIR}") {
                     script {
                         try {
-                            // React 앱 빌드 (Jenkins Workspace에서)
-                            bat 'npm run build'
-                            echo "React 빌드 완료 (Jenkins Workspace)"
+                            // 파라미터로 전달받은 브랜치 이름 사용
+                            def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                            
+                            // 브랜치 이름 검증
+                            if (branchName == 'unknown' || branchName == 'null') {
+                                echo "경고: 브랜치 이름이 전달되지 않았습니다. Git에서 직접 확인합니다."
+                                branchName = bat(
+                                    script: 'git rev-parse --abbrev-ref HEAD',
+                                    returnStdout: true
+                                ).trim()
+                            }
+                            
+                            // 슬래시를 언더스코어로 변환 (경로 안전성)
+                            def safeBranchName = branchName.replace('/', '_')
+                            
+                            // 브랜치별 base path 결정
+                            def basePath = (branchName == 'main' || branchName == 'develop') ? 
+                                '/' : "/tests/${safeBranchName}/"
+                            
+                            echo "브랜치 '${branchName}' (안전한 이름: '${safeBranchName}')에 대한 base path: ${basePath}"
+                            
+                            // 브랜치별 빌드 명령 실행
+                            if (basePath == '/') {
+                                bat 'npm run build'
+                                echo "React 빌드 완료 (루트 경로) - Jenkins Workspace"
+                            } else {
+                                bat "npm run build -- --base=\"${basePath}\""
+                                echo "React 빌드 완료 (서브디렉터리: ${basePath}) - Jenkins Workspace"
+                            }
                             
                             // 빌드 결과 검증
                             def distExists = bat(
@@ -150,6 +181,12 @@ pipeline {
         }
         
         stage('Deploy') {
+            when { 
+                anyOf {
+                    branch 'main'
+                    branch 'develop'  
+                }
+            }
             steps {
                 script {
                     try {

@@ -9,10 +9,25 @@
 
 ### A-1. "의존성 씨앗" 수확 (최초 1회 및 의존성 변경 시)
 
-폐쇄망 CI/CD를 시작하기 전, 인터넷이 연결된 PC에서 앞으로 사용할 모든 Python 라이브러리의 `.whl` 파일을 미리 확보해야 합니다.
+폐쇄망 CI/CD를 시작하기 전, 인터넷이 연결된 PC에서 앞으로 사용할 **모든 Python 및 Node.js 의존성**을 미리 확보해야 합니다.
 
-1.  프로젝트 루트에 아래 `Download-All-Dependencies.ps1` (Windows) 또는 `download-all-dependencies.sh` (Linux/macOS) 스크립트를 저장합니다.
-2.  스크립트를 실행하여 프로젝트 루트에 `wheelhouse` 폴더를 생성합니다. 이 폴더는 프로젝트의 모든 의존성을 담는 '저장소' 역할을 합니다.
+1.  프로젝트 루트에서 `Download-All-Dependencies.ps1` (Windows) 또는 `download-all-dependencies.sh` (Linux/macOS) 스크립트를 실행합니다.
+2.  스크립트 실행 후 다음 폴더들이 생성됩니다:
+    - **`wheelhouse/`**: 모든 Python .whl 파일
+    - **`npm-cache/`**: 모든 Node.js 패키지 (**신규 추가**)
+
+**실행 예시**:
+```bash
+# Windows
+.\Download-All-Dependencies.ps1
+
+# Linux/macOS  
+./download-all-dependencies.sh
+
+# 결과: wheelhouse/ 및 npm-cache/ 폴더 생성
+```
+
+이 폴더들은 프로젝트의 **모든 의존성(Python + Node.js)**을 담는 '저장소' 역할을 합니다.
 
 
 ### A-2. `deploy-package.zip` 생성
@@ -25,10 +40,12 @@
 # (이전 답변에서 제공한 스크립트와 동일)
 # ... 스크립트 내용 ...
 # 3. 초기 데이터 복사 단계 이후에, wheelhouse 폴더를 복사하는 로직 추가
-Write-Host "    - 오프라인 의존성('wheelhouse')을 패키지에 포함합니다."
-$sourceDir = Join-Path $ProjectRoot "wheelhouse"
-$targetDir = Join-Path $PackageDir "dependencies" # 패키지 내에서는 dependencies 이름으로 저장
-Copy-Item -Path $sourceDir -Destination $targetDir -Recurse -Force
+Write-Host "    - 오프라인 의존성('wheelhouse', 'npm-cache')을 패키지에 포함합니다."
+$wheelhouseDir = Join-Path $ProjectRoot "wheelhouse"
+$npmCacheDir = Join-Path $ProjectRoot "npm-cache"
+$targetDepsDir = Join-Path $PackageDir "dependencies"
+Copy-Item -Path $wheelhouseDir -Destination $targetDepsDir -Recurse -Force
+Copy-Item -Path $npmCacheDir -Destination (Join-Path $PackageDir "npm-cache") -Recurse -Force
 # ... 이후 압축 단계로 ...
 ```
 
@@ -38,11 +55,14 @@ Copy-Item -Path $sourceDir -Destination $targetDir -Recurse -Force
 # (이전 답변에서 제공한 스크립트와 동일)
 # ... 스크립트 내용 ...
 # 3. 초기 데이터 복사 단계 이후에, wheelhouse 폴더를 복사하는 로직 추가
-echo "    - 오프라인 의존성('wheelhouse')을 패키지에 포함합니다."
-SOURCE_DIR="$PROJECT_ROOT/wheelhouse"
-TARGET_DIR="$PACKAGE_DIR/dependencies" # 패키지 내에서는 dependencies 이름으로 저장
-mkdir -p "$TARGET_DIR"
-cp -r "$SOURCE_DIR"/* "$TARGET_DIR/"
+echo "    - 오프라인 의존성('wheelhouse', 'npm-cache')을 패키지에 포함합니다."
+WHEELHOUSE_DIR="$PROJECT_ROOT/wheelhouse"
+NPM_CACHE_DIR="$PROJECT_ROOT/npm-cache"
+TARGET_DEPS_DIR="$PACKAGE_DIR/dependencies"
+TARGET_NPM_DIR="$PACKAGE_DIR/npm-cache"
+mkdir -p "$TARGET_DEPS_DIR" "$TARGET_NPM_DIR"
+cp -r "$WHEELHOUSE_DIR"/* "$TARGET_DEPS_DIR/"
+cp -r "$NPM_CACHE_DIR"/* "$TARGET_NPM_DIR/"
 # ... 이후 압축 단계로 ...
 ```
 

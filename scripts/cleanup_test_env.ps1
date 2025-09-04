@@ -1,4 +1,4 @@
-# scripts/cleanup_test_env.ps1
+﻿# scripts/cleanup_test_env.ps1
 # 브랜치별 테스트 인스턴스 정리 스크립트
 
 param(

@@ -399,6 +399,8 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 각 서브프로젝트는 독립적인 CI/CD 파이프라인을 가집니다:
 
 - **Webservice**: Pseudo-MSA 서비스별 독립 배포
+  - **브랜치별 배포 전략**: main/develop만 운영 배포, feature/hotfix는 테스트만
+  - **Frontend**: 브랜치별 base path 자동 설정 (`/` vs `/tests/${BRANCH_NAME}/`)
   - API 테스트, E2E 테스트, 서비스별 배포 검증
   - WebSocket 연결 및 실시간 기능 검증
 
@@ -406,6 +408,12 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
   - Windows 설치 프로그램 (.exe)
   - macOS 디스크 이미지 (.dmg) + 헬퍼 앱
   - Linux AppImage 또는 패키지
+
+### 폐쇄망 의존성 관리
+**완전 오프라인 빌드 시스템**:
+- **Python 의존성**: `wheelhouse/` 폴더에 .whl 파일 수집
+- **npm 의존성**: `npm-cache/` 폴더에 Node.js 패키지 수집 (**신규 추가**)
+- **통합 스크립트**: `download-all-dependencies.sh/ps1`로 Python + npm 의존성 동시 수집
 
 ### 환경별 배포
 

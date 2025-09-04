@@ -87,19 +87,7 @@ async def auto_index_documents():
         from .core.prompt_loader import index_documents_folder
         logger.info("STEP 2: prompt_loader 모듈 import 성공")
         
-        logger.info("STEP 3: 간단한 테스트 함수 호출")
-        
-        # 직접 함수 호출 테스트
-        def test_function():
-            print("[TEST] 테스트 함수 실행됨!")
-            return {"status": "test_success", "message": "테스트 완료"}
-        
-        logger.info("STEP 3.1: 테스트 함수 실행 시작")
-        test_result = test_function()
-        logger.info(f"STEP 3.2: 테스트 함수 결과: {test_result}")
-        
-        logger.info("STEP 3.3: index_documents_folder 함수 호출 시작")
-        
+        logger.info("STEP 3: index_documents_folder 함수 호출 시작")        
         # 타임아웃을 적용하여 안전하게 실행
         try:
             import time

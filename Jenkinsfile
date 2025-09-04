@@ -52,20 +52,7 @@ pipeline {
         
         // 기타 설정
         ANONYMIZED_TELEMETRY = 'False'
-    }
-    
-    // 브랜치별 테스트 인스턴스 유틸 함수
-    @NonCPS
-    def sanitizeId(String s) {
-        return s.replaceAll('[^A-Za-z0-9-]', '-').toLowerCase()
-    }
-    
-    @NonCPS
-    def pickPort(String b, int base, int span) {
-        def c = new java.util.zip.CRC32()
-        c.update(b.getBytes('UTF-8'))
-        return (int)(base + (c.getValue() % span))
-    }
+    }        
     
     stages {
         stage('소스코드 체크아웃 및 변경 감지') {
@@ -118,7 +105,7 @@ pipeline {
                     env.AUTO_PORT = pickPort(env.BRANCH_NAME, 8500, 200).toString()
 
                     env.WEB_BACK_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\webservice\\backend"
-                    env.WEB_FRONT_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\webservice\\frontend"
+                    env.WEB_FRONT_DST = "C:\\nginx\\html\\tests\\${env.BID}"
                     env.AUTO_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\autodoc"
                     env.URL_PREFIX = "/tests/${env.BID}/"
                     
@@ -148,7 +135,7 @@ pipeline {
                         script {
                             try {
                                 echo "AutoDoc Service 빌드/배포 시작"
-                                build job: 'autodoc-service-pipeline', 
+                                build job: 'autodoc_service-pipeline', 
                                       parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
                                 
                                 env.AUTODOC_DEPLOY_STATUS = 'SUCCESS'
@@ -197,10 +184,42 @@ pipeline {
                             try {
                                 echo "CLI 빌드/패키징 시작"
                                 
-                                dir("${env.CLI_PATH}") {
-                                    // CLI는 서비스 배포가 아닌 빌드만 실행
-                                    bat 'powershell -Command "& .\\.venv\\Scripts\\python.exe -m pytest --cov=ts_cli --cov-report=html"'
-                                    bat 'powershell -Command "& .\\.venv\\Scripts\\python.exe scripts/build.py"'
+                                dir("${WORKSPACE}/cli") {
+                                    script {
+                                        echo "CLI Python 환경 구축 (Python 3.13 + wheelhouse)"
+                                        
+                                        // 기존 가상환경 완전 삭제 후 새로 생성
+                                        bat 'if exist ".venv" rmdir /s /q ".venv"'
+                                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
+                                        
+                                        // pip 상태 확인 및 복구 (폐쇄망 환경용)
+                                        bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m ensurepip --upgrade\""
+                                        
+                                        // 휠하우스 활용 고속 설치
+                                        def wheelHouseExists = bat(
+                                            script: "if exist \"${env.WHEELHOUSE_PATH}\\*.whl\" echo found",
+                                            returnStdout: true
+                                        ).contains('found')
+                                        
+                                        if (wheelHouseExists) {
+                                            echo "휠하우스 발견 - 오프라인 고속 설치 모드 (CI용 개발 의존성 포함)"
+                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements-dev.txt\""
+                                        } else {
+                                            echo "휠하우스 없음 - 온라인 설치 (CI용 개발 의존성 포함)"
+                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -r requirements-dev.txt\""
+                                        }
+                                        
+                                        // CLI 패키지 editable install (테스트 실행을 위해 필요)
+                                        bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -e .\""
+                                        
+                                        echo "CLI 환경 구축 완료"
+                                    }
+                                    
+                                    // CLI 테스트 및 빌드 실행 (PYTHONPATH 설정)
+                                    bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; \$env:PYTHONPATH='${WORKSPACE}\\cli\\src'; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pytest --cov=ts_cli --cov-report=html\""
+                                    bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' scripts/build.py\""
                                 }
                                 
                                 env.CLI_BUILD_STATUS = 'SUCCESS'
@@ -229,8 +248,38 @@ pipeline {
                 script {
                     try {
                         echo "Webservice Frontend 빌드/배포 시작 (Backend 성공 확인됨)"
-                        build job: 'webservice-frontend-pipeline',
+                        def frontendBuild = build job: "webservice-frontend-pipeline",
                               parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                        
+                        // Frontend 빌드된 아티팩트를 현재 작업공간으로 복사
+                        def frontendWorkspace = "C:\\\\ProgramData\\\\Jenkins\\\\.jenkins\\\\workspace\\\\webservice-frontend-pipeline"
+                        // Frontend 아티팩트 복사 로직
+                        def frontendZipPath = "${frontendWorkspace}\\\\webservice\\\\frontend.zip"
+                        def targetDir = "${WORKSPACE}\\\\webservice"
+                        def targetZipPath = "${targetDir}\\\\frontend.zip"
+                        
+                        // 대상 디렉토리 생성
+                        bat "if not exist \"${targetDir}\" mkdir \"${targetDir}\""
+                        
+                        // Frontend 아티팩트 복사 및 검증
+                        bat """
+                            if exist "${frontendZipPath}" (
+                                copy "${frontendZipPath}" "${targetZipPath}"
+                                if exist "${targetZipPath}" (
+                                    echo Frontend 아티팩트 복사 성공: frontend.zip
+                                ) else (
+                                    echo ERROR: Frontend 아티팩트 복사 실패
+                                    exit /b 1
+                                )
+                            ) else (
+                                echo ERROR: Frontend 아티팩트 없음: ${frontendZipPath}
+                                echo Frontend 파이프라인 작업공간 내용:
+                                dir "${frontendWorkspace}\\\\webservice" /b 2>nul || echo 디렉토리 없음
+                                exit /b 1
+                            )
+                        """
+                        
+                        echo "Frontend 빌드 및 아티팩트 전파 성공 - Build #${frontendBuild.getNumber()}"
                         
                         env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
                         echo "Webservice Frontend 배포 성공"
@@ -240,6 +289,7 @@ pipeline {
                         env.FAILED_SERVICES += 'WebFrontend '
                         env.CRITICAL_FAILURE = 'true'  // Critical 서비스 실패
                         echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
+                        error("Webservice Frontend 배포에 실패하여 파이프라인을 중단합니다.") // 파이프라인 중단
                     }
                 }
             }
@@ -480,22 +530,23 @@ pipeline {
                 expression { env.IS_TEST == 'true' } 
             }
             steps {
-                powershell '''
-                    $ErrorActionPreference = "Stop"
-                    ./scripts/deploy_test_env.ps1 `
-                        -Bid "${env:BID}" `
-                        -BackPort ${env:BACK_PORT} `
-                        -AutoPort ${env:AUTO_PORT} `
-                        -Py "${env:PY_PATH}" `
-                        -Nssm "${env:NSSM_PATH}" `
-                        -Nginx "${env:NGINX_PATH}" `
-                        -NginxConfDir "${env:NGINX_CONF_DIR}" `
-                        -WebSrc "$env:WORKSPACE\\webservice" `
-                        -AutoSrc "$env:WORKSPACE\\autodoc_service" `
-                        -WebBackDst "${env:WEB_BACK_DST}" `
-                        -WebFrontDst "${env:WEB_FRONT_DST}" `
-                        -AutoDst "${env:AUTO_DST}" `
-                        -UrlPrefix "${env:URL_PREFIX}"
+                bat '''
+                chcp 65001 >NUL
+                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_test_env.ps1" ^
+                    -Bid "%BID%" ^
+                    -BackPort %BACK_PORT% ^
+                    -AutoPort %AUTO_PORT% ^
+                    -Py "%PY_PATH%" ^
+                    -Nssm "%NSSM_PATH%" ^
+                    -Nginx "%NGINX_PATH%" ^
+                    -NginxConfDir "%NGINX_CONF_DIR%" ^
+                    -WebSrc "%WORKSPACE%\\webservice" ^
+                    -AutoSrc "%WORKSPACE%\\autodoc_service" ^
+                    -WebBackDst "%WEB_BACK_DST%" ^
+                    -WebFrontDst "%WEB_FRONT_DST%" ^
+                    -AutoDst "%AUTO_DST%" ^
+                    -UrlPrefix "%URL_PREFIX%" ^
+                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
                 '''
                 echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
             }
@@ -667,4 +718,18 @@ pipeline {
             echo "워크스페이스 정리 완료 (폐쇄망 환경 고려)"
         }
     }
+}
+
+// 브랜치별 테스트 인스턴스 유틸 함수
+@NonCPS
+def sanitizeId(String s) {
+    return s.replaceAll(/[^a-zA-Z0-9_-]/, '_')
+}
+
+@NonCPS
+def pickPort(String b, int base, int span) {
+    // Jenkins 보안 정책으로 CRC32 사용 불가, 간단한 해시 대체
+    int hash = b.hashCode()
+    if (hash < 0) hash = -hash  // 음수 처리
+    return (int)(base + (hash % span))
 }

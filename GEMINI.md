@@ -1,6 +1,6 @@
-# CLAUDE.md
+# GEMINI.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Gemini when working with code in this repository.
 
 ## Monorepo Architecture
 
@@ -145,7 +145,7 @@ cd webservice/frontend && npm run build               # Production build
 ### JSON Parsing & Error Handling
 **LLM Response Format Support**:
 - Primary: `<json>...</json>` XML-style tags (as specified in prompt)
-- Fallback: ````json ... ``` markdown code blocks (actual LLM behavior)
+- Fallback: `'''json ... '''` markdown code blocks (actual LLM behavior)
 - Both formats supported via dual regex patterns in `scenario_v2.py`
 
 **Frontend Safety Patterns**:
@@ -416,7 +416,7 @@ logger.info("서비스 시작...")
 - **Cross-platform Paths**: Always use `pathlib.Path`, convert to string for subprocess
 
 ### SVN-Specific Debugging Patterns
-- **JSON Parsing Issues**: LLM responses may use ````json` blocks instead of `<json>` tags
+- **JSON Parsing Issues**: LLM responses may use `'''json` blocks instead of `<json>` tags
 - **Repository Detection**: SVN repositories detected via `.svn` directory presence
 - **Path Handling**: SVN working copies require absolute paths for analysis
 - **Revision Analysis**: SVN uses revision numbers instead of commit hashes
