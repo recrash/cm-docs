@@ -1,6 +1,10 @@
 // webservice/Jenkinsfile.frontend
 pipeline {
     agent any
+    
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main', description: '브랜치 이름')
+    }
 
     environment {
         // Jenkins Workspace (빌드/테스트용)
@@ -123,11 +127,26 @@ pipeline {
                 dir("${env.WORKSPACE_NPM_DIR}") {
                     script {
                         try {
-                            // 브랜치별 base path 결정
-                            def basePath = (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'develop') ? 
-                                '/' : "/tests/${env.BRANCH_NAME}/"
+                            // 파라미터로 전달받은 브랜치 이름 사용
+                            def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
                             
-                            echo "브랜치 '${env.BRANCH_NAME}'에 대한 base path: ${basePath}"
+                            // 브랜치 이름 검증
+                            if (branchName == 'unknown' || branchName == 'null') {
+                                echo "경고: 브랜치 이름이 전달되지 않았습니다. Git에서 직접 확인합니다."
+                                branchName = bat(
+                                    script: 'git rev-parse --abbrev-ref HEAD',
+                                    returnStdout: true
+                                ).trim()
+                            }
+                            
+                            // 슬래시를 언더스코어로 변환 (경로 안전성)
+                            def safeBranchName = branchName.replace('/', '_')
+                            
+                            // 브랜치별 base path 결정
+                            def basePath = (branchName == 'main' || branchName == 'develop') ? 
+                                '/' : "/tests/${safeBranchName}/"
+                            
+                            echo "브랜치 '${branchName}' (안전한 이름: '${safeBranchName}')에 대한 base path: ${basePath}"
                             
                             // 브랜치별 빌드 명령 실행
                             if (basePath == '/') {
