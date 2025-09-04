@@ -289,9 +289,28 @@ Windows services managed through NSSM:
 - Automatic rollback on failure
 
 **Service Pipelines**:
-- `webservice/Jenkinsfile.backend`: API testing → NSSM deployment
-- `webservice/Jenkinsfile.frontend`: Security → Build → nginx deployment
+- `webservice/Jenkinsfile.backend`: API testing → NSSM deployment (main/develop만)
+- `webservice/Jenkinsfile.frontend`: 브랜치별 빌드 전략 (main/develop → 운영 배포, feature/hotfix → 테스트만)
 - `autodoc_service/Jenkinsfile`: Template validation → NSSM deployment
+
+**브랜치별 배포 전략**:
+- **main/develop**: `/` 루트 경로 빌드 → `C:\nginx\html` 운영 배포
+- **feature/hotfix**: `/tests/${BRANCH_NAME}/` 서브경로 빌드 → 배포 스킵 (테스트만)
+
+### 폐쇄망 의존성 관리 시스템
+**완전 오프라인 빌드 지원**:
+- **Python**: `wheelhouse/` 폴더에 .whl 파일 수집 (`download-all-dependencies.sh/ps1`)
+- **Node.js**: `npm-cache/` 폴더에 npm 패키지 수집 (새로 추가)
+- **deploy_test_env.ps1**: npm 캐시 우선 사용 (`--prefer-offline`)
+
+**의존성 수집 스크립트**:
+```bash
+# Linux/macOS
+./download-all-dependencies.sh  # Python + npm 의존성 수집
+
+# Windows  
+.\Download-All-Dependencies.ps1  # Python + npm 의존성 수집
+```
 
 ### Development Server
 - **Server**: `34.64.173.97` (GCP VM)
