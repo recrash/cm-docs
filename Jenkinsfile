@@ -256,7 +256,7 @@ pipeline {
                             projectName: "webservice-frontend-pipeline/${env.BRANCH_NAME}",
                             filter: 'webservice/frontend.zip',
                             target: '.', // 대상 디렉토리를 작업공간 루트로 변경
-                            selector: specific(frontendBuild.getNumber().toString())
+                            selector: lastSuccessful()
                         )
                         echo "Frontend 아티팩트 (frontend.zip)를 현재 작업 공간으로 복사했습니다."
                         
