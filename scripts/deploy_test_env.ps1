@@ -12,7 +12,7 @@ param(
     [Parameter(Mandatory=$true)][string]$WebSrc,      # repo/webservice
     [Parameter(Mandatory=$true)][string]$AutoSrc,     # repo/autodoc_service
     [Parameter(Mandatory=$true)][string]$WebBackDst,  # C:\deploys\test\{BID}\apps\webservice
-    [Parameter(Mandatory=$true)][string]$WebFrontDst, # C:\deploys\test\{BID}\frontend
+    [Parameter(Mandatory=$true)][string]$WebFrontDst, # C:\nginx\html\tests\{BID}
     [Parameter(Mandatory=$true)][string]$AutoDst,     # C:\deploys\test\{BID}\apps\autodoc_service
     [Parameter(Mandatory=$true)][string]$UrlPrefix,   # "/tests/{BID}/"
     [Parameter(Mandatory=$true)][string]$PackagesRoot # "C:\deploys\test\{BID}\packages"

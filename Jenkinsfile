@@ -105,7 +105,7 @@ pipeline {
                     env.AUTO_PORT = pickPort(env.BRANCH_NAME, 8500, 200).toString()
 
                     env.WEB_BACK_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\webservice\\backend"
-                    env.WEB_FRONT_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\webservice\\frontend"
+                    env.WEB_FRONT_DST = "C:\\nginx\\html\\tests\\${env.BID}"
                     env.AUTO_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\autodoc"
                     env.URL_PREFIX = "/tests/${env.BID}/"
                     
