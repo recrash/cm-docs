@@ -251,14 +251,10 @@ pipeline {
                         def frontendBuild = build job: "webservice-frontend-pipeline",
                               parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
                         
-                        // 빌드된 아티팩트를 현재 작업 공간으로 복사
-                        copyArtifacts(
-                            projectName: "webservice-frontend-pipeline/${env.BRANCH_NAME}",
-                            filter: 'webservice/frontend.zip',
-                            target: '.', // 대상 디렉토리를 작업공간 루트로 변경
-                            selector: [$class: 'SpecificBuildSelector', buildNumber: frontendBuild.getNumber().toString()]
-                        )
-                        echo "Frontend 아티팩트 (frontend.zip)를 현재 작업 공간으로 복사했습니다."
+                        // Frontend 빌드된 아티팩트를 현재 작업공간으로 복사
+                        def frontendWorkspace = "C:\\deploys\\jenkins\\workspace\\webservice-frontend-pipeline_${env.BRANCH_NAME}"
+                        bat "if exist \"${frontendWorkspace}\\webservice\\frontend.zip\" copy \"${frontendWorkspace}\\webservice\\frontend.zip\" \"${WORKSPACE}\\webservice\\\""
+                        echo "Frontend 빌드 완료 및 아티팩트 복사 - Build #${frontendBuild.getNumber()}"
                         
                         env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
                         echo "Webservice Frontend 배포 성공"
