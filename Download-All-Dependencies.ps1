@@ -81,5 +81,31 @@ foreach ($service in $Services) {
     }
 }
 
-Write-Host "✅ 성공! '$WheelhouseDir' 폴더에 모든 의존성 씨앗이 준비되었습니다." -ForegroundColor Green
-Write-Host "   이제 이 'wheelhouse' 폴더를 소스코드와 함께 인트라넷 환경으로 가져가세요."
+# --- npm 의존성 캐시 수집 ---
+Write-Host "🚀 npm 의존성 캐시를 수집합니다..." -ForegroundColor Yellow
+$NpmCacheDir = Join-Path $ProjectRoot "npm-cache"
+if (-not (Test-Path $NpmCacheDir)) {
+    New-Item -Path $NpmCacheDir -ItemType Directory | Out-Null
+    Write-Host "    - 새로운 'npm-cache' 폴더를 생성했습니다."
+} else {
+    Write-Host "    - 기존 'npm-cache' 폴더에 누락된 패키지만 추가합니다."
+}
+
+# webservice frontend npm 의존성 수집
+$FrontendPath = Join-Path $ProjectRoot "webservice\frontend"
+$PackageJsonPath = Join-Path $FrontendPath "package.json"
+$PackageLockPath = Join-Path $FrontendPath "package-lock.json"
+
+if ((Test-Path $PackageJsonPath) -and (Test-Path $PackageLockPath)) {
+    Write-Host "    - webservice frontend의 npm 의존성을 수집합니다."
+    Push-Location $FrontendPath
+    npm config set cache $NpmCacheDir
+    npm ci --prefer-offline --no-audit
+    Write-Host "    - npm 캐시 수집 완료"
+    Pop-Location
+} else {
+    Write-Host "    - 경고: webservice/frontend의 package.json 또는 package-lock.json을 찾을 수 없습니다." -ForegroundColor DarkYellow
+}
+
+Write-Host "✅ 성공! '$WheelhouseDir' 및 '$NpmCacheDir' 폴더에 모든 의존성 씨앗이 준비되었습니다." -ForegroundColor Green
+Write-Host "   이제 'wheelhouse'와 'npm-cache' 폴더를 소스코드와 함께 인트라넷 환경으로 가져가세요."

@@ -192,8 +192,10 @@ try {
     Push-Location "$WebSrc\frontend"
     try {
         if (Test-Path "package.json") {
-            Write-Host "npm 의존성 설치 중..."
-            npm ci
+            Write-Host "npm 의존성 설치 중 (캐시 활용)..."
+            # npm 캐시 설정 (폐쇄망 환경 지원)
+            npm config set cache "C:\deploys\packages\npm-cache"
+            npm ci --prefer-offline --no-audit
             
             Write-Host "Vite 빌드 시작 (base: $UrlPrefix)"
             npm run build -- --base="$UrlPrefix"

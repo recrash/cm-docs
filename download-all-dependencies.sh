@@ -104,5 +104,28 @@ for SERVICE_INFO in "${SERVICES[@]}"; do
     fi
 done
 
-echo -e "${GREEN}✅ 성공! '$WHEELHOUSE_DIR' 폴더에 모든 의존성 씨앗이 준비되었습니다.${NC}"
-echo "   이제 이 'wheelhouse' 폴더를 소스코드와 함께 인트라넷 환경으로 가져가세요."
+# --- npm 의존성 캐시 수집 ---
+echo -e "${YELLOW}🚀 npm 의존성 캐시를 수집합니다...${NC}"
+NPM_CACHE_DIR="$PROJECT_ROOT/npm-cache"
+if [ ! -d "$NPM_CACHE_DIR" ]; then
+    mkdir -p "$NPM_CACHE_DIR"
+    echo "    - 새로운 'npm-cache' 폴더를 생성했습니다."
+else
+    echo "    - 기존 'npm-cache' 폴더에 누락된 패키지만 추가합니다."
+fi
+
+# webservice frontend npm 의존성 수집
+FRONTEND_PATH="$PROJECT_ROOT/webservice/frontend"
+if [ -f "$FRONTEND_PATH/package.json" ] && [ -f "$FRONTEND_PATH/package-lock.json" ]; then
+    echo "    - webservice frontend의 npm 의존성을 수집합니다."
+    cd "$FRONTEND_PATH"
+    npm config set cache "$NPM_CACHE_DIR"
+    npm ci --prefer-offline --no-audit
+    echo "    - npm 캐시 수집 완료"
+    cd "$PROJECT_ROOT"
+else
+    echo -e "    - ${YELLOW}경고: webservice/frontend의 package.json 또는 package-lock.json을 찾을 수 없습니다.${NC}"
+fi
+
+echo -e "${GREEN}✅ 성공! '$WHEELHOUSE_DIR' 및 '$NPM_CACHE_DIR' 폴더에 모든 의존성 씨앗이 준비되었습니다.${NC}"
+echo "   이제 'wheelhouse'와 'npm-cache' 폴더를 소스코드와 함께 인트라넷 환경으로 가져가세요."

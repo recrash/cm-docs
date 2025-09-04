@@ -123,9 +123,20 @@ pipeline {
                 dir("${env.WORKSPACE_NPM_DIR}") {
                     script {
                         try {
-                            // React 앱 빌드 (Jenkins Workspace에서)
-                            bat 'npm run build'
-                            echo "React 빌드 완료 (Jenkins Workspace)"
+                            // 브랜치별 base path 결정
+                            def basePath = (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'develop') ? 
+                                '/' : "/tests/${env.BRANCH_NAME}/"
+                            
+                            echo "브랜치 '${env.BRANCH_NAME}'에 대한 base path: ${basePath}"
+                            
+                            // 브랜치별 빌드 명령 실행
+                            if (basePath == '/') {
+                                bat 'npm run build'
+                                echo "React 빌드 완료 (루트 경로) - Jenkins Workspace"
+                            } else {
+                                bat "npm run build -- --base=\"${basePath}\""
+                                echo "React 빌드 완료 (서브디렉터리: ${basePath}) - Jenkins Workspace"
+                            }
                             
                             // 빌드 결과 검증
                             def distExists = bat(
@@ -151,6 +162,12 @@ pipeline {
         }
         
         stage('Deploy') {
+            when { 
+                anyOf {
+                    branch 'main'
+                    branch 'develop'  
+                }
+            }
             steps {
                 script {
                     try {
