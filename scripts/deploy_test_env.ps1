@@ -186,33 +186,33 @@ try {
     & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
     Write-Host "AutoDoc 설치 완료"
     
-    # 4. 프론트엔드 빌드
-    Write-Host "`n단계 4: 프론트엔드 빌드 중..."
+    # 4. Jenkins 아티팩트에서 프론트엔드 배포
+    Write-Host "`n단계 4: Jenkins 빌드 아티팩트 활용 중..."
     
-    Push-Location "$WebSrc\frontend"
-    try {
-        if (Test-Path "package.json") {
-            Write-Host "npm 의존성 설치 중 (캐시 활용)..."
-            # npm 캐시 설정 (폐쇄망 환경 지원)
-            npm config set cache "C:\deploys\packages\npm-cache"
-            npm ci --prefer-offline --no-audit
-            
-            Write-Host "Vite 빌드 시작 (base: $UrlPrefix)"
-            npm run build -- --base="$UrlPrefix"
-            Write-Host "Vite 빌드 완료"
-        } else {
-            throw "package.json 파일을 찾을 수 없습니다"
+    # Jenkins workspace에서 빌드된 frontend.zip 아티팩트 경로
+    $JenkinsWorkspace = "C:\ProgramData\Jenkins\.jenkins\workspace\cm-docs_${Bid}"
+    $FrontendZip = "$JenkinsWorkspace\webservice\frontend.zip"
+    
+    if (Test-Path $FrontendZip) {
+        Write-Host "Jenkins 아티팩트 발견: $FrontendZip"
+        
+        # frontend.zip을 임시 폴더에 압축 해제
+        $TempExtractDir = "$Dst\temp_frontend_extract"
+        if (Test-Path $TempExtractDir) {
+            Remove-Item -Recurse -Force $TempExtractDir
         }
-    } finally {
-        Pop-Location
-    }
-    
-    # 프론트엔드 결과 복사
-    if (Test-Path "$WebSrc\frontend\dist") {
-        Copy-Item -Recurse -Force "$WebSrc\frontend\dist\*" $WebFrontDst
-        Write-Host "프론트엔드 빌드 결과 복사 완료"
+        New-Item -ItemType Directory -Path $TempExtractDir | Out-Null
+        
+        # 압축 해제 및 복사
+        Expand-Archive -Path $FrontendZip -DestinationPath $TempExtractDir -Force
+        Copy-Item -Recurse -Force "$TempExtractDir\*" $WebFrontDst
+        
+        # 임시 폴더 정리
+        Remove-Item -Recurse -Force $TempExtractDir
+        
+        Write-Host "Jenkins 아티팩트 배포 완료"
     } else {
-        throw "프론트엔드 빌드 결과가 없습니다: dist 폴더를 찾을 수 없음"
+        throw "Jenkins 아티팩트를 찾을 수 없습니다: $FrontendZip`n브랜치 '$Bid'의 Jenkins 빌드가 완료되었는지 확인하세요"
     }
     
    # 5. NSSM 서비스 등록
