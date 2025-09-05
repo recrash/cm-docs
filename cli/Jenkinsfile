@@ -10,9 +10,9 @@ pipeline {
         CLI_PATH = "${WORKSPACE}\\cli"
         PYTHONPATH = "${CLI_PATH}\\src"
         PATH = "${env.PATH};${CLI_PATH}\\scripts"
+        // 최상위 PYTHONIOENCODING은 유지하되, 각 command에서 재정의하여 확실하게 적용
         PYTHONIOENCODING = 'UTF-8'
         
-        // webservice/Jenkinsfile.backend의 성공 패턴 적용
         WORKSPACE_PYTHON_CMD = "${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe"
         WORKSPACE_PIP_CMD = "${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe"
     }
@@ -32,24 +32,24 @@ pipeline {
             steps {
                 dir('cli') {
                     script {
-                        echo "Setting up Python environment for CLI using proven PowerShell pattern"
+                        echo "Setting up Python environment with robust encoding control"
                         
-                        // 가상환경 생성 및 pip 업그레이드
-                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Write-Host 'Creating Python virtual environment...'; if (Test-Path -Path .venv) { Remove-Item -Recurse -Force .venv }; & '${env.LOCALAPPDATA}\\Programs\\Python\\Launcher\\py.exe' -3.13 -m venv .venv; Write-Host 'Upgrading pip...'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                        // 가상환경 생성 및 pip 업그레이드 (webservice 패턴 적용)
+                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; Write-Host 'Creating Python virtual environment...'; if (Test-Path -Path .venv) { Remove-Item -Recurse -Force .venv }; & '${env.LOCALAPPDATA}\\Programs\\Python\\Launcher\\py.exe' -3.13 -m venv .venv; Write-Host 'Upgrading pip...'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
                         
-                        // 의존성 설치
+                        // 의존성 설치 (webservice 패턴 적용)
                         script {
                             def wheelHouseExists = bat(
-                                script: "if exist \"${env.WHEELHOUSE_PATH}\\\\\*.whl\" echo found",
+                                script: "if exist \"${env.WHEELHOUSE_PATH}\\\\.whl\" echo found",
                                 returnStdout: true
                             ).contains('found')
                             
                             if (wheelHouseExists) {
                                 echo "Installing dependencies from Wheelhouse (Offline Mode)"
-                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' -r requirements-dev.txt; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' .\""
+                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' -r requirements-dev.txt; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' .\""
                             } else {
                                 echo "Installing dependencies from PyPI (Online Mode)"
-                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${env.WORKSPACE_PIP_CMD}' install -r requirements-dev.txt; & '${env.WORKSPACE_PIP_CMD}' install .\""
+                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install -r requirements-dev.txt; & '${env.WORKSPACE_PIP_CMD}' install .\""
                             }
                         }
                     }
@@ -61,9 +61,9 @@ pipeline {
             steps {
                 dir('cli') {
                     script {
-                        echo "Running CLI tests with proven PowerShell pattern"
-                        // webservice의 성공 패턴을 그대로 적용
-                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; if (-not (Test-Path -Path test-results)) { New-Item -ItemType Directory -Path test-results }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/unit/ -v --junit-xml=test-results/junit-unit.xml --cov=ts_cli --cov-report=html } catch { Write-Host 'Unit tests completed with issues' }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/integration/ -v --junit-xml=test-results/junit-integration.xml } catch { Write-Host 'Integration tests completed with issues' }\""
+                        echo "Running CLI tests with robust encoding control"
+                        // webservice의 성공 패턴을 완벽하게 적용
+                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; $env:PYTHONIOENCODING='utf-8'; if (-not (Test-Path -Path test-results)) { New-Item -ItemType Directory -Path test-results }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/unit/ -v --junit-xml=test-results/junit-unit.xml --cov=ts_cli --cov-report=html } catch { Write-Host 'Unit tests completed with issues' }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/integration/ -v --junit-xml=test-results/junit-integration.xml } catch { Write-Host 'Integration tests completed with issues' }\""
                     }
                 }
             }
@@ -95,9 +95,9 @@ pipeline {
             steps {
                 dir('cli') {
                     script {
-                        echo "Building executable with PyInstaller using proven PowerShell pattern"
-                        // webservice의 성공 패턴을 그대로 적용
-                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; & '${env.WORKSPACE_PYTHON_CMD}' scripts/build.py\""
+                        echo "Building executable with PyInstaller with robust encoding control"
+                        // webservice의 성공 패턴을 완벽하게 적용
+                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' scripts/build.py\""
                         
                         // 빌드 결과 확인 (단순 파일 확인은 bat으로도 무방)
                         bat """
@@ -115,6 +115,7 @@ pipeline {
             }
         }
         
+        // ... 나머지 스테이지는 동일 ...
         stage('Create Installer') {
             steps {
                 dir('cli') {
@@ -155,7 +156,7 @@ pipeline {
                             chcp 65001 >NUL
                             cd dist
                             if exist \"${originalName}\" (
-                                move /Y \"${originalName}\" \"${newName}\"
+                                move /Y \"${originalName}\" \"${newName}\" 
                                 echo \"Renamed to ${newName}\"
                                 dir \"${newName}\"
                             ) else (
