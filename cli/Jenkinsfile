@@ -8,8 +8,8 @@ pipeline {
     environment {
         WHEELHOUSE_PATH = "C:\\deploys\\packages\\wheelhouse"
         CLI_PATH = "${WORKSPACE}\\cli"
-        PYTHONPATH = "${CLI_PATH}"
-        PATH = "${env.PATH};${CLI_PATH}\\scripts"
+        PYTHONPATH = "${WORKSPACE}\\cli\\src"
+        PATH = "${env.PATH};${WORKSPACE}\\cli\\scripts"
         PYTHONIOENCODING = 'UTF-8'
     }
     
@@ -30,16 +30,7 @@ pipeline {
                     script {
                         echo "Setting up Python environment for CLI using PowerShell"
                         
-                        powershell '''
-                            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-                            
-                            Write-Host "Creating Python virtual environment..."
-                            if (Test-Path -Path .venv) { Remove-Item -Recurse -Force .venv }
-                            & "${env:LOCALAPPDATA}\Programs\Python\Launcher\py.exe" -3.13 -m venv .venv
-                            
-                            Write-Host "Upgrading pip..."
-                            & .\.venv\Scripts\python.exe -m pip install --upgrade pip
-                        '''
+                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Write-Host 'Creating Python virtual environment...'; if (Test-Path -Path .venv) { Remove-Item -Recurse -Force .venv }; & '${env.LOCALAPPDATA}\Programs\Python\Launcher\py.exe' -3.13 -m venv .venv; Write-Host 'Upgrading pip...'; & .\\.venv\\Scripts\\python.exe -m pip install --upgrade pip\""
                         
                         script {
                             def wheelHouseExists = bat(
@@ -49,18 +40,10 @@ pipeline {
                             
                             if (wheelHouseExists) {
                                 echo "Installing dependencies from Wheelhouse (Offline Mode)"
-                                powershell '''
-                                    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-                                    & .\.venv\Scripts\pip.exe install --no-index --find-links=\"${env.WHEELHOUSE_PATH}\" -r requirements-dev.txt
-                                    & .\.venv\Scripts\pip.exe install --no-index --find-links=\"${env.WHEELHOUSE_PATH}\" .
-                                '''
+                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & .\\.venv\\Scripts\\pip.exe install --no-index --find-links='${env.WHEELHOUSE_PATH}' -r requirements-dev.txt; & .\\.venv\\Scripts\\pip.exe install --no-index --find-links='${env.WHEELHOUSE_PATH}' .\""
                             } else {
                                 echo "Installing dependencies from PyPI (Online Mode)"
-                                powershell '''
-                                    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-                                    & .\.venv\Scripts\pip.exe install -r requirements-dev.txt
-                                    & .\.venv\Scripts\pip.exe install .
-                                '''
+                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & .\\.venv\\Scripts\\pip.exe install -r requirements-dev.txt; & .\\.venv\\Scripts\\pip.exe install .\""
                             }
                         }
                     }
@@ -73,26 +56,7 @@ pipeline {
                 dir('cli') {
                     script {
                         echo "Running CLI tests"
-                        
-                        powershell '''
-                            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-                            $env:PYTHONPATH="${env.CLI_PATH}\src"
-
-                            # 테스트 결과 디렉토리 생성
-                            if (-not (Test-Path -Path test-results)) { New-Item -ItemType Directory -Path test-results }
-
-                            # 테스트 실행 (실패해도 계속 진행)
-                            try {
-                                & .\.venv\Scripts\pytest.exe tests\unit\ -v --junit-xml=test-results\junit-unit.xml --cov=ts_cli --cov-report=html
-                            } catch {
-                                Write-Host "Unit tests completed with issues"
-                            }
-                            try {
-                                & .\.venv\Scripts\pytest.exe tests\integration\ -v --junit-xml=test-results\junit-integration.xml
-                            } catch {
-                                Write-Host "Integration tests completed with issues"
-                            }
-                        '''
+                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; if (-not (Test-Path -Path test-results)) { New-Item -ItemType Directory -Path test-results }; try { & .\\.venv\\Scripts\\pytest.exe tests/unit/ -v --junit-xml=test-results/junit-unit.xml --cov=ts_cli --cov-report=html } catch { Write-Host 'Unit tests completed with issues' }; try { & .\\.venv\\Scripts\\pytest.exe tests/integration/ -v --junit-xml=test-results/junit-integration.xml } catch { Write-Host 'Integration tests completed with issues' }\""
                     }
                 }
             }
@@ -126,19 +90,15 @@ pipeline {
                     script {
                         echo "Building executable with PyInstaller"
                         
-                        powershell '''
-                            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-                            $env:PYTHONPATH="${env.CLI_PATH}\src"
-                            & .\.venv\Scripts\python.exe scripts\build.py
-                        '''
+                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; & .\\.venv\\Scripts\\python.exe scripts/build.py\""
                         
                         bat """
                             chcp 65001 >NUL
                             if exist dist\\windows\\ts-cli.exe (
-                                echo "Build successful: ts-cli.exe created"
+                                echo \"Build successful: ts-cli.exe created\"
                                 dir dist\\windows\\ts-cli.exe
                             ) else (
-                                echo "Build failed: ts-cli.exe not found"
+                                echo \"Build failed: ts-cli.exe not found\"
                                 exit 1
                             )
                         """
@@ -161,10 +121,10 @@ pipeline {
                         bat """
                             chcp 65001 >NUL
                             if exist dist\\TestscenarioMaker-CLI-Setup.exe (
-                                echo "Installer created successfully"
+                                echo \"Installer created successfully\"
                                 dir dist\\TestscenarioMaker-CLI-Setup.exe
                             ) else (
-                                echo "Installer creation failed"
+                                echo \"Installer creation failed\"
                                 exit 1
                             )
                         """
@@ -188,10 +148,10 @@ pipeline {
                             cd dist
                             if exist \"${originalName}\" (
                                 move /Y \"${originalName}\" \"${newName}\"
-                                echo "Renamed to ${newName}"
-                                dir "${newName}"
+                                echo \"Renamed to ${newName}\"
+                                dir \"${newName}\"
                             ) else (
-                                echo "Original installer not found"
+                                echo \"Original installer not found\"
                                 exit 1
                             )
                         """
