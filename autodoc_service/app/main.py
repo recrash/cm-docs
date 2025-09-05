@@ -52,6 +52,7 @@ app = FastAPI(
     title="AutoDoc Service",
     description="Office-less 문서 자동화 서비스",
     version="1.0.0",
+    root_path="/api/autodoc",  # API prefix 추가
     lifespan=lifespan
 )
 

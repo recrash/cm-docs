@@ -164,7 +164,7 @@ class APIClient:
                 progress_callback("서버로 요청 전송 중...", 30)
 
             # v2 API 엔드포인트로 요청
-            response = await self.client.post("/api/v2/scenario/generate", json=request_data)
+            response = await self.client.post("/api/webservice/v2/scenario/generate", json=request_data)
 
             if progress_callback:
                 progress_callback("응답 처리 중...", 70)

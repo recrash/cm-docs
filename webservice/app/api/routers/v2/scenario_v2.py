@@ -307,7 +307,7 @@ async def generate_scenario_v2(request: V2GenerationRequest, background_tasks: B
             protocol = "ws"
             host = base_url
             
-        websocket_url = f"{protocol}://{host}/api/v2/ws/progress/{request.client_id}"
+        websocket_url = f"{protocol}://{host}/api/webservice/v2/ws/progress/{request.client_id}"
 
         response = V2GenerationResponse(
             client_id=request.client_id,
