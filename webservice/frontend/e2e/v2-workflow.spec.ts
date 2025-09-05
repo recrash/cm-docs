@@ -56,6 +56,10 @@ test.describe('v2 CLI 연동 워크플로우', () => {
     // page.on('request') 이벤트로는 custom protocol을 잡을 수 없으므로
     // window.location.href 변경을 감지하는 스크립트 주입
     await page.evaluate(() => {
+      interface CustomWindow extends Window {
+        customUrlCalled: boolean
+        lastCustomUrl: string
+      }
       // const originalLocationSetter = Object.getOwnPropertyDescriptor(window, 'location')?.set ||
       //                               Object.getOwnPropertyDescriptor(window.location, 'href')?.set
       
@@ -75,8 +79,8 @@ test.describe('v2 CLI 연동 워크플로우', () => {
       
       window.location.assign = function(url: string) {
         if (url.startsWith('testscenariomaker://')) {
-          (window as any).customUrlCalled = true
-          ;(window as any).lastCustomUrl = url
+          (window as CustomWindow).customUrlCalled = true
+          ;(window as CustomWindow).lastCustomUrl = url
           console.log('🔗 Custom URL 호출 감지:', url)
           return
         }
@@ -89,8 +93,8 @@ test.describe('v2 CLI 연동 워크플로우', () => {
         get: () => originalHref,
         set: (url: string) => {
           if (url.startsWith('testscenariomaker://')) {
-            (window as any).customUrlCalled = true
-            ;(window as any).lastCustomUrl = url
+            (window as CustomWindow).customUrlCalled = true
+            ;(window as CustomWindow).lastCustomUrl = url
             console.log('🔗 Custom URL href 설정 감지:', url)
             return
           }
@@ -111,10 +115,16 @@ test.describe('v2 CLI 연동 워크플로우', () => {
     // 8. Custom URL 호출 확인 (JavaScript에서 감지)
     await page.waitForTimeout(2000) // Custom URL 호출 시간 대기
     
-    const customUrlResult = await page.evaluate(() => ({
-      called: (window as any).customUrlCalled,
-      url: (window as any).lastCustomUrl
-    }))
+    const customUrlResult = await page.evaluate(() => {
+      interface CustomWindow extends Window {
+        customUrlCalled: boolean
+        lastCustomUrl: string
+      }
+      return {
+        called: (window as CustomWindow).customUrlCalled,
+        url: (window as CustomWindow).lastCustomUrl
+      }
+    })
     
     expect(customUrlResult.called).toBe(true)
     expect(customUrlResult.url).toContain('testscenariomaker://generate')
