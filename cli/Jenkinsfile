@@ -83,18 +83,25 @@ pipeline {
                     script {
                         echo "Running CLI tests"
                         
-                        bat """
-                            chcp 65001 >NUL
-                            call .venv\\Scripts\\activate.bat
-                            set PYTHONPATH=${CLI_PATH}\\src
-                            
-                            REM 테스트 결과 디렉토리 생성
-                            if not exist test-results mkdir test-results
-                            
-                            REM 테스트 실행 (실패해도 계속 진행)
-                            pytest tests\\unit\\ -v --junit-xml=test-results\\junit-unit.xml --cov=ts_cli --cov-report=html || echo "Unit tests completed with issues"
-                            pytest tests\\integration\\ -v --junit-xml=test-results\\junit-integration.xml || echo "Integration tests completed with issues"
-                        """
+                        powershell '''
+                            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+                            $env:PYTHONPATH="${env.CLI_PATH}\src"
+
+                            # 테스트 결과 디렉토리 생성
+                            if (-not (Test-Path -Path test-results)) { New-Item -ItemType Directory -Path test-results }
+
+                            # 테스트 실행 (실패해도 계속 진행)
+                            try {
+                                & .\.venv\Scripts\pytest.exe tests\unit\ -v --junit-xml=test-results\junit-unit.xml --cov=ts_cli --cov-report=html
+                            } catch {
+                                Write-Host "Unit tests completed with issues"
+                            }
+                            try {
+                                & .\.venv\Scripts\pytest.exe tests\integration\ -v --junit-xml=test-results\junit-integration.xml
+                            } catch {
+                                Write-Host "Integration tests completed with issues"
+                            }
+                        '''
                     }
                 }
             }
@@ -129,12 +136,11 @@ pipeline {
                         echo "Building executable with PyInstaller"
                         
                         // PyInstaller로 실행 파일 생성
-                        bat """
-                            chcp 65001 >NUL
-                            call .venv\\Scripts\\activate.bat
-                            set PYTHONPATH=${CLI_PATH}\\src
-                            python scripts\\build.py
-                        """
+                        powershell '''
+                            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+                            $env:PYTHONPATH="${env.CLI_PATH}\src"
+                            & .\.venv\Scripts\python.exe scripts\build.py
+                        '''
                         
                         // 빌드 결과 확인
                         bat """
