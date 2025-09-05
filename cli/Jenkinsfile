@@ -40,8 +40,9 @@ pipeline {
                         
                         // Windows에서 가상환경 생성 및 활성화
                         bat """
+                            chcp 65001 >NUL
                             if exist .venv rmdir /s /q .venv
-                            "%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv
+                            \"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe\" -3.13 -m venv .venv
                             call .venv\\Scripts\\activate.bat
                             python -m pip install --upgrade pip
                         """
@@ -49,20 +50,22 @@ pipeline {
                         // 의존성 설치 (wheelhouse 우선 사용)
                         script {
                             def wheelHouseExists = bat(
-                                script: "if exist \"${env.WHEELHOUSE_PATH}\\*.whl\" echo found",
+                                script: "if exist \"${env.WHEELHOUSE_PATH}\\\*.whl\" echo found",
                                 returnStdout: true
                             ).contains('found')
                             
                             if (wheelHouseExists) {
                                 echo "휠하우스 발견 - 오프라인 고속 설치 모드"
                                 bat """
+                                    chcp 65001 >NUL
                                     call .venv\\Scripts\\activate.bat
-                                    pip install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r requirements-dev.txt
-                                    pip install --no-index --find-links="${env.WHEELHOUSE_PATH}" .
+                                    pip install --no-index --find-links=\"${env.WHEELHOUSE_PATH}\" -r requirements-dev.txt
+                                    pip install --no-index --find-links=\"${env.WHEELHOUSE_PATH}\" .
                                 """
                             } else {
                                 echo "휠하우스 없음 - 온라인 설치 모드"
                                 bat """
+                                    chcp 65001 >NUL
                                     call .venv\\Scripts\\activate.bat
                                     pip install -r requirements-dev.txt
                                     pip install .
@@ -81,6 +84,7 @@ pipeline {
                         echo "Running CLI tests"
                         
                         bat """
+                            chcp 65001 >NUL
                             call .venv\\Scripts\\activate.bat
                             set PYTHONPATH=${CLI_PATH}\\src
                             
@@ -126,6 +130,7 @@ pipeline {
                         
                         // PyInstaller로 실행 파일 생성
                         bat """
+                            chcp 65001 >NUL
                             call .venv\\Scripts\\activate.bat
                             set PYTHONPATH=${CLI_PATH}\\src
                             python scripts\\build.py
@@ -133,6 +138,7 @@ pipeline {
                         
                         // 빌드 결과 확인
                         bat """
+                            chcp 65001 >NUL
                             if exist dist\\windows\\ts-cli.exe (
                                 echo "Build successful: ts-cli.exe created"
                                 dir dist\\windows\\ts-cli.exe
@@ -154,11 +160,13 @@ pipeline {
                         
                         // NSIS 설치파일 생성
                         bat """
+                            chcp 65001 >NUL
                             makensis scripts\\setup_win.nsi
                         """
                         
                         // 설치파일 확인
                         bat """
+                            chcp 65001 >NUL
                             if exist dist\\TestscenarioMaker-CLI-Setup.exe (
                                 echo "Installer created successfully"
                                 dir dist\\TestscenarioMaker-CLI-Setup.exe
@@ -179,14 +187,15 @@ pipeline {
                         echo "Renaming installer with branch name: ${params.BRANCH}"
                         
                         // 브랜치명을 파일명에 추가 (특수문자 처리)
-                        def branchSuffix = params.BRANCH.replaceAll('/', '-').replaceAll('\\\\', '-')
+                        def branchSuffix = params.BRANCH.replaceAll('/', '-').replaceAll('\\', '-')
                         def originalName = "TestscenarioMaker-CLI-Setup.exe"
                         def newName = "TestscenarioMaker-CLI-Setup-${branchSuffix}.exe"
                         
                         bat """
+                            chcp 65001 >NUL
                             cd dist
-                            if exist "${originalName}" (
-                                move /Y "${originalName}" "${newName}"
+                            if exist \"${originalName}\" (
+                                move /Y \"${originalName}\" \"${newName}\"
                                 echo "Renamed to ${newName}"
                                 dir "${newName}"
                             ) else (
@@ -218,6 +227,7 @@ pipeline {
                     
                     // 빌드 디렉토리 정리 (선택적)
                     bat """
+                        chcp 65001 >NUL
                         cd cli
                         if exist build rmdir /S /Q build 2>nul || echo "No build directory to clean"
                         if exist ts_cli.egg-info rmdir /S /Q ts_cli.egg-info 2>nul || echo "No egg-info to clean"
@@ -233,7 +243,7 @@ pipeline {
             echo "✅ CLI build completed successfully for branch: ${params.BRANCH}"
             
             script {
-                def branchSuffix = params.BRANCH.replaceAll('/', '-').replaceAll('\\\\', '-')
+                def branchSuffix = params.BRANCH.replaceAll('/', '-').replaceAll('\\', '-')
                 def installerName = "TestscenarioMaker-CLI-Setup-${branchSuffix}.exe"
                 
                 echo "📦 Generated artifacts:"
@@ -276,6 +286,7 @@ pipeline {
                 
                 // 워크스페이스 상태 확인
                 bat """
+                    chcp 65001 >NUL
                     cd cli
                     if exist dist\\windows\\ts-cli.exe echo "✓ Executable preserved"
                     if exist dist\\TestscenarioMaker-CLI-Setup-*.exe echo "✓ Installer preserved"
