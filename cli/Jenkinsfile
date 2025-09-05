@@ -29,6 +29,14 @@ pipeline {
                 dir('cli') {
                     script {
                         echo "Setting up Python environment for CLI"
+                        echo "===========================================
+                                변수 결과
+                                ===========================================
+                                • WHEELHOUSE_PATH: ${env.WHEELHOUSE_PATH}
+                                • CLI_PATH: ${env.CLI_PATH}
+                                • PYTHONPATH: ${env.PYTHONPATH}
+                                • PATH: ${env.PATH}
+                                • PYTHONIOENCODING: ${env.PYTHONIOENCODING}"
                         
                         // Windows에서 가상환경 생성 및 활성화
                         bat """
