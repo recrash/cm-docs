@@ -265,7 +265,7 @@ pipeline {
                                 Copy-Item -Path \$backupWhl.FullName -Destination "${env.DEPLOY_PATH}" -Force
                                 # 타겟 폴더에서 설치
                                 & "${env.DEPLOY_PIP_CMD}" uninstall webservice -y 2>&1 | Out-Null
-                                & "${env.DEPLOY_PIP_CMD}" install "${env.DEPLOY_PATH}\\$(\$backupWhl.FullName)" --no-deps
+                                & "${env.DEPLOY_PIP_CMD}" install "\$(\$backupWhl.FullName)" --no-deps
                             }
                         """
                         bat 'nssm start webservice'
