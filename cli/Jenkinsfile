@@ -94,10 +94,14 @@ pipeline {
                 dir('cli') {
                     script {
                         echo "Building executable with PyInstaller with robust encoding control"
-                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' scripts/build.py\""
-                        
                         bat """
+                            rem Set console codepage to UTF-8 for the entire script block
                             chcp 65001 >NUL
+
+                            rem Run the build script using PowerShell with explicit UTF-8 settings
+                            powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' scripts/build.py\"
+
+                            rem Verify the result in the same UTF-8 context
                             if exist dist\\windows\\ts-cli.exe (
                                 echo \"Build successful: ts-cli.exe created\"
                                 dir dist\\windows\\ts-cli.exe
