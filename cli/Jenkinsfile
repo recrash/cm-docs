@@ -6,10 +6,10 @@ pipeline {
     }
     
         environment {
-        WHEELHOUSE_PATH = 'C:/deploys/packages/wheelhouse'
-        CLI_PATH = "${WORKSPACE}/cli"
+        WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'
+        CLI_PATH = "${WORKSPACE}\\cli"
         PYTHONPATH = "${CLI_PATH}"
-        PATH = "${env.PATH};${CLI_PATH}/scripts"
+        PATH = "${env.PATH};${CLI_PATH}\\scripts"
         PYTHONIOENCODING = 'UTF-8'
     }
     
