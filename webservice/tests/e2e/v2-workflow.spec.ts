@@ -15,7 +15,7 @@ import { test, expect, Page } from '@playwright/test'
 // 테스트 설정
 const TEST_REPO_PATH = '/Users/recrash/Documents/Workspace/TestscenarioMaker'
 const FRONTEND_URL = 'http://localhost:3000'
-const BACKEND_URL = 'http://localhost:8000'
+const BACKEND_URL = 'http://localhost:80'
 
 test.describe('v2 CLI 연동 워크플로우', () => {
   

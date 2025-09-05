@@ -11,7 +11,7 @@ test.describe('로깅 시스템 E2E 테스트', () => {
 
   test('백엔드 로깅 시스템 테스트', async ({ page }) => {
     // 1. 백엔드 서버가 정상적으로 시작되었는지 확인
-    const response = await page.request.get('http://localhost:8000/api/health');
+    const response = await page.request.get('http://localhost:80/api/health');
     expect(response.status()).toBe(200);
     const responseData = await response.json();
     expect(responseData).toEqual({ status: 'healthy' });
@@ -65,7 +65,7 @@ test.describe('로깅 시스템 E2E 테스트', () => {
 
   test('API 오류 로깅 테스트', async ({ page }) => {
     // 1. 존재하지 않는 API 엔드포인트 호출하여 오류 발생
-    const response = await page.request.get('http://localhost:8000/api/nonexistent');
+    const response = await page.request.get('http://localhost:80/api/nonexistent');
     expect(response.status()).toBe(404);
 
     // 2. 잠시 대기하여 로그 기록 시간을 줍니다
@@ -102,11 +102,11 @@ test.describe('로깅 시스템 E2E 테스트', () => {
       // API 서비스에서 WebSocket URL 생성 로직 테스트
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.hostname;
-      const port = '8000';
+      const port = '80';
       return `${protocol}//${host}:${port}/api/scenario/generate-ws`;
     });
 
-    expect(wsUrl).toContain('ws://localhost:8000/api/scenario/generate-ws');
+    expect(wsUrl).toContain('ws://localhost:80/api/scenario/generate-ws');
     
     console.log('✅ WebSocket 로깅 정상 동작 확인');
   });
@@ -137,7 +137,7 @@ test.describe('로깅 시스템 E2E 테스트', () => {
     await page.goto('http://localhost:3000');
     
     // 2. 로그 전송 API 엔드포인트 테스트
-    const logResponse = await page.request.post('http://localhost:8000/api/log', {
+    const logResponse = await page.request.post('http://localhost:80/api/log', {
       data: {
         level: 'info',
         message: '테스트 로그 메시지',

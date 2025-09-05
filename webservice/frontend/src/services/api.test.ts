@@ -95,7 +95,7 @@ describe('API Services', () => {
       vi.stubEnv('DEV', true)
 
       const url = scenarioApi.getWebSocketUrl()
-      expect(url).toBe('ws://localhost:8000/api/scenario/generate-ws')
+      expect(url).toBe('ws://localhost:8000/api/webservice/scenario/generate-ws')
     })
   })
 
@@ -193,7 +193,7 @@ describe('API Services', () => {
       const filename = 'test.xlsx'
       const url = filesApi.downloadExcelFile(filename)
       
-      expect(url).toBe('/api/files/download/excel/test.xlsx')
+      expect(url).toBe('/api/webservice/files/download/excel/test.xlsx')
     })
   })
 
