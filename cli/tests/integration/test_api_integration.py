@@ -120,7 +120,7 @@ class TestAPIIntegration:
             # 요청이 올바르게 호출되었는지 확인 (v2 API 엔드포인트)
             mock_post.assert_called_once()
             call_args = mock_post.call_args
-            assert call_args[0][0] == "/api/v2/scenario/generate"
+            assert call_args[0][0] == "/api/webservice/v2/scenario/generate"
             request_json = call_args[1]["json"]
             assert "client_id" in request_json
             assert request_json["repo_path"] == analysis_data

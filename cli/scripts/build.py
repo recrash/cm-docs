@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-TestscenarioMaker CLI 빌드 스크립트
+TestscenarioMaker CLI Build Script
 
-PyInstaller를 사용하여 OS별 실행파일을 생성합니다.
+Generates OS-specific executables using PyInstaller.
 """
 
 import sys
@@ -17,19 +17,19 @@ from typing import Dict, List, Optional, Any
 
 
 class BuildError(Exception):
-    """빌드 관련 오류"""
+    """Build-related errors"""
     pass
 
 
 class CLIBuilder:
-    """CLI 빌드 관리 클래스"""
+    """CLI Build Manager"""
     
     def __init__(self, project_root: Path):
         """
-        빌드 관리자 초기화
+        Initialize build manager
         
         Args:
-            project_root: 프로젝트 루트 디렉토리
+            project_root: Project root directory
         """
         self.project_root = project_root.resolve()
         self.src_dir = self.project_root / "src"
@@ -40,18 +40,18 @@ class CLIBuilder:
         self.platform_name = platform.system().lower()
         self.arch = platform.machine().lower()
         
-        # 버전 정보 로드
+        # Load version info
         self.version = self._get_version()
         
-        print(f"빌드 환경 초기화")
-        print(f"   플랫폼: {self.platform_name} ({self.arch})")
-        print(f"   버전: {self.version}")
-        print(f"   프로젝트 루트: {self.project_root}")
+        print(f"Build environment initialized")
+        print(f"   Platform: {self.platform_name} ({self.arch})")
+        print(f"   Version: {self.version}")
+        print(f"   Project root: {self.project_root}")
     
     def _get_version(self) -> str:
-        """버전 정보 조회"""
+        """Get version information"""
         try:
-            # __init__.py에서 버전 정보 추출
+            # Extract version info from __init__.py
             init_file = self.src_dir / "ts_cli" / "__init__.py"
             if init_file.exists():
                 with open(init_file, 'r', encoding='utf-8') as f:
@@ -63,60 +63,60 @@ class CLIBuilder:
             return "1.0.0"
     
     def clean_build_dirs(self) -> None:
-        """빌드 디렉토리 정리"""
-        print("빌드 디렉토리 정리 중...")
+        """Clean build directories"""
+        print("Cleaning build directories...")
         
         dirs_to_clean = [self.dist_dir, self.build_dir]
         
         for dir_path in dirs_to_clean:
             if dir_path.exists():
                 try:
-                    # 기본 삭제 시도 (모든 플랫폼에서 동작)
+                    # Try default deletion (works on all platforms)
                     shutil.rmtree(dir_path)
-                    print(f"   {dir_path.name} 정리 완료")
+                    print(f"   {dir_path.name} cleaned")
                 except PermissionError as e:
-                    # Windows에서만 추가 처리
+                    # Additional processing for Windows only
                     if self.platform_name == 'windows':
-                        print(f"   Windows 권한 오류 발생: {dir_path.name}")
-                        print(f"   Windows 전용 정리 방법 시도 중...")
+                        print(f"   Windows permission error: {dir_path.name}")
+                        print(f"   Attempting Windows-specific cleanup...")
                         
                         try:
                             self._safe_remove_windows_dir(dir_path)
-                            print(f"   {dir_path.name} Windows 정리 완료")
+                            print(f"   {dir_path.name} Windows cleanup complete")
                         except Exception as win_error:
-                            print(f"   Windows 정리도 실패: {win_error}")
-                            print(f"   해결 방법:")
-                            print(f"      1. 관리자 권한으로 PowerShell 실행")
-                            print(f"      2. 수동 삭제: Remove-Item -Path '{dir_path}' -Recurse -Force")
-                            print(f"      3. 또는 --no-clean 옵션으로 빌드 재시도")
-                            raise BuildError(f"Windows 디렉토리 삭제 실패: {e}")
+                            print(f"   Windows cleanup also failed: {win_error}")
+                            print(f"   Resolution:")
+                            print(f"      1. Run PowerShell as Administrator")
+                            print(f"      2. Manual deletion: Remove-Item -Path '{dir_path}' -Recurse -Force")
+                            print(f"      3. Or retry build with --no-clean option")
+                            raise BuildError(f"Windows directory deletion failed: {e}")
                     else:
-                        # macOS/Linux에서는 원래 오류 그대로 전파
-                        raise BuildError(f"디렉토리 삭제 권한 오류: {e}")
+                        # Propagate original error on macOS/Linux
+                        raise BuildError(f"Directory deletion permission error: {e}")
                 except Exception as e:
-                    # 기타 오류는 모든 플랫폼에서 동일하게 처리
-                    print(f"   {dir_path.name} 정리 실패: {e}")
-                    raise BuildError(f"디렉토리 정리 실패: {e}")
+                    # Handle other errors the same way on all platforms
+                    print(f"   {dir_path.name} cleanup failed: {e}")
+                    raise BuildError(f"Directory cleanup failed: {e}")
             
-            # 디렉토리 재생성 (모든 플랫폼에서 동일)
+            # Recreate directory (same on all platforms)
             dir_path.mkdir(parents=True, exist_ok=True)
 
     def _safe_remove_windows_dir(self, dir_path: Path) -> None:
-        """Windows에서 안전한 디렉토리 삭제 (크로스 플랫폼 호환성 유지)"""
+        """Safe directory deletion on Windows (maintaining cross-platform compatibility)"""
         import time
         
-        # 1차 시도: 파일 속성 변경 후 삭제
+        # 1st attempt: Delete after changing file attributes
         try:
-            # Windows에서만 사용 가능한 방법
+            # Method only available on Windows
             for root, dirs, files in os.walk(dir_path):
                 for file in files:
                     file_path = Path(root) / file
                     try:
-                        # Windows에서만 chmod 사용 (POSIX 호환)
+                        # Use chmod on Windows only (POSIX compatible)
                         if hasattr(file_path, 'chmod'):
                             file_path.chmod(0o777)
                     except (OSError, AttributeError):
-                        # chmod 실패 시 무시 (크로스 플랫폼 안전성)
+                        # Ignore chmod failure (cross-platform safety)
                         pass
                 
                 for dir_name in dirs:
@@ -132,7 +132,7 @@ class CLIBuilder:
         except PermissionError:
             pass
         
-        # 2차 시도: 잠시 대기 후 재시도
+        # 2nd attempt: Retry after brief wait
         time.sleep(1)
         try:
             shutil.rmtree(dir_path)
@@ -140,21 +140,21 @@ class CLIBuilder:
         except PermissionError:
             pass
         
-        # 3차 시도: Windows 전용 명령어 (subprocess)
+        # 3rd attempt: Windows-specific command (subprocess)
         try:
-            # Windows에서만 실행되는 코드
+            # Code that only runs on Windows
             if self.platform_name == 'windows':
                 subprocess.run(
                     ['cmd', '/c', f'rmdir /s /q "{dir_path}"'],
                     check=True,
                     capture_output=True,
-                    timeout=30  # 타임아웃 추가
+                    timeout=30  # Add timeout
                 )
                 return
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
             pass
         
-        # 4차 시도: PowerShell 명령어 사용
+        # 4th attempt: Use PowerShell command
         try:
             if self.platform_name == 'windows':
                 subprocess.run(
@@ -167,10 +167,10 @@ class CLIBuilder:
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
             pass
         
-        # 5차 시도: robocopy를 사용한 삭제 (Windows 전용)
+        # 5th attempt: Delete using robocopy (Windows only)
         try:
             if self.platform_name == 'windows':
-                # robocopy로 빈 디렉토리로 덮어쓰기 후 삭제
+                # Overwrite with empty directory using robocopy then delete
                 temp_dir = dir_path.parent / f"temp_delete_{dir_path.name}"
                 temp_dir.mkdir(exist_ok=True)
                 
@@ -181,53 +181,53 @@ class CLIBuilder:
                     timeout=30
                 )
                 
-                # 임시 디렉토리 삭제
+                # Delete temporary directory
                 try:
                     shutil.rmtree(temp_dir)
                 except:
                     pass
                 
-                # 이제 빈 디렉토리 삭제 시도
+                # Now try to delete empty directory
                 shutil.rmtree(dir_path)
                 return
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
             pass
         
-        # 모든 시도 실패
-        raise PermissionError(f"Windows에서 디렉토리 삭제 실패: {dir_path}")
+        # All attempts failed
+        raise PermissionError(f"Failed to delete directory on Windows: {dir_path}")
     
     def check_dependencies(self) -> None:
-        """빌드 의존성 확인"""
-        print("빌드 의존성 확인 중...")
+        """Check build dependencies"""
+        print("Checking build dependencies...")
         
-        # 패키지명과 실제 import 모듈명 매핑
+        # Package name to actual import module name mapping
         package_mapping = {
             'pyinstaller': 'PyInstaller'
         }
         
         for package, import_name in package_mapping.items():
             try:
-                # 실제 import 모듈명으로 확인
+                # Check with actual import module name
                 __import__(import_name)
-                print(f"   {package} 설치됨")
+                print(f"   {package} installed")
             except ImportError:
-                # import 실패 시 subprocess로 재확인
+                # Re-check with subprocess on import failure
                 try:
                     result = subprocess.run(
                         [sys.executable, '-c', f'import {import_name}'],
                         capture_output=True,
                         check=True
                     )
-                    print(f"   {package} 설치됨 (subprocess 확인)")
+                    print(f"   {package} installed (subprocess verification)")
                 except subprocess.CalledProcessError:
                     raise BuildError(
-                        f"필수 패키지 {package}가 설치되지 않았습니다. "
-                        f"'pip install {package}'로 설치하세요."
+                        f"Required package {package} is not installed. "
+                        f"Please install with 'pip install {package}'."
                     )
     
     def _prepare_build_files(self) -> Dict[str, Any]:
-        """빌드에 필요한 파일들 확인 및 경로 준비"""
-        print("빌드 파일 준비 중...")
+        """Check and prepare paths for build files"""
+        print("Preparing build files...")
         
         build_info = {
             'main_script': self.src_dir / "ts_cli" / "main.py",
@@ -236,47 +236,47 @@ class CLIBuilder:
             'icon_file': None
         }
         
-        # 필수 파일 확인
+        # Check required files
         if not build_info['main_script'].exists():
-            raise BuildError(f"메인 스크립트를 찾을 수 없습니다: {build_info['main_script']}")
+            raise BuildError(f"Main script not found: {build_info['main_script']}")
         
-        # 선택적 파일들 확인
+        # Check optional files
         config_file = self.project_root / "config" / "config.ini"
         if config_file.exists():
             build_info['datas'].append((str(config_file), "config"))
-            print(f"   설정 파일 포함: {config_file}")
+            print(f"   Including config file: {config_file}")
         else:
-            print(f"   설정 파일 없음 (선택사항): {config_file}")
+            print(f"   Config file not found (optional): {config_file}")
         
-        # Windows 버전 정보 파일
+        # Windows version info file
         if self.platform_name == 'windows':
             version_file = self.scripts_dir / "version_info.txt"
             if version_file.exists():
                 build_info['version_file'] = str(version_file)
-                print(f"   버전 정보 파일: {version_file}")
+                print(f"   Version info file: {version_file}")
         
-        # 아이콘 파일
+        # Icon file
         icon_file = self.scripts_dir / "icon.ico"
         if icon_file.exists():
             build_info['icon_file'] = str(icon_file)
-            print(f"   아이콘 파일: {icon_file}")
+            print(f"   Icon file: {icon_file}")
         
         return build_info
     
     def create_spec_file(self) -> Path:
-        """PyInstaller spec 파일 생성"""
-        print(" PyInstaller spec 파일 생성 중...")
+        """Create PyInstaller spec file"""
+        print("Creating PyInstaller spec file...")
         
-        # 빌드 파일 준비
+        # Prepare build files
         build_info = self._prepare_build_files()
         
-        # datas 배열 구성
+        # Configure datas array
         datas_str = "[\n"
         for data_item in build_info['datas']:
             datas_str += f"        {repr(data_item)},\n"
         datas_str += "    ]"
         
-        # version과 icon 경로 처리
+        # Process version and icon paths
         version_str = f'r"{build_info["version_file"]}"' if build_info['version_file'] else 'None'
         icon_str = f'r"{build_info["icon_file"]}"' if build_info['icon_file'] else 'None'
         
@@ -285,11 +285,11 @@ class CLIBuilder:
 import sys
 from pathlib import Path
 
-# 프로젝트 경로 설정
+# Set project paths
 project_root = Path(r"{str(self.project_root)}")
 src_dir = project_root / "src"
 
-# 분석 설정
+# Analysis settings
 a = Analysis(
     [r"{str(build_info['main_script'])}"],
     pathex=[str(src_dir)],
@@ -319,10 +319,10 @@ a = Analysis(
     noarchive=False,
 )
 
-# PYZ 설정
+# PYZ settings
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
-# 실행파일 설정
+# Executable settings
 exe = EXE(
     pyz,
     a.scripts,
@@ -352,15 +352,15 @@ exe = EXE(
         with open(spec_file, 'w', encoding='utf-8') as f:
             f.write(spec_content)
         
-        print(f"   spec 파일 생성: {spec_file}")
+        print(f"   Spec file created: {spec_file}")
         return spec_file
     
     def create_version_info(self) -> Optional[Path]:
-        """Windows용 버전 정보 파일 생성"""
+        """Create Windows version info file"""
         if self.platform_name != 'windows':
             return None
         
-        print("Windows 버전 정보 파일 생성 중...")
+        print("Creating Windows version info file...")
         
         version_parts = self.version.split('.')
         while len(version_parts) < 4:
@@ -404,14 +404,14 @@ VSVersionInfo(
         with open(version_file, 'w', encoding='utf-8') as f:
             f.write(version_info_content)
         
-        print(f"   버전 정보 파일 생성: {version_file}")
+        print(f"   Version info file created: {version_file}")
         return version_file
     
     def build_executable(self, spec_file: Path) -> Path:
-        """실행파일 빌드"""
-        print(" 실행파일 빌드 중...")
+        """Build executable"""
+        print("Building executable...")
         
-        # PyInstaller 실행
+        # Run PyInstaller
         cmd = [
             sys.executable, '-m', 'PyInstaller',
             '--clean',
@@ -419,7 +419,7 @@ VSVersionInfo(
             str(spec_file)
         ]
         
-        print(f"   명령어: {' '.join(cmd)}")
+        print(f"   Command: {' '.join(cmd)}")
         
         try:
             result = subprocess.run(
@@ -430,27 +430,27 @@ VSVersionInfo(
                 text=True
             )
             
-            print("   PyInstaller 실행 완료")
+            print("   PyInstaller execution complete")
             
         except subprocess.CalledProcessError as e:
-            print(f"   PyInstaller 실행 실패:")
+            print(f"   PyInstaller execution failed:")
             print(f"   stdout: {e.stdout}")
             print(f"   stderr: {e.stderr}")
-            raise BuildError(f"PyInstaller 빌드 실패: {e}")
+            raise BuildError(f"PyInstaller build failed: {e}")
         
-        # 생성된 실행파일 확인
+        # Check generated executable
         exe_name = 'ts-cli' + ('.exe' if self.platform_name == 'windows' else '')
         exe_path = self.dist_dir / exe_name
         
         if not exe_path.exists():
-            raise BuildError(f"실행파일이 생성되지 않았습니다: {exe_path}")
+            raise BuildError(f"Executable was not created: {exe_path}")
         
-        print(f"   실행파일 생성: {exe_path}")
+        print(f"   Executable created: {exe_path}")
         return exe_path
     
     def test_executable(self, exe_path: Path) -> None:
-        """생성된 실행파일 테스트"""
-        print(" 실행파일 테스트 중...")
+        """Test generated executable"""
+        print("Testing executable...")
         
         test_commands = [
             ['--version'],
@@ -467,18 +467,18 @@ VSVersionInfo(
                 )
                 
                 if result.returncode == 0:
-                    print(f"   {' '.join(cmd_args)} 테스트 통과")
+                    print(f"   {' '.join(cmd_args)} test passed")
                 else:
-                    print(f"   {' '.join(cmd_args)} 테스트 실패 (코드: {result.returncode})")
+                    print(f"   {' '.join(cmd_args)} test failed (code: {result.returncode})")
                     
             except subprocess.TimeoutExpired:
-                print(f"   {' '.join(cmd_args)} 테스트 타임아웃")
+                print(f"   {' '.join(cmd_args)} test timeout")
             except Exception as e:
-                print(f"   {' '.join(cmd_args)} 테스트 오류: {e}")
+                print(f"   {' '.join(cmd_args)} test error: {e}")
     
     def create_build_info(self, exe_path: Path) -> None:
-        """빌드 정보 파일 생성"""
-        print(" 빌드 정보 파일 생성 중...")
+        """Create build info file"""
+        print("Creating build info file...")
         
         import datetime
         
@@ -496,74 +496,74 @@ VSVersionInfo(
         with open(info_file, 'w', encoding='utf-8') as f:
             json.dump(build_info, f, indent=2, ensure_ascii=False)
         
-        print(f"   빌드 정보: {info_file}")
+        print(f"   Build info: {info_file}")
         
-        # 빌드 정보 출력
-        print("빌드 완료 정보:")
-        print(f"   버전: {build_info['version']}")
-        print(f"   플랫폼: {build_info['platform']} ({build_info['architecture']})")
-        print(f"   실행파일: {build_info['executable_path']}")
-        print(f"   크기: {build_info['executable_size']:,} bytes")
+        # Output build info
+        print("Build complete info:")
+        print(f"   Version: {build_info['version']}")
+        print(f"   Platform: {build_info['platform']} ({build_info['architecture']})")
+        print(f"   Executable: {build_info['executable_path']}")
+        print(f"   Size: {build_info['executable_size']:,} bytes")
     
     def build(self, clean: bool = True, test: bool = True) -> Path:
-        """전체 빌드 프로세스"""
-        print("TestscenarioMaker CLI 빌드 시작")
+        """Full build process"""
+        print("TestscenarioMaker CLI build started")
         print("=" * 50)
         
         try:
-            # 1. 정리
+            # 1. Clean
             if clean:
                 self.clean_build_dirs()
             
-            # 2. 의존성 확인
+            # 2. Check dependencies
             self.check_dependencies()
             
-            # 3. 버전 정보 파일 생성 (Windows만)
+            # 3. Create version info file (Windows only)
             self.create_version_info()
             
-            # 4. spec 파일 생성
+            # 4. Create spec file
             spec_file = self.create_spec_file()
             
-            # 5. 실행파일 빌드
+            # 5. Build executable
             exe_path = self.build_executable(spec_file)
             
-            # 6. 테스트
+            # 6. Test
             if test:
                 self.test_executable(exe_path)
             
-            # 7. 빌드 정보 생성
+            # 7. Create build info
             self.create_build_info(exe_path)
             
             print("=" * 50)
-            print("빌드 성공!")
-            print(f"   실행파일: {exe_path}")
+            print("Build successful!")
+            print(f"   Executable: {exe_path}")
             
             return exe_path
             
         except Exception as e:
             print("=" * 50)
-            print(f"빌드 실패: {e}")
+            print(f"Build failed: {e}")
             raise
 
 
 def main():
-    """메인 함수"""
-    parser = argparse.ArgumentParser(description='TestscenarioMaker CLI 빌드 스크립트')
+    """Main function"""
+    parser = argparse.ArgumentParser(description='TestscenarioMaker CLI Build Script')
     parser.add_argument(
         '--no-clean',
         action='store_true',
-        help='빌드 디렉토리를 정리하지 않음'
+        help='Do not clean build directories'
     )
     parser.add_argument(
         '--no-test',
         action='store_true',
-        help='실행파일 테스트를 건너뜀'
+        help='Skip testing the executable'
     )
     parser.add_argument(
         '--project-root',
         type=Path,
         default=Path(__file__).parent.parent,
-        help='프로젝트 루트 디렉토리'
+        help='Project root directory'
     )
     
     args = parser.parse_args()
@@ -575,19 +575,19 @@ def main():
             test=not args.no_test
         )
         
-        print(f"\n 빌드된 실행파일을 사용하려면:")
+        print(f"\n To use the built executable:")
         print(f"   {exe_path} --help")
         
         return 0
         
     except BuildError as e:
-        print(f"\n빌드 오류: {e}", file=sys.stderr)
+        print(f"\nBuild error: {e}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
-        print("\n빌드가 중단되었습니다.", file=sys.stderr)
+        print("\nBuild was interrupted.", file=sys.stderr)
         return 1
     except Exception as e:
-        print(f"\n예상치 못한 오류: {e}", file=sys.stderr)
+        print(f"\nUnexpected error: {e}", file=sys.stderr)
         return 1
 
 

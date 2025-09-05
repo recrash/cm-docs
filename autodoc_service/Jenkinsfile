@@ -20,7 +20,7 @@ pipeline {
         AUTODOC_DATA_PATH = 'C:\\deploys\\data\\autodoc_service'
         
         // 기타 설정
-        HEALTH_CHECK_URL = 'http://localhost:8001/health'
+        HEALTH_CHECK_URL = 'http://localhost:8001/api/autodoc/health'  // root_path 반영
         BACKUP_DIR = 'C:\\deploys\\backup\\apps\\autodoc_service'
     }
     stages {
@@ -231,8 +231,15 @@ pipeline {
                         """
                         echo "AutoDoc Service 중지 완료"
                         
-                        // 10초 대기 (사용자 요구사항)
-                        sleep(time: 10, unit: 'SECONDS')
+                        // 15초 대기 (강제 재배포를 위해 증가)
+                        sleep(time: 15, unit: 'SECONDS')
+                        
+                        // 기존 wheel 파일 강제 삭제 (캐시 문제 방지)
+                        powershell """
+                            Write-Host "기존 wheel 파일 정리 중..."
+                            Get-ChildItem -Path "${env.DEPLOY_PATH}\\autodoc_service-*.whl" | Remove-Item -Force -ErrorAction SilentlyContinue
+                            Write-Host "기존 wheel 파일 정리 완료"
+                        """
                         
                         // 1단계: Jenkins Workspace에서 빌드된 wheel을 타겟 폴더로 복사
                         powershell """
@@ -250,15 +257,20 @@ pipeline {
                         powershell """
                             \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\autodoc_service-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
                             if (\$deployWhl) {
-                                Write-Host "초고속 설치 시작: \$(\$deployWhl.Name)"
+                                Write-Host "효율적인 재설치 시작: \$(\$deployWhl.Name)"
+                                
+                                # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
+                                Write-Host "기존 autodoc_service 패키지 제거 중..."
+                                & "${env.DEPLOY_PIP_CMD}" uninstall autodoc-service -y 2>&1 | Out-Null
+                                Write-Host "기존 패키지 제거 완료"
                                 
                                 # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
                                 if (Test-Path "C:\\deploys\\packages\\wheelhouse\\*.whl") {
-                                    Write-Host "휠하우스 발견 - 오프라인 초고속 설치"
-                                    & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --upgrade
+                                    Write-Host "휠하우스 발견 - 오프라인 빠른 설치"
+                                    & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --no-deps
                                 } else {
-                                    Write-Host "휠하우스 없음 - 기본 업그레이드 설치"
-                                    & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --upgrade
+                                    Write-Host "일반 설치 모드"
+                                    & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-deps
                                 }
                                 Write-Host "설치 완료"
                             } else {
@@ -306,11 +318,12 @@ pipeline {
                         powershell """
                             if (Test-Path "${env.BACKUP_DIR}\\*.whl") {
                                 \$backupWhl = Get-ChildItem -Path "${env.BACKUP_DIR}\\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                                Write-Host "백업에서 롤백 실행: \$(\$backupWhl.Name)"
+                                Write-Host "백업에서 롤백 실행: \$(\$backupWhl.FullName)"
                                 # 백업을 타겟 폴더로 복사
                                 Copy-Item -Path \$backupWhl.FullName -Destination "${env.DEPLOY_PATH}" -Force
                                 # 타겟 폴더에서 설치
-                                & "${env.DEPLOY_PIP_CMD}" install "${env.DEPLOY_PATH}\\\$(\$backupWhl.Name)" --force-reinstall
+                                & "${env.DEPLOY_PIP_CMD}" uninstall autodoc-service -y 2>&1 | Out-Null
+                                & "${env.DEPLOY_PIP_CMD}" install "\$(\$backupWhl.FullName)" --no-deps
                             }
                         """
                         bat 'nssm start autodoc_service'
@@ -326,11 +339,27 @@ pipeline {
                     // 서비스 시작 대기
                     sleep(time: 15, unit: 'SECONDS')
                     
-                    def endpoints = [
-                        "${env.HEALTH_CHECK_URL}": "기본 헬스체크",
-                        "http://localhost:8001/": "루트 엔드포인트",
-                        "http://localhost:8001/templates": "템플릿 목록"
-                    ]
+                    // 브랜치에 따라 다른 헬스체크 전략 사용
+                    def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                    def isProduction = (branchName == 'main' || branchName == 'develop')
+                    
+                    def endpoints = [:]
+                    
+                    if (isProduction) {
+                        // main/develop: 직접 포트로 체크 (FastAPI는 여전히 /health로 응답)
+                        endpoints = [
+                            "http://localhost:8001/health": "기본 헬스체크 (직접 포트)",
+                            "http://localhost:8001/": "루트 엔드포인트",
+                            "http://localhost:8001/templates": "템플릿 목록"
+                        ]
+                    } else {
+                        // feature/hotfix: 직접 포트 체크 (nginx 미설정)
+                        endpoints = [
+                            "http://localhost:8001/health": "기본 헬스체크 (직접)",
+                            "http://localhost:8001/": "루트 엔드포인트",
+                            "http://localhost:8001/templates": "템플릿 목록"
+                        ]
+                    }
                     
                     def allPassed = true
                     

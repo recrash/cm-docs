@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 
 def test_get_scenario_config(client):
     """시나리오 설정 조회 테스트"""
-    response = client.get("/api/scenario/config")
+    response = client.get("/scenario/config")
     
     assert response.status_code == 200
     data = response.json()
@@ -70,7 +70,7 @@ def test_generate_scenario_success(client, mock_dependencies):
              patch('app.core.excel_writer.save_results_to_excel', return_value=str(temp_outputs_path / "test_result.xlsx")):
             
             # WebSocket 연결 테스트
-            with client.websocket_connect("/api/scenario/generate-ws") as websocket:
+            with client.websocket_connect("/scenario/generate-ws") as websocket:
                 request_data = {
                     "repo_path": "/test/repo",
                     "use_performance_mode": True
@@ -91,7 +91,7 @@ def test_generate_scenario_invalid_repo(client, mock_dependencies):
     # Mock git_analyzer의 get_git_analysis_text가 Git 오류를 반환하도록 설정
     mock_dependencies['get_git_analysis_text'].return_value = "Git 분석 중 오류 발생: InvalidGitRepositoryError"
     
-    with client.websocket_connect("/api/scenario/generate-ws") as websocket:
+    with client.websocket_connect("/scenario/generate-ws") as websocket:
         request_data = {
             "repo_path": "/invalid/repo",
             "use_performance_mode": True
@@ -112,7 +112,7 @@ def test_generate_scenario_config_error(client, mock_dependencies):
     """Git 경로 검증 오류 테스트 (WebSocket) - 실제 API 동작 기준"""
     
     # Git 경로 검증 실패 시나리오 (실제 API에서 먼저 체크되는 부분)
-    with client.websocket_connect("/api/scenario/generate-ws") as websocket:
+    with client.websocket_connect("/scenario/generate-ws") as websocket:
         request_data = {
             "repo_path": "",  # 빈 경로로 검증 실패 유도
             "use_performance_mode": True
@@ -155,7 +155,7 @@ def test_generate_scenario_llm_error(client, mock_dependencies):
              patch('app.api.routers.scenario.get_git_analysis_text', return_value="Mock Git analysis"), \
              patch('pathlib.Path.is_dir', return_value=True):
             
-            with client.websocket_connect("/api/scenario/generate-ws") as websocket:
+            with client.websocket_connect("/scenario/generate-ws") as websocket:
                 request_data = {
                     "repo_path": str(temp_repo_path),
                     "use_performance_mode": True
@@ -181,7 +181,7 @@ def test_generate_scenario_json_parse_error(client, mock_dependencies):
     # Git 경로 검증 우회 및 Git 분석만 Mock
     with patch('app.api.routers.scenario.get_git_analysis_text', return_value="Mock Git analysis"), \
          patch('pathlib.Path.is_dir', return_value=True):
-        with client.websocket_connect("/api/scenario/generate-ws") as websocket:
+        with client.websocket_connect("/scenario/generate-ws") as websocket:
             request_data = {
                 "repo_path": "/test/repo",
                 "use_performance_mode": True
@@ -203,7 +203,7 @@ async def test_websocket_scenario_generation(client, mock_dependencies):
     """WebSocket 시나리오 생성 테스트"""
     
     # WebSocket 연결 테스트는 더 복잡하므로 기본 구조만 테스트
-    with client.websocket_connect("/api/scenario/generate-ws") as websocket:
+    with client.websocket_connect("/scenario/generate-ws") as websocket:
         # 요청 데이터 전송
         request_data = {
             "repo_path": "/test/repo",
@@ -248,7 +248,7 @@ def test_generate_scenario_from_text_success(client, mock_dependencies):
                 "analysis_text": "Git 저장소 분석 결과: 주요 변경사항은 사용자 인증 기능 개선입니다."
             }
             
-            response = client.post("/api/scenario/v1/generate-from-text", json=request_data)
+            response = client.post("/scenario/v1/generate-from-text", json=request_data)
             
             assert response.status_code == 200
             data = response.json()
@@ -271,7 +271,7 @@ def test_generate_scenario_from_text_config_error(client, mock_dependencies):
                 "analysis_text": "Git 저장소 분석 결과"
             }
             
-            response = client.post("/api/scenario/v1/generate-from-text", json=request_data)
+            response = client.post("/scenario/v1/generate-from-text", json=request_data)
             
             assert response.status_code == 500
             assert "설정 파일을 로드할 수 없습니다" in response.json()["detail"]
@@ -299,7 +299,7 @@ def test_generate_scenario_from_text_prompt_error(client, mock_dependencies):
                 "analysis_text": "Git 저장소 분석 결과"
             }
             
-            response = client.post("/api/scenario/v1/generate-from-text", json=request_data)
+            response = client.post("/scenario/v1/generate-from-text", json=request_data)
             
             assert response.status_code == 500
             assert "프롬프트 생성에 실패했습니다" in response.json()["detail"]
@@ -313,7 +313,7 @@ def test_generate_scenario_from_text_llm_error(client, mock_dependencies):
         request_data = {
             "analysis_text": "Git 저장소 분석 결과"
         }
-        response = client.post("/api/scenario/v1/generate-from-text", json=request_data)
+        response = client.post("/scenario/v1/generate-from-text", json=request_data)
         assert response.status_code == 500
         assert "LLM으로부터 응답을 받지 못했습니다" in response.json()["detail"]
 
@@ -327,7 +327,7 @@ def test_generate_scenario_from_text_json_parse_error(client, mock_dependencies)
         "analysis_text": "Git 저장소 분석 결과"
     }
     
-    response = client.post("/api/scenario/v1/generate-from-text", json=request_data)
+    response = client.post("/scenario/v1/generate-from-text", json=request_data)
     
     assert response.status_code == 500
     assert "JSON 블록을 찾을 수 없습니다" in response.json()["detail"]
@@ -352,7 +352,7 @@ def test_generate_scenario_from_text_excel_error(client, mock_dependencies):
             "analysis_text": "Git 저장소 분석 결과"
         }
         
-        response = client.post("/api/scenario/v1/generate-from-text", json=request_data)
+        response = client.post("/scenario/v1/generate-from-text", json=request_data)
         
         assert response.status_code == 500
         assert "Excel 파일 생성에 실패했습니다" in response.json()["detail"]
@@ -364,7 +364,7 @@ def test_generate_scenario_from_text_empty_analysis(client):
         "analysis_text": ""
     }
     
-    response = client.post("/api/scenario/v1/generate-from-text", json=request_data)
+    response = client.post("/scenario/v1/generate-from-text", json=request_data)
     
     # 빈 텍스트는 유효한 입력으로 처리되어야 함
     assert response.status_code in [200, 500]  # 실제 구현에 따라 다를 수 있음
@@ -374,6 +374,6 @@ def test_generate_scenario_from_text_missing_field(client):
     
     request_data = {}  # analysis_text 필드 누락
     
-    response = client.post("/api/scenario/v1/generate-from-text", json=request_data)
+    response = client.post("/scenario/v1/generate-from-text", json=request_data)
     
     assert response.status_code == 422  # Pydantic validation error

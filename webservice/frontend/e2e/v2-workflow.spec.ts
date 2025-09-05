@@ -10,12 +10,12 @@
  * 6. 완료 후 결과 화면 전환 확인
  */
 
-import { test, expect, Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 
 // 테스트 설정
 const TEST_REPO_PATH = '/Users/recrash/Documents/Workspace/TestscenarioMaker'
 const FRONTEND_URL = 'http://localhost:3000'
-const BACKEND_URL = 'http://localhost:8000'
+const BACKEND_URL = 'http://localhost:80'
 
 test.describe('v2 CLI 연동 워크플로우', () => {
   
@@ -52,14 +52,12 @@ test.describe('v2 CLI 연동 워크플로우', () => {
     
     // 5. Custom URL Protocol 호출 모니터링 준비
     // 브라우저에서 URL 변경을 감지하기 위한 리스너 설정
-    let customUrlCalled = false
-    let customUrl = ''
     
     // page.on('request') 이벤트로는 custom protocol을 잡을 수 없으므로
     // window.location.href 변경을 감지하는 스크립트 주입
     await page.evaluate(() => {
-      const originalLocationSetter = Object.getOwnPropertyDescriptor(window, 'location')?.set ||
-                                    Object.getOwnPropertyDescriptor(window.location, 'href')?.set
+      // const originalLocationSetter = Object.getOwnPropertyDescriptor(window, 'location')?.set ||
+      //                               Object.getOwnPropertyDescriptor(window.location, 'href')?.set
       
       Object.defineProperty(window, 'customUrlCalled', {
         value: false,
@@ -73,12 +71,12 @@ test.describe('v2 CLI 연동 워크플로우', () => {
       
       // location.href 변경 감지
       const originalAssign = window.location.assign
-      const originalReplace = window.location.replace
+      // const originalReplace = window.location.replace
       
       window.location.assign = function(url: string) {
         if (url.startsWith('testscenariomaker://')) {
-          ;(window as any).customUrlCalled = true
-          ;(window as any).lastCustomUrl = url
+          (window as unknown as { customUrlCalled: boolean; lastCustomUrl: string }).customUrlCalled = true
+          ;(window as unknown as { customUrlCalled: boolean; lastCustomUrl: string }).lastCustomUrl = url
           console.log('🔗 Custom URL 호출 감지:', url)
           return
         }
@@ -91,8 +89,8 @@ test.describe('v2 CLI 연동 워크플로우', () => {
         get: () => originalHref,
         set: (url: string) => {
           if (url.startsWith('testscenariomaker://')) {
-            ;(window as any).customUrlCalled = true
-            ;(window as any).lastCustomUrl = url
+            (window as unknown as { customUrlCalled: boolean; lastCustomUrl: string }).customUrlCalled = true
+            ;(window as unknown as { customUrlCalled: boolean; lastCustomUrl: string }).lastCustomUrl = url
             console.log('🔗 Custom URL href 설정 감지:', url)
             return
           }
@@ -113,10 +111,12 @@ test.describe('v2 CLI 연동 워크플로우', () => {
     // 8. Custom URL 호출 확인 (JavaScript에서 감지)
     await page.waitForTimeout(2000) // Custom URL 호출 시간 대기
     
-    const customUrlResult = await page.evaluate(() => ({
-      called: (window as any).customUrlCalled,
-      url: (window as any).lastCustomUrl
-    }))
+    const customUrlResult = await page.evaluate(() => {
+      return {
+        called: (window as unknown as { customUrlCalled: boolean; lastCustomUrl: string }).customUrlCalled,
+        url: (window as unknown as { customUrlCalled: boolean; lastCustomUrl: string }).lastCustomUrl
+      }
+    })
     
     expect(customUrlResult.called).toBe(true)
     expect(customUrlResult.url).toContain('testscenariomaker://generate')
@@ -206,7 +206,7 @@ test.describe('v2 백엔드 API 직접 테스트', () => {
     console.log('🧪 v2 백엔드 API 직접 테스트')
     
     // 상태 조회 API 테스트
-    const statusResponse = await request.get(`${BACKEND_URL}/api/v2/scenario/status/test_e2e_client`)
+    const statusResponse = await request.get(`${BACKEND_URL}/api/webservice/v2/scenario/status/test_e2e_client`)
     expect(statusResponse.status()).toBe(200)
     
     const statusData = await statusResponse.json()

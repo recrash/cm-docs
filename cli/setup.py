@@ -35,32 +35,9 @@ setup(
     # Python 버전 요구사항
     python_requires=">=3.8",
     
-    # 의존성
-    install_requires=[
-        "click>=8.0.0",
-        "rich>=13.0.0",
-        "httpx>=0.24.0",
-        "tenacity>=8.0.0",
-        "pathlib2>=2.3.0;python_version<'3.4'",
-    ],
+    # 의존성은 pyproject.toml에서 관리
     
-    # 개발 의존성
-    extras_require={
-        "dev": [
-            "pytest>=7.0.0",
-            "pytest-asyncio>=0.21.0",
-            "pytest-mock>=3.10.0",
-            "httpx-mock>=0.10.0",
-            "black>=23.0.0",
-            "isort>=5.12.0",
-            "flake8>=6.0.0",
-            "mypy>=1.0.0",
-        ],
-        "build": [
-            "pyinstaller>=5.0.0",
-            "nsis>=3.0.0;platform_system=='Windows'",
-        ],
-    },
+    # extras_require는 pyproject.toml에서 관리
     
     # 메타데이터
     classifiers=[
@@ -83,8 +60,7 @@ setup(
         "ts_cli": ["config/*.ini"],
     },
     
-    # 키워드
-    keywords="cli, git, repository, analysis, testscenariomaker",
+    # keywords는 pyproject.toml에서 관리
     
     # 프로젝트 URL
     project_urls={

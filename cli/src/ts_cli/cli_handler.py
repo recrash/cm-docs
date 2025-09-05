@@ -433,7 +433,7 @@ class CLIHandler:
             result_panel = Panel(
                 f"파일명: {filename}\n"
                 f"설명: {description}\n"
-                f"다운로드 URL: http://localhost:8000{download_url}",
+                f"다운로드 URL: {self.api_client.config['base_url']}{download_url}",
                 title="시나리오 생성 완료",
                 border_style="green",
             )
@@ -441,7 +441,7 @@ class CLIHandler:
 
             # 추가 안내 메시지
             self.console.print("\n[bold blue]테스트 시나리오가 성공적으로 생성되었습니다![/bold blue]")
-            self.console.print(f"[cyan]다운로드 링크: http://localhost:8000{download_url}[/cyan]")
+            self.console.print(f"[cyan]다운로드 링크: {self.api_client.config['base_url']}{download_url}[/cyan]")
 
     def _display_final_result(self, api_response: Dict[str, Any]) -> None:
         """
