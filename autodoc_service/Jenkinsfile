@@ -237,7 +237,7 @@ pipeline {
                         // 기존 wheel 파일 강제 삭제 (캐시 문제 방지)
                         powershell """
                             Write-Host "기존 wheel 파일 정리 중..."
-                            Get-ChildItem -Path "${env.DEPLOY_PATH}\autodoc_service-*.whl" | Remove-Item -Force -ErrorAction SilentlyContinue
+                            Get-ChildItem -Path "${env.DEPLOY_PATH}\\autodoc_service-*.whl" | Remove-Item -Force -ErrorAction SilentlyContinue
                             Write-Host "기존 wheel 파일 정리 완료"
                         """
                         

@@ -260,12 +260,12 @@ pipeline {
                         powershell """
                             if (Test-Path "${env.BACKUP_DIR}\\*.whl") {
                                 \$backupWhl = Get-ChildItem -Path "${env.BACKUP_DIR}\\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                                Write-Host "백업에서 롤백 실행: \$(\$backupWhl.Name)"
+                                Write-Host "백업에서 롤백 실행: \$(\$backupWhl.FullName)"
                                 # 백업을 타겟 폴더로 복사
                                 Copy-Item -Path \$backupWhl.FullName -Destination "${env.DEPLOY_PATH}" -Force
                                 # 타겟 폴더에서 설치
                                 & "${env.DEPLOY_PIP_CMD}" uninstall webservice -y 2>&1 | Out-Null
-                                & "${env.DEPLOY_PIP_CMD}" install "${env.DEPLOY_PATH}\\$(\$backupWhl.Name)" --no-deps
+                                & "${env.DEPLOY_PIP_CMD}" install "${env.DEPLOY_PATH}\\$(\$backupWhl.FullName)" --no-deps
                             }
                         """
                         bat 'nssm start webservice'
