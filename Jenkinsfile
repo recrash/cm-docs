@@ -211,8 +211,8 @@ pipeline {
                                             bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -r requirements-dev.txt\""
                                         }
                                         
-                                        // CLI 패키지 editable install (테스트 실행을 위해 필요)
-                                        bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -e .\""
+                                        // CLI 패키지 설치 (non-editable로 Windows 권한 문제 회피)
+                                        bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install .\""
                                         
                                         echo "CLI 환경 구축 완료"
                                     }
