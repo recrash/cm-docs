@@ -183,9 +183,19 @@ pipeline {
                             makensis scripts\\setup_win.nsi
                         '''
                         
+                        // Move installer to dist directory
+                        bat '''
+                            if exist scripts\\TestscenarioMaker-CLI-Setup.exe (
+                                if not exist dist mkdir dist
+                                move /Y scripts\\TestscenarioMaker-CLI-Setup.exe dist\\
+                            )
+                        '''
+                        
                         // Verify installer was created
                         script {
-                            if (!fileExists('dist/TestscenarioMaker-CLI-Setup.exe')) {
+                            def installerExists = fileExists('dist/TestscenarioMaker-CLI-Setup.exe') || 
+                                                 fileExists('scripts/TestscenarioMaker-CLI-Setup.exe')
+                            if (!installerExists) {
                                 error('Installer not created!')
                             }
                             echo 'Installer created successfully'
