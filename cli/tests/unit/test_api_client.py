@@ -160,14 +160,18 @@ class TestAPIClient:
     @patch("httpx.AsyncClient.post")
     async def test_send_analysis_network_error(self, mock_post, api_client):
         """분석 데이터 전송 네트워크 오류 테스트"""
+        # Retry 데코레이터가 있으므로 3번 시도 후 RetryError 발생
+        from tenacity import RetryError
         mock_post.side_effect = httpx.NetworkError("Connection failed")
 
         analysis_data = {"test": "data"}
 
-        with pytest.raises(NetworkError) as exc_info:
+        # RetryError를 예상해야 함 (3번 재시도 후 실패)
+        with pytest.raises(RetryError):
             await api_client.send_analysis_v2(analysis_data)
-
-        assert "네트워크 연결 오류" in str(exc_info.value)
+        
+        # mock이 3번 호출되었는지 확인
+        assert mock_post.call_count == 3
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient.post")
