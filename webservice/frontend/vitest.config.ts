@@ -15,6 +15,11 @@ export default mergeConfig(
       setupFiles: ['./src/setupTests.ts'],
       globals: true,
       css: false,
+      exclude: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/e2e/**'
+      ],
       environmentOptions: {
         jsdom: {
           resources: 'usable'
