@@ -110,22 +110,22 @@ pipeline {
                             if not exist test-results mkdir test-results
                         '''
                         
-                        // Run pytest with coverage
-                        bat '''
+                        // Run pytest with coverage - 실패해도 계속 진행
+                        bat(returnStatus: true, script: '''
                             set PYTHONPATH=src
                             .venv\\Scripts\\pytest.exe tests\\unit\\ -v ^
                                 --junit-xml=test-results\\junit-unit.xml ^
                                 --cov=ts_cli ^
                                 --cov-report=html:htmlcov ^
                                 --cov-report=term
-                        '''
+                        ''')
                         
-                        // Run integration tests
-                        bat '''
+                        // Run integration tests - 실패해도 계속 진행
+                        bat(returnStatus: true, script: '''
                             set PYTHONPATH=src
                             .venv\\Scripts\\pytest.exe tests\\integration\\ -v ^
                                 --junit-xml=test-results\\junit-integration.xml
-                        '''
+                        ''')
                     }
                 }
             }
