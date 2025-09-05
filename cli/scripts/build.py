@@ -547,23 +547,23 @@ VSVersionInfo(
 
 
 def main():
-    """메인 함수"""
-    parser = argparse.ArgumentParser(description='TestscenarioMaker CLI 빌드 스크립트')
+    """Main function"""
+    parser = argparse.ArgumentParser(description='TestscenarioMaker CLI Build Script')
     parser.add_argument(
         '--no-clean',
         action='store_true',
-        help='빌드 디렉토리를 정리하지 않음'
+        help='Do not clean build directories'
     )
     parser.add_argument(
         '--no-test',
         action='store_true',
-        help='실행파일 테스트를 건너뜀'
+        help='Skip testing the executable'
     )
     parser.add_argument(
         '--project-root',
         type=Path,
         default=Path(__file__).parent.parent,
-        help='프로젝트 루트 디렉토리'
+        help='Project root directory'
     )
     
     args = parser.parse_args()
@@ -575,19 +575,19 @@ def main():
             test=not args.no_test
         )
         
-        print(f"\n 빌드된 실행파일을 사용하려면:")
+        print(f"\n To use the built executable:")
         print(f"   {exe_path} --help")
         
         return 0
         
     except BuildError as e:
-        print(f"\n빌드 오류: {e}", file=sys.stderr)
+        print(f"\nBuild error: {e}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
-        print("\n빌드가 중단되었습니다.", file=sys.stderr)
+        print("\nBuild was interrupted.", file=sys.stderr)
         return 1
     except Exception as e:
-        print(f"\n예상치 못한 오류: {e}", file=sys.stderr)
+        print(f"\nUnexpected error: {e}", file=sys.stderr)
         return 1
 
 
