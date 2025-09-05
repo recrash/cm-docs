@@ -19,10 +19,24 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
                 script {
+                    // Force checkout latest code
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: "*/${params.BRANCH ?: env.BRANCH_NAME ?: 'feature/CICDOrchestration'}"]],
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [[$class: 'CleanBeforeCheckout']],
+                        userRemoteConfigs: [[
+                            credentialsId: 'cmdocs',
+                            url: 'https://github.com/recrash/cm-docs.git'
+                        ]]
+                    ])
+                    
                     def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
                     echo "Source code checkout completed - Branch: ${branchName}"
+                    
+                    // Show current commit
+                    bat 'git log --oneline -1'
                 }
             }
         }
