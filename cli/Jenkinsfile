@@ -34,7 +34,7 @@ pipeline {
                         echo "Setting up Python environment with robust encoding control and output redirection"
                         
                         // Create virtual environment and upgrade pip
-                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; Write-Host 'Creating Python virtual environment...'; if (Test-Path -Path .venv) { Remove-Item -Recurse -Force .venv }; & '${env.LOCALAPPDATA}\\Programs\\Python\\Launcher\\py.exe' -3.13 -m venv .venv; Write-Host 'Upgrading pip...'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip > pip_upgrade.log 2>&1\""
+                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; \$env:PYTHONIOENCODING='utf-8'; Write-Host 'Creating Python virtual environment...'; if (Test-Path -Path .venv) { Remove-Item -Recurse -Force .venv }; & '${env.LOCALAPPDATA}\\\\Programs\\\\Python\\\\Launcher\\\\py.exe' -3.13 -m venv .venv; Write-Host 'Upgrading pip...'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip > pip_upgrade.log 2>&1\""
                         
                         // Install dependencies (redirect output to bypass errors)
                         script {
@@ -45,10 +45,10 @@ pipeline {
                             
                             if (wheelHouseExists) {
                                 echo "Installing dependencies from Wheelhouse (Offline Mode) with output redirection"
-                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' -r requirements-dev.txt > pip_install.log 2>&1; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' . >> pip_install.log 2>&1\""
+                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' -r requirements-dev.txt > pip_install.log 2>&1; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' . >> pip_install.log 2>&1\""
                             } else {
                                 echo "Installing dependencies from PyPI (Online Mode) with output redirection"
-                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install -r requirements-dev.txt > pip_install.log 2>&1; & '${env.WORKSPACE_PIP_CMD}' install . >> pip_install.log 2>&1\""
+                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install -r requirements-dev.txt > pip_install.log 2>&1; & '${env.WORKSPACE_PIP_CMD}' install . >> pip_install.log 2>&1\""
                             }
                         }
                     }
@@ -61,7 +61,7 @@ pipeline {
                 dir('cli') {
                     script {
                         echo "Running CLI tests with robust encoding control"
-                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; $env:PYTHONIOENCODING='utf-8'; if (-not (Test-Path -Path test-results)) { New-Item -ItemType Directory -Path test-results }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/unit/ -v --junit-xml=test-results/junit-unit.xml --cov=ts_cli --cov-report=html } catch { Write-Host 'Unit tests completed with issues' }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/integration/ -v --junit-xml=test-results/junit-integration.xml } catch { Write-Host 'Integration tests completed with issues' }\""
+                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; \$env:PYTHONPATH='${env.PYTHONPATH}'; \$env:PYTHONIOENCODING='utf-8'; if (-not (Test-Path -Path test-results)) { New-Item -ItemType Directory -Path test-results }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/unit/ -v --junit-xml=test-results/junit-unit.xml --cov=ts_cli --cov-report=html } catch { Write-Host 'Unit tests completed with issues' }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/integration/ -v --junit-xml=test-results/junit-integration.xml } catch { Write-Host 'Integration tests completed with issues' }\""
                     }
                 }
             }
@@ -99,7 +99,7 @@ pipeline {
                             chcp 65001 >NUL
 
                             rem Run the build script using PowerShell with explicit UTF-8 settings
-                            powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' scripts/build.py\"
+                            powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; \$env:PYTHONPATH='${env.PYTHONPATH}'; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' scripts/build.py\"
 
                             rem Verify the result in the same UTF-8 context
                             if exist dist\\ts-cli.exe (
