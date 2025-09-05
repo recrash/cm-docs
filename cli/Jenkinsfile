@@ -5,7 +5,7 @@ pipeline {
         string(name: 'BRANCH', defaultValue: 'main', description: 'Branch name to build')
     }
     
-        environment {
+    environment {
         WHEELHOUSE_PATH = "C:\\deploys\\packages\\wheelhouse"
         CLI_PATH = "${WORKSPACE}\\cli"
         PYTHONPATH = "${CLI_PATH}"
@@ -28,26 +28,19 @@ pipeline {
             steps {
                 dir('cli') {
                     script {
-                        echo "Setting up Python environment for CLI"
-                        echo "===========================================
-                                변수 결과
-                                ===========================================
-                                • WHEELHOUSE_PATH: ${env.WHEELHOUSE_PATH}
-                                • CLI_PATH: ${env.CLI_PATH}
-                                • PYTHONPATH: ${env.PYTHONPATH}
-                                • PATH: ${env.PATH}
-                                • PYTHONIOENCODING: ${env.PYTHONIOENCODING}"
+                        echo "Setting up Python environment for CLI using PowerShell"
                         
-                        // Windows에서 가상환경 생성 및 활성화
-                        bat """
-                            chcp 65001 >NUL
-                            if exist .venv rmdir /s /q .venv
-                            \"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe\" -3.13 -m venv .venv
-                            call .venv\\Scripts\\activate.bat
-                            python -m pip install --upgrade pip
-                        """
+                        powershell '''
+                            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+                            
+                            Write-Host "Creating Python virtual environment..."
+                            if (Test-Path -Path .venv) { Remove-Item -Recurse -Force .venv }
+                            & "${env:LOCALAPPDATA}\Programs\Python\Launcher\py.exe" -3.13 -m venv .venv
+                            
+                            Write-Host "Upgrading pip..."
+                            & .\.venv\Scripts\python.exe -m pip install --upgrade pip
+                        '''
                         
-                        // 의존성 설치 (wheelhouse 우선 사용)
                         script {
                             def wheelHouseExists = bat(
                                 script: "if exist \"${env.WHEELHOUSE_PATH}\\\*.whl\" echo found",
@@ -55,21 +48,19 @@ pipeline {
                             ).contains('found')
                             
                             if (wheelHouseExists) {
-                                echo "휠하우스 발견 - 오프라인 고속 설치 모드"
-                                bat """
-                                    chcp 65001 >NUL
-                                    call .venv\\Scripts\\activate.bat
-                                    pip install --no-index --find-links=\"${env.WHEELHOUSE_PATH}\" -r requirements-dev.txt
-                                    pip install --no-index --find-links=\"${env.WHEELHOUSE_PATH}\" .
-                                """
+                                echo "Installing dependencies from Wheelhouse (Offline Mode)"
+                                powershell '''
+                                    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+                                    & .\.venv\Scripts\pip.exe install --no-index --find-links=\"${env.WHEELHOUSE_PATH}\" -r requirements-dev.txt
+                                    & .\.venv\Scripts\pip.exe install --no-index --find-links=\"${env.WHEELHOUSE_PATH}\" .
+                                '''
                             } else {
-                                echo "휠하우스 없음 - 온라인 설치 모드"
-                                bat """
-                                    chcp 65001 >NUL
-                                    call .venv\\Scripts\\activate.bat
-                                    pip install -r requirements-dev.txt
-                                    pip install .
-                                """
+                                echo "Installing dependencies from PyPI (Online Mode)"
+                                powershell '''
+                                    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+                                    & .\.venv\Scripts\pip.exe install -r requirements-dev.txt
+                                    & .\.venv\Scripts\pip.exe install .
+                                '''
                             }
                         }
                     }
@@ -135,14 +126,12 @@ pipeline {
                     script {
                         echo "Building executable with PyInstaller"
                         
-                        // PyInstaller로 실행 파일 생성
                         powershell '''
                             [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
                             $env:PYTHONPATH="${env.CLI_PATH}\src"
                             & .\.venv\Scripts\python.exe scripts\build.py
                         '''
                         
-                        // 빌드 결과 확인
                         bat """
                             chcp 65001 >NUL
                             if exist dist\\windows\\ts-cli.exe (
@@ -164,13 +153,11 @@ pipeline {
                     script {
                         echo "Creating NSIS installer"
                         
-                        // NSIS 설치파일 생성
                         bat """
                             chcp 65001 >NUL
                             makensis scripts\\setup_win.nsi
                         """
                         
-                        // 설치파일 확인
                         bat """
                             chcp 65001 >NUL
                             if exist dist\\TestscenarioMaker-CLI-Setup.exe (
@@ -192,7 +179,6 @@ pipeline {
                     script {
                         echo "Renaming installer with branch name: ${params.BRANCH}"
                         
-                        // 브랜치명을 파일명에 추가 (특수문자 처리)
                         def branchSuffix = params.BRANCH.replaceAll('/', '-').replaceAll('\\', '-')
                         def originalName = "TestscenarioMaker-CLI-Setup.exe"
                         def newName = "TestscenarioMaker-CLI-Setup-${branchSuffix}.exe"
@@ -210,12 +196,10 @@ pipeline {
                             )
                         """
                         
-                        // 아티팩트 등록
                         archiveArtifacts artifacts: "dist/${newName}", 
                                         fingerprint: true,
                                         allowEmptyArchive: false
                         
-                        // 실행파일도 아티팩트로 등록
                         archiveArtifacts artifacts: "dist/windows/ts-cli.exe",
                                         fingerprint: true,
                                         allowEmptyArchive: false
@@ -231,7 +215,6 @@ pipeline {
                 script {
                     echo "Cleaning up workspace"
                     
-                    // 빌드 디렉토리 정리 (선택적)
                     bat """
                         chcp 65001 >NUL
                         cd cli
@@ -257,9 +240,6 @@ pipeline {
                 echo "  - Executable: ts-cli.exe"
                 echo "  - Coverage report available in HTML format"
             }
-            
-            // Slack 또는 이메일 알림 (필요시 활성화)
-            // slackSend(channel: '#builds', message: "✅ CLI build successful: ${params.BRANCH}")
         }
         
         failure {
@@ -267,22 +247,13 @@ pipeline {
             
             script {
                 echo "Build failure detected. Check logs for details."
-                echo "Common issues:"
-                echo "  - Python environment setup failure"
-                echo "  - Test failures"
-                echo "  - PyInstaller build issues"
-                echo "  - NSIS installer creation problems"
             }
-            
-            // 실패 시 알림
-            // slackSend(channel: '#builds', message: "❌ CLI build failed: ${params.BRANCH}", color: 'danger')
         }
         
         always {
             script {
                 echo "Pipeline execution completed"
                 
-                // 테스트 결과 및 커버리지 보고서 수집
                 if (fileExists('cli/test-results')) {
                     echo "📊 Test results collected"
                 }
@@ -290,7 +261,6 @@ pipeline {
                     echo "📈 Coverage report generated"
                 }
                 
-                // 워크스페이스 상태 확인
                 bat """
                     chcp 65001 >NUL
                     cd cli
