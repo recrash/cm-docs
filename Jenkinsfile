@@ -59,13 +59,38 @@ pipeline {
             steps {
                 checkout scm
                 script {
-                    // 변경된 파일 분석
+                    // 변경된 파일 분석 (최근 푸시 기준)
                     def changedFiles = []
                     try {
+                        // Jenkins에서 제공하는 변수들을 활용해 푸시된 모든 커밋의 변경사항 감지
+                        def gitCommand
+                        if (env.CHANGE_TARGET) {
+                            // PR인 경우: target 브랜치와 비교
+                            gitCommand = "git diff origin/${env.CHANGE_TARGET}...HEAD --name-only"
+                        } else if (env.GIT_PREVIOUS_SUCCESSFUL_COMMIT) {
+                            // 이전 성공한 빌드와 비교
+                            gitCommand = "git diff ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT} HEAD --name-only"
+                        } else {
+                            // 대안: 최근 origin/main 또는 origin/develop과 비교
+                            def targetBranch = env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/') ? 'main' : 'main'
+                            gitCommand = "git diff origin/${targetBranch}...HEAD --name-only || git diff HEAD~5 HEAD --name-only"
+                        }
+                        
+                        echo "Git 변경 감지 명령: ${gitCommand}"
                         changedFiles = bat(
-                            script: 'git diff HEAD~1 HEAD --name-only',
+                            script: gitCommand,
                             returnStdout: true
-                        ).split('\n').findAll { it.trim() }
+                        ).split('\n').findAll { it.trim() && !it.startsWith('C:\\') }
+                        
+                        // 만약 변경파일이 없다면 최근 5개 커밋 범위에서 확인
+                        if (changedFiles.isEmpty()) {
+                            echo "변경파일이 감지되지 않음, 최근 5개 커밋 범위로 재시도"
+                            changedFiles = bat(
+                                script: 'git diff HEAD~5 HEAD --name-only',
+                                returnStdout: true
+                            ).split('\n').findAll { it.trim() && !it.startsWith('C:\\') }
+                        }
+                        
                     } catch (Exception e) {
                         echo "변경 감지 실패, 전체 빌드 실행: ${e.getMessage()}"
                         changedFiles = ['webservice/', 'autodoc_service/', 'cli/']
