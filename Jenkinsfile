@@ -68,8 +68,21 @@ pipeline {
                             // PR인 경우: target 브랜치와 비교
                             gitCommand = "git diff origin/${env.CHANGE_TARGET}...HEAD --name-only"
                         } else if (env.GIT_PREVIOUS_SUCCESSFUL_COMMIT) {
-                            // 이전 성공한 빌드와 비교
-                            gitCommand = "git diff ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT} HEAD --name-only"
+                            // 이전 성공한 빌드와 비교하되, 너무 오래된 경우 제한
+                            def commitCount = bat(
+                                script: "git rev-list --count ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT}..HEAD",
+                                returnStdout: true
+                            ).trim().toInteger()
+                            
+                            if (commitCount <= 10) {
+                                // 10개 이하의 커밋이면 이전 성공 빌드와 비교
+                                gitCommand = "git diff ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT} HEAD --name-only"
+                                echo "이전 성공 빌드 기준 비교 (${commitCount}개 커밋)"
+                            } else {
+                                // 10개 초과면 최근 5개 커밋만 확인
+                                gitCommand = "git diff HEAD~5 HEAD --name-only"
+                                echo "이전 성공 빌드가 너무 오래됨 (${commitCount}개), 최근 5개 커밋만 확인"
+                            }
                         } else {
                             // 대안: 최근 origin/main 또는 origin/develop과 비교
                             def targetBranch = env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/') ? 'main' : 'main'
@@ -207,53 +220,20 @@ pipeline {
                     steps {
                         script {
                             try {
-                                echo "CLI 빌드/패키징 시작"
+                                echo "CLI 빌드/패키징 시작 (독립 파이프라인 호출)"
                                 
-                                dir("${WORKSPACE}/cli") {
-                                    script {
-                                        echo "CLI Python 환경 구축 (Python 3.13 + wheelhouse)"
-                                        
-                                        // 기존 가상환경 완전 삭제 후 새로 생성
-                                        bat 'if exist ".venv" rmdir /s /q ".venv"'
-                                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
-                                        
-                                        // pip 상태 확인 및 복구 (폐쇄망 환경용)
-                                        bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m ensurepip --upgrade\""
-                                        
-                                        // 휠하우스 활용 고속 설치
-                                        def wheelHouseExists = bat(
-                                            script: "if exist \"${env.WHEELHOUSE_PATH}\\*.whl\" echo found",
-                                            returnStdout: true
-                                        ).contains('found')
-                                        
-                                        if (wheelHouseExists) {
-                                            echo "휠하우스 발견 - 오프라인 고속 설치 모드 (CI용 개발 의존성 포함)"
-                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
-                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements-dev.txt\""
-                                        } else {
-                                            echo "휠하우스 없음 - 온라인 설치 (CI용 개발 의존성 포함)"
-                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
-                                            bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install -r requirements-dev.txt\""
-                                        }
-                                        
-                                        // CLI 패키지 설치 (non-editable로 Windows 권한 문제 회피)
-                                        bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe' install .\""
-                                        
-                                        echo "CLI 환경 구축 완료"
-                                    }
-                                    
-                                    // CLI 테스트 및 빌드 실행 (PYTHONPATH 설정)
-                                    bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; \$env:PYTHONPATH='${WORKSPACE}\\cli\\src'; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' -m pytest --cov=ts_cli --cov-report=html\""
-                                    bat "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe' scripts/build.py\""
-                                }
+                                // CLI 전용 파이프라인 호출
+                                build job: 'cli-pipeline',
+                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)],
+                                      wait: true
                                 
                                 env.CLI_BUILD_STATUS = 'SUCCESS'
-                                echo "CLI 빌드 성공"
+                                echo "CLI 빌드/패키징 성공"
                                 
                             } catch (Exception e) {
                                 env.CLI_BUILD_STATUS = 'FAILED'
                                 env.FAILED_SERVICES += 'CLI '
-                                echo "CLI 빌드 실패: ${e.getMessage()}"
+                                echo "CLI 빌드/패키징 실패: ${e.getMessage()}"
                                 // Non-Critical 서비스이므로 다른 서비스는 계속 진행
                             }
                         }

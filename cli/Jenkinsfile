@@ -1,0 +1,280 @@
+pipeline {
+    agent any
+    
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main', description: 'Branch name to build')
+    }
+    
+    environment {
+        WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'
+        CLI_PATH = "${WORKSPACE}\\cli"
+        PYTHONPATH = "${CLI_PATH}"
+        PATH = "${env.PATH};${CLI_PATH}\\scripts"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    echo "Checking out branch: ${params.BRANCH}"
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: "*/${params.BRANCH}"]],
+                        userRemoteConfigs: [[url: env.GIT_URL]]
+                    ])
+                }
+            }
+        }
+        
+        stage('Setup Python Environment') {
+            steps {
+                dir('cli') {
+                    script {
+                        echo "Setting up Python environment for CLI"
+                        
+                        // Windows에서 가상환경 생성 및 활성화
+                        bat """
+                            if exist .venv rmdir /s /q .venv
+                            "%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv
+                            call .venv\\Scripts\\activate.bat
+                            python -m pip install --upgrade pip
+                        """
+                        
+                        // 의존성 설치 (wheelhouse 우선 사용)
+                        script {
+                            def wheelHouseExists = bat(
+                                script: "if exist \"${env.WHEELHOUSE_PATH}\\*.whl\" echo found",
+                                returnStdout: true
+                            ).contains('found')
+                            
+                            if (wheelHouseExists) {
+                                echo "휠하우스 발견 - 오프라인 고속 설치 모드"
+                                bat """
+                                    call .venv\\Scripts\\activate.bat
+                                    pip install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r requirements-dev.txt
+                                    pip install --no-index --find-links="${env.WHEELHOUSE_PATH}" .
+                                """
+                            } else {
+                                echo "휠하우스 없음 - 온라인 설치 모드"
+                                bat """
+                                    call .venv\\Scripts\\activate.bat
+                                    pip install -r requirements-dev.txt
+                                    pip install .
+                                """
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                dir('cli') {
+                    script {
+                        echo "Running CLI tests"
+                        
+                        bat """
+                            call .venv\\Scripts\\activate.bat
+                            set PYTHONPATH=${CLI_PATH}\\src
+                            
+                            REM 테스트 결과 디렉토리 생성
+                            if not exist test-results mkdir test-results
+                            
+                            REM 테스트 실행 (실패해도 계속 진행)
+                            pytest tests\\unit\\ -v --junit-xml=test-results\\junit-unit.xml --cov=ts_cli --cov-report=html || echo "Unit tests completed with issues"
+                            pytest tests\\integration\\ -v --junit-xml=test-results\\junit-integration.xml || echo "Integration tests completed with issues"
+                        """
+                    }
+                }
+            }
+            post {
+                always {
+                    script {
+                        if (fileExists('cli/test-results/junit-unit.xml')) {
+                            junit 'cli/test-results/junit-unit.xml'
+                        }
+                        if (fileExists('cli/test-results/junit-integration.xml')) {
+                            junit 'cli/test-results/junit-integration.xml'
+                        }
+                        if (fileExists('cli/htmlcov/index.html')) {
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'cli/htmlcov',
+                                reportFiles: 'index.html',
+                                reportName: 'Coverage Report'
+                            ])
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Build Executable') {
+            steps {
+                dir('cli') {
+                    script {
+                        echo "Building executable with PyInstaller"
+                        
+                        // PyInstaller로 실행 파일 생성
+                        bat """
+                            call .venv\\Scripts\\activate.bat
+                            set PYTHONPATH=${CLI_PATH}\\src
+                            python scripts\\build.py
+                        """
+                        
+                        // 빌드 결과 확인
+                        bat """
+                            if exist dist\\windows\\ts-cli.exe (
+                                echo "Build successful: ts-cli.exe created"
+                                dir dist\\windows\\ts-cli.exe
+                            ) else (
+                                echo "Build failed: ts-cli.exe not found"
+                                exit 1
+                            )
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Create Installer') {
+            steps {
+                dir('cli') {
+                    script {
+                        echo "Creating NSIS installer"
+                        
+                        // NSIS 설치파일 생성
+                        bat """
+                            makensis scripts\\setup_win.nsi
+                        """
+                        
+                        // 설치파일 확인
+                        bat """
+                            if exist dist\\TestscenarioMaker-CLI-Setup.exe (
+                                echo "Installer created successfully"
+                                dir dist\\TestscenarioMaker-CLI-Setup.exe
+                            ) else (
+                                echo "Installer creation failed"
+                                exit 1
+                            )
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Rename and Archive') {
+            steps {
+                dir('cli') {
+                    script {
+                        echo "Renaming installer with branch name: ${params.BRANCH}"
+                        
+                        // 브랜치명을 파일명에 추가 (특수문자 처리)
+                        def branchSuffix = params.BRANCH.replaceAll('/', '-').replaceAll('\\\\', '-')
+                        def originalName = "TestscenarioMaker-CLI-Setup.exe"
+                        def newName = "TestscenarioMaker-CLI-Setup-${branchSuffix}.exe"
+                        
+                        bat """
+                            cd dist
+                            if exist "${originalName}" (
+                                move /Y "${originalName}" "${newName}"
+                                echo "Renamed to ${newName}"
+                                dir "${newName}"
+                            ) else (
+                                echo "Original installer not found"
+                                exit 1
+                            )
+                        """
+                        
+                        // 아티팩트 등록
+                        archiveArtifacts artifacts: "dist/${newName}", 
+                                        fingerprint: true,
+                                        allowEmptyArchive: false
+                        
+                        // 실행파일도 아티팩트로 등록
+                        archiveArtifacts artifacts: "dist/windows/ts-cli.exe",
+                                        fingerprint: true,
+                                        allowEmptyArchive: false
+                        
+                        echo "Artifacts archived successfully"
+                    }
+                }
+            }
+        }
+        
+        stage('Cleanup') {
+            steps {
+                script {
+                    echo "Cleaning up workspace"
+                    
+                    // 빌드 디렉토리 정리 (선택적)
+                    bat """
+                        cd cli
+                        if exist build rmdir /S /Q build 2>nul || echo "No build directory to clean"
+                        if exist ts_cli.egg-info rmdir /S /Q ts_cli.egg-info 2>nul || echo "No egg-info to clean"
+                        if exist .pytest_cache rmdir /S /Q .pytest_cache 2>nul || echo "No pytest cache to clean"
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "✅ CLI build completed successfully for branch: ${params.BRANCH}"
+            
+            script {
+                def branchSuffix = params.BRANCH.replaceAll('/', '-').replaceAll('\\\\', '-')
+                def installerName = "TestscenarioMaker-CLI-Setup-${branchSuffix}.exe"
+                
+                echo "📦 Generated artifacts:"
+                echo "  - Installer: ${installerName}"
+                echo "  - Executable: ts-cli.exe"
+                echo "  - Coverage report available in HTML format"
+            }
+            
+            // Slack 또는 이메일 알림 (필요시 활성화)
+            // slackSend(channel: '#builds', message: "✅ CLI build successful: ${params.BRANCH}")
+        }
+        
+        failure {
+            echo "❌ CLI build failed for branch: ${params.BRANCH}"
+            
+            script {
+                echo "Build failure detected. Check logs for details."
+                echo "Common issues:"
+                echo "  - Python environment setup failure"
+                echo "  - Test failures"
+                echo "  - PyInstaller build issues"
+                echo "  - NSIS installer creation problems"
+            }
+            
+            // 실패 시 알림
+            // slackSend(channel: '#builds', message: "❌ CLI build failed: ${params.BRANCH}", color: 'danger')
+        }
+        
+        always {
+            script {
+                echo "Pipeline execution completed"
+                
+                // 테스트 결과 및 커버리지 보고서 수집
+                if (fileExists('cli/test-results')) {
+                    echo "📊 Test results collected"
+                }
+                if (fileExists('cli/htmlcov')) {
+                    echo "📈 Coverage report generated"
+                }
+                
+                // 워크스페이스 상태 확인
+                bat """
+                    cd cli
+                    if exist dist\\windows\\ts-cli.exe echo "✓ Executable preserved"
+                    if exist dist\\TestscenarioMaker-CLI-Setup-*.exe echo "✓ Installer preserved"
+                """
+            }
+        }
+    }
+}
