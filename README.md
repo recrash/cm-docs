@@ -405,6 +405,10 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
   - WebSocket 연결 및 실시간 기능 검증
 
 - **CLI**: 크로스플랫폼 패키지 및 설치 프로그램 빌드
+  - **Windows 전용 Jenkins 파이프라인** (cli/Jenkinsfile)
+  - 테스트 실패 허용 모드 지원 (returnStatus: true)
+  - Coverage report 자동 생성 및 publishHTML 통합
+  - NSIS installer 자동 빌드 및 경로 자동 감지
   - Windows 설치 프로그램 (.exe)
   - macOS 디스크 이미지 (.dmg) + 헬퍼 앱
   - Linux AppImage 또는 패키지

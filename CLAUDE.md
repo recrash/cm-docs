@@ -292,6 +292,12 @@ Windows services managed through NSSM:
 - `webservice/Jenkinsfile.backend`: API testing → NSSM deployment (main/develop만)
 - `webservice/Jenkinsfile.frontend`: 브랜치별 빌드 전략 (main/develop → 운영 배포, feature/hotfix → 테스트만)
 - `autodoc_service/Jenkinsfile`: Template validation → NSSM deployment
+- `cli/Jenkinsfile`: Windows 환경 최적화 파이프라인
+  - UTF-8 인코딩 환경 설정 (`PYTHONIOENCODING`, `LANG`)
+  - 테스트 실패 허용 (`returnStatus: true`)
+  - Coverage report 자동 생성 (htmlcov)
+  - NSIS installer 빌드 및 경로 자동 감지
+  - Wheelhouse 기반 오프라인 의존성 설치 지원
 
 **브랜치별 배포 전략**:
 - **main/develop**: `/` 루트 경로 빌드 → `C:\nginx\html` 운영 배포
@@ -414,6 +420,11 @@ logger.info("서비스 시작...")
 - **V2 API Mismatch**: Check client_id parameter consistency between CLI and WebSocket
 - **URL Protocol Handler**: macOS requires helper app for `testscenariomaker://` URLs
 - **Cross-platform Paths**: Always use `pathlib.Path`, convert to string for subprocess
+- **Jenkins Build Failures**: 
+  - Check UTF-8 encoding settings in Jenkinsfile
+  - Verify NSIS installer path (scripts/ vs dist/)
+  - Ensure Lightweight checkout is disabled for branch switching
+  - Check Python version compatibility (3.13 required)
 
 ### SVN-Specific Debugging Patterns
 - **JSON Parsing Issues**: LLM responses may use ````json` blocks instead of `<json>` tags
