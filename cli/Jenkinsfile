@@ -10,7 +10,6 @@ pipeline {
         CLI_PATH = "${WORKSPACE}\\cli"
         PYTHONPATH = "${CLI_PATH}\\src"
         PATH = "${env.PATH};${CLI_PATH}\\scripts"
-        // 최상위 PYTHONIOENCODING은 유지하되, 각 command에서 재정의하여 확실하게 적용
         PYTHONIOENCODING = 'UTF-8'
         
         WORKSPACE_PYTHON_CMD = "${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe"
@@ -32,12 +31,12 @@ pipeline {
             steps {
                 dir('cli') {
                     script {
-                        echo "Setting up Python environment with robust encoding control"
+                        echo "Setting up Python environment with robust encoding control and output redirection"
                         
-                        // 가상환경 생성 및 pip 업그레이드 (webservice 패턴 적용)
-                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; Write-Host 'Creating Python virtual environment...'; if (Test-Path -Path .venv) { Remove-Item -Recurse -Force .venv }; & '${env.LOCALAPPDATA}\\Programs\\Python\\Launcher\\py.exe' -3.13 -m venv .venv; Write-Host 'Upgrading pip...'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                        // 가상환경 생성 및 pip 업그레이드
+                        bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; Write-Host 'Creating Python virtual environment...'; if (Test-Path -Path .venv) { Remove-Item -Recurse -Force .venv }; & '${env.LOCALAPPDATA}\Programs\Python\Launcher\py.exe' -3.13 -m venv .venv; Write-Host 'Upgrading pip...'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip > pip_upgrade.log 2>&1\""
                         
-                        // 의존성 설치 (webservice 패턴 적용)
+                        // 의존성 설치 (출력 리디렉션으로 오류 우회)
                         script {
                             def wheelHouseExists = bat(
                                 script: "if exist \"${env.WHEELHOUSE_PATH}\\\\.whl\" echo found",
@@ -45,11 +44,11 @@ pipeline {
                             ).contains('found')
                             
                             if (wheelHouseExists) {
-                                echo "Installing dependencies from Wheelhouse (Offline Mode)"
-                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' -r requirements-dev.txt; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' .\""
+                                echo "Installing dependencies from Wheelhouse (Offline Mode) with output redirection"
+                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' -r requirements-dev.txt > pip_install.log 2>&1; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' . >> pip_install.log 2>&1\""
                             } else {
-                                echo "Installing dependencies from PyPI (Online Mode)"
-                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install -r requirements-dev.txt; & '${env.WORKSPACE_PIP_CMD}' install .\""
+                                echo "Installing dependencies from PyPI (Online Mode) with output redirection"
+                                bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install -r requirements-dev.txt > pip_install.log 2>&1; & '${env.WORKSPACE_PIP_CMD}' install . >> pip_install.log 2>&1\""
                             }
                         }
                     }
@@ -62,7 +61,6 @@ pipeline {
                 dir('cli') {
                     script {
                         echo "Running CLI tests with robust encoding control"
-                        // webservice의 성공 패턴을 완벽하게 적용
                         bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; $env:PYTHONIOENCODING='utf-8'; if (-not (Test-Path -Path test-results)) { New-Item -ItemType Directory -Path test-results }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/unit/ -v --junit-xml=test-results/junit-unit.xml --cov=ts_cli --cov-report=html } catch { Write-Host 'Unit tests completed with issues' }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/integration/ -v --junit-xml=test-results/junit-integration.xml } catch { Write-Host 'Integration tests completed with issues' }\""
                     }
                 }
@@ -96,10 +94,8 @@ pipeline {
                 dir('cli') {
                     script {
                         echo "Building executable with PyInstaller with robust encoding control"
-                        // webservice의 성공 패턴을 완벽하게 적용
                         bat "powershell -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONPATH='${env.PYTHONPATH}'; $env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' scripts/build.py\""
                         
-                        // 빌드 결과 확인 (단순 파일 확인은 bat으로도 무방)
                         bat """
                             chcp 65001 >NUL
                             if exist dist\\windows\\ts-cli.exe (
@@ -181,16 +177,18 @@ pipeline {
         
         stage('Cleanup') {
             steps {
-                script {
-                    echo "Cleaning up workspace"
-                    
-                    bat """
-                        chcp 65001 >NUL
-                        cd cli
-                        if exist build rmdir /S /Q build 2>nul || echo "No build directory to clean"
-                        if exist ts_cli.egg-info rmdir /S /Q ts_cli.egg-info 2>nul || echo "No egg-info to clean"
-                        if exist .pytest_cache rmdir /S /Q .pytest_cache 2>nul || echo "No pytest cache to clean"
-                    """
+                dir('cli') {
+                    script {
+                        echo "Cleaning up workspace"
+                        
+                        bat """
+                            chcp 65001 >NUL
+                            cd cli
+                            if exist build rmdir /S /Q build 2>nul || echo "No build directory to clean"
+                            if exist ts_cli.egg-info rmdir /S /Q ts_cli.egg-info 2>nul || echo "No egg-info to clean"
+                            if exist .pytest_cache rmdir /S /Q .pytest_cache 2>nul || echo "No pytest cache to clean"
+                        """
+                    }
                 }
             }
         }
