@@ -23,7 +23,7 @@ def test_validate_repo_path_valid(client):
         mock_exists.side_effect = lambda path: os.path.normpath(path) in valid_paths
         mock_isdir.return_value = True
         
-        response = client.post("/api/files/validate/repo-path", json={"repo_path": "/test/repo"})
+        response = client.post("/files/validate/repo-path", json={"repo_path": "/test/repo"})
         
         assert response.status_code == 200
         data = response.json()
@@ -36,7 +36,7 @@ def test_validate_repo_path_not_exists(client):
     with patch('os.path.exists') as mock_exists:
         mock_exists.return_value = False
         
-        response = client.post("/api/files/validate/repo-path", json={"repo_path": "/nonexistent/repo"})
+        response = client.post("/files/validate/repo-path", json={"repo_path": "/nonexistent/repo"})
         
         assert response.status_code == 200
         data = response.json()
@@ -52,7 +52,7 @@ def test_validate_repo_path_not_directory(client):
         mock_exists.return_value = True
         mock_isdir.return_value = False
         
-        response = client.post("/api/files/validate/repo-path", json={"repo_path": "/test/file.txt"})
+        response = client.post("/files/validate/repo-path", json={"repo_path": "/test/file.txt"})
         
         assert response.status_code == 200
         data = response.json()
@@ -71,7 +71,7 @@ def test_validate_repo_path_not_git_repo(client):
         mock_exists.side_effect = lambda path: os.path.normpath(path) not in [git_dir, svn_dir]
         mock_isdir.return_value = True
         
-        response = client.post("/api/files/validate/repo-path", json={"repo_path": "/test/repo"})
+        response = client.post("/files/validate/repo-path", json={"repo_path": "/test/repo"})
         
         assert response.status_code == 200
         data = response.json()
@@ -81,7 +81,7 @@ def test_validate_repo_path_not_git_repo(client):
 def test_validate_repo_path_empty(client):
     """빈 경로 검증 테스트"""
     
-    response = client.post("/api/files/validate/repo-path", json={"repo_path": ""})
+    response = client.post("/files/validate/repo-path", json={"repo_path": ""})
     
     assert response.status_code == 200
     data = response.json()
@@ -106,7 +106,7 @@ def test_upload_file_success(client):
         
         # 파일 업로드 시뮬레이션
         files = {"file": (file_name, BytesIO(file_content), "text/plain")}
-        response = client.post("/api/files/upload", files=files)
+        response = client.post("/files/upload", files=files)
         
         assert response.status_code == 200
         data = response.json()
@@ -134,7 +134,7 @@ def test_list_output_files_success(client):
         mock_stat_result.st_mtime = 1701234567
         mock_stat.return_value = mock_stat_result
         
-        response = client.get("/api/files/list/outputs")
+        response = client.get("/files/list/outputs")
         
         assert response.status_code == 200
         data = response.json()
@@ -154,7 +154,7 @@ def test_list_output_files_no_directory(client):
     with patch('os.path.exists') as mock_exists:
         mock_exists.return_value = False
         
-        response = client.get("/api/files/list/outputs")
+        response = client.get("/files/list/outputs")
         
         assert response.status_code == 200
         data = response.json()
@@ -169,7 +169,7 @@ def test_download_excel_file_success(client):
         mock_exists.return_value = True
         
         # FileResponse는 실제 파일이 필요하므로 존재만 확인
-        response = client.get(f"/api/files/download/excel/{filename}")
+        response = client.get(f"/files/download/excel/{filename}")
         
         # 실제로는 FileResponse가 반환되어야 하지만, 테스트에서는 존재 확인만
         mock_exists.assert_called_once()
@@ -182,7 +182,7 @@ def test_download_excel_file_not_found(client):
     with patch('os.path.exists') as mock_exists:
         mock_exists.return_value = False
         
-        response = client.get(f"/api/files/download/excel/{filename}")
+        response = client.get(f"/files/download/excel/{filename}")
         
         assert response.status_code == 404
         assert "파일을 찾을 수 없습니다" in response.json()["detail"]
@@ -199,7 +199,7 @@ def test_delete_output_file_success(client):
         mock_exists.return_value = True
         mock_getsize.return_value = 1024
         
-        response = client.delete(f"/api/files/outputs/{filename}")
+        response = client.delete(f"/files/outputs/{filename}")
         
         assert response.status_code == 200
         data = response.json()
@@ -215,7 +215,7 @@ def test_delete_output_file_not_found(client):
     with patch('os.path.exists') as mock_exists:
         mock_exists.return_value = False
         
-        response = client.delete(f"/api/files/outputs/{filename}")
+        response = client.delete(f"/files/outputs/{filename}")
         
         assert response.status_code == 404
         assert "파일을 찾을 수 없습니다" in response.json()["detail"]
@@ -231,7 +231,7 @@ def test_delete_output_file_error(client):
         mock_exists.return_value = True
         mock_remove.side_effect = Exception("삭제 오류")
         
-        response = client.delete(f"/api/files/outputs/{filename}")
+        response = client.delete(f"/files/outputs/{filename}")
         
         assert response.status_code == 500
         assert "파일 삭제 중 오류" in response.json()["detail"]

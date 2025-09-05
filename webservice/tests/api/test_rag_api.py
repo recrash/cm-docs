@@ -36,7 +36,7 @@ def test_get_rag_system_info(client, rag_enabled):
     with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info:
         mock_get_rag_info.return_value = mock_rag_info
         
-        response = client.get("/api/rag/info")
+        response = client.get("/rag/info")
         
         assert response.status_code == 200
         data = response.json()
@@ -61,7 +61,7 @@ def test_index_documents_success(client, rag_enabled):
         mock_index.return_value = mock_result
         
         request_data = {"force_reindex": False}
-        response = client.post("/api/rag/index", json=request_data)
+        response = client.post("/rag/index", json=request_data)
         
         assert response.status_code == 200
         data = response.json()
@@ -86,7 +86,7 @@ def test_index_documents_force_reindex(client, rag_enabled):
         mock_index.return_value = mock_result
         
         request_data = {"force_reindex": True}
-        response = client.post("/api/rag/index", json=request_data)
+        response = client.post("/rag/index", json=request_data)
         
         assert response.status_code == 200
         data = response.json()
@@ -102,7 +102,7 @@ def test_index_documents_failure(client, rag_enabled):
         mock_index.side_effect = Exception("인덱싱 오류")
         
         request_data = {"force_reindex": False}
-        response = client.post("/api/rag/index", json=request_data)
+        response = client.post("/rag/index", json=request_data)
         
         assert response.status_code == 500
         assert "문서 인덱싱 중 오류" in response.json()["detail"]
@@ -116,7 +116,7 @@ def test_clear_vector_database_success(client, rag_enabled):
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
         
-        response = client.delete("/api/rag/clear")
+        response = client.delete("/rag/clear")
         
         assert response.status_code == 200
         data = response.json()
@@ -131,7 +131,7 @@ def test_clear_vector_database_no_manager(client, rag_enabled):
     with patch('app.api.routers.rag.get_rag_manager') as mock_get_manager:
         mock_get_manager.return_value = None
         
-        response = client.delete("/api/rag/clear")
+        response = client.delete("/rag/clear")
         
         assert response.status_code == 500
         assert "RAG 시스템을 초기화할 수 없습니다" in response.json()["detail"]
@@ -146,7 +146,7 @@ def test_clear_vector_database_failure(client, rag_enabled):
         mock_manager.clear_database.side_effect = Exception("초기화 오류")
         mock_get_manager.return_value = mock_manager
         
-        response = client.delete("/api/rag/clear")
+        response = client.delete("/rag/clear")
         
         assert response.status_code == 500
         assert "벡터 데이터베이스 초기화 중 오류" in response.json()["detail"]
@@ -169,7 +169,7 @@ def test_get_documents_info(client, rag_enabled):
     with patch('app.api.routers.rag.get_rag_info') as mock_get_rag_info:
         mock_get_rag_info.return_value = mock_rag_info
         
-        response = client.get("/api/rag/documents/info")
+        response = client.get("/rag/documents/info")
         
         assert response.status_code == 200
         data = response.json()
@@ -207,7 +207,7 @@ def test_get_rag_status_active(client, rag_enabled):
         mock_get_manager.return_value = mock_manager
         mock_load_config.return_value = mock_config
         
-        response = client.get("/api/rag/status")
+        response = client.get("/rag/status")
         
         assert response.status_code == 200
         data = response.json()
@@ -241,7 +241,7 @@ def test_get_rag_status_inactive(client, rag_enabled):
         mock_get_manager.return_value = None
         mock_load_config.return_value = mock_config
         
-        response = client.get("/api/rag/status")
+        response = client.get("/rag/status")
         
         assert response.status_code == 200
         data = response.json()
@@ -265,7 +265,7 @@ def test_get_rag_status_error(client, rag_enabled):
         mock_get_rag_info.side_effect = Exception("RAG 오류")
         mock_load_config.return_value = mock_config
         
-        response = client.get("/api/rag/status")
+        response = client.get("/rag/status")
         
         assert response.status_code == 200
         data = response.json()

@@ -206,7 +206,7 @@ export const v2Api = {
    * CLI에서 시나리오 생성을 요청하는 API
    */
   generateScenario: async (clientId: string, repoPath: string, usePerformanceMode: boolean = true) => {
-    const response = await api.post('/v2/scenario/generate', {
+    const response = await api.post('/api/webservice/v2/scenario/generate', {
       client_id: clientId,
       repo_path: repoPath,
       use_performance_mode: usePerformanceMode
@@ -218,7 +218,7 @@ export const v2Api = {
    * 특정 클라이언트의 생성 상태 조회
    */
   getGenerationStatus: async (clientId: string) => {
-    const response = await api.get(`/v2/scenario/status/${clientId}`);
+    const response = await api.get(`/api/webservice/v2/scenario/status/${clientId}`);
     return response.data;
   },
 

@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 test.describe('로깅 시스템 E2E 테스트', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     // 테스트 시작 전 로그 파일 초기 상태 확인
     const logsDir = join(process.cwd(), 'logs');
     console.log(`로그 디렉토리 확인: ${logsDir}`);
@@ -56,9 +56,9 @@ test.describe('로깅 시스템 E2E 테스트', () => {
     await page.waitForTimeout(1000);
 
     // 5. 브라우저 콘솔에서 로그 확인
-    const logs = await page.evaluate(() => {
-      return (window as any).consoleLogs || [];
-    });
+    // const logs = await page.evaluate(() => {
+    //   return (window as any).consoleLogs || [];
+    // });
 
     console.log('✅ 프론트엔드 로깅 시스템 정상 동작 확인');
   });
@@ -111,7 +111,7 @@ test.describe('로깅 시스템 E2E 테스트', () => {
     console.log('✅ WebSocket 로깅 정상 동작 확인');
   });
 
-  test('로그 파일 형식 검증', async ({ page }) => {
+  test('로그 파일 형식 검증', async () => {
     // 1. 로그 파일들이 올바른 형식으로 생성되었는지 확인
     const logsDir = join(process.cwd(), 'logs');
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');

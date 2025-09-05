@@ -292,14 +292,14 @@ pipeline {
                         endpoints = [
                             "http://localhost:8000/health": "기본 헬스체크 (직접 포트)",
                             "http://localhost:8000/api": "API 루트 엔드포인트",
-                            "http://localhost:8000/api/v2/scenario/generate": "V2 시나리오 생성 엔드포인트 (OPTIONS)"
+                            "http://localhost:8000/api/webservice/v2/scenario/generate": "V2 시나리오 생성 엔드포인트 (OPTIONS)"
                         ]
                     } else {
                         // feature/hotfix: 직접 포트 체크 (nginx 미설정)
                         endpoints = [
                             "http://localhost:8000/health": "기본 헬스체크 (직접)",
                             "http://localhost:8000/api": "API 루트 엔드포인트",
-                            "http://localhost:8000/api/v2/scenario/generate": "V2 시나리오 생성 엔드포인트 (OPTIONS)"
+                            "http://localhost:8000/api/webservice/v2/scenario/generate": "V2 시나리오 생성 엔드포인트 (OPTIONS)"
                         ]
                     }
                     
