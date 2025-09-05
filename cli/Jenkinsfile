@@ -15,13 +15,10 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
+                checkout scm
                 script {
-                    echo "Checking out branch: ${params.BRANCH}"
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: "*/${params.BRANCH}"]],
-                        userRemoteConfigs: [[url: env.GIT_URL]]
-                    ])
+                    def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                    echo "소스코드 체크아웃 완료 - 브랜치: ${branchName}"
                 }
             }
         }
