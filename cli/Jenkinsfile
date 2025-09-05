@@ -6,70 +6,93 @@ pipeline {
     }
     
     environment {
-        WHEELHOUSE_PATH = "C:\\deploys\\packages\\wheelhouse"
-        CLI_PATH = "${WORKSPACE}\\cli"
-        PYTHONPATH = "${CLI_PATH}\\src"
-        PATH = "${env.PATH};${CLI_PATH}\\scripts"
-        PYTHONIOENCODING = 'UTF-8'
+        // Wheelhouse path for offline dependencies
+        WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'
         
-        WORKSPACE_PYTHON_CMD = "${WORKSPACE}\\cli\\.venv\\Scripts\\python.exe"
-        WORKSPACE_PIP_CMD = "${WORKSPACE}\\cli\\.venv\\Scripts\\pip.exe"
+        // Python paths - use relative paths where possible
+        PYTHON_CMD = 'py -3.13'
+        
+        // UTF-8 encoding for all operations
+        PYTHONIOENCODING = 'UTF-8'
+        LANG = 'en_US.UTF-8'
     }
     
     stages {
         stage('Checkout') {
             steps {
                 script {
-                    // Force checkout latest code
+                    // Clean checkout with proper branch handling
                     checkout([
                         $class: 'GitSCM',
-                        branches: [[name: "*/${params.BRANCH ?: env.BRANCH_NAME ?: 'feature/CICDOrchestration'}"]],
+                        branches: [[name: "*/${params.BRANCH ?: env.BRANCH_NAME ?: 'main'}"]],
                         doGenerateSubmoduleConfigurations: false,
-                        extensions: [[$class: 'CleanBeforeCheckout']],
+                        extensions: [
+                            [$class: 'CleanBeforeCheckout'],
+                            [$class: 'CloneOption', depth: 1, noTags: false, shallow: true]
+                        ],
                         userRemoteConfigs: [[
                             credentialsId: 'cmdocs',
                             url: 'https://github.com/recrash/cm-docs.git'
                         ]]
                     ])
                     
-                    def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
-                    echo "Source code checkout completed - Branch: ${branchName}"
+                    echo "Checkout completed for branch: ${params.BRANCH ?: env.BRANCH_NAME}"
                     
-                    // Show current commit
+                    // Show current commit for verification
                     bat 'git log --oneline -1'
                 }
             }
         }
         
-        stage('Setup Python Environment') {
+        stage('Setup Environment') {
             steps {
                 dir('cli') {
                     script {
-                        echo "Setting up Python environment with robust encoding control and output redirection"
+                        echo 'Setting up Python virtual environment'
                         
-                        // Create virtual environment and upgrade pip
+                        // Clean previous venv if exists
                         bat '''
-                            powershell -NoProfile -Command "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; Write-Host 'Creating Python virtual environment...'; if (Test-Path -Path .venv) { Remove-Item -Recurse -Force .venv }; py -3.13 -m venv .venv; Write-Host 'Upgrading pip...'; .venv\\Scripts\\python.exe -m pip install --upgrade pip > pip_upgrade.log 2>&1"
+                            if exist .venv (
+                                echo Removing existing virtual environment
+                                rmdir /S /Q .venv
+                            )
                         '''
                         
-                        // Install dependencies (redirect output to bypass errors)
-                        script {
-                            def wheelHouseExists = bat(
-                                script: "if exist \"${env.WHEELHOUSE_PATH}\\*.whl\" echo found",
-                                returnStdout: true
-                            ).contains('found')
-                            
-                            if (wheelHouseExists) {
-                                echo "Installing dependencies from Wheelhouse (Offline Mode) with output redirection"
-                                bat """
-                                    powershell -NoProfile -Command "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' -r requirements-dev.txt > pip_install.log 2>&1; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links='${env.WHEELHOUSE_PATH}' . >> pip_install.log 2>&1"
-                                """
-                            } else {
-                                echo "Installing dependencies from PyPI (Online Mode) with output redirection"
-                                bat """
-                                    powershell -NoProfile -Command "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install -r requirements-dev.txt > pip_install.log 2>&1; & '${env.WORKSPACE_PIP_CMD}' install . >> pip_install.log 2>&1"
-                                """
-                            }
+                        // Create new virtual environment
+                        bat '''
+                            echo Creating Python 3.13 virtual environment
+                            py -3.13 -m venv .venv
+                        '''
+                        
+                        // Upgrade pip
+                        bat '''
+                            echo Upgrading pip
+                            .venv\\Scripts\\python.exe -m pip install --upgrade pip
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                dir('cli') {
+                    script {
+                        // Check if wheelhouse exists for offline mode
+                        def wheelHouseExists = fileExists(env.WHEELHOUSE_PATH)
+                        
+                        if (wheelHouseExists) {
+                            echo 'Installing dependencies from Wheelhouse (Offline Mode)'
+                            bat """
+                                .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r requirements-dev.txt
+                                .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -e .
+                            """
+                        } else {
+                            echo 'Installing dependencies from PyPI (Online Mode)'
+                            bat '''
+                                .venv\\Scripts\\pip.exe install -r requirements-dev.txt
+                                .venv\\Scripts\\pip.exe install -e .
+                            '''
                         }
                     }
                 }
@@ -80,33 +103,46 @@ pipeline {
             steps {
                 dir('cli') {
                     script {
-                        echo "Running CLI tests with robust encoding control"
-                        bat """
-                            powershell -NoProfile -Command "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; \$env:PYTHONPATH='${env.PYTHONPATH}'; \$env:PYTHONIOENCODING='utf-8'; if (-not (Test-Path -Path test-results)) { New-Item -ItemType Directory -Path test-results }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/unit/ -v --junit-xml=test-results/junit-unit.xml --cov=ts_cli --cov-report=html } catch { Write-Host 'Unit tests completed with issues' }; try { & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/integration/ -v --junit-xml=test-results/junit-integration.xml } catch { Write-Host 'Integration tests completed with issues' }"
-                        """
+                        echo 'Running unit and integration tests'
+                        
+                        // Create test-results directory
+                        bat '''
+                            if not exist test-results mkdir test-results
+                        '''
+                        
+                        // Run pytest with coverage
+                        bat '''
+                            set PYTHONPATH=src
+                            .venv\\Scripts\\pytest.exe tests\\unit\\ -v ^
+                                --junit-xml=test-results\\junit-unit.xml ^
+                                --cov=ts_cli ^
+                                --cov-report=html ^
+                                --cov-report=term
+                        '''
+                        
+                        // Run integration tests
+                        bat '''
+                            set PYTHONPATH=src
+                            .venv\\Scripts\\pytest.exe tests\\integration\\ -v ^
+                                --junit-xml=test-results\\junit-integration.xml
+                        '''
                     }
                 }
             }
             post {
                 always {
-                    script {
-                        if (fileExists('cli/test-results/junit-unit.xml')) {
-                            junit 'cli/test-results/junit-unit.xml'
-                        }
-                        if (fileExists('cli/test-results/junit-integration.xml')) {
-                            junit 'cli/test-results/junit-integration.xml'
-                        }
-                        if (fileExists('cli/htmlcov/index.html')) {
-                            publishHTML([
-                                allowMissing: false,
-                                alwaysLinkToLastBuild: true,
-                                keepAll: true,
-                                reportDir: 'cli/htmlcov',
-                                reportFiles: 'index.html',
-                                reportName: 'Coverage Report'
-                            ])
-                        }
-                    }
+                    // Archive test results
+                    junit 'cli/test-results/*.xml'
+                    
+                    // Publish coverage report
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'cli/htmlcov',
+                        reportFiles: 'index.html',
+                        reportName: 'Coverage Report'
+                    ])
                 }
             }
         }
@@ -115,90 +151,76 @@ pipeline {
             steps {
                 dir('cli') {
                     script {
-                        echo "Building executable with PyInstaller with robust encoding control"
-                        bat """
-                            rem Set console codepage to UTF-8 for the entire script block
-                            chcp 65001 >NUL
-
-                            rem Run the build script using PowerShell with explicit UTF-8 settings
-                            powershell -NoProfile -Command "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; \$env:PYTHONPATH='${env.PYTHONPATH}'; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' scripts/build.py"
-
-                            rem Verify the result in the same UTF-8 context
-                            if exist dist\\ts-cli.exe (
-                                echo \"Build successful: ts-cli.exe created\"
-                                dir dist\\ts-cli.exe
-                            ) else if exist dist\\windows\\ts-cli.exe (
-                                echo \"Build successful: ts-cli.exe created in windows subfolder\"
-                                dir dist\\windows\\ts-cli.exe
-                            ) else (
-                                echo \"Build failed: ts-cli.exe not found in dist or dist\\windows\"
-                                exit 1
-                            )
-                        """
+                        echo 'Building executable with PyInstaller'
+                        
+                        // Run build script
+                        bat '''
+                            set PYTHONPATH=src
+                            .venv\\Scripts\\python.exe scripts\\build.py
+                        '''
+                        
+                        // Verify executable was created
+                        script {
+                            def exeExists = fileExists('dist/ts-cli.exe') || fileExists('dist/windows/ts-cli.exe')
+                            if (!exeExists) {
+                                error('Executable not created!')
+                            }
+                            echo 'Executable built successfully'
+                        }
                     }
                 }
             }
         }
         
-        // ... remaining stages are the same ...
         stage('Create Installer') {
             steps {
                 dir('cli') {
                     script {
-                        echo "Creating NSIS installer"
+                        echo 'Creating NSIS installer'
                         
-                        bat """
-                            chcp 65001 >NUL
+                        // Build installer with NSIS
+                        bat '''
                             makensis scripts\\setup_win.nsi
-                        """
+                        '''
                         
-                        bat """
-                            chcp 65001 >NUL
-                            if exist dist\\TestscenarioMaker-CLI-Setup.exe (
-                                echo \"Installer created successfully\"
-                                dir dist\\TestscenarioMaker-CLI-Setup.exe
-                            ) else (
-                                echo \"Installer creation failed\"
-                                exit 1
-                            )
-                        """
+                        // Verify installer was created
+                        script {
+                            if (!fileExists('dist/TestscenarioMaker-CLI-Setup.exe')) {
+                                error('Installer not created!')
+                            }
+                            echo 'Installer created successfully'
+                        }
                     }
                 }
             }
         }
         
-        stage('Rename and Archive') {
+        stage('Archive Artifacts') {
             steps {
                 dir('cli') {
                     script {
-                        echo "Renaming installer with branch name: ${params.BRANCH}"
-                        
                         def branchSuffix = params.BRANCH.replaceAll('/', '-').replaceAll('\\\\', '-')
-                        def originalName = "TestscenarioMaker-CLI-Setup.exe"
-                        def newName = "TestscenarioMaker-CLI-Setup-${branchSuffix}.exe"
+                        def installerName = "TestscenarioMaker-CLI-Setup-${branchSuffix}.exe"
                         
+                        // Rename installer with branch suffix
                         bat """
-                            chcp 65001 >NUL
                             cd dist
-                            if exist \"${originalName}\" (
-                                move /Y \"${originalName}\" \"${newName}\" 
-                                echo \"Renamed to ${newName}\"
-                                dir \"${newName}\"
-                            ) else (
-                                echo \"Original installer not found\"
-                                exit 1
+                            if exist TestscenarioMaker-CLI-Setup.exe (
+                                move /Y TestscenarioMaker-CLI-Setup.exe "${installerName}"
                             )
                         """
                         
-                        archiveArtifacts artifacts: "dist/${newName}", 
+                        // Archive artifacts
+                        archiveArtifacts artifacts: "dist/${installerName}", 
                                         fingerprint: true,
                                         allowEmptyArchive: false
                         
-                        archiveArtifacts artifacts: "dist/ts-cli.exe, dist/windows/ts-cli.exe",
+                        // Also archive the standalone executable
+                        archiveArtifacts artifacts: 'dist/**/*.exe',
                                         fingerprint: true,
                                         allowEmptyArchive: true
                         
-                        echo "Artifacts archived successfully"
+                        echo "Artifacts archived: ${installerName}"
                     }
                 }
             }
@@ -208,15 +230,13 @@ pipeline {
             steps {
                 dir('cli') {
                     script {
-                        echo "Cleaning up workspace"
+                        echo 'Cleaning up build artifacts'
                         
-                        bat """
-                            chcp 65001 >NUL
-                            cd cli
-                            if exist build rmdir /S /Q build 2>nul || echo "No build directory to clean"
-                            if exist ts_cli.egg-info rmdir /S /Q ts_cli.egg-info 2>nul || echo "No egg-info to clean"
-                            if exist .pytest_cache rmdir /S /Q .pytest_cache 2>nul || echo "No pytest cache to clean"
-                        """
+                        bat '''
+                            if exist build rmdir /S /Q build
+                            if exist ts_cli.egg-info rmdir /S /Q ts_cli.egg-info
+                            if exist .pytest_cache rmdir /S /Q .pytest_cache
+                        '''
                     }
                 }
             }
@@ -225,24 +245,19 @@ pipeline {
     
     post {
         success {
-            echo "[SUCCESS] CLI build completed successfully for branch: ${params.BRANCH}"
-            
+            echo "[SUCCESS] CLI build pipeline completed successfully"
             script {
-                def branchSuffix = params.BRANCH.replaceAll('/', '-').replaceAll('\\\\', '-')
-                def installerName = "TestscenarioMaker-CLI-Setup-${branchSuffix}.exe"
-                
-                echo "[ARTIFACTS] Generated artifacts:"
-                echo "  - Installer: ${installerName}"
-                echo "  - Executable: ts-cli.exe"
-                echo "  - Coverage report available in HTML format"
+                def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                echo "Build successful for branch: ${branchName}"
             }
         }
         
         failure {
-            echo "[FAILED] CLI build failed for branch: ${params.BRANCH}"
-            
+            echo "[FAILED] CLI build pipeline failed"
             script {
-                echo "Build failure detected. Check logs for details."
+                def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                echo "Build failed for branch: ${branchName}"
+                echo "Check the logs for details"
             }
         }
         
@@ -250,19 +265,10 @@ pipeline {
             script {
                 echo "Pipeline execution completed"
                 
-                if (fileExists('cli/test-results')) {
-                    echo "[INFO] Test results collected"
+                // Clean workspace if requested
+                if (params.CLEAN_WORKSPACE == 'true') {
+                    cleanWs()
                 }
-                if (fileExists('cli/htmlcov')) {
-                    echo "[INFO] Coverage report generated"
-                }
-                
-                bat """
-                    chcp 65001 >NUL
-                    cd cli
-                    if exist dist\\windows\\ts-cli.exe echo "[OK] Executable preserved"
-                    if exist dist\\TestscenarioMaker-CLI-Setup-*.exe echo "[OK] Installer preserved"
-                """
             }
         }
     }
