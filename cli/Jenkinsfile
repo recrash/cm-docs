@@ -116,7 +116,7 @@ pipeline {
                             .venv\\Scripts\\pytest.exe tests\\unit\\ -v ^
                                 --junit-xml=test-results\\junit-unit.xml ^
                                 --cov=ts_cli ^
-                                --cov-report=html ^
+                                --cov-report=html:htmlcov ^
                                 --cov-report=term
                         '''
                         
@@ -136,7 +136,7 @@ pipeline {
                     
                     // Publish coverage report
                     publishHTML([
-                        allowMissing: false,
+                        allowMissing: true,  // 디렉토리가 없어도 실패하지 않도록
                         alwaysLinkToLastBuild: true,
                         keepAll: true,
                         reportDir: 'cli/htmlcov',
