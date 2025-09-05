@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  base: process.env.BASE_PATH || '/', // 파이프라인에서 --base 로 덮어씀
   server: {
     port: 3000,
     proxy: {

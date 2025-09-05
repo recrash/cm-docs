@@ -48,7 +48,7 @@ export default function BackupFileManagementModal({ open, onClose }: BackupFileM
       setLoading(true)
       setError(null)
       
-      const response = await fetch('/api/feedback/backup-files')
+      const response = await fetch(`${import.meta.env.BASE_URL}api/feedback/backup-files`)
       if (!response.ok) {
         throw new Error('백업 파일 목록을 불러오는데 실패했습니다.')
       }
@@ -65,7 +65,7 @@ export default function BackupFileManagementModal({ open, onClose }: BackupFileM
 
   const handleDownload = async (filename: string) => {
     try {
-      const response = await fetch(`/api/feedback/backup-files/${filename}/download`)
+      const response = await fetch(`${import.meta.env.BASE_URL}api/feedback/backup-files/${filename}/download`)
       if (!response.ok) {
         throw new Error('파일 다운로드에 실패했습니다.')
       }
@@ -92,7 +92,7 @@ export default function BackupFileManagementModal({ open, onClose }: BackupFileM
     }
 
     try {
-      const response = await fetch(`/api/feedback/backup-files/${filename}`, {
+      const response = await fetch(`${import.meta.env.BASE_URL}api/feedback/backup-files/${filename}`, {
         method: 'DELETE'
       })
       

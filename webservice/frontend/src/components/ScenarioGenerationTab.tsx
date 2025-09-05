@@ -80,7 +80,7 @@ export default function ScenarioGenerationTab() {
     if (!isValidFormat) return false
     
     // 로컬 환경에서만 서버 검증 수행
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       try {
         const validation = await filesApi.validateRepoPath(path)
         return validation.valid

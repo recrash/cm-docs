@@ -46,7 +46,7 @@ class TestV2ScenarioAPI:
         with patch('pathlib.Path.exists', return_value=True), \
              patch('pathlib.Path.is_dir', return_value=True):
             
-            response = client.post("/api/v2/scenario/generate", json=sample_request)
+            response = client.post("/v2/scenario/generate", json=sample_request)
             
             assert response.status_code == 200
             data = response.json()
@@ -61,7 +61,7 @@ class TestV2ScenarioAPI:
             assert data["client_id"] == sample_request["client_id"]
             assert data["status"] == "accepted"
             # config.json의 base_url 설정에 따라 동적으로 생성된 WebSocket URL 검증
-            expected_path = f"api/v2/ws/progress/{sample_request['client_id']}"
+            expected_path = f"api/webservice/v2/ws/progress/{sample_request['client_id']}"
             assert expected_path in data["websocket_url"]
             assert data["websocket_url"].startswith(("ws://", "wss://"))
     
@@ -85,7 +85,7 @@ class TestV2ScenarioAPI:
             mock_path_instance.exists.return_value = False
             mock_path_instance.is_dir.return_value = False
             
-            response = client.post("/api/v2/scenario/generate", json=invalid_request)
+            response = client.post("/v2/scenario/generate", json=invalid_request)
             
             # 백그라운드 작업에서 처리되므로 일단은 200으로 응답하고 WebSocket으로 오류 전송
             assert response.status_code == 200
@@ -96,11 +96,11 @@ class TestV2ScenarioAPI:
              patch('pathlib.Path.is_dir', return_value=True):
             
             # 첫 번째 요청
-            response1 = client.post("/api/v2/scenario/generate", json=sample_request)
+            response1 = client.post("/v2/scenario/generate", json=sample_request)
             assert response1.status_code == 200
             
             # 동일한 클라이언트 ID로 두 번째 요청
-            response2 = client.post("/api/v2/scenario/generate", json=sample_request)
+            response2 = client.post("/v2/scenario/generate", json=sample_request)
             
             # 현재 구현에서는 백그라운드 작업이 매우 빠르게 종료되어 중복으로 인식되지 않을 수 있음
             # 따라서 두 번째 요청도 200 OK를 허용
@@ -113,13 +113,13 @@ class TestV2ScenarioAPI:
             # repo_path, changes_text 누락
         }
         
-        response = client.post("/api/v2/scenario/generate", json=incomplete_request)
+        response = client.post("/v2/scenario/generate", json=incomplete_request)
         assert response.status_code == 422  # Validation error
     
     def test_generate_endpoint_invalid_json(self, client):
         """잘못된 JSON 형식 테스트"""
         response = client.post(
-            "/api/v2/scenario/generate", 
+            "/v2/scenario/generate", 
             data="invalid json",
             headers={"Content-Type": "application/json"}
         )
@@ -129,7 +129,7 @@ class TestV2ScenarioAPI:
         """상태 조회 엔드포인트 테스트"""
         client_id = "test_status_client"
         
-        response = client.get(f"/api/v2/scenario/status/{client_id}")
+        response = client.get(f"/v2/scenario/status/{client_id}")
         assert response.status_code == 200
         
         data = response.json()
@@ -144,11 +144,11 @@ class TestV2ScenarioAPI:
              patch('pathlib.Path.is_dir', return_value=True):
             
             # 생성 작업 시작
-            response = client.post("/api/v2/scenario/generate", json=sample_request)
+            response = client.post("/v2/scenario/generate", json=sample_request)
             assert response.status_code == 200
             
             # 상태 조회
-            status_response = client.get(f"/api/v2/scenario/status/{sample_request['client_id']}")
+            status_response = client.get(f"/v2/scenario/status/{sample_request['client_id']}")
             assert status_response.status_code == 200
             
             data = status_response.json()
@@ -205,7 +205,7 @@ class TestV2Models:
         """V2GenerationResponse 모델 생성 테스트"""
         response = V2GenerationResponse(
             client_id="test_client_123",
-            websocket_url="ws://localhost:8000/api/v2/ws/progress/test_client_123"
+            websocket_url="ws://localhost:8000/v2/ws/progress/test_client_123"
         )
         
         assert response.client_id == "test_client_123"

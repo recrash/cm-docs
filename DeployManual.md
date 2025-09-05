@@ -1,5 +1,6 @@
   * **Part A:** **개발자/DevOps 담당자**를 위한 `deploy-package.zip` 생성 가이드 (CI 서버에서 수행)
   * **Part B:** **시스템 운영자**를 위한 폐쇄망 서버 배포 매뉴얼 (운영 서버에서 수행)
+  * **Part C:** **Jenkins 관리자**를 위한 멀티브랜치 파이프라인 설정 가이드
 
 -----
 
@@ -9,10 +10,25 @@
 
 ### A-1. "의존성 씨앗" 수확 (최초 1회 및 의존성 변경 시)
 
-폐쇄망 CI/CD를 시작하기 전, 인터넷이 연결된 PC에서 앞으로 사용할 모든 Python 라이브러리의 `.whl` 파일을 미리 확보해야 합니다.
+폐쇄망 CI/CD를 시작하기 전, 인터넷이 연결된 PC에서 앞으로 사용할 **모든 Python 및 Node.js 의존성**을 미리 확보해야 합니다.
 
-1.  프로젝트 루트에 아래 `Download-All-Dependencies.ps1` (Windows) 또는 `download-all-dependencies.sh` (Linux/macOS) 스크립트를 저장합니다.
-2.  스크립트를 실행하여 프로젝트 루트에 `wheelhouse` 폴더를 생성합니다. 이 폴더는 프로젝트의 모든 의존성을 담는 '저장소' 역할을 합니다.
+1.  프로젝트 루트에서 `Download-All-Dependencies.ps1` (Windows) 또는 `download-all-dependencies.sh` (Linux/macOS) 스크립트를 실행합니다.
+2.  스크립트 실행 후 다음 폴더들이 생성됩니다:
+    - **`wheelhouse/`**: 모든 Python .whl 파일
+    - **`npm-cache/`**: 모든 Node.js 패키지 (**신규 추가**)
+
+**실행 예시**:
+```bash
+# Windows
+.\Download-All-Dependencies.ps1
+
+# Linux/macOS  
+./download-all-dependencies.sh
+
+# 결과: wheelhouse/ 및 npm-cache/ 폴더 생성
+```
+
+이 폴더들은 프로젝트의 **모든 의존성(Python + Node.js)**을 담는 '저장소' 역할을 합니다.
 
 
 ### A-2. `deploy-package.zip` 생성
@@ -25,10 +41,12 @@
 # (이전 답변에서 제공한 스크립트와 동일)
 # ... 스크립트 내용 ...
 # 3. 초기 데이터 복사 단계 이후에, wheelhouse 폴더를 복사하는 로직 추가
-Write-Host "    - 오프라인 의존성('wheelhouse')을 패키지에 포함합니다."
-$sourceDir = Join-Path $ProjectRoot "wheelhouse"
-$targetDir = Join-Path $PackageDir "dependencies" # 패키지 내에서는 dependencies 이름으로 저장
-Copy-Item -Path $sourceDir -Destination $targetDir -Recurse -Force
+Write-Host "    - 오프라인 의존성('wheelhouse', 'npm-cache')을 패키지에 포함합니다."
+$wheelhouseDir = Join-Path $ProjectRoot "wheelhouse"
+$npmCacheDir = Join-Path $ProjectRoot "npm-cache"
+$targetDepsDir = Join-Path $PackageDir "dependencies"
+Copy-Item -Path $wheelhouseDir -Destination $targetDepsDir -Recurse -Force
+Copy-Item -Path $npmCacheDir -Destination (Join-Path $PackageDir "npm-cache") -Recurse -Force
 # ... 이후 압축 단계로 ...
 ```
 
@@ -38,11 +56,14 @@ Copy-Item -Path $sourceDir -Destination $targetDir -Recurse -Force
 # (이전 답변에서 제공한 스크립트와 동일)
 # ... 스크립트 내용 ...
 # 3. 초기 데이터 복사 단계 이후에, wheelhouse 폴더를 복사하는 로직 추가
-echo "    - 오프라인 의존성('wheelhouse')을 패키지에 포함합니다."
-SOURCE_DIR="$PROJECT_ROOT/wheelhouse"
-TARGET_DIR="$PACKAGE_DIR/dependencies" # 패키지 내에서는 dependencies 이름으로 저장
-mkdir -p "$TARGET_DIR"
-cp -r "$SOURCE_DIR"/* "$TARGET_DIR/"
+echo "    - 오프라인 의존성('wheelhouse', 'npm-cache')을 패키지에 포함합니다."
+WHEELHOUSE_DIR="$PROJECT_ROOT/wheelhouse"
+NPM_CACHE_DIR="$PROJECT_ROOT/npm-cache"
+TARGET_DEPS_DIR="$PACKAGE_DIR/dependencies"
+TARGET_NPM_DIR="$PACKAGE_DIR/npm-cache"
+mkdir -p "$TARGET_DEPS_DIR" "$TARGET_NPM_DIR"
+cp -r "$WHEELHOUSE_DIR"/* "$TARGET_DEPS_DIR/"
+cp -r "$NPM_CACHE_DIR"/* "$TARGET_NPM_DIR/"
 # ... 이후 압축 단계로 ...
 ```
 
@@ -187,3 +208,197 @@ server {
 2.  **신규 패키지 적용**: 새로운 `deploy-package.zip` 파일의 압축을 풀어 `C:\deploys`에 덮어씁니다. (`data` 폴더는 영향을 받지 않습니다.)
 3.  **패키지 재설치**: **3.2절**의 PowerShell 설치 명령어들을 다시 실행하여 패키지를 업그레이드합니다.
 4.  **서비스 시작**: `nssm start webservice`, `nssm start autodoc_service`
+
+-----
+
+## Part C: Jenkins 멀티브랜치 파이프라인 설정 가이드
+
+### 1\. Jenkins 멀티브랜치 파이프라인 생성
+
+#### 1.1. 루트 멀티브랜치 파이프라인 (cm-docs-pipeline)
+
+1. Jenkins 대시보드에서 **"New Item"** 클릭
+2. 이름 입력: `cm-docs-pipeline`
+3. 타입 선택: **"Multibranch Pipeline"**
+4. **Branch Sources** 설정:
+   - Add source → Git
+   - Repository URL: `https://github.com/recrash/cm-docs.git`
+   - Credentials: GitHub 자격증명 추가
+   - **Behaviors**:
+     - Discover branches: 모든 브랜치
+     - Filter by name (wildcards): `main develop feature/* hotfix/*`
+
+5. **Build Configuration**:
+   - Mode: by Jenkinsfile
+   - Script Path: `Jenkinsfile`
+
+6. **Scan Multibranch Pipeline Triggers**:
+   - ✅ Periodically if not otherwise run
+   - Interval: 1 minute
+
+7. **Properties**:
+   - ❌ **Lightweight checkout 비활성화** (중요!)
+
+#### 1.2. CLI 서브 파이프라인 (cli-pipeline)
+
+1. **"New Item"** → 이름: `cli-pipeline` → **"Pipeline"** (일반 파이프라인)
+2. **Pipeline** 섹션에서 Definition: **Pipeline script from SCM** 선택
+3. **SCM**: Git
+   - Repository URL: `https://github.com/recrash/cm-docs.git`
+   - Credentials: GitHub 자격증명
+   - **Branches to build**: `*/${BRANCH_PARAM}`
+   - **Script Path**: `cli/Jenkinsfile`
+   
+4. **This project is parameterized** 체크:
+   - Add Parameter → String Parameter
+   - Name: `BRANCH_PARAM`
+   - Default Value: `main`
+   - Description: `Branch to build`
+
+5. **Build Triggers**:
+   - ❌ Lightweight checkout 비활성화
+
+#### 1.3. 다른 서브 파이프라인들
+
+동일한 방식으로 다음 파이프라인들을 생성:
+- `webservice-backend-pipeline` (Script Path: `webservice/Jenkinsfile.backend`)
+- `webservice-frontend-pipeline` (Script Path: `webservice/Jenkinsfile.frontend`)
+- `autodoc-service-pipeline` (Script Path: `autodoc_service/Jenkinsfile`)
+
+### 2\. Windows Jenkins 에이전트 설정
+
+#### 2.1. Jenkins 노드 추가
+
+1. **Manage Jenkins** → **Manage Nodes and Clouds**
+2. **New Node** 클릭:
+   - Node name: `windows-build-agent`
+   - Type: Permanent Agent
+   
+3. **Node Properties**:
+   ```
+   Remote root directory: C:\jenkins-agent
+   Labels: windows cli-build
+   Usage: Use this node as much as possible
+   Launch method: Launch agent by connecting it to the controller
+   ```
+
+#### 2.2. Windows 에이전트 설치
+
+Windows 빌드 서버에서:
+```powershell
+# Jenkins 에이전트 디렉토리 생성
+New-Item -ItemType Directory -Force -Path "C:\jenkins-agent"
+
+# agent.jar 다운로드
+Invoke-WebRequest -Uri "http://jenkins-server:8080/jnlpJars/agent.jar" -OutFile "C:\jenkins-agent\agent.jar"
+
+# 에이전트 시작 (Jenkins에서 제공하는 secret 사용)
+java -jar agent.jar -jnlpUrl http://jenkins-server:8080/computer/windows-build-agent/slave-agent.jnlp -secret [SECRET_KEY]
+```
+
+### 3\. CLI 파이프라인 특별 설정
+
+#### 3.1. 필요한 소프트웨어 설치
+
+Windows 빌드 에이전트에 다음 소프트웨어 설치 필수:
+- **Python 3.13**: CLI 개발 환경
+- **NSIS**: Windows 설치 프로그램 생성
+- **Git**: 소스코드 체크아웃
+
+#### 3.2. 환경 변수 설정
+
+Jenkins 노드 설정에서 환경 변수 추가:
+```
+PYTHONIOENCODING=UTF-8
+LANG=en_US.UTF-8
+WHEELHOUSE_PATH=C:\deploys\packages\wheelhouse
+```
+
+#### 3.3. 파이프라인별 특별 설정
+
+**CLI Pipeline (cli/Jenkinsfile)**:
+- ✅ 테스트 실패 허용: `returnStatus: true`
+- ✅ Coverage report: `allowMissing: true`
+- ✅ NSIS 경로 자동 감지
+- ✅ UTF-8 인코딩 강제
+
+### 4\. 문제 해결 가이드
+
+#### 4.1. Lightweight Checkout 문제
+
+**증상**: Jenkins가 오래된 커밋을 체크아웃함
+**해결**: 
+1. Pipeline 설정에서 **"Lightweight checkout"** 비활성화
+2. 또는 명시적 GitSCM checkout 사용:
+```groovy
+checkout([
+    $class: 'GitSCM',
+    branches: [[name: "*/${params.BRANCH}"]],
+    extensions: [[$class: 'CleanBeforeCheckout']]
+])
+```
+
+#### 4.2. 인코딩 에러
+
+**증상**: `'charmap' codec can't encode characters`
+**해결**:
+1. Jenkinsfile에 환경 변수 추가:
+```groovy
+environment {
+    PYTHONIOENCODING = 'UTF-8'
+    LANG = 'en_US.UTF-8'
+}
+```
+2. 한글 텍스트를 영문으로 변경
+
+#### 4.3. NSIS Installer 경로 문제
+
+**증상**: `Installer not created!` 에러
+**해결**:
+```groovy
+// NSIS는 scripts/ 디렉토리에 생성됨
+bat '''
+    makensis scripts\\setup_win.nsi
+    if exist scripts\\TestscenarioMaker-CLI-Setup.exe (
+        move /Y scripts\\TestscenarioMaker-CLI-Setup.exe dist\\
+    )
+'''
+```
+
+#### 4.4. 테스트 중단 (KeyboardInterrupt)
+
+**증상**: 테스트 중 KeyboardInterrupt 발생
+**해결**:
+```groovy
+// 테스트 실패해도 계속 진행
+bat(returnStatus: true, script: '''
+    .venv\\Scripts\\pytest.exe tests\\unit\\ -v
+''')
+```
+
+### 5\. 파이프라인 모니터링
+
+#### 5.1. Blue Ocean 사용
+
+1. **Blue Ocean** 플러그인 설치
+2. 파이프라인 실시간 모니터링
+3. 병렬 실행 상태 시각화
+
+#### 5.2. 파이프라인 로그 확인
+
+```powershell
+# Jenkins 로그 위치
+Get-Content "C:\ProgramData\Jenkins\.jenkins\jobs\cli-pipeline\builds\lastBuild\log"
+
+# 에이전트 로그
+Get-Content "C:\jenkins-agent\remoting\logs\remoting.log"
+```
+
+### 6\. 권장 Jenkins 플러그인
+
+- **Pipeline**: 파이프라인 기본 기능
+- **Git**: Git 저장소 연동
+- **Blue Ocean**: 시각적 파이프라인 관리
+- **HTML Publisher**: Coverage report 표시
+- **JUnit**: 테스트 결과 표시
+- **Workspace Cleanup**: 작업 공간 자동 정리

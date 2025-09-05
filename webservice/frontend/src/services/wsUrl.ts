@@ -6,6 +6,9 @@ export function buildWsUrl(path: string) {
       ? (import.meta.env.VITE_WS_DEV_HOST ?? 'localhost:8000')
       : (import.meta.env.VITE_WS_HOST ?? window.location.host);
     
+    // BASE_URL에서 base path 추출 (예: "/tests/abc123/" -> "/tests/abc123")
+    const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+    
     // 디버깅용 로그
     console.log('WebSocket URL Debug:', {
         protocol: window.location.protocol,
@@ -15,8 +18,9 @@ export function buildWsUrl(path: string) {
         prodHost: import.meta.env.VITE_WS_HOST,
         windowHost: window.location.host,
         finalHost: host,
-        finalUrl: `${scheme}//${host}${path}`
+        basePath,
+        finalUrl: `${scheme}//${host}${basePath}${path}`
     });
     
-    return `${scheme}//${host}${path}`;
+    return `${scheme}//${host}${basePath}${path}`;
 }

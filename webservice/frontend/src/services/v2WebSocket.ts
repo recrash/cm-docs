@@ -59,7 +59,7 @@ export class V2ProgressWebSocket {
     try {
       // WebSocket URL 구성 (개발 환경에서는 localhost:8000)
       // const wsUrl = `ws://localhost:8000/api/v2/ws/progress/${this.clientId}`
-      const wsUrl = buildWsUrl(`/api/v2/ws/progress/${this.clientId}`)
+      const wsUrl = buildWsUrl(`/api/webservice/v2/ws/progress/${this.clientId}`)
       
       console.log(`🔌 v2 WebSocket 연결 시도: ${wsUrl}`)
       

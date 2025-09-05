@@ -4,33 +4,106 @@ pipeline {
     agent any
     
     environment {
-        // 프로젝트 경로
+        // 통합 환경변수 관리
         CM_DOCS_ROOT = 'C:\\deploys\\cm-docs'
+        WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'
+        BACKUP_ROOT = 'C:\\deploys\\backup'
+        
+        // 테스트 인스턴스 환경 (브랜치별)
+        DEPLOY_ROOT = 'C:\\deploys\\tests'
+        PY_PATH = '%LOCALAPPDATA%\\Programs\\Python\\Python312\\python.exe'
+        NSSM_PATH = 'nssm'
+        NGINX_PATH = 'C:\\nginx\\nginx.exe'
+        NGINX_CONF_DIR = 'C:\\nginx\\conf\\conf.d'
+        
+        // 프로젝트 경로
         WEBSERVICE_PATH = "${CM_DOCS_ROOT}\\webservice"
         AUTODOC_PATH = "${CM_DOCS_ROOT}\\autodoc_service"
+        CLI_PATH = "${CM_DOCS_ROOT}\\cli"
+        
+        // 환경변수 기반 데이터 경로 (프로덕션)
+        WEBSERVICE_DATA_PATH = 'C:\\deploys\\data\\webservice'
+        AUTODOC_DATA_PATH = 'C:\\deploys\\data\\autodoc_service'
+        
+        // 배포 경로
+        WEBSERVICE_DEPLOY_PATH = 'C:\\deploys\\apps\\webservice'
+        AUTODOC_DEPLOY_PATH = 'C:\\deploys\\apps\\autodoc_service'
+        NGINX_ROOT = 'C:\\nginx\\html'
+        
+        // Python 실행 경로
+        WEBSERVICE_PYTHON = "${WEBSERVICE_DEPLOY_PATH}\\.venv\\Scripts\\python.exe"
+        WEBSERVICE_PIP = "${WEBSERVICE_DEPLOY_PATH}\\.venv\\Scripts\\pip.exe"
+        AUTODOC_PYTHON = "${AUTODOC_DEPLOY_PATH}\\.venv312\\Scripts\\python.exe"
+        AUTODOC_PIP = "${AUTODOC_DEPLOY_PATH}\\.venv312\\Scripts\\pip.exe"
         
         // 서비스 URL
         WEBSERVICE_BACKEND_URL = 'http://localhost:8000'
         WEBSERVICE_FRONTEND_URL = 'http://localhost'
         AUTODOC_SERVICE_URL = 'http://localhost:8001'
         
+        // 헬스체크 URL
+        WEBSERVICE_HEALTH_URL = 'http://localhost:8000/api/health'
+        AUTODOC_HEALTH_URL = 'http://localhost:8001/health'
+        
         // 배포 상태 추적
         DEPLOYMENT_STATUS = 'NONE'
         FAILED_SERVICES = ''
-    }
+        CRITICAL_FAILURE = 'false'
+        
+        // 기타 설정
+        ANONYMIZED_TELEMETRY = 'False'
+    }        
     
     stages {
         stage('소스코드 체크아웃 및 변경 감지') {
             steps {
                 checkout scm
                 script {
-                    // 변경된 파일 분석
+                    // 변경된 파일 분석 (최근 푸시 기준)
                     def changedFiles = []
                     try {
+                        // Jenkins에서 제공하는 변수들을 활용해 푸시된 모든 커밋의 변경사항 감지
+                        def gitCommand
+                        if (env.CHANGE_TARGET) {
+                            // PR인 경우: target 브랜치와 비교
+                            gitCommand = "git diff origin/${env.CHANGE_TARGET}...HEAD --name-only"
+                        } else if (env.GIT_PREVIOUS_SUCCESSFUL_COMMIT) {
+                            // 이전 성공한 빌드와 비교하되, 너무 오래된 경우 제한
+                            def commitCount = bat(
+                                script: "git rev-list --count ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT}..HEAD",
+                                returnStdout: true
+                            ).trim().toInteger()
+                            
+                            if (commitCount <= 10) {
+                                // 10개 이하의 커밋이면 이전 성공 빌드와 비교
+                                gitCommand = "git diff ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT} HEAD --name-only"
+                                echo "이전 성공 빌드 기준 비교 (${commitCount}개 커밋)"
+                            } else {
+                                // 10개 초과면 최근 5개 커밋만 확인
+                                gitCommand = "git diff HEAD~5 HEAD --name-only"
+                                echo "이전 성공 빌드가 너무 오래됨 (${commitCount}개), 최근 5개 커밋만 확인"
+                            }
+                        } else {
+                            // 대안: 최근 origin/main 또는 origin/develop과 비교
+                            def targetBranch = env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/') ? 'main' : 'main'
+                            gitCommand = "git diff origin/${targetBranch}...HEAD --name-only || git diff HEAD~5 HEAD --name-only"
+                        }
+                        
+                        echo "Git 변경 감지 명령: ${gitCommand}"
                         changedFiles = bat(
-                            script: 'git diff HEAD~1 HEAD --name-only',
+                            script: gitCommand,
                             returnStdout: true
-                        ).split('\n').findAll { it.trim() }
+                        ).split('\n').findAll { it.trim() && !it.startsWith('C:\\') }
+                        
+                        // 만약 변경파일이 없다면 최근 5개 커밋 범위에서 확인
+                        if (changedFiles.isEmpty()) {
+                            echo "변경파일이 감지되지 않음, 최근 5개 커밋 범위로 재시도"
+                            changedFiles = bat(
+                                script: 'git diff HEAD~5 HEAD --name-only',
+                                returnStdout: true
+                            ).split('\n').findAll { it.trim() && !it.startsWith('C:\\') }
+                        }
+                        
                     } catch (Exception e) {
                         echo "변경 감지 실패, 전체 빌드 실행: ${e.getMessage()}"
                         changedFiles = ['webservice/', 'autodoc_service/', 'cli/']
@@ -61,36 +134,65 @@ pipeline {
             }
         }
         
-        stage('🔧 AutoDoc Service CI/CD') {
-            when {
-                expression { env.AUTODOC_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
-            }
+        stage('Branch Detect') {
             steps {
                 script {
-                    try {
-                        echo "AutoDoc Service 빌드/배포 시작"
-                        build job: 'autodoc-service-pipeline', 
-                              parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
-                        
-                        env.AUTODOC_DEPLOY_STATUS = 'SUCCESS'
-                        echo "AutoDoc Service 배포 성공"
-                        
-                    } catch (Exception e) {
-                        env.AUTODOC_DEPLOY_STATUS = 'FAILED'
-                        env.FAILED_SERVICES += 'AutoDoc '
-                        echo "AutoDoc Service 배포 실패: ${e.getMessage()}"
-                        // 실패해도 다른 서비스는 계속 진행
-                    }
+                    env.IS_TEST = (env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/')) ? 'true' : 'false'
+                    env.BID = sanitizeId(env.BRANCH_NAME)
+                    env.BACK_PORT = pickPort(env.BRANCH_NAME, 8100, 200).toString()
+                    env.AUTO_PORT = pickPort(env.BRANCH_NAME, 8500, 200).toString()
+
+                    env.WEB_BACK_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\webservice\\backend"
+                    env.WEB_FRONT_DST = "C:\\nginx\\html\\tests\\${env.BID}"
+                    env.AUTO_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\autodoc"
+                    env.URL_PREFIX = "/tests/${env.BID}/"
+                    
+                    echo """
+                    ===========================================
+                    🔧 브랜치 설정
+                    ===========================================
+                    • 브랜치: ${env.BRANCH_NAME}
+                    • 테스트 인스턴스: ${env.IS_TEST}
+                    • BID: ${env.BID}
+                    • Backend Port: ${env.BACK_PORT}
+                    • AutoDoc Port: ${env.AUTO_PORT}
+                    • URL Prefix: ${env.URL_PREFIX}
+                    ===========================================
+                    """
                 }
             }
         }
         
-        stage('🌐 Webservice CI/CD') {
-            when {
-                expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
-            }
+        stage('🚀 1단계: 독립 서비스 병렬 빌드') {
             parallel {
-                stage('Backend 빌드/배포') {
+                stage('🔧 AutoDoc Service CI/CD') {
+                    when {
+                        expression { env.AUTODOC_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                    }
+                    steps {
+                        script {
+                            try {
+                                echo "AutoDoc Service 빌드/배포 시작"
+                                build job: 'autodoc_service-pipeline', 
+                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                                
+                                env.AUTODOC_DEPLOY_STATUS = 'SUCCESS'
+                                echo "AutoDoc Service 배포 성공"
+                                
+                            } catch (Exception e) {
+                                env.AUTODOC_DEPLOY_STATUS = 'FAILED'
+                                env.FAILED_SERVICES += 'AutoDoc '
+                                echo "AutoDoc Service 배포 실패: ${e.getMessage()}"
+                                // Non-Critical 서비스이므로 다른 서비스는 계속 진행
+                            }
+                        }
+                    }
+                }
+                
+                stage('🌐 Webservice Backend CI/CD') {
+                    when {
+                        expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                    }
                     steps {
                         script {
                             try {
@@ -104,27 +206,35 @@ pipeline {
                             } catch (Exception e) {
                                 env.WEBSERVICE_BACKEND_STATUS = 'FAILED'
                                 env.FAILED_SERVICES += 'WebBackend '
+                                env.CRITICAL_FAILURE = 'true'  // Critical 서비스 실패
                                 echo "Webservice Backend 배포 실패: ${e.getMessage()}"
                             }
                         }
                     }
                 }
                 
-                stage('Frontend 빌드/배포') {
+                stage('⚡ CLI CI/CD') {
+                    when {
+                        expression { env.CLI_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                    }
                     steps {
                         script {
                             try {
-                                echo "Webservice Frontend 빌드/배포 시작"
-                                build job: 'webservice-frontend-pipeline',
-                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                                echo "CLI 빌드/패키징 시작 (독립 파이프라인 호출)"
                                 
-                                env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
-                                echo "Webservice Frontend 배포 성공"
+                                // CLI 전용 파이프라인 호출
+                                build job: 'cli-pipeline',
+                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)],
+                                      wait: true
+                                
+                                env.CLI_BUILD_STATUS = 'SUCCESS'
+                                echo "CLI 빌드/패키징 성공"
                                 
                             } catch (Exception e) {
-                                env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
-                                env.FAILED_SERVICES += 'WebFrontend '
-                                echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
+                                env.CLI_BUILD_STATUS = 'FAILED'
+                                env.FAILED_SERVICES += 'CLI '
+                                echo "CLI 빌드/패키징 실패: ${e.getMessage()}"
+                                // Non-Critical 서비스이므로 다른 서비스는 계속 진행
                             }
                         }
                     }
@@ -132,50 +242,89 @@ pipeline {
             }
         }
         
-        stage('⚡ CLI CI/CD') {
+        stage('🎨 2단계: Webservice Frontend CI/CD') {
             when {
-                expression { env.CLI_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                allOf {
+                    expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                    expression { env.CRITICAL_FAILURE == 'false' }  // Backend 성공 시에만 실행
+                }
             }
             steps {
                 script {
                     try {
-                        echo "CLI 빌드/패키징 시작"
+                        echo "Webservice Frontend 빌드/배포 시작 (Backend 성공 확인됨)"
+                        def frontendBuild = build job: "webservice-frontend-pipeline",
+                              parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
                         
-                        dir("${env.CM_DOCS_ROOT}\\cli") {
-                            // CLI는 서비스 배포가 아닌 빌드만 실행
-                            bat 'powershell -Command "& .\\.venv\\Scripts\\python.exe -m pytest --cov=ts_cli --cov-report=html"'
-                            bat 'powershell -Command "& .\\.venv\\Scripts\\python.exe scripts/build.py"'
-                        }
+                        // Frontend 빌드된 아티팩트를 현재 작업공간으로 복사
+                        def frontendWorkspace = "C:\\\\ProgramData\\\\Jenkins\\\\.jenkins\\\\workspace\\\\webservice-frontend-pipeline"
+                        // Frontend 아티팩트 복사 로직
+                        def frontendZipPath = "${frontendWorkspace}\\\\webservice\\\\frontend.zip"
+                        def targetDir = "${WORKSPACE}\\\\webservice"
+                        def targetZipPath = "${targetDir}\\\\frontend.zip"
                         
-                        env.CLI_BUILD_STATUS = 'SUCCESS'
-                        echo "CLI 빌드 성공"
+                        // 대상 디렉토리 생성
+                        bat "if not exist \"${targetDir}\" mkdir \"${targetDir}\""
+                        
+                        // Frontend 아티팩트 복사 및 검증
+                        bat """
+                            if exist "${frontendZipPath}" (
+                                copy "${frontendZipPath}" "${targetZipPath}"
+                                if exist "${targetZipPath}" (
+                                    echo Frontend 아티팩트 복사 성공: frontend.zip
+                                ) else (
+                                    echo ERROR: Frontend 아티팩트 복사 실패
+                                    exit /b 1
+                                )
+                            ) else (
+                                echo ERROR: Frontend 아티팩트 없음: ${frontendZipPath}
+                                echo Frontend 파이프라인 작업공간 내용:
+                                dir "${frontendWorkspace}\\\\webservice" /b 2>nul || echo 디렉토리 없음
+                                exit /b 1
+                            )
+                        """
+                        
+                        echo "Frontend 빌드 및 아티팩트 전파 성공 - Build #${frontendBuild.getNumber()}"
+                        
+                        env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
+                        echo "Webservice Frontend 배포 성공"
                         
                     } catch (Exception e) {
-                        env.CLI_BUILD_STATUS = 'FAILED'
-                        env.FAILED_SERVICES += 'CLI '
-                        echo "CLI 빌드 실패: ${e.getMessage()}"
+                        env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
+                        env.FAILED_SERVICES += 'WebFrontend '
+                        env.CRITICAL_FAILURE = 'true'  // Critical 서비스 실패
+                        echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
+                        error("Webservice Frontend 배포에 실패하여 파이프라인을 중단합니다.") // 파이프라인 중단
                     }
                 }
             }
         }
         
-        stage('🔍 통합 테스트') {
+        stage('🔍 3단계: 통합 테스트') {
             when {
                 expression { 
-                    env.WEBSERVICE_CHANGED == 'true' || 
-                    env.AUTODOC_CHANGED == 'true' || 
-                    env.ROOT_CHANGED == 'true' 
+                    (env.WEBSERVICE_CHANGED == 'true' || 
+                     env.AUTODOC_CHANGED == 'true' || 
+                     env.ROOT_CHANGED == 'true') &&
+                    env.CRITICAL_FAILURE == 'false'  // Critical 서비스 성공 시에만 실행
                 }
             }
             parallel {
                 stage('E2E 테스트') {
                     when {
-                        expression { env.WEBSERVICE_CHANGED == 'true' }
+                        allOf {
+                            expression { env.WEBSERVICE_CHANGED == 'true' }
+                            expression { env.WEBSERVICE_BACKEND_STATUS == 'SUCCESS' }
+                            expression { env.WEBSERVICE_FRONTEND_STATUS == 'SUCCESS' }
+                        }
                     }
                     steps {
                         script {
                             try {
-                                echo "Webservice E2E 테스트 시작"
+                                echo "Webservice E2E 테스트 시작 (Backend + Frontend 성공 확인됨)"
+                                
+                                // E2E 테스트 실행 전 서비스 준비 대기
+                                sleep(time: 30, unit: 'SECONDS')
                                 
                                 dir("${env.WEBSERVICE_PATH}\\frontend") {
                                     bat 'npm run test:e2e'
@@ -198,39 +347,70 @@ pipeline {
                             try {
                                 echo "서비스 간 통신 테스트 시작"
                                 
-                                // 각 서비스 헬스체크
-                                def services = [
-                                    'AutoDoc': env.AUTODOC_SERVICE_URL,
-                                    'Backend': env.WEBSERVICE_BACKEND_URL,
-                                    'Frontend': env.WEBSERVICE_FRONTEND_URL
-                                ]
+                                // 서비스 안정화 대기
+                                sleep(time: 15, unit: 'SECONDS')
+                                
+                                // 각 서비스 헬스체크 (개선된 테스트)
+                                def services = [:]
+                                if (env.AUTODOC_DEPLOY_STATUS == 'SUCCESS') {
+                                    services['AutoDoc'] = env.AUTODOC_HEALTH_URL
+                                }
+                                if (env.WEBSERVICE_BACKEND_STATUS == 'SUCCESS') {
+                                    services['Backend'] = env.WEBSERVICE_HEALTH_URL
+                                }
+                                if (env.WEBSERVICE_FRONTEND_STATUS == 'SUCCESS') {
+                                    services['Frontend'] = env.WEBSERVICE_FRONTEND_URL
+                                }
                                 
                                 def allHealthy = true
+                                def healthyCount = 0
+                                def totalCount = services.size()
+                                
                                 services.each { name, url ->
-                                    try {
-                                        def response = bat(
-                                            script: "curl -s -o nul -w \"%{http_code}\" ${url}/health || curl -s -o nul -w \"%{http_code}\" ${url}",
-                                            returnStdout: true
-                                        ).trim()
-                                        
-                                        if (response == "200") {
-                                            echo "${name} 서비스 정상 (HTTP 200)"
-                                        } else {
-                                            echo "${name} 서비스 이상 (HTTP ${response})"
-                                            allHealthy = false
+                                    def servicePassed = false
+                                    for (int i = 0; i < 3; i++) {
+                                        try {
+                                            def response = powershell(
+                                                script: """
+                                                    try {
+                                                        \$result = Invoke-WebRequest -Uri '${url}' -UseBasicParsing -TimeoutSec 10
+                                                        Write-Output \$result.StatusCode
+                                                    } catch {
+                                                        Write-Output "500"
+                                                    }
+                                                """,
+                                                returnStdout: true
+                                            ).trim()
+                                            
+                                            if (response == "200") {
+                                                echo "${name} 서비스 정상 (HTTP 200, ${i+1}번째 시도)"
+                                                servicePassed = true
+                                                healthyCount++
+                                                break
+                                            } else {
+                                                echo "${name} 서비스 응답 이상 (HTTP ${response}, ${i+1}번째 시도)"
+                                            }
+                                        } catch (Exception e) {
+                                            echo "${name} 서비스 접근 불가: ${e.getMessage()} (${i+1}번째 시도)"
                                         }
-                                    } catch (Exception e) {
-                                        echo "${name} 서비스 접근 불가: ${e.getMessage()}"
+                                        
+                                        if (i < 2) sleep(time: 5, unit: 'SECONDS')
+                                    }
+                                    
+                                    if (!servicePassed) {
                                         allHealthy = false
                                     }
                                 }
                                 
-                                if (allHealthy) {
+                                if (allHealthy && healthyCount == totalCount) {
                                     env.INTEGRATION_TEST_STATUS = 'SUCCESS'
-                                    echo "모든 서비스 정상 동작 확인"
-                                } else {
+                                    echo "모든 배포된 서비스 정상 동작 확인 (${healthyCount}/${totalCount})"
+                                } else if (healthyCount > 0) {
                                     env.INTEGRATION_TEST_STATUS = 'PARTIAL'
-                                    echo "일부 서비스에 문제가 있습니다"
+                                    echo "부분 성공: ${healthyCount}/${totalCount} 서비스 정상"
+                                } else {
+                                    env.INTEGRATION_TEST_STATUS = 'FAILED'
+                                    echo "모든 서비스 헬스체크 실패"
                                 }
                                 
                             } catch (Exception e) {
@@ -243,36 +423,147 @@ pipeline {
             }
         }
         
-        stage('🚀 스마트 배포') {
-            when {
-                expression { 
-                    env.FAILED_SERVICES == null || env.FAILED_SERVICES.trim() == ''
-                }
-            }
+        stage('🚀 4단계: 스마트 배포 완료') {
             steps {
                 script {
-                    echo """
-                    ===========================================
-                    🎯 배포 완료 요약
-                    ===========================================
-                    """
+                    // 배포 상태 종합 분석
+                    def successfulServices = []
+                    def failedServices = []
+                    def skippedServices = []
                     
+                    // 각 서비스 상태 분석
                     if (env.AUTODOC_CHANGED == 'true') {
-                        echo "✅ AutoDoc Service: 배포 완료 (Port 8001)"
+                        if (env.AUTODOC_DEPLOY_STATUS == 'SUCCESS') {
+                            successfulServices.add('AutoDoc Service (Port 8001)')
+                        } else {
+                            failedServices.add('AutoDoc Service')
+                        }
+                    } else {
+                        skippedServices.add('AutoDoc Service (변경 없음)')
                     }
                     
                     if (env.WEBSERVICE_CHANGED == 'true') {
-                        echo "✅ Webservice Backend: 배포 완료 (Port 8000)"
-                        echo "✅ Webservice Frontend: 배포 완료 (Port 80)"
+                        if (env.WEBSERVICE_BACKEND_STATUS == 'SUCCESS') {
+                            successfulServices.add('Webservice Backend (Port 8000)')
+                        } else {
+                            failedServices.add('Webservice Backend')
+                        }
+                        
+                        if (env.WEBSERVICE_FRONTEND_STATUS == 'SUCCESS') {
+                            successfulServices.add('Webservice Frontend (Port 80)')
+                        } else if (env.WEBSERVICE_FRONTEND_STATUS == 'FAILED') {
+                            failedServices.add('Webservice Frontend')
+                        } else {
+                            skippedServices.add('Webservice Frontend (Backend 실패로 스킵)')
+                        }
+                    } else {
+                        skippedServices.add('Webservice (변경 없음)')
                     }
                     
                     if (env.CLI_CHANGED == 'true') {
-                        echo "✅ CLI: 빌드 완료 (dist/에서 실행파일 확인 가능)"
+                        if (env.CLI_BUILD_STATUS == 'SUCCESS') {
+                            successfulServices.add('CLI Build (실행파일 생성)')
+                        } else {
+                            failedServices.add('CLI Build')
+                        }
+                    } else {
+                        skippedServices.add('CLI (변경 없음)')
                     }
                     
-                    env.DEPLOYMENT_STATUS = 'SUCCESS'
-                    echo "===========================================\n스마트 배포 성공!"
+                    // 최종 배포 상태 결정
+                    if (env.CRITICAL_FAILURE == 'true') {
+                        env.DEPLOYMENT_STATUS = 'CRITICAL_FAILURE'
+                        echo """
+                        ❌ CRITICAL FAILURE - Webservice 핵심 서비스 실패
+                        ===========================================
+                        """
+                    } else if (failedServices.size() > 0) {
+                        env.DEPLOYMENT_STATUS = 'PARTIAL_SUCCESS'
+                        echo """
+                        ⚠️ PARTIAL SUCCESS - 일부 서비스 실패
+                        ===========================================
+                        """
+                    } else if (successfulServices.size() > 0) {
+                        env.DEPLOYMENT_STATUS = 'SUCCESS'
+                        echo """
+                        ✅ DEPLOYMENT SUCCESS
+                        ===========================================
+                        """
+                    } else {
+                        env.DEPLOYMENT_STATUS = 'NO_CHANGES'
+                        echo """
+                        ℹ️ NO DEPLOYMENT NEEDED - 변경사항 없음
+                        ===========================================
+                        """
+                    }
+                    
+                    // 상세 결과 출력
+                    if (successfulServices.size() > 0) {
+                        echo "✅ 성공한 서비스:"
+                        successfulServices.each { service ->
+                            echo "  • ${service}"
+                        }
+                    }
+                    
+                    if (failedServices.size() > 0) {
+                        echo "❌ 실패한 서비스:"
+                        failedServices.each { service ->
+                            echo "  • ${service}"
+                        }
+                    }
+                    
+                    if (skippedServices.size() > 0) {
+                        echo "⏭️ 스킵된 서비스:"
+                        skippedServices.each { service ->
+                            echo "  • ${service}"
+                        }
+                    }
+                    
+                    // 테스트 결과
+                    echo ""
+                    echo "🧪 테스트 결과:"
+                    echo "  • 통합 테스트: ${env.INTEGRATION_TEST_STATUS ?: 'SKIPPED'}"
+                    echo "  • E2E 테스트: ${env.E2E_TEST_STATUS ?: 'SKIPPED'}"
+                    
+                    echo "==========================================="
                 }
+            }
+        }
+        
+        stage('🧪 Deploy Test Instance') {
+            when { 
+                expression { env.IS_TEST == 'true' } 
+            }
+            steps {
+                bat '''
+                chcp 65001 >NUL
+                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_test_env.ps1" ^
+                    -Bid "%BID%" ^
+                    -BackPort %BACK_PORT% ^
+                    -AutoPort %AUTO_PORT% ^
+                    -Py "%PY_PATH%" ^
+                    -Nssm "%NSSM_PATH%" ^
+                    -Nginx "%NGINX_PATH%" ^
+                    -NginxConfDir "%NGINX_CONF_DIR%" ^
+                    -WebSrc "%WORKSPACE%\\webservice" ^
+                    -AutoSrc "%WORKSPACE%\\autodoc_service" ^
+                    -WebBackDst "%WEB_BACK_DST%" ^
+                    -WebFrontDst "%WEB_FRONT_DST%" ^
+                    -AutoDst "%AUTO_DST%" ^
+                    -UrlPrefix "%URL_PREFIX%" ^
+                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
+                '''
+                echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
+            }
+        }
+        
+        stage('🚀 Deploy Develop') {
+            when { 
+                branch 'develop' 
+            }
+            steps {
+                echo 'Deploying develop to the shared dev environment...'
+                // 기존 배포 스크립트/하위 잡 호출 유지
             }
         }
         
@@ -363,22 +654,87 @@ pipeline {
         }
         
         always {
-            // 아티팩트 보관
             script {
+                // 리소스 사용량 모니터링
+                echo "=== 빌드 리소스 사용량 리포트 ==="
                 try {
-                    archiveArtifacts artifacts: '**/dist/*.whl, **/dist/*.zip, **/dist/*.exe', 
-                                   allowEmptyArchive: true, followSymlinks: false
+                    // Windows 시스템 리소스 확인
+                    powershell """
+                        Write-Host "메모리 사용량:"
+                        Get-WmiObject -Class Win32_OperatingSystem | Select-Object @{Name="사용률(%)";Expression={[math]::Round(((\$_.TotalVisibleMemorySize - \$_.FreePhysicalMemory) / \$_.TotalVisibleMemorySize) * 100, 2)}}
+                        
+                        Write-Host "디스크 공간 (C 드라이브):"
+                        Get-WmiObject -Class Win32_LogicalDisk -Filter "DeviceID='C:'" | Select-Object @{Name="사용률(%)";Expression={[math]::Round(((\$_.Size - \$_.FreeSpace) / \$_.Size) * 100, 2)}}
+                        
+                        Write-Host "활성 Jenkins 워크스페이스:"
+                        Get-ChildItem -Path "${WORKSPACE}" -Directory | Measure-Object | Select-Object Count
+                    """
+                } catch (Exception e) {
+                    echo "리소스 모니터링 실패: ${e.getMessage()}"
+                }
+                
+                // 휠하우스 잠금 해제 및 정리
+                try {
+                    powershell """
+                        # 휠하우스 잠금 파일 제거
+                        if (Test-Path "${env.WHEELHOUSE_PATH}\\.lock") {
+                            Remove-Item "${env.WHEELHOUSE_PATH}\\.lock" -Force -ErrorAction SilentlyContinue
+                            Write-Host "휠하우스 잠금 해제 완료"
+                        }
+                        
+                        # 임시 빌드 파일 정리
+                        Get-ChildItem -Path "${env.BACKUP_ROOT}" -Filter "*BUILD_${BUILD_NUMBER}*" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+                        Write-Host "임시 빌드 파일 정리 완료"
+                    """
+                } catch (Exception e) {
+                    echo "리소스 정리 실패: ${e.getMessage()}"
+                }
+                
+                // 아티팩트 보관 (향상된 패턴)
+                try {
+                    archiveArtifacts artifacts: '''
+                        **/dist/*.whl,
+                        **/dist/*.zip, 
+                        **/dist/*.exe,
+                        **/htmlcov/**,
+                        **/coverage/**
+                    ''', 
+                    allowEmptyArchive: true, 
+                    fingerprint: true,
+                    onlyIfSuccessful: false
+                    
+                    echo "아티팩트 보관 완료 (빌드 ${BUILD_NUMBER})"
                 } catch (Exception e) {
                     echo "아티팩트 보관 실패: ${e.getMessage()}"
                 }
             }
             
-            // 워크스페이스 정리
+            // 워크스페이스 정리 (폐쇄망 환경 고려)
             cleanWs(patterns: [
-                [pattern: '**/node_modules', type: 'EXCLUDE'],
-                [pattern: '**/.venv*', type: 'EXCLUDE'],
-                [pattern: '**/logs', type: 'EXCLUDE']
+                [pattern: '**/node_modules', type: 'EXCLUDE'],  // 폐쇄망에서 재다운로드 어려움
+                [pattern: '**/.venv*', type: 'EXCLUDE'],        // Python 환경 보존
+                [pattern: '**/wheelhouse', type: 'EXCLUDE'],    // 휠하우스 보존
+                [pattern: '**/logs', type: 'EXCLUDE'],          // 로그 보존
+                [pattern: '**/.pytest_cache', type: 'INCLUDE'], // 임시 캐시 삭제
+                [pattern: '**/temp*', type: 'INCLUDE'],         // 임시 파일 삭제
+                [pattern: '**/*.tmp', type: 'INCLUDE']          // 임시 파일 삭제
             ])
+            
+            echo "워크스페이스 정리 완료 (폐쇄망 환경 고려)"
         }
     }
+}
+
+// 브랜치별 테스트 인스턴스 유틸 함수
+@NonCPS
+def sanitizeId(String s) {
+    return s.replaceAll(/[^a-zA-Z0-9_-]/, '_')
+}
+
+@NonCPS
+def pickPort(String b, int base, int span) {
+    // Jenkins 보안 정책으로 CRC32 사용 불가, 간단한 해시 대체
+    int hash = b.hashCode()
+    if (hash < 0) hash = -hash  // 음수 처리
+    return (int)(base + (hash % span))
 }

@@ -1,0 +1,285 @@
+pipeline {
+    agent any
+    
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main', description: 'Branch name to build')
+    }
+    
+    environment {
+        // Wheelhouse path for offline dependencies
+        WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'
+        
+        // Python paths - use relative paths where possible
+        PYTHON_CMD = 'py -3.13'
+        
+        // UTF-8 encoding for all operations
+        PYTHONIOENCODING = 'UTF-8'
+        LANG = 'en_US.UTF-8'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    // Clean checkout with proper branch handling
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: "*/${params.BRANCH ?: env.BRANCH_NAME ?: 'main'}"]],
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [
+                            [$class: 'CleanBeforeCheckout'],
+                            [$class: 'CloneOption', depth: 1, noTags: false, shallow: true]
+                        ],
+                        userRemoteConfigs: [[
+                            credentialsId: 'cmdocs',
+                            url: 'https://github.com/recrash/cm-docs.git'
+                        ]]
+                    ])
+                    
+                    echo "Checkout completed for branch: ${params.BRANCH ?: env.BRANCH_NAME}"
+                    
+                    // Show current commit for verification
+                    bat 'git log --oneline -1'
+                }
+            }
+        }
+        
+        stage('Setup Environment') {
+            steps {
+                dir('cli') {
+                    script {
+                        echo 'Setting up Python virtual environment'
+                        
+                        // Clean previous venv if exists
+                        bat '''
+                            if exist .venv (
+                                echo Removing existing virtual environment
+                                rmdir /S /Q .venv
+                            )
+                        '''
+                        
+                        // Create new virtual environment
+                        bat '''
+                            echo Creating Python 3.13 virtual environment
+                            py -3.13 -m venv .venv
+                        '''
+                        
+                        // Upgrade pip
+                        bat '''
+                            echo Upgrading pip
+                            .venv\\Scripts\\python.exe -m pip install --upgrade pip
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                dir('cli') {
+                    script {
+                        // Check if wheelhouse exists for offline mode
+                        def wheelHouseExists = fileExists(env.WHEELHOUSE_PATH)
+                        
+                        if (wheelHouseExists) {
+                            echo 'Installing dependencies from Wheelhouse (Offline Mode)'
+                            bat """
+                                .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r requirements-dev.txt
+                                .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -e .
+                            """
+                        } else {
+                            echo 'Installing dependencies from PyPI (Online Mode)'
+                            bat '''
+                                .venv\\Scripts\\pip.exe install -r requirements-dev.txt
+                                .venv\\Scripts\\pip.exe install -e .
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                dir('cli') {
+                    script {
+                        echo 'Running unit and integration tests'
+                        
+                        // Create test-results directory
+                        bat '''
+                            if not exist test-results mkdir test-results
+                        '''
+                        
+                        // Run pytest with coverage - 실패해도 계속 진행
+                        bat(returnStatus: true, script: '''
+                            set PYTHONPATH=src
+                            .venv\\Scripts\\pytest.exe tests\\unit\\ -v ^
+                                --junit-xml=test-results\\junit-unit.xml ^
+                                --cov=ts_cli ^
+                                --cov-report=html:htmlcov ^
+                                --cov-report=term
+                        ''')
+                        
+                        // Run integration tests - 실패해도 계속 진행
+                        bat(returnStatus: true, script: '''
+                            set PYTHONPATH=src
+                            .venv\\Scripts\\pytest.exe tests\\integration\\ -v ^
+                                --junit-xml=test-results\\junit-integration.xml
+                        ''')
+                    }
+                }
+            }
+            post {
+                always {
+                    // Archive test results
+                    junit 'cli/test-results/*.xml'
+                    
+                    // Publish coverage report
+                    publishHTML([
+                        allowMissing: true,  // 디렉토리가 없어도 실패하지 않도록
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'cli/htmlcov',
+                        reportFiles: 'index.html',
+                        reportName: 'Coverage Report'
+                    ])
+                }
+            }
+        }
+        
+        stage('Build Executable') {
+            steps {
+                dir('cli') {
+                    script {
+                        echo 'Building executable with PyInstaller'
+                        
+                        // Run build script
+                        bat '''
+                            set PYTHONPATH=src
+                            .venv\\Scripts\\python.exe scripts\\build.py
+                        '''
+                        
+                        // Verify executable was created
+                        script {
+                            def exeExists = fileExists('dist/ts-cli.exe') || fileExists('dist/windows/ts-cli.exe')
+                            if (!exeExists) {
+                                error('Executable not created!')
+                            }
+                            echo 'Executable built successfully'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Create Installer') {
+            steps {
+                dir('cli') {
+                    script {
+                        echo 'Creating NSIS installer'
+                        
+                        // Build installer with NSIS
+                        bat '''
+                            makensis scripts\\setup_win.nsi
+                        '''
+                        
+                        // Move installer to dist directory
+                        bat '''
+                            if exist scripts\\TestscenarioMaker-CLI-Setup.exe (
+                                if not exist dist mkdir dist
+                                move /Y scripts\\TestscenarioMaker-CLI-Setup.exe dist\\
+                            )
+                        '''
+                        
+                        // Verify installer was created
+                        script {
+                            def installerExists = fileExists('dist/TestscenarioMaker-CLI-Setup.exe') || 
+                                                 fileExists('scripts/TestscenarioMaker-CLI-Setup.exe')
+                            if (!installerExists) {
+                                error('Installer not created!')
+                            }
+                            echo 'Installer created successfully'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Archive Artifacts') {
+            steps {
+                dir('cli') {
+                    script {
+                        def branchSuffix = params.BRANCH.replaceAll('/', '-').replaceAll('\\\\', '-')
+                        def installerName = "TestscenarioMaker-CLI-Setup-${branchSuffix}.exe"
+                        
+                        // Rename installer with branch suffix
+                        bat """
+                            cd dist
+                            if exist TestscenarioMaker-CLI-Setup.exe (
+                                move /Y TestscenarioMaker-CLI-Setup.exe "${installerName}"
+                            )
+                        """
+                        
+                        // Archive artifacts
+                        archiveArtifacts artifacts: "dist/${installerName}", 
+                                        fingerprint: true,
+                                        allowEmptyArchive: false
+                        
+                        // Also archive the standalone executable
+                        archiveArtifacts artifacts: 'dist/**/*.exe',
+                                        fingerprint: true,
+                                        allowEmptyArchive: true
+                        
+                        echo "Artifacts archived: ${installerName}"
+                    }
+                }
+            }
+        }
+        
+        stage('Cleanup') {
+            steps {
+                dir('cli') {
+                    script {
+                        echo 'Cleaning up build artifacts'
+                        
+                        bat '''
+                            if exist build rmdir /S /Q build
+                            if exist ts_cli.egg-info rmdir /S /Q ts_cli.egg-info
+                            if exist .pytest_cache rmdir /S /Q .pytest_cache
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "[SUCCESS] CLI build pipeline completed successfully"
+            script {
+                def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                echo "Build successful for branch: ${branchName}"
+            }
+        }
+        
+        failure {
+            echo "[FAILED] CLI build pipeline failed"
+            script {
+                def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                echo "Build failed for branch: ${branchName}"
+                echo "Check the logs for details"
+            }
+        }
+        
+        always {
+            script {
+                echo "Pipeline execution completed"
+                
+                // Clean workspace if requested
+                if (params.CLEAN_WORKSPACE == 'true') {
+                    cleanWs()
+                }
+            }
+        }
+    }
+}

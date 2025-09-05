@@ -10,9 +10,9 @@ import type {
 } from '../types';
 import logger from '../utils/logger';
 
-// Create Axios instance
+// Create Axios instance with dynamic base URL
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: `${import.meta.env.BASE_URL}api/webservice`,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -47,7 +47,8 @@ export const scenarioApi = {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname;
     const port = import.meta.env.DEV ? '8000' : window.location.port;
-    const url = `${protocol}//${host}:${port}/api/scenario/generate-ws`;
+    const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+    const url = `${protocol}//${host}:${port}${basePath}/api/webservice/scenario/generate-ws`;
     logger.info(`Generated WebSocket URL: ${url}`);
     return url;
   }
@@ -178,7 +179,7 @@ export const filesApi = {
 
   downloadExcelFile: (filename: string) => {
     const encodedFilename = encodeURIComponent(filename);
-    return `/api/files/download/excel/${encodedFilename}`;
+    return `${import.meta.env.BASE_URL}api/webservice/files/download/excel/${encodedFilename}`;
   },
 
   deleteOutputFile: async (filename: string) => {
@@ -205,7 +206,7 @@ export const v2Api = {
    * CLI에서 시나리오 생성을 요청하는 API
    */
   generateScenario: async (clientId: string, repoPath: string, usePerformanceMode: boolean = true) => {
-    const response = await api.post('/v2/scenario/generate', {
+    const response = await api.post('/api/webservice/v2/scenario/generate', {
       client_id: clientId,
       repo_path: repoPath,
       use_performance_mode: usePerformanceMode
@@ -217,7 +218,7 @@ export const v2Api = {
    * 특정 클라이언트의 생성 상태 조회
    */
   getGenerationStatus: async (clientId: string) => {
-    const response = await api.get(`/v2/scenario/status/${clientId}`);
+    const response = await api.get(`/api/webservice/v2/scenario/status/${clientId}`);
     return response.data;
   },
 
@@ -227,7 +228,8 @@ export const v2Api = {
   getWebSocketUrl: (clientId: string) => {
     const baseUrl = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = import.meta.env.DEV ? 'localhost:8000' : window.location.host;
-    return `${baseUrl}//${host}/api/v2/ws/progress/${clientId}`;
+    const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+    return `${baseUrl}//${host}${basePath}/api/webservice/v2/ws/progress/${clientId}`;
   }
 };
 

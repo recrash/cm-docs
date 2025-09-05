@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 test.describe('로깅 시스템 E2E 테스트', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     // 테스트 시작 전 로그 파일 초기 상태 확인
     const logsDir = join(process.cwd(), 'logs');
     console.log(`로그 디렉토리 확인: ${logsDir}`);
@@ -11,7 +11,7 @@ test.describe('로깅 시스템 E2E 테스트', () => {
 
   test('백엔드 로깅 시스템 테스트', async ({ page }) => {
     // 1. 백엔드 서버가 정상적으로 시작되었는지 확인
-    const response = await page.request.get('http://localhost:8000/api/health');
+    const response = await page.request.get('http://localhost:80/api/health');
     expect(response.status()).toBe(200);
     const responseData = await response.json();
     expect(responseData).toEqual({ status: 'healthy' });
@@ -56,16 +56,16 @@ test.describe('로깅 시스템 E2E 테스트', () => {
     await page.waitForTimeout(1000);
 
     // 5. 브라우저 콘솔에서 로그 확인
-    const logs = await page.evaluate(() => {
-      return (window as any).consoleLogs || [];
-    });
+    // const logs = await page.evaluate(() => {
+    //   return (window as any).consoleLogs || [];
+    // });
 
     console.log('✅ 프론트엔드 로깅 시스템 정상 동작 확인');
   });
 
   test('API 오류 로깅 테스트', async ({ page }) => {
     // 1. 존재하지 않는 API 엔드포인트 호출하여 오류 발생
-    const response = await page.request.get('http://localhost:8000/api/nonexistent');
+    const response = await page.request.get('http://localhost:80/api/nonexistent');
     expect(response.status()).toBe(404);
 
     // 2. 잠시 대기하여 로그 기록 시간을 줍니다
@@ -102,16 +102,16 @@ test.describe('로깅 시스템 E2E 테스트', () => {
       // API 서비스에서 WebSocket URL 생성 로직 테스트
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.hostname;
-      const port = '8000';
+      const port = '80';
       return `${protocol}//${host}:${port}/api/scenario/generate-ws`;
     });
 
-    expect(wsUrl).toContain('ws://localhost:8000/api/scenario/generate-ws');
+    expect(wsUrl).toContain('ws://localhost:80/api/scenario/generate-ws');
     
     console.log('✅ WebSocket 로깅 정상 동작 확인');
   });
 
-  test('로그 파일 형식 검증', async ({ page }) => {
+  test('로그 파일 형식 검증', async () => {
     // 1. 로그 파일들이 올바른 형식으로 생성되었는지 확인
     const logsDir = join(process.cwd(), 'logs');
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -137,7 +137,7 @@ test.describe('로깅 시스템 E2E 테스트', () => {
     await page.goto('http://localhost:3000');
     
     // 2. 로그 전송 API 엔드포인트 테스트
-    const logResponse = await page.request.post('http://localhost:8000/api/log', {
+    const logResponse = await page.request.post('http://localhost:80/api/log', {
       data: {
         level: 'info',
         message: '테스트 로그 메시지',

@@ -165,7 +165,7 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
         }
         
         # v2 API 엔드포인트 URL 구성
-        api_url = f"{server_url.rstrip('/')}/api/v2/scenario/generate"
+        api_url = f"{server_url.rstrip('/')}/api/webservice/v2/scenario/generate"
         
         console.print(f"[cyan]Sending {vcs_type.upper()} analysis to API server...[/cyan]")
         

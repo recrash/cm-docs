@@ -87,19 +87,7 @@ async def auto_index_documents():
         from .core.prompt_loader import index_documents_folder
         logger.info("STEP 2: prompt_loader 모듈 import 성공")
         
-        logger.info("STEP 3: 간단한 테스트 함수 호출")
-        
-        # 직접 함수 호출 테스트
-        def test_function():
-            print("[TEST] 테스트 함수 실행됨!")
-            return {"status": "test_success", "message": "테스트 완료"}
-        
-        logger.info("STEP 3.1: 테스트 함수 실행 시작")
-        test_result = test_function()
-        logger.info(f"STEP 3.2: 테스트 함수 결과: {test_result}")
-        
-        logger.info("STEP 3.3: index_documents_folder 함수 호출 시작")
-        
+        logger.info("STEP 3: index_documents_folder 함수 호출 시작")        
         # 타임아웃을 적용하여 안전하게 실행
         try:
             import time
@@ -173,6 +161,7 @@ app = FastAPI(
     title="TestscenarioMaker API",
     description="Git 분석 기반 테스트 시나리오 자동 생성 API",
     version="2.0.0",
+    root_path="/api/webservice",  # API prefix 추가
     lifespan=lifespan
 )
 
@@ -185,22 +174,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API 라우터 등록
-app.include_router(scenario.router, prefix="/api/scenario", tags=["Scenario"])
-app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
-app.include_router(rag.router, prefix="/api/rag", tags=["RAG"])
-app.include_router(files.router, prefix="/api/files", tags=["Files"])
-app.include_router(logging_router.router, prefix="/api", tags=["Logging"])
+# API 라우터 등록 - /api 프리픽스 제거 (root_path가 대체)
+app.include_router(scenario.router, prefix="/scenario", tags=["Scenario"])
+app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
+app.include_router(rag.router, prefix="/rag", tags=["RAG"])
+app.include_router(files.router, prefix="/files", tags=["Files"])
+app.include_router(logging_router.router, prefix="", tags=["Logging"])
 
-# v2 API 라우터 등록 (CLI 연동용)
-app.include_router(v2_router, prefix="/api")
+# v2 API 라우터 등록 (CLI 연동용) - /api 프리픽스 제거
+app.include_router(v2_router, prefix="")
 
 # 정적 파일 서빙 (프로덕션용)
 static_dir = Path(__file__).parent.parent / "frontend/dist"
 if static_dir.exists():
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
-@app.get("/api")
+@app.get("/")
 async def root():
     """루트 엔드포인트"""
     return {
@@ -209,7 +198,7 @@ async def root():
         "redoc": "/redoc"
     }
 
-@app.get("/api/health")
+@app.get("/health")
 async def health_check():
     """헬스 체크 엔드포인트 - RAG 시스템 초기화 상태 포함"""
     try:
