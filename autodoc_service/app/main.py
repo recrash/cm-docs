@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import List, Union, Dict, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request, APIRouter
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -47,14 +47,16 @@ async def lifespan(app: FastAPI):
     # 종료 시 실행
     logger.info("AutoDoc Service 종료")
 
-# FastAPI 앱 초기화
+# FastAPI 앱 초기화 (root_path 제거)
 app = FastAPI(
     title="AutoDoc Service",
     description="Office-less 문서 자동화 서비스",
     version="1.0.0",
-    root_path="/api/autodoc",  # API prefix 추가
     lifespan=lifespan
 )
+
+# 새로운 API 라우터 생성
+router = APIRouter(prefix="/api/autodoc")
 
 # CORS 설정 (개발 환경용)
 app.add_middleware(
@@ -66,7 +68,7 @@ app.add_middleware(
 )
 
 
-@app.get("/", response_model=Dict[str, str])
+@router.get("/", response_model=Dict[str, str])
 async def root(request: Request):
     """루트 엔드포인트"""
     client_ip = request.client.host if request.client else "unknown"
@@ -77,7 +79,7 @@ async def root(request: Request):
     return response
 
 
-@app.get("/health", response_model=HealthResponse)
+@router.get("/health", response_model=HealthResponse)
 async def health_check(request: Request):
     """헬스 체크 엔드포인트"""
     client_ip = request.client.host if request.client else "unknown"
@@ -113,7 +115,7 @@ async def health_check(request: Request):
         raise HTTPException(status_code=500, detail=f"헬스 체크 실패: {str(e)}")
 
 
-@app.post("/parse-html", response_model=ParseHtmlResponse)
+@router.post("/parse-html", response_model=ParseHtmlResponse)
 async def parse_html_endpoint(request: Request, file: UploadFile = File(...)):
     """HTML 파일 파싱 엔드포인트
     
@@ -169,7 +171,7 @@ async def parse_html_endpoint(request: Request, file: UploadFile = File(...)):
         )
 
 
-@app.post("/create-cm-word-enhanced", response_model=CreateDocumentResponse)
+@router.post("/create-cm-word-enhanced", response_model=CreateDocumentResponse)
 async def create_change_management_word_enhanced(http_request: Request, request: dict):
     """
     향상된 변경관리 Word 문서 생성 엔드포인트   
@@ -221,7 +223,7 @@ async def create_change_management_word_enhanced(http_request: Request, request:
         )
 
 
-@app.post("/create-test-excel", response_model=CreateDocumentResponse)
+@router.post("/create-test-excel", response_model=CreateDocumentResponse)
 async def create_test_scenario_excel(request: Request, data: ChangeRequest):
     """테스트 시나리오 Excel 파일 생성 엔드포인트"""
     client_ip = request.client.host if request.client else "unknown"
@@ -260,7 +262,7 @@ async def create_test_scenario_excel(request: Request, data: ChangeRequest):
         )
 
 
-@app.post("/create-cm-list", response_model=CreateDocumentResponse)
+@router.post("/create-cm-list", response_model=CreateDocumentResponse)
 async def create_change_management_list(request: Request, data: List[Union[ChangeRequest, Dict[str, Any]]]):
     """변경관리 문서 목록 Excel 파일 생성 엔드포인트"""
     client_ip = request.client.host if request.client else "unknown"
@@ -304,7 +306,7 @@ async def create_change_management_list(request: Request, data: List[Union[Chang
         )
 
 
-@app.get("/download/{filename}")
+@router.get("/download/{filename}")
 async def download_file(request: Request, filename: str):
     """파일 다운로드 엔드포인트
     
@@ -356,7 +358,7 @@ async def download_file(request: Request, filename: str):
         raise HTTPException(status_code=500, detail=f"파일 다운로드 실패: {str(e)}")
 
 
-@app.get("/templates")
+@router.get("/templates")
 async def list_templates(request: Request):
     """사용 가능한 템플릿 목록 반환"""
     client_ip = request.client.host if request.client else "unknown"
@@ -390,7 +392,7 @@ async def list_templates(request: Request):
         raise HTTPException(status_code=500, detail=f"템플릿 목록 조회 실패: {str(e)}")
 
 
-@app.get("/documents")
+@router.get("/documents")
 async def list_documents(request: Request):
     """생성된 문서 목록 반환"""
     client_ip = request.client.host if request.client else "unknown"
@@ -422,6 +424,9 @@ async def list_documents(request: Request):
         logger.exception(f"문서 목록 조회 실패: error={str(e)}")
         raise HTTPException(status_code=500, detail=f"문서 목록 조회 실패: {str(e)}")
 
+
+# 생성한 라우터를 앱에 포함
+app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn

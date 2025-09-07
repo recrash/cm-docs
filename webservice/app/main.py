@@ -3,7 +3,7 @@ FastAPI 백엔드 메인 애플리케이션
 TestscenarioMaker의 API 서버
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 # 로깅 설정 완료
 logger.info("메인 애플리케이션 로딩 완료")
+
+# 최상위 라우터 생성
+root_router = APIRouter(prefix="/api/webservice")
 
 async def startup_rag_system():
     """백엔드 시작 시 RAG 시스템 자동 초기화"""
@@ -161,7 +164,6 @@ app = FastAPI(
     title="TestscenarioMaker API",
     description="Git 분석 기반 테스트 시나리오 자동 생성 API",
     version="2.0.0",
-    root_path="/api/webservice",  # API prefix 추가
     lifespan=lifespan
 )
 
@@ -174,15 +176,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API 라우터 등록 - /api 프리픽스 제거 (root_path가 대체)
-app.include_router(scenario.router, prefix="/scenario", tags=["Scenario"])
-app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
-app.include_router(rag.router, prefix="/rag", tags=["RAG"])
-app.include_router(files.router, prefix="/files", tags=["Files"])
-app.include_router(logging_router.router, prefix="", tags=["Logging"])
+# 모든 하위 라우터를 root_router에 포함
+root_router.include_router(scenario.router, prefix="/scenario", tags=["Scenario"])
+root_router.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
+root_router.include_router(rag.router, prefix="/rag", tags=["RAG"])
+root_router.include_router(files.router, prefix="/files", tags=["Files"])
+root_router.include_router(logging_router.router, prefix="", tags=["Logging"])
+root_router.include_router(v2_router, prefix="")  # v2는 자체 prefix(/v2)를 가짐
 
-# v2 API 라우터 등록 (CLI 연동용) - /api 프리픽스 제거
-app.include_router(v2_router, prefix="")
+# 최종적으로 root_router를 앱에 포함
+app.include_router(root_router)
 
 # 정적 파일 서빙 (프로덕션용)
 static_dir = Path(__file__).parent.parent / "frontend/dist"
@@ -198,7 +201,7 @@ async def root():
         "redoc": "/redoc"
     }
 
-@app.get("/health")
+@root_router.get("/health")
 async def health_check():
     """헬스 체크 엔드포인트 - RAG 시스템 초기화 상태 포함"""
     try:

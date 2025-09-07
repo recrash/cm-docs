@@ -42,8 +42,8 @@ pipeline {
         AUTODOC_SERVICE_URL = 'http://localhost:8001'
         
         // 헬스체크 URL
-        WEBSERVICE_HEALTH_URL = 'http://localhost:8000/api/health'
-        AUTODOC_HEALTH_URL = 'http://localhost:8001/health'
+        WEBSERVICE_HEALTH_URL = 'http://localhost:8000/api/webservice/health'
+        AUTODOC_HEALTH_URL = 'http://localhost:8001/api/autodoc/health'
         
         // 배포 상태 추적
         DEPLOYMENT_STATUS = 'NONE'
@@ -137,10 +137,17 @@ pipeline {
         stage('Branch Detect') {
             steps {
                 script {
-                    env.IS_TEST = (env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/')) ? 'true' : 'false'
+                    env.IS_TEST = (env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/') || env.BRANCH_NAME == 'develop') ? 'true' : 'false'
                     env.BID = sanitizeId(env.BRANCH_NAME)
-                    env.BACK_PORT = pickPort(env.BRANCH_NAME, 8100, 200).toString()
-                    env.AUTO_PORT = pickPort(env.BRANCH_NAME, 8500, 200).toString()
+                    
+                    // develop 브랜치는 고정 포트 사용
+                    if (env.BRANCH_NAME == 'develop') {
+                        env.BACK_PORT = '8099'
+                        env.AUTO_PORT = '8199'
+                    } else {
+                        env.BACK_PORT = pickPort(env.BRANCH_NAME, 8100, 200).toString()
+                        env.AUTO_PORT = pickPort(env.BRANCH_NAME, 8500, 200).toString()
+                    }
 
                     env.WEB_BACK_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\webservice\\backend"
                     env.WEB_FRONT_DST = "C:\\nginx\\html\\tests\\${env.BID}"
@@ -557,15 +564,7 @@ pipeline {
             }
         }
         
-        stage('🚀 Deploy Develop') {
-            when { 
-                branch 'develop' 
-            }
-            steps {
-                echo 'Deploying develop to the shared dev environment...'
-                // 기존 배포 스크립트/하위 잡 호출 유지
-            }
-        }
+
         
         stage('🔍 배포 상태 확인') {
             steps {
