@@ -116,14 +116,24 @@ cd webservice/frontend && npm run build               # Production build
 ```
 
 ### Architecture Details
-- **Core modules** (`app/core/`): Refactored analysis logic (git_analyzer, excel_writer, llm_handler)
-- **FastAPI Routers** (`app/api/routers/`): Domain-based API endpoints
-  - `/api/scenario` - v1 scenario generation (legacy)
-  - `/api/v2/scenario` - v2 scenario generation (CLI integration)  
-  - `/api/v2/ws/progress/{client_id}` - WebSocket progress updates
-  - `/api/rag` - RAG system management
-  - `/api/feedback` - User feedback collection
-  - `/api/files` - File management operations
+**통합 앱 구조** (`app/`):
+- **Main Application** (`app/main.py`): FastAPI 애플리케이션 진입점 with lifespan manager
+- **Core modules** (`app/core/`): 리팩토링된 분석 로직 (config_loader, git_analyzer, excel_writer, llm_handler)
+- **API Layer** (`app/api/`): 
+  - **Routers** (`app/api/routers/`): Domain-based API endpoints
+  - **Models** (`app/api/models/`): Pydantic 데이터 모델
+- **Service Layer** (`app/services/`): 비즈니스 로직 레이어
+
+**API 엔드포인트** (prefix: `/api/webservice`):
+- `/scenario` - v1 scenario generation (legacy)
+- `/v2/scenario` - v2 scenario generation (CLI integration)  
+- `/v2/ws/progress/{client_id}` - WebSocket progress updates
+- `/rag` - RAG system management
+- `/feedback` - User feedback collection
+- `/files` - File management operations
+- `/health` - Health check with RAG status
+
+**Frontend Architecture**:
 - **React SPA** (`frontend/`): Material-UI components with real-time WebSocket updates
 - **RAG System**: ChromaDB + ko-sroberta-multitask embedding model
 - **V2 API Architecture**: CLI-focused endpoints with WebSocket-based progress tracking
@@ -136,8 +146,8 @@ cd webservice/frontend && npm run build               # Production build
 - Test files: Vitest globals, relaxed any restrictions
 
 ### Critical WebSocket Integration
-- **V1 WebSocket**: `/api/scenario/generate-ws` (legacy web interface)
-- **V2 WebSocket**: `/api/v2/ws/progress/{client_id}` (CLI integration)
+- **V1 WebSocket**: `/api/webservice/scenario/generate-ws` (legacy web interface)
+- **V2 WebSocket**: `/api/webservice/v2/ws/progress/{client_id}` (CLI integration)
 - Progress: 10% → 20% → 30% → 80% → 90% → 100%
 - Test requires ~60 second wait time
 - V2 uses structured message format with status enums (analyzing_git, generating_scenarios, etc.)
@@ -408,7 +418,7 @@ logger.info("서비스 시작...")
 ### Service Communication
 - **Port Conflicts**: Webservice (8000), AutoDoc (8001), Frontend (80)
 - **NSSM Service Status**: `nssm status webservice`, `nssm status autodoc_service`
-- **Health Endpoints**: `/api/health` (webservice), `/health` (autodoc_service)
+- **Health Endpoints**: `/api/webservice/health` (webservice), `/health` (autodoc_service)
 - **CORS Issues**: Check FastAPI middleware settings for React dev server
 
 ### Testing Patterns
