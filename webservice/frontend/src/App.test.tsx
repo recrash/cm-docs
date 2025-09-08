@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { vi } from 'vitest'
+import { render, screen, cleanup } from '@testing-library/react'
+import { vi, afterEach } from 'vitest'
 import App from './App'
 
 // Mock MainPage
@@ -17,6 +17,11 @@ vi.mock('react-router-dom', () => ({
 }))
 
 describe('App', () => {
+  // 각 테스트 후 명시적으로 cleanup 수행
+  afterEach(() => {
+    cleanup()
+  })
+
   it('renders without crashing', () => {
     render(<App />)
     expect(screen.getByText('🤖 테스트 시나리오 자동 생성기')).toBeInTheDocument()
