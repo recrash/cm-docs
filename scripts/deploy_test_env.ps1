@@ -45,20 +45,22 @@ try {
     if (($currentBranch -ne $lowerBranch) -and (Test-Path $lowerBranchPath)) {
         Write-Host "기존 소문자 브랜치 폴더 발견: $lowerBranchPath"
         
-        # 기존 서비스 중지
+        # 기존 서비스 중지 (Windows 서비스 명령어로 먼저 확인)
         try {
             $oldWebService = "cm-web-$lowerBranch"
             $oldAutoService = "cm-autodoc-$lowerBranch"
             
-            $webStatus = & $Nssm status $oldWebService 2>$null
-            if ($webStatus) {
+            # 웹서비스 정리
+            $oldWebSvc = Get-Service -Name $oldWebService -ErrorAction SilentlyContinue
+            if ($oldWebSvc) {
                 Write-Host "기존 웹서비스 중지: $oldWebService"
                 & $Nssm stop $oldWebService 2>$null
                 & $Nssm remove $oldWebService confirm 2>$null
             }
             
-            $autoStatus = & $Nssm status $oldAutoService 2>$null
-            if ($autoStatus) {
+            # AutoDoc 서비스 정리
+            $oldAutoSvc = Get-Service -Name $oldAutoService -ErrorAction SilentlyContinue
+            if ($oldAutoSvc) {
                 Write-Host "기존 AutoDoc 서비스 중지: $oldAutoService"
                 & $Nssm stop $oldAutoService 2>$null
                 & $Nssm remove $oldAutoService confirm 2>$null
@@ -229,10 +231,12 @@ try {
     $webServiceExists = $false
     
     Write-Host "웹서비스 확인: $webServiceName"
+    
+    # Windows 기본 서비스 명령어로 먼저 확인
     try {
-        $webStatus = & $Nssm status $webServiceName -ErrorAction Stop
+        $windowsService = Get-Service -Name $webServiceName -ErrorAction Stop
         $webServiceExists = $true
-        Write-Host "  -> 기존 서비스 발견 (상태: $webStatus)"
+        Write-Host "  -> 기존 서비스 발견 (Windows 상태: $($windowsService.Status))"
         
         if ($isDevelop) {
             # develop 브랜치: 서비스 재사용 (중지만 하고 삭제하지 않음)
@@ -248,14 +252,14 @@ try {
             Start-Sleep -Seconds 2
             $webServiceExists = $false
             
-            # 최종 확인
-            $finalStatus = & $Nssm status $webServiceName -ErrorAction SilentlyContinue
-            if ($finalStatus -and $finalStatus.Contains("SERVICE_")) {
-                throw "오류: 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $finalStatus)."
+            # 최종 확인 (Windows 서비스로)
+            $finalService = Get-Service -Name $webServiceName -ErrorAction SilentlyContinue
+            if ($finalService) {
+                throw "오류: 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $($finalService.Status))."
             }
             Write-Host "  -> 서비스 제거 완료"
         }
-    } catch {
+    } catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
         Write-Host "  -> 서비스가 존재하지 않음"
         $webServiceExists = $false
     }
@@ -265,10 +269,12 @@ try {
     $autodocServiceExists = $false
     
     Write-Host "AutoDoc 서비스 확인: $autodocServiceName"
+    
+    # Windows 기본 서비스 명령어로 먼저 확인
     try {
-        $autodocStatus = & $Nssm status $autodocServiceName -ErrorAction Stop
+        $windowsAutodocService = Get-Service -Name $autodocServiceName -ErrorAction Stop
         $autodocServiceExists = $true
-        Write-Host "  -> 기존 서비스 발견 (상태: $autodocStatus)"
+        Write-Host "  -> 기존 서비스 발견 (Windows 상태: $($windowsAutodocService.Status))"
         
         if ($isDevelop) {
             # develop 브랜치: 서비스 재사용
@@ -284,14 +290,14 @@ try {
             Start-Sleep -Seconds 2
             $autodocServiceExists = $false
             
-            # 최종 확인
-            $finalAutodocStatus = & $Nssm status $autodocServiceName -ErrorAction SilentlyContinue
-            if ($finalAutodocStatus -and $finalAutodocStatus.Contains("SERVICE_")) {
-                throw "오류: 서비스 '$autodocServiceName'을 제거하지 못했습니다 (상태: $finalAutodocStatus)."
+            # 최종 확인 (Windows 서비스로)
+            $finalAutodocService = Get-Service -Name $autodocServiceName -ErrorAction SilentlyContinue
+            if ($finalAutodocService) {
+                throw "오류: 서비스 '$autodocServiceName'을 제거하지 못했습니다 (상태: $($finalAutodocService.Status))."
             }
             Write-Host "  -> 서비스 제거 완료"
         }
-    } catch {
+    } catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
         Write-Host "  -> 서비스가 존재하지 않음"
         $autodocServiceExists = $false
     }
@@ -516,10 +522,19 @@ try {
     
     # 실패 시 정리
     Write-Host "실패 후 정리 시도 중..."
-    & $Nssm stop "cm-web-$Bid" 2>$null
-    & $Nssm remove "cm-web-$Bid" confirm 2>$null
-    & $Nssm stop "cm-autodoc-$Bid" 2>$null
-    & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+    
+    # Windows 서비스 확인 후 정리
+    $cleanupWebSvc = Get-Service -Name "cm-web-$Bid" -ErrorAction SilentlyContinue
+    if ($cleanupWebSvc) {
+        & $Nssm stop "cm-web-$Bid" 2>$null
+        & $Nssm remove "cm-web-$Bid" confirm 2>$null
+    }
+    
+    $cleanupAutoSvc = Get-Service -Name "cm-autodoc-$Bid" -ErrorAction SilentlyContinue
+    if ($cleanupAutoSvc) {
+        & $Nssm stop "cm-autodoc-$Bid" 2>$null
+        & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+    }
     
     $confFile = Join-Path $NginxConfDir "tests-$Bid.conf"
     Remove-Item $confFile -Force -ErrorAction SilentlyContinue
