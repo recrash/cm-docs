@@ -76,9 +76,10 @@ pipeline {
 
                         echo "Git 변경 감지 명령: ${gitCommand}"
                         changedFiles = bat(
-                            script: gitCommand,
+                            script: "@echo off && ${gitCommand}",
                             returnStdout: true
-                        ).split('\n').findAll { it.trim() }
+                        ).split('
+').findAll { it.trim() && !it.contains('>git ') && !it.contains('C:\\') }
 
                     } catch (Exception e) {
                         echo "변경 감지 실패, 전체 빌드 실행: ${e.getMessage()}"
@@ -90,7 +91,20 @@ pipeline {
                     
                     // 서비스별 변경 감지 로직
                     env.AUTODOC_CHANGED = filteredFiles.any { it.startsWith('autodoc_service/') } ? 'true' : 'false'
-                    env.WEBSERVICE_CHANGED = filteredFiles.any { it.startsWith('webservice/') } ? 'true' : 'false'
+                    
+                    // Webservice Backend 변경 감지 (frontend 제외)
+                    env.WEBSERVICE_BACKEND_CHANGED = filteredFiles.any { 
+                        it.startsWith('webservice/') && !it.startsWith('webservice/frontend/')
+                    } ? 'true' : 'false'
+                    
+                    // Webservice Frontend 변경 감지
+                    env.WEBSERVICE_FRONTEND_CHANGED = filteredFiles.any { 
+                        it.startsWith('webservice/frontend/') 
+                    } ? 'true' : 'false'
+                    
+                    // 하위 호환성 유지 (통합 테스트, 배포 상태 등에서 사용)
+                    env.WEBSERVICE_CHANGED = (env.WEBSERVICE_BACKEND_CHANGED == 'true' || 
+                                              env.WEBSERVICE_FRONTEND_CHANGED == 'true') ? 'true' : 'false'
                     env.CLI_CHANGED = filteredFiles.any { it.startsWith('cli/') } ? 'true' : 'false'
                     
                     // infra 폴더 변경 감지 (전체 배포 트리거)
@@ -109,7 +123,8 @@ pipeline {
                     📊 변경 감지 결과
                     ===========================================
                     • AutoDoc Service: ${env.AUTODOC_CHANGED}
-                    • Webservice: ${env.WEBSERVICE_CHANGED}
+                    • Webservice Backend: ${env.WEBSERVICE_BACKEND_CHANGED}
+                    • Webservice Frontend: ${env.WEBSERVICE_FRONTEND_CHANGED}
                     • CLI: ${env.CLI_CHANGED}
                     • Infrastructure: ${env.INFRA_CHANGED}
                     • Root/Config: ${env.ROOT_CHANGED}
@@ -118,7 +133,8 @@ pipeline {
                     빌드 대상 파일: ${filteredFiles.size()}개 (*.md 제외)
 
                     변경된 파일들:
-                    ${changedFiles.join('\n')}
+                    ${filteredFiles.join('
+')}
                     ===========================================
                     """
                 }
@@ -189,7 +205,7 @@ pipeline {
                 
                 stage('🌐 Webservice Backend CI/CD') {
                     when {
-                        expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
+                        expression { env.WEBSERVICE_BACKEND_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
                     }
                     steps {
                         script {
@@ -213,7 +229,7 @@ pipeline {
                 
                 stage('🎨 Webservice Frontend CI/CD') {
                     when {
-                        expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
+                        expression { env.WEBSERVICE_FRONTEND_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
                     }
                     steps {
                         script {
@@ -278,7 +294,7 @@ pipeline {
                 stage('E2E 테스트') {
                     when {
                         allOf {
-                            expression { env.WEBSERVICE_CHANGED == 'true' }
+                            expression { env.WEBSERVICE_FRONTEND_CHANGED == 'true' }
                             expression { env.WEBSERVICE_BACKEND_STATUS == 'SUCCESS' }
                             expression { env.WEBSERVICE_FRONTEND_STATUS == 'SUCCESS' }
                         }
