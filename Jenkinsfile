@@ -59,64 +59,40 @@ pipeline {
             steps {
                 checkout scm
                 script {
-                    // 변경된 파일 분석 (최근 푸시 기준)
                     def changedFiles = []
                     try {
-                        // Jenkins에서 제공하는 변수들을 활용해 푸시된 모든 커밋의 변경사항 감지
+                        // PUSH 기준 변경 감지를 위한 가장 정확한 방법
+                        // GIT_PREVIOUS_COMMIT: Push 직전 커밋 ID
+                        // GIT_COMMIT: Push된 최신 커밋 ID (HEAD와 동일)
                         def gitCommand
-                        if (env.CHANGE_TARGET) {
-                            // PR인 경우: target 브랜치와 비교
-                            gitCommand = "git diff origin/${env.CHANGE_TARGET}...HEAD --name-only"
-                        } else if (env.GIT_PREVIOUS_SUCCESSFUL_COMMIT) {
-                            // 이전 성공한 빌드와 비교하되, 너무 오래된 경우 제한
-                            def commitCount = bat(
-                                script: "git rev-list --count ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT}..HEAD",
-                                returnStdout: true
-                            ).trim().toInteger()
-                            
-                            if (commitCount <= 10) {
-                                // 10개 이하의 커밋이면 이전 성공 빌드와 비교
-                                gitCommand = "git diff ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT} HEAD --name-only"
-                                echo "이전 성공 빌드 기준 비교 (${commitCount}개 커밋)"
-                            } else {
-                                // 10개 초과면 최근 5개 커밋만 확인
-                                gitCommand = "git diff HEAD~5 HEAD --name-only"
-                                echo "이전 성공 빌드가 너무 오래됨 (${commitCount}개), 최근 5개 커밋만 확인"
-                            }
+                        if (env.GIT_PREVIOUS_COMMIT) {
+                            echo "Push 기준 변경 감지: ${env.GIT_PREVIOUS_COMMIT}..${env.GIT_COMMIT}"
+                            gitCommand = "git diff --name-only ${env.GIT_PREVIOUS_COMMIT} ${env.GIT_COMMIT}"
                         } else {
-                            // 대안: 최근 origin/main 또는 origin/develop과 비교
-                            def targetBranch = env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/') ? 'main' : 'main'
-                            gitCommand = "git diff origin/${targetBranch}...HEAD --name-only || git diff HEAD~5 HEAD --name-only"
+                            // 이전 커밋 정보가 없는 경우 (예: 새 브랜치의 첫 빌드) 최신 커밋 하나만 비교
+                            echo "이전 커밋을 찾을 수 없어 최신 커밋만 비교합니다."
+                            gitCommand = "git diff --name-only HEAD~1 HEAD"
                         }
-                        
+
                         echo "Git 변경 감지 명령: ${gitCommand}"
                         changedFiles = bat(
                             script: gitCommand,
                             returnStdout: true
-                        ).split('\n').findAll { it.trim() && !it.startsWith('C:\\') }
-                        
-                        // 만약 변경파일이 없다면 최근 5개 커밋 범위에서 확인
-                        if (changedFiles.isEmpty()) {
-                            echo "변경파일이 감지되지 않음, 최근 5개 커밋 범위로 재시도"
-                            changedFiles = bat(
-                                script: 'git diff HEAD~5 HEAD --name-only',
-                                returnStdout: true
-                            ).split('\n').findAll { it.trim() && !it.startsWith('C:\\') }
-                        }
-                        
+                        ).split('\n').findAll { it.trim() }
+
                     } catch (Exception e) {
                         echo "변경 감지 실패, 전체 빌드 실행: ${e.getMessage()}"
                         changedFiles = ['webservice/', 'autodoc_service/', 'cli/']
                     }
-                    
-                    // 서비스별 변경 감지
-                    env.AUTODOC_CHANGED = changedFiles.any { it.contains('autodoc_service/') } ? 'true' : 'false'
-                    env.WEBSERVICE_CHANGED = changedFiles.any { it.contains('webservice/') } ? 'true' : 'false'
-                    env.CLI_CHANGED = changedFiles.any { it.contains('cli/') } ? 'true' : 'false'
+
+                    // 서비스별 변경 감지 로직
+                    env.AUTODOC_CHANGED = changedFiles.any { it.startsWith('autodoc_service/') } ? 'true' : 'false'
+                    env.WEBSERVICE_CHANGED = changedFiles.any { it.startsWith('webservice/') } ? 'true' : 'false'
+                    env.CLI_CHANGED = changedFiles.any { it.startsWith('cli/') } ? 'true' : 'false'
                     env.ROOT_CHANGED = changedFiles.any { 
-                        it.contains('Jenkinsfile') || it.contains('README.md') || it.contains('CLAUDE.md')
+                        it.contains('Jenkinsfile') || it.contains('README.md')
                     } ? 'true' : 'false'
-                    
+
                     echo """
                     ===========================================
                     📊 변경 감지 결과
@@ -125,7 +101,7 @@ pipeline {
                     • Webservice: ${env.WEBSERVICE_CHANGED}
                     • CLI: ${env.CLI_CHANGED}
                     • Root/Config: ${env.ROOT_CHANGED}
-                    
+
                     변경된 파일들:
                     ${changedFiles.join('\n')}
                     ===========================================
