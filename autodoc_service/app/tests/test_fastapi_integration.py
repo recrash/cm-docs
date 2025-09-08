@@ -53,7 +53,7 @@ class TestFastAPIIntegration:
     
     def test_root_endpoint(self, client):
         """루트 엔드포인트 테스트"""
-        response = client.get("/")
+        response = client.get("/api/autodoc/")
         
         assert response.status_code == 200
         data = response.json()
@@ -62,7 +62,7 @@ class TestFastAPIIntegration:
     
     def test_health_check_endpoint(self, client):
         """헬스 체크 엔드포인트 테스트"""
-        response = client.get("/health")
+        response = client.get("/api/autodoc/health")
         
         assert response.status_code == 200
         data = response.json()
@@ -79,7 +79,7 @@ class TestFastAPIIntegration:
         html_bytes = sample_html_content.encode('utf-8')
         files = {"file": ("test.html", BytesIO(html_bytes), "text/html")}
         
-        response = client.post("/parse-html", files=files)
+        response = client.post("/api/autodoc/parse-html", files=files)
         
         assert response.status_code == 200
         data = response.json()
@@ -94,7 +94,7 @@ class TestFastAPIIntegration:
         text_content = "This is not HTML"
         files = {"file": ("test.txt", BytesIO(text_content.encode('utf-8')), "text/plain")}
 
-        response = client.post("/parse-html", files=files)
+        response = client.post("/api/autodoc/parse-html", files=files)
 
         assert response.status_code == 200
         data = response.json()
@@ -107,7 +107,7 @@ class TestFastAPIIntegration:
             "change_request": sample_change_request_data,
             # raw_data는 선택사항. 최소 케이스로 비워둠
         }
-        response = client.post("/create-cm-word-enhanced", json=payload)
+        response = client.post("/api/autodoc/create-cm-word-enhanced", json=payload)
 
         # 템플릿이 있다면 성공, 없다면 404
         if response.status_code == 200:
@@ -134,14 +134,14 @@ class TestFastAPIIntegration:
             "title": "테스트 제목"
         }
 
-        response = client.post("/create-cm-word-enhanced", json={"change_request": incomplete_data})
+        response = client.post("/api/autodoc/create-cm-word-enhanced", json={"change_request": incomplete_data})
 
         assert response.status_code == 400
         assert "change_id는 필수입니다" in response.json()["detail"]
     
     def test_create_test_excel_endpoint_success(self, client, sample_change_request_data):
         """Excel 테스트 시나리오 생성 엔드포인트 성공 테스트"""
-        response = client.post("/create-test-excel", json=sample_change_request_data)
+        response = client.post("/api/autodoc/create-test-excel", json=sample_change_request_data)
         
         # 템플릿이 있다면 성공, 없다면 404
         if response.status_code == 200:
@@ -159,7 +159,7 @@ class TestFastAPIIntegration:
         """변경관리 목록 생성 엔드포인트 성공 테스트"""
         list_data = [sample_change_request_data]
         
-        response = client.post("/create-cm-list", json=list_data)
+        response = client.post("/api/autodoc/create-cm-list", json=list_data)
         
         # 템플릿이 있다면 성공, 없다면 404
         if response.status_code == 200:
@@ -175,7 +175,7 @@ class TestFastAPIIntegration:
     
     def test_create_cm_list_endpoint_empty_data(self, client):
         """변경관리 목록 빈 데이터 테스트"""
-        response = client.post("/create-cm-list", json=[])
+        response = client.post("/api/autodoc/create-cm-list", json=[])
 
         # 실제 구현은 내부에서 예외를 잡고 200 + ok=False를 반환함
         assert response.status_code == 200
@@ -185,7 +185,7 @@ class TestFastAPIIntegration:
     
     def test_download_file_endpoint_not_found(self, client):
         """파일 다운로드 존재하지 않는 파일 테스트"""
-        response = client.get("/download/nonexistent_file.docx")
+        response = client.get("/api/autodoc/download/nonexistent_file.docx")
         
         assert response.status_code == 404
         assert "파일을 찾을 수 없습니다" in response.json()["detail"]
@@ -193,14 +193,14 @@ class TestFastAPIIntegration:
     def test_download_file_endpoint_path_traversal_attack(self, client):
         """파일 다운로드 경로 순회 공격 방어 테스트"""
         # 상위 디렉터리 접근 시도
-        response = client.get("/download/../../../etc/passwd")
+        response = client.get("/api/autodoc/download/../../../etc/passwd")
 
         # Starlette 라우터가 경로를 다른 엔드포인트로 매칭하여 404가 먼저 발생할 수 있음
         assert response.status_code in (403, 404)
     
     def test_list_templates_endpoint(self, client):
         """템플릿 목록 조회 엔드포인트 테스트"""
-        response = client.get("/templates")
+        response = client.get("/api/autodoc/templates")
         
         assert response.status_code == 200
         data = response.json()
@@ -218,7 +218,7 @@ class TestFastAPIIntegration:
     
     def test_list_documents_endpoint(self, client):
         """문서 목록 조회 엔드포인트 테스트"""
-        response = client.get("/documents")
+        response = client.get("/api/autodoc/documents")
         
         assert response.status_code == 200
         data = response.json()
