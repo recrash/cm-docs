@@ -263,7 +263,7 @@ class TestAPIIntegration:
             result = await api_client.health_check()
 
             assert result is True
-            mock_get.assert_called_once_with("/api/health")
+            mock_get.assert_called_once_with("/api/webservice/health")
 
 
 @pytest.mark.integration

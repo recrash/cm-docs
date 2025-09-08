@@ -217,56 +217,83 @@ try {
    # 5. NSSM 서비스 등록
     Write-Host "`n단계 5: NSSM 서비스 등록 중..."
 
-    # --- 웹서비스 정리 (최종 수정된 로직) ---
-    $webServiceName = "cm-web-$Bid"
-    Write-Host "기존 웹서비스 확인 및 정리: $webServiceName"
-    try {
-        # 서비스 상태를 확인. 서비스가 존재하면 $webStatus에 상태 문자열이 담김
-        $webStatus = & $Nssm status $webServiceName -ErrorAction Stop # 에러를 확실히 catch하기 위해 Stop으로 설정
-        
-        # 이 라인까지 실행되었다는 것은 서비스가 존재한다는 의미
-        Write-Host "  -> 기존 서비스 발견 (상태: $webStatus). 제거를 시도합니다..."
-
-        # 서비스가 존재하므로 중지 및 제거
-        & $Nssm stop $webServiceName
-        Start-Sleep -Seconds 2
-        & $Nssm remove $webServiceName confirm
-        Start-Sleep -Seconds 2
-
-        # 최종 확인
-        $finalStatus = & $Nssm status $webServiceName -ErrorAction SilentlyContinue
-        if ($finalStatus -and $finalStatus.Contains("SERVICE_")) {
-            throw "오류: 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $finalStatus)."
-        }
-        Write-Host "  -> 서비스 제거 최종 확인 완료."
-
-    } catch {
-        # 'nssm status'가 실패하면 이 catch 블록으로 진입함. 즉, 서비스가 없다는 의미.
-        # $_.Exception.Message 에 "Can't open service!" 가 담겨있음
-        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다. (메시지: $($_.Exception.Message.Trim()))"
+    # develop 브랜치 여부 확인
+    $isDevelop = $Bid -eq "develop"
+    
+    if ($isDevelop) {
+        Write-Host "** develop 브랜치 감지: 서비스 재사용 모드 **"
     }
 
+    # --- 웹서비스 처리 ---
+    $webServiceName = "cm-web-$Bid"
+    $webServiceExists = $false
+    
+    Write-Host "웹서비스 확인: $webServiceName"
+    try {
+        $webStatus = & $Nssm status $webServiceName -ErrorAction Stop
+        $webServiceExists = $true
+        Write-Host "  -> 기존 서비스 발견 (상태: $webStatus)"
+        
+        if ($isDevelop) {
+            # develop 브랜치: 서비스 재사용 (중지만 하고 삭제하지 않음)
+            Write-Host "  -> develop 브랜치: 서비스 재사용을 위해 중지만 수행"
+            & $Nssm stop $webServiceName
+            Start-Sleep -Seconds 2
+        } else {
+            # 다른 브랜치: 기존 로직 (삭제 후 재생성)
+            Write-Host "  -> 일반 브랜치: 서비스 제거 후 재생성"
+            & $Nssm stop $webServiceName
+            Start-Sleep -Seconds 2
+            & $Nssm remove $webServiceName confirm
+            Start-Sleep -Seconds 2
+            $webServiceExists = $false
+            
+            # 최종 확인
+            $finalStatus = & $Nssm status $webServiceName -ErrorAction SilentlyContinue
+            if ($finalStatus -and $finalStatus.Contains("SERVICE_")) {
+                throw "오류: 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $finalStatus)."
+            }
+            Write-Host "  -> 서비스 제거 완료"
+        }
+    } catch {
+        Write-Host "  -> 서비스가 존재하지 않음"
+        $webServiceExists = $false
+    }
 
-    # --- AutoDoc 서비스 정리 (동일하게 수정) ---
+    # --- AutoDoc 서비스 처리 ---
     $autodocServiceName = "cm-autodoc-$Bid"
-    Write-Host "기존 AutoDoc 서비스 확인 및 정리: $autodocServiceName"
+    $autodocServiceExists = $false
+    
+    Write-Host "AutoDoc 서비스 확인: $autodocServiceName"
     try {
         $autodocStatus = & $Nssm status $autodocServiceName -ErrorAction Stop
-        Write-Host "  -> 기존 서비스 발견 (상태: $autodocStatus). 제거를 시도합니다..."
-
-        & $Nssm stop $autodocServiceName
-        Start-Sleep -Seconds 2
-        & $Nssm remove $autodocServiceName confirm
-        Start-Sleep -Seconds 2
-
-        $finalAutodocStatus = & $Nssm status $autodocServiceName -ErrorAction SilentlyContinue
-        if ($finalAutodocStatus -and $finalAutodocStatus.Contains("SERVICE_")) {
-            throw "오류: 서비스 '$autodocServiceName'을 제거하지 못했습니다 (상태: $finalAutodocStatus)."
-        }
-        Write-Host "  -> 서비스 제거 최종 확인 완료."
+        $autodocServiceExists = $true
+        Write-Host "  -> 기존 서비스 발견 (상태: $autodocStatus)"
         
+        if ($isDevelop) {
+            # develop 브랜치: 서비스 재사용
+            Write-Host "  -> develop 브랜치: 서비스 재사용을 위해 중지만 수행"
+            & $Nssm stop $autodocServiceName
+            Start-Sleep -Seconds 2
+        } else {
+            # 다른 브랜치: 기존 로직
+            Write-Host "  -> 일반 브랜치: 서비스 제거 후 재생성"
+            & $Nssm stop $autodocServiceName
+            Start-Sleep -Seconds 2
+            & $Nssm remove $autodocServiceName confirm
+            Start-Sleep -Seconds 2
+            $autodocServiceExists = $false
+            
+            # 최종 확인
+            $finalAutodocStatus = & $Nssm status $autodocServiceName -ErrorAction SilentlyContinue
+            if ($finalAutodocStatus -and $finalAutodocStatus.Contains("SERVICE_")) {
+                throw "오류: 서비스 '$autodocServiceName'을 제거하지 못했습니다 (상태: $finalAutodocStatus)."
+            }
+            Write-Host "  -> 서비스 제거 완료"
+        }
     } catch {
-        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다. (메시지: $($_.Exception.Message.Trim()))"
+        Write-Host "  -> 서비스가 존재하지 않음"
+        $autodocServiceExists = $false
     }
 
 
@@ -306,27 +333,37 @@ try {
         Write-Host "    - AutoDoc 로그 폴더 삭제 완료: $AutoDocLogPath"
     }
     
-    # 웹서비스 서비스 등록
-    Write-Host "웹서비스 서비스 등록 중..."
-    # & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn webservice.app.main:app --host 0.0.0.0 --port $BackPort"
-    & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
-    & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
-    & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
-    & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
-    & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
-    & $Nssm start "cm-web-$Bid"
-    Write-Host "웹서비스 서비스 시작 완료 (Port: $BackPort)"
+    # 웹서비스 서비스 등록 또는 재시작
+    if ($isDevelop -and $webServiceExists) {
+        Write-Host "웹서비스 재시작 중 (develop 브랜치)..."
+        & $Nssm start "cm-web-$Bid"
+        Write-Host "웹서비스 재시작 완료 (Port: $BackPort)"
+    } else {
+        Write-Host "웹서비스 서비스 등록 중..."
+        & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
+        & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
+        & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
+        & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
+        & $Nssm start "cm-web-$Bid"
+        Write-Host "웹서비스 서비스 시작 완료 (Port: $BackPort)"
+    }
     
-    # AutoDoc 서비스 등록
-    Write-Host "AutoDoc 서비스 등록 중..."
-    & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
-    # & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn autodoc_service.app.main:app --host 0.0.0.0 --port $AutoPort"
-    & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
-    & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
-    & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
-    & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
-    & $Nssm start "cm-autodoc-$Bid"
-    Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
+    # AutoDoc 서비스 등록 또는 재시작
+    if ($isDevelop -and $autodocServiceExists) {
+        Write-Host "AutoDoc 서비스 재시작 중 (develop 브랜치)..."
+        & $Nssm start "cm-autodoc-$Bid"
+        Write-Host "AutoDoc 서비스 재시작 완료 (Port: $AutoPort)"
+    } else {
+        Write-Host "AutoDoc 서비스 등록 중..."
+        & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
+        & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
+        & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
+        & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
+        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
+        & $Nssm start "cm-autodoc-$Bid"
+        Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
+    }
     
     # 6. Nginx 설정 (Include 방식: Upstream + Location 분리)
     Write-Host "`n단계 6: Nginx 설정 적용 중..."

@@ -484,7 +484,7 @@ class APIClient:
             서버 상태 (True: 정상, False: 비정상)
         """
         try:
-            response = await self.client.get("/api/health")  # /api/v1/health → /api/health
+            response = await self.client.get("/api/webservice/health")  # 변경된 API 경로
             return response.is_success
 
         except Exception as e:

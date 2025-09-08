@@ -216,7 +216,7 @@ test.describe('v2 백엔드 API 직접 테스트', () => {
     console.log('✅ v2 상태 조회 API 테스트 성공')
     
     // 헬스 체크 API 테스트
-    const healthResponse = await request.get(`${BACKEND_URL}/api/health`)
+    const healthResponse = await request.get(`${BACKEND_URL}/api/webservice/health`)
     expect(healthResponse.status()).toBe(200)
     
     const healthData = await healthResponse.json()

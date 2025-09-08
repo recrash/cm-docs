@@ -173,10 +173,7 @@ pipeline {
         
         stage('Deploy') {
             when { 
-                anyOf {
-                    branch 'main'
-                    branch 'develop'  
-                }
+                branch 'main' // 'develop' 제거
             }
             steps {
                 script {
@@ -366,6 +363,13 @@ pipeline {
         
         
         stage('Store Branch Wheel') {
+            when {
+                expression {
+                    def branch = params.BRANCH ?: env.BRANCH_NAME ?: ''
+                    // develop 브랜치 추가
+                    return branch.startsWith('feature/') || branch.startsWith('hotfix/') || branch == 'develop'
+                }
+            }
             steps {
                 // 브랜치별 wheel 저장 (테스트 배포용)
                 script {
