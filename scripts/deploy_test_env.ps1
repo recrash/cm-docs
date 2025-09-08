@@ -45,20 +45,22 @@ try {
     if (($currentBranch -ne $lowerBranch) -and (Test-Path $lowerBranchPath)) {
         Write-Host "기존 소문자 브랜치 폴더 발견: $lowerBranchPath"
         
-        # 기존 서비스 중지
+        # 기존 서비스 중지 (Windows 서비스 명령어로 먼저 확인)
         try {
             $oldWebService = "cm-web-$lowerBranch"
             $oldAutoService = "cm-autodoc-$lowerBranch"
             
-            $webStatus = & $Nssm status $oldWebService 2>$null
-            if ($webStatus) {
+            # 웹서비스 정리
+            $oldWebSvc = Get-Service -Name $oldWebService -ErrorAction SilentlyContinue
+            if ($oldWebSvc) {
                 Write-Host "기존 웹서비스 중지: $oldWebService"
                 & $Nssm stop $oldWebService 2>$null
                 & $Nssm remove $oldWebService confirm 2>$null
             }
             
-            $autoStatus = & $Nssm status $oldAutoService 2>$null
-            if ($autoStatus) {
+            # AutoDoc 서비스 정리
+            $oldAutoSvc = Get-Service -Name $oldAutoService -ErrorAction SilentlyContinue
+            if ($oldAutoSvc) {
                 Write-Host "기존 AutoDoc 서비스 중지: $oldAutoService"
                 & $Nssm stop $oldAutoService 2>$null
                 & $Nssm remove $oldAutoService confirm 2>$null
@@ -217,56 +219,87 @@ try {
    # 5. NSSM 서비스 등록
     Write-Host "`n단계 5: NSSM 서비스 등록 중..."
 
-    # --- 웹서비스 정리 (최종 수정된 로직) ---
-    $webServiceName = "cm-web-$Bid"
-    Write-Host "기존 웹서비스 확인 및 정리: $webServiceName"
-    try {
-        # 서비스 상태를 확인. 서비스가 존재하면 $webStatus에 상태 문자열이 담김
-        $webStatus = & $Nssm status $webServiceName -ErrorAction Stop # 에러를 확실히 catch하기 위해 Stop으로 설정
-        
-        # 이 라인까지 실행되었다는 것은 서비스가 존재한다는 의미
-        Write-Host "  -> 기존 서비스 발견 (상태: $webStatus). 제거를 시도합니다..."
-
-        # 서비스가 존재하므로 중지 및 제거
-        & $Nssm stop $webServiceName
-        Start-Sleep -Seconds 2
-        & $Nssm remove $webServiceName confirm
-        Start-Sleep -Seconds 2
-
-        # 최종 확인
-        $finalStatus = & $Nssm status $webServiceName -ErrorAction SilentlyContinue
-        if ($finalStatus -and $finalStatus.Contains("SERVICE_")) {
-            throw "오류: 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $finalStatus)."
-        }
-        Write-Host "  -> 서비스 제거 최종 확인 완료."
-
-    } catch {
-        # 'nssm status'가 실패하면 이 catch 블록으로 진입함. 즉, 서비스가 없다는 의미.
-        # $_.Exception.Message 에 "Can't open service!" 가 담겨있음
-        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다. (메시지: $($_.Exception.Message.Trim()))"
+    # develop 브랜치 여부 확인
+    $isDevelop = $Bid -eq "develop"
+    
+    if ($isDevelop) {
+        Write-Host "** develop 브랜치 감지: 서비스 재사용 모드 **"
     }
 
-
-    # --- AutoDoc 서비스 정리 (동일하게 수정) ---
-    $autodocServiceName = "cm-autodoc-$Bid"
-    Write-Host "기존 AutoDoc 서비스 확인 및 정리: $autodocServiceName"
+    # --- 웹서비스 처리 ---
+    $webServiceName = "cm-web-$Bid"
+    $webServiceExists = $false
+    
+    Write-Host "웹서비스 확인: $webServiceName"
+    
+    # Windows 기본 서비스 명령어로 먼저 확인
     try {
-        $autodocStatus = & $Nssm status $autodocServiceName -ErrorAction Stop
-        Write-Host "  -> 기존 서비스 발견 (상태: $autodocStatus). 제거를 시도합니다..."
-
-        & $Nssm stop $autodocServiceName
-        Start-Sleep -Seconds 2
-        & $Nssm remove $autodocServiceName confirm
-        Start-Sleep -Seconds 2
-
-        $finalAutodocStatus = & $Nssm status $autodocServiceName -ErrorAction SilentlyContinue
-        if ($finalAutodocStatus -and $finalAutodocStatus.Contains("SERVICE_")) {
-            throw "오류: 서비스 '$autodocServiceName'을 제거하지 못했습니다 (상태: $finalAutodocStatus)."
-        }
-        Write-Host "  -> 서비스 제거 최종 확인 완료."
+        $windowsService = Get-Service -Name $webServiceName -ErrorAction Stop
+        $webServiceExists = $true
+        Write-Host "  -> 기존 서비스 발견 (Windows 상태: $($windowsService.Status))"
         
-    } catch {
-        Write-Host "  -> 기존 서비스가 없어 정리 작업을 건너뜁니다. (메시지: $($_.Exception.Message.Trim()))"
+        if ($isDevelop) {
+            # develop 브랜치: 서비스 재사용 (중지만 하고 삭제하지 않음)
+            Write-Host "  -> develop 브랜치: 서비스 재사용을 위해 중지만 수행"
+            & $Nssm stop $webServiceName
+            Start-Sleep -Seconds 2
+        } else {
+            # 다른 브랜치: 기존 로직 (삭제 후 재생성)
+            Write-Host "  -> 일반 브랜치: 서비스 제거 후 재생성"
+            & $Nssm stop $webServiceName
+            Start-Sleep -Seconds 2
+            & $Nssm remove $webServiceName confirm
+            Start-Sleep -Seconds 2
+            $webServiceExists = $false
+            
+            # 최종 확인 (Windows 서비스로)
+            $finalService = Get-Service -Name $webServiceName -ErrorAction SilentlyContinue
+            if ($finalService) {
+                throw "오류: 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $($finalService.Status))."
+            }
+            Write-Host "  -> 서비스 제거 완료"
+        }
+    } catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
+        Write-Host "  -> 서비스가 존재하지 않음"
+        $webServiceExists = $false
+    }
+
+    # --- AutoDoc 서비스 처리 ---
+    $autodocServiceName = "cm-autodoc-$Bid"
+    $autodocServiceExists = $false
+    
+    Write-Host "AutoDoc 서비스 확인: $autodocServiceName"
+    
+    # Windows 기본 서비스 명령어로 먼저 확인
+    try {
+        $windowsAutodocService = Get-Service -Name $autodocServiceName -ErrorAction Stop
+        $autodocServiceExists = $true
+        Write-Host "  -> 기존 서비스 발견 (Windows 상태: $($windowsAutodocService.Status))"
+        
+        if ($isDevelop) {
+            # develop 브랜치: 서비스 재사용
+            Write-Host "  -> develop 브랜치: 서비스 재사용을 위해 중지만 수행"
+            & $Nssm stop $autodocServiceName
+            Start-Sleep -Seconds 2
+        } else {
+            # 다른 브랜치: 기존 로직
+            Write-Host "  -> 일반 브랜치: 서비스 제거 후 재생성"
+            & $Nssm stop $autodocServiceName
+            Start-Sleep -Seconds 2
+            & $Nssm remove $autodocServiceName confirm
+            Start-Sleep -Seconds 2
+            $autodocServiceExists = $false
+            
+            # 최종 확인 (Windows 서비스로)
+            $finalAutodocService = Get-Service -Name $autodocServiceName -ErrorAction SilentlyContinue
+            if ($finalAutodocService) {
+                throw "오류: 서비스 '$autodocServiceName'을 제거하지 못했습니다 (상태: $($finalAutodocService.Status))."
+            }
+            Write-Host "  -> 서비스 제거 완료"
+        }
+    } catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
+        Write-Host "  -> 서비스가 존재하지 않음"
+        $autodocServiceExists = $false
     }
 
 
@@ -306,27 +339,37 @@ try {
         Write-Host "    - AutoDoc 로그 폴더 삭제 완료: $AutoDocLogPath"
     }
     
-    # 웹서비스 서비스 등록
-    Write-Host "웹서비스 서비스 등록 중..."
-    # & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn webservice.app.main:app --host 0.0.0.0 --port $BackPort"
-    & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
-    & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
-    & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
-    & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
-    & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
-    & $Nssm start "cm-web-$Bid"
-    Write-Host "웹서비스 서비스 시작 완료 (Port: $BackPort)"
+    # 웹서비스 서비스 등록 또는 재시작
+    if ($isDevelop -and $webServiceExists) {
+        Write-Host "웹서비스 재시작 중 (develop 브랜치)..."
+        & $Nssm start "cm-web-$Bid"
+        Write-Host "웹서비스 재시작 완료 (Port: $BackPort)"
+    } else {
+        Write-Host "웹서비스 서비스 등록 중..."
+        & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
+        & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
+        & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
+        & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
+        & $Nssm start "cm-web-$Bid"
+        Write-Host "웹서비스 서비스 시작 완료 (Port: $BackPort)"
+    }
     
-    # AutoDoc 서비스 등록
-    Write-Host "AutoDoc 서비스 등록 중..."
-    & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
-    # & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn autodoc_service.app.main:app --host 0.0.0.0 --port $AutoPort"
-    & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
-    & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
-    & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
-    & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
-    & $Nssm start "cm-autodoc-$Bid"
-    Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
+    # AutoDoc 서비스 등록 또는 재시작
+    if ($isDevelop -and $autodocServiceExists) {
+        Write-Host "AutoDoc 서비스 재시작 중 (develop 브랜치)..."
+        & $Nssm start "cm-autodoc-$Bid"
+        Write-Host "AutoDoc 서비스 재시작 완료 (Port: $AutoPort)"
+    } else {
+        Write-Host "AutoDoc 서비스 등록 중..."
+        & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
+        & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
+        & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
+        & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
+        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
+        & $Nssm start "cm-autodoc-$Bid"
+        Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
+    }
     
     # 6. Nginx 설정 (Include 방식: Upstream + Location 분리)
     Write-Host "`n단계 6: Nginx 설정 적용 중..."
@@ -479,10 +522,19 @@ try {
     
     # 실패 시 정리
     Write-Host "실패 후 정리 시도 중..."
-    & $Nssm stop "cm-web-$Bid" 2>$null
-    & $Nssm remove "cm-web-$Bid" confirm 2>$null
-    & $Nssm stop "cm-autodoc-$Bid" 2>$null
-    & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+    
+    # Windows 서비스 확인 후 정리
+    $cleanupWebSvc = Get-Service -Name "cm-web-$Bid" -ErrorAction SilentlyContinue
+    if ($cleanupWebSvc) {
+        & $Nssm stop "cm-web-$Bid" 2>$null
+        & $Nssm remove "cm-web-$Bid" confirm 2>$null
+    }
+    
+    $cleanupAutoSvc = Get-Service -Name "cm-autodoc-$Bid" -ErrorAction SilentlyContinue
+    if ($cleanupAutoSvc) {
+        & $Nssm stop "cm-autodoc-$Bid" 2>$null
+        & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+    }
     
     $confFile = Join-Path $NginxConfDir "tests-$Bid.conf"
     Remove-Item $confFile -Force -ErrorAction SilentlyContinue

@@ -42,8 +42,8 @@ pipeline {
         AUTODOC_SERVICE_URL = 'http://localhost:8001'
         
         // 헬스체크 URL
-        WEBSERVICE_HEALTH_URL = 'http://localhost:8000/api/health'
-        AUTODOC_HEALTH_URL = 'http://localhost:8001/health'
+        WEBSERVICE_HEALTH_URL = 'http://localhost:8000/api/webservice/health'
+        AUTODOC_HEALTH_URL = 'http://localhost:8001/api/autodoc/health'
         
         // 배포 상태 추적
         DEPLOYMENT_STATUS = 'NONE'
@@ -59,73 +59,88 @@ pipeline {
             steps {
                 checkout scm
                 script {
-                    // 변경된 파일 분석 (최근 푸시 기준)
                     def changedFiles = []
                     try {
-                        // Jenkins에서 제공하는 변수들을 활용해 푸시된 모든 커밋의 변경사항 감지
+                        // 마지막 성공한 빌드의 커밋과 비교하여 변경 감지
                         def gitCommand
-                        if (env.CHANGE_TARGET) {
-                            // PR인 경우: target 브랜치와 비교
-                            gitCommand = "git diff origin/${env.CHANGE_TARGET}...HEAD --name-only"
-                        } else if (env.GIT_PREVIOUS_SUCCESSFUL_COMMIT) {
-                            // 이전 성공한 빌드와 비교하되, 너무 오래된 경우 제한
-                            def commitCount = bat(
-                                script: "git rev-list --count ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT}..HEAD",
-                                returnStdout: true
-                            ).trim().toInteger()
-                            
-                            if (commitCount <= 10) {
-                                // 10개 이하의 커밋이면 이전 성공 빌드와 비교
-                                gitCommand = "git diff ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT} HEAD --name-only"
-                                echo "이전 성공 빌드 기준 비교 (${commitCount}개 커밋)"
-                            } else {
-                                // 10개 초과면 최근 5개 커밋만 확인
-                                gitCommand = "git diff HEAD~5 HEAD --name-only"
-                                echo "이전 성공 빌드가 너무 오래됨 (${commitCount}개), 최근 5개 커밋만 확인"
-                            }
-                        } else {
-                            // 대안: 최근 origin/main 또는 origin/develop과 비교
-                            def targetBranch = env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/') ? 'main' : 'main'
-                            gitCommand = "git diff origin/${targetBranch}...HEAD --name-only || git diff HEAD~5 HEAD --name-only"
+                        def previousCommit = null
+                        
+                        // Jenkins 내장 환경 변수로 이전 성공한 빌드의 커밋 ID 가져오기
+                        if (env.GIT_PREVIOUS_SUCCESSFUL_COMMIT) {
+                            previousCommit = env.GIT_PREVIOUS_SUCCESSFUL_COMMIT
+                            echo "이전 성공 빌드의 커밋: ${previousCommit}"
+                        } else if (env.GIT_PREVIOUS_COMMIT) {
+                            // 이전 커밋 정보가 있으면 사용
+                            previousCommit = env.GIT_PREVIOUS_COMMIT
+                            echo "이전 커밋: ${previousCommit}"
                         }
                         
+                        if (previousCommit) {
+                            echo "마지막 성공 빌드 기준 변경 감지: ${previousCommit}..${env.GIT_COMMIT}"
+                            gitCommand = "git diff --name-only ${previousCommit} ${env.GIT_COMMIT}"
+                        } else {
+                            // 이전 커밋 정보가 없는 경우 (예: 새 브랜치의 첫 빌드) 최신 커밋 하나만 비교
+                            echo "이전 커밋을 찾을 수 없어 최신 커밋만 비교합니다."
+                            gitCommand = "git diff --name-only HEAD~1 HEAD"
+                        }
+
                         echo "Git 변경 감지 명령: ${gitCommand}"
                         changedFiles = bat(
-                            script: gitCommand,
+                            script: "@echo off && ${gitCommand}",
                             returnStdout: true
-                        ).split('\n').findAll { it.trim() && !it.startsWith('C:\\') }
-                        
-                        // 만약 변경파일이 없다면 최근 5개 커밋 범위에서 확인
-                        if (changedFiles.isEmpty()) {
-                            echo "변경파일이 감지되지 않음, 최근 5개 커밋 범위로 재시도"
-                            changedFiles = bat(
-                                script: 'git diff HEAD~5 HEAD --name-only',
-                                returnStdout: true
-                            ).split('\n').findAll { it.trim() && !it.startsWith('C:\\') }
-                        }
-                        
+                        ).split('\\n').findAll { it.trim() && !it.contains('>git ') && !it.contains('C:\\') }
+
                     } catch (Exception e) {
                         echo "변경 감지 실패, 전체 빌드 실행: ${e.getMessage()}"
                         changedFiles = ['webservice/', 'autodoc_service/', 'cli/']
                     }
+
+                    // *.md 파일은 제외하고 감지
+                    def filteredFiles = changedFiles.findAll { !it.endsWith('.md') }
                     
-                    // 서비스별 변경 감지
-                    env.AUTODOC_CHANGED = changedFiles.any { it.contains('autodoc_service/') } ? 'true' : 'false'
-                    env.WEBSERVICE_CHANGED = changedFiles.any { it.contains('webservice/') } ? 'true' : 'false'
-                    env.CLI_CHANGED = changedFiles.any { it.contains('cli/') } ? 'true' : 'false'
-                    env.ROOT_CHANGED = changedFiles.any { 
-                        it.contains('Jenkinsfile') || it.contains('README.md') || it.contains('CLAUDE.md')
+                    // 서비스별 변경 감지 로직
+                    env.AUTODOC_CHANGED = filteredFiles.any { it.startsWith('autodoc_service/') } ? 'true' : 'false'
+                    
+                    // Webservice Backend 변경 감지 (frontend 제외)
+                    env.WEBSERVICE_BACKEND_CHANGED = filteredFiles.any { 
+                        it.startsWith('webservice/') && !it.startsWith('webservice/frontend/')
                     } ? 'true' : 'false'
                     
+                    // Webservice Frontend 변경 감지
+                    env.WEBSERVICE_FRONTEND_CHANGED = filteredFiles.any { 
+                        it.startsWith('webservice/frontend/') 
+                    } ? 'true' : 'false'
+                    
+                    // 하위 호환성 유지 (통합 테스트, 배포 상태 등에서 사용)
+                    env.WEBSERVICE_CHANGED = (env.WEBSERVICE_BACKEND_CHANGED == 'true' || 
+                                              env.WEBSERVICE_FRONTEND_CHANGED == 'true') ? 'true' : 'false'
+                    env.CLI_CHANGED = filteredFiles.any { it.startsWith('cli/') } ? 'true' : 'false'
+                    
+                    // infra 폴더 변경 감지 (전체 배포 트리거)
+                    env.INFRA_CHANGED = filteredFiles.any { it.startsWith('infra/') } ? 'true' : 'false'
+                    
+                    // 루트 파일 정확한 매칭 (utilities/ 폴더는 제외)
+                    env.ROOT_CHANGED = filteredFiles.any { 
+                        it == 'Jenkinsfile' || 
+                        it == 'pyproject.toml' || 
+                        it == '.gitignore' ||
+                        (it.startsWith('scripts/') && !it.startsWith('utilities/'))
+                    } ? 'true' : 'false'
+
                     echo """
                     ===========================================
                     📊 변경 감지 결과
                     ===========================================
                     • AutoDoc Service: ${env.AUTODOC_CHANGED}
-                    • Webservice: ${env.WEBSERVICE_CHANGED}
+                    • Webservice Backend: ${env.WEBSERVICE_BACKEND_CHANGED}
+                    • Webservice Frontend: ${env.WEBSERVICE_FRONTEND_CHANGED}
                     • CLI: ${env.CLI_CHANGED}
+                    • Infrastructure: ${env.INFRA_CHANGED}
                     • Root/Config: ${env.ROOT_CHANGED}
                     
+                    전체 변경 파일: ${changedFiles.size()}개
+                    빌드 대상 파일: ${filteredFiles.size()}개 (*.md 제외)
+
                     변경된 파일들:
                     ${changedFiles.join('\n')}
                     ===========================================
@@ -137,10 +152,17 @@ pipeline {
         stage('Branch Detect') {
             steps {
                 script {
-                    env.IS_TEST = (env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/')) ? 'true' : 'false'
+                    env.IS_TEST = (env.BRANCH_NAME.startsWith('feature/') || env.BRANCH_NAME.startsWith('hotfix/') || env.BRANCH_NAME == 'develop') ? 'true' : 'false'
                     env.BID = sanitizeId(env.BRANCH_NAME)
-                    env.BACK_PORT = pickPort(env.BRANCH_NAME, 8100, 200).toString()
-                    env.AUTO_PORT = pickPort(env.BRANCH_NAME, 8500, 200).toString()
+                    
+                    // develop 브랜치는 고정 포트 사용
+                    if (env.BRANCH_NAME == 'develop') {
+                        env.BACK_PORT = '8099'
+                        env.AUTO_PORT = '8199'
+                    } else {
+                        env.BACK_PORT = pickPort(env.BRANCH_NAME, 8100, 200).toString()
+                        env.AUTO_PORT = pickPort(env.BRANCH_NAME, 8500, 200).toString()
+                    }
 
                     env.WEB_BACK_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\webservice\\backend"
                     env.WEB_FRONT_DST = "C:\\nginx\\html\\tests\\${env.BID}"
@@ -167,7 +189,7 @@ pipeline {
             parallel {
                 stage('🔧 AutoDoc Service CI/CD') {
                     when {
-                        expression { env.AUTODOC_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                        expression { env.AUTODOC_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
                     }
                     steps {
                         script {
@@ -191,7 +213,7 @@ pipeline {
                 
                 stage('🌐 Webservice Backend CI/CD') {
                     when {
-                        expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                        expression { env.WEBSERVICE_BACKEND_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
                     }
                     steps {
                         script {
@@ -213,9 +235,58 @@ pipeline {
                     }
                 }
                 
+                stage('🎨 Webservice Frontend CI/CD') {
+                    when {
+                        expression { env.WEBSERVICE_FRONTEND_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
+                    }
+                    steps {
+                        script {
+                            try {
+                                echo "Webservice Frontend 빌드/배포 시작"
+                                def frontendBuild = build job: "webservice-frontend-pipeline",
+                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                                
+                                env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
+                                echo "Webservice Frontend 배포 성공"
+                                
+                                // 테스트 인스턴스용 프론트엔드 아티팩트 복사
+                                if (env.IS_TEST == 'true') {
+                                    echo "테스트 인스턴스용 프론트엔드 아티팩트 복사 시작..."
+                                    
+                                    copyArtifacts(
+                                        projectName: 'webservice-frontend-pipeline',
+                                        selector: lastSuccessful(),
+                                        // selector: [$class: 'LastSuccessfulBuildSelector'],
+                                        target: 'webservice/',
+                                        flatten: true,
+                                        fingerprintArtifacts: true
+                                    )
+                                    
+                                    // 아티팩트 존재 확인
+                                    bat '''
+                                    if exist "%WORKSPACE%\\webservice\\frontend.zip" (
+                                        echo "frontend.zip 복사 성공: %WORKSPACE%\\webservice\\frontend.zip"
+                                    ) else (
+                                        echo "frontend.zip 복사 실패"
+                                        exit 1
+                                    )
+                                    '''
+                                    
+                                    echo "테스트 인스턴스용 프론트엔드 아티팩트 복사 완료"
+                                }
+                                
+                            } catch (Exception e) {
+                                env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
+                                env.FAILED_SERVICES += 'WebFrontend '
+                                echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
+                            }
+                        }
+                    }
+                }
+                
                 stage('⚡ CLI CI/CD') {
                     when {
-                        expression { env.CLI_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                        expression { env.CLI_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
                     }
                     steps {
                         script {
@@ -242,70 +313,14 @@ pipeline {
             }
         }
         
-        stage('🎨 2단계: Webservice Frontend CI/CD') {
-            when {
-                allOf {
-                    expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
-                    expression { env.CRITICAL_FAILURE == 'false' }  // Backend 성공 시에만 실행
-                }
-            }
-            steps {
-                script {
-                    try {
-                        echo "Webservice Frontend 빌드/배포 시작 (Backend 성공 확인됨)"
-                        def frontendBuild = build job: "webservice-frontend-pipeline",
-                              parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
-                        
-                        // Frontend 빌드된 아티팩트를 현재 작업공간으로 복사
-                        def frontendWorkspace = "C:\\\\ProgramData\\\\Jenkins\\\\.jenkins\\\\workspace\\\\webservice-frontend-pipeline"
-                        // Frontend 아티팩트 복사 로직
-                        def frontendZipPath = "${frontendWorkspace}\\\\webservice\\\\frontend.zip"
-                        def targetDir = "${WORKSPACE}\\\\webservice"
-                        def targetZipPath = "${targetDir}\\\\frontend.zip"
-                        
-                        // 대상 디렉토리 생성
-                        bat "if not exist \"${targetDir}\" mkdir \"${targetDir}\""
-                        
-                        // Frontend 아티팩트 복사 및 검증
-                        bat """
-                            if exist "${frontendZipPath}" (
-                                copy "${frontendZipPath}" "${targetZipPath}"
-                                if exist "${targetZipPath}" (
-                                    echo Frontend 아티팩트 복사 성공: frontend.zip
-                                ) else (
-                                    echo ERROR: Frontend 아티팩트 복사 실패
-                                    exit /b 1
-                                )
-                            ) else (
-                                echo ERROR: Frontend 아티팩트 없음: ${frontendZipPath}
-                                echo Frontend 파이프라인 작업공간 내용:
-                                dir "${frontendWorkspace}\\\\webservice" /b 2>nul || echo 디렉토리 없음
-                                exit /b 1
-                            )
-                        """
-                        
-                        echo "Frontend 빌드 및 아티팩트 전파 성공 - Build #${frontendBuild.getNumber()}"
-                        
-                        env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
-                        echo "Webservice Frontend 배포 성공"
-                        
-                    } catch (Exception e) {
-                        env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
-                        env.FAILED_SERVICES += 'WebFrontend '
-                        env.CRITICAL_FAILURE = 'true'  // Critical 서비스 실패
-                        echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
-                        error("Webservice Frontend 배포에 실패하여 파이프라인을 중단합니다.") // 파이프라인 중단
-                    }
-                }
-            }
-        }
         
-        stage('🔍 3단계: 통합 테스트') {
+        stage('🔍 2단계: 통합 테스트') {
             when {
                 expression { 
                     (env.WEBSERVICE_CHANGED == 'true' || 
                      env.AUTODOC_CHANGED == 'true' || 
-                     env.ROOT_CHANGED == 'true') &&
+                     env.ROOT_CHANGED == 'true' || 
+                     env.INFRA_CHANGED == 'true') &&
                     env.CRITICAL_FAILURE == 'false'  // Critical 서비스 성공 시에만 실행
                 }
             }
@@ -313,7 +328,7 @@ pipeline {
                 stage('E2E 테스트') {
                     when {
                         allOf {
-                            expression { env.WEBSERVICE_CHANGED == 'true' }
+                            expression { env.WEBSERVICE_FRONTEND_CHANGED == 'true' }
                             expression { env.WEBSERVICE_BACKEND_STATUS == 'SUCCESS' }
                             expression { env.WEBSERVICE_FRONTEND_STATUS == 'SUCCESS' }
                         }
@@ -326,7 +341,7 @@ pipeline {
                                 // E2E 테스트 실행 전 서비스 준비 대기
                                 sleep(time: 30, unit: 'SECONDS')
                                 
-                                dir("${env.WEBSERVICE_PATH}\\frontend") {
+                                dir("${WORKSPACE}\\webservice\\frontend") {
                                     bat 'npm run test:e2e'
                                 }
                                 
@@ -528,7 +543,7 @@ pipeline {
                     echo "==========================================="
                 }
             }
-        }
+        }        
         
         stage('🧪 Deploy Test Instance') {
             when { 
@@ -557,15 +572,7 @@ pipeline {
             }
         }
         
-        stage('🚀 Deploy Develop') {
-            when { 
-                branch 'develop' 
-            }
-            steps {
-                echo 'Deploying develop to the shared dev environment...'
-                // 기존 배포 스크립트/하위 잡 호출 유지
-            }
-        }
+
         
         stage('🔍 배포 상태 확인') {
             steps {
