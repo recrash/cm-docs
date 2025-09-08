@@ -333,7 +333,7 @@ pipeline {
                                 // E2E 테스트 실행 전 서비스 준비 대기
                                 sleep(time: 30, unit: 'SECONDS')
                                 
-                                dir("${env.WEBSERVICE_PATH}\\frontend") {
+                                dir("${WORKSPACE}\\webservice\\frontend") {
                                     bat 'npm run test:e2e'
                                 }
                                 

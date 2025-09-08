@@ -11,7 +11,7 @@ test.describe('로깅 시스템 E2E 테스트', () => {
 
   test('백엔드 로깅 시스템 테스트', async ({ page }) => {
     // 1. 백엔드 서버가 정상적으로 시작되었는지 확인
-    const response = await page.request.get('http://localhost:80/api/health');
+    const response = await page.request.get('http://localhost:80/api/webservice/health');
     expect(response.status()).toBe(200);
     const responseData = await response.json();
     expect(responseData).toEqual({ status: 'healthy' });
