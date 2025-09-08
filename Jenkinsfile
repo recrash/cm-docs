@@ -99,22 +99,22 @@ pipeline {
                     def filteredFiles = changedFiles.findAll { !it.endsWith('.md') }
                     
                     // 서비스별 변경 감지 로직
-                    env.AUTODOC_CHANGED = filteredFiles.any { it.startsWith('autodoc_service/') } ? 'true' : 'false'
+                    env.AUTODOC_CHANGED = filteredFiles.any { it.startsWith('autodoc_service/') || it == 'autodoc_service/Jenkinsfile' } ? 'true' : 'false'
                     
                     // Webservice Backend 변경 감지 (frontend 제외)
                     env.WEBSERVICE_BACKEND_CHANGED = filteredFiles.any { 
-                        it.startsWith('webservice/') && !it.startsWith('webservice/frontend/')
+                        (it.startsWith('webservice/') && !it.startsWith('webservice/frontend/')) || it == 'webservice/Jenkinsfile.backend'
                     } ? 'true' : 'false'
                     
                     // Webservice Frontend 변경 감지
                     env.WEBSERVICE_FRONTEND_CHANGED = filteredFiles.any { 
-                        it.startsWith('webservice/frontend/') 
+                        it.startsWith('webservice/frontend/') || it == 'webservice/Jenkinsfile.frontend'
                     } ? 'true' : 'false'
                     
                     // 하위 호환성 유지 (통합 테스트, 배포 상태 등에서 사용)
                     env.WEBSERVICE_CHANGED = (env.WEBSERVICE_BACKEND_CHANGED == 'true' || 
                                               env.WEBSERVICE_FRONTEND_CHANGED == 'true') ? 'true' : 'false'
-                    env.CLI_CHANGED = filteredFiles.any { it.startsWith('cli/') } ? 'true' : 'false'
+                    env.CLI_CHANGED = filteredFiles.any { it.startsWith('cli/') || it == 'cli/Jenkinsfile' } ? 'true' : 'false'
                     
                     // infra 폴더 변경 감지 (전체 배포 트리거)
                     env.INFRA_CHANGED = filteredFiles.any { it.startsWith('infra/') } ? 'true' : 'false'

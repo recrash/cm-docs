@@ -190,7 +190,10 @@ pipeline {
         
         stage('Deploy') {
             when { 
-                expression { params.BRANCH == 'main' }  // 파라미터 기반 조건으로 변경
+                expression { 
+                    def branch = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                    return branch == 'main' || branch.endsWith('/main')
+                }
             }
             steps {
                 script {
