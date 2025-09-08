@@ -148,7 +148,7 @@ pipeline {
                             def safeBranchName = branchName.replace('/', '_')
                             
                             // 브랜치별 base path 결정
-                            def basePath = (branchName == 'main' || branchName == 'develop') ? 
+                            def basePath = (branchName == 'main') ? 
                                 '/' : "/tests/${safeBranchName}/"
                             
                             echo "브랜치 '${branchName}' (안전한 이름: '${safeBranchName}')에 대한 base path: ${basePath}"
@@ -187,10 +187,7 @@ pipeline {
         
         stage('Deploy') {
             when { 
-                anyOf {
-                    branch 'main'
-                    branch 'develop'  
-                }
+                branch 'main'
             }
             steps {
                 script {
