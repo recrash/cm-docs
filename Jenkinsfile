@@ -61,13 +61,39 @@ pipeline {
                 script {
                     def changedFiles = []
                     try {
-                        // PUSH 기준 변경 감지를 위한 가장 정확한 방법
-                        // GIT_PREVIOUS_COMMIT: Push 직전 커밋 ID
-                        // GIT_COMMIT: Push된 최신 커밋 ID (HEAD와 동일)
+                        // 마지막 성공한 빌드의 커밋과 비교하여 변경 감지
                         def gitCommand
-                        if (env.GIT_PREVIOUS_COMMIT) {
-                            echo "Push 기준 변경 감지: ${env.GIT_PREVIOUS_COMMIT}..${env.GIT_COMMIT}"
-                            gitCommand = "git diff --name-only ${env.GIT_PREVIOUS_COMMIT} ${env.GIT_COMMIT}"
+                        def previousCommit = null
+                        
+                        // 이전 성공한 빌드에서 커밋 ID 가져오기
+                        if (currentBuild.previousSuccessfulBuild) {
+                            try {
+                                // 이전 성공한 빌드의 GIT_COMMIT 환경 변수 가져오기
+                                def prevBuild = currentBuild.previousSuccessfulBuild
+                                previousCommit = prevBuild.getBuildVariables()['GIT_COMMIT']
+                                
+                                if (!previousCommit) {
+                                    // 환경 변수가 없으면 다른 방법 시도
+                                    previousCommit = prevBuild.getEnvironment()['GIT_COMMIT']
+                                }
+                                
+                                if (previousCommit) {
+                                    echo "이전 성공 빌드 #${prevBuild.number}의 커밋: ${previousCommit}"
+                                }
+                            } catch (Exception e) {
+                                // 이전 빌드의 커밋을 찾을 수 없는 경우
+                                echo "이전 성공 빌드의 커밋을 찾을 수 없음: ${e.getMessage()}"
+                            }
+                        }
+                        
+                        // 비교할 커밋이 없으면 GIT_PREVIOUS_COMMIT 사용
+                        if (!previousCommit && env.GIT_PREVIOUS_COMMIT) {
+                            previousCommit = env.GIT_PREVIOUS_COMMIT
+                        }
+                        
+                        if (previousCommit) {
+                            echo "마지막 성공 빌드 기준 변경 감지: ${previousCommit}..${env.GIT_COMMIT}"
+                            gitCommand = "git diff --name-only ${previousCommit} ${env.GIT_COMMIT}"
                         } else {
                             // 이전 커밋 정보가 없는 경우 (예: 새 브랜치의 첫 빌드) 최신 커밋 하나만 비교
                             echo "이전 커밋을 찾을 수 없어 최신 커밋만 비교합니다."
