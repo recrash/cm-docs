@@ -65,30 +65,14 @@ pipeline {
                         def gitCommand
                         def previousCommit = null
                         
-                        // 이전 성공한 빌드에서 커밋 ID 가져오기
-                        if (currentBuild.previousSuccessfulBuild) {
-                            try {
-                                // 이전 성공한 빌드의 GIT_COMMIT 환경 변수 가져오기
-                                def prevBuild = currentBuild.previousSuccessfulBuild
-                                previousCommit = prevBuild.getBuildVariables()['GIT_COMMIT']
-                                
-                                if (!previousCommit) {
-                                    // 환경 변수가 없으면 다른 방법 시도
-                                    previousCommit = prevBuild.getEnvironment()['GIT_COMMIT']
-                                }
-                                
-                                if (previousCommit) {
-                                    echo "이전 성공 빌드 #${prevBuild.number}의 커밋: ${previousCommit}"
-                                }
-                            } catch (Exception e) {
-                                // 이전 빌드의 커밋을 찾을 수 없는 경우
-                                echo "이전 성공 빌드의 커밋을 찾을 수 없음: ${e.getMessage()}"
-                            }
-                        }
-                        
-                        // 비교할 커밋이 없으면 GIT_PREVIOUS_COMMIT 사용
-                        if (!previousCommit && env.GIT_PREVIOUS_COMMIT) {
+                        // Jenkins 내장 환경 변수로 이전 성공한 빌드의 커밋 ID 가져오기
+                        if (env.GIT_PREVIOUS_SUCCESSFUL_COMMIT) {
+                            previousCommit = env.GIT_PREVIOUS_SUCCESSFUL_COMMIT
+                            echo "이전 성공 빌드의 커밋: ${previousCommit}"
+                        } else if (env.GIT_PREVIOUS_COMMIT) {
+                            // 이전 커밋 정보가 있으면 사용
                             previousCommit = env.GIT_PREVIOUS_COMMIT
+                            echo "이전 커밋: ${previousCommit}"
                         }
                         
                         if (previousCommit) {
@@ -272,6 +256,7 @@ pipeline {
                                     copyArtifacts(
                                         projectName: 'webservice-frontend-pipeline',
                                         selector: lastSuccessful(),
+                                        // selector: [$class: 'LastSuccessfulBuildSelector'],
                                         target: 'webservice/',
                                         flatten: true,
                                         fingerprintArtifacts: true
