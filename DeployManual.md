@@ -265,36 +265,10 @@ server {
 - `webservice-frontend-pipeline` (Script Path: `webservice/Jenkinsfile.frontend`)
 - `autodoc-service-pipeline` (Script Path: `autodoc_service/Jenkinsfile`)
 
-### 2\. Windows Jenkins 에이전트 설정
-
-#### 2.1. Jenkins 노드 추가
-
-1. **Manage Jenkins** → **Manage Nodes and Clouds**
-2. **New Node** 클릭:
-   - Node name: `windows-build-agent`
-   - Type: Permanent Agent
-   
-3. **Node Properties**:
-   ```
-   Remote root directory: C:\jenkins-agent
-   Labels: windows cli-build
-   Usage: Use this node as much as possible
-   Launch method: Launch agent by connecting it to the controller
-   ```
-
-#### 2.2. Windows 에이전트 설치
-
-Windows 빌드 서버에서:
-```powershell
-# Jenkins 에이전트 디렉토리 생성
-New-Item -ItemType Directory -Force -Path "C:\jenkins-agent"
-
-# agent.jar 다운로드
-Invoke-WebRequest -Uri "http://jenkins-server:8080/jnlpJars/agent.jar" -OutFile "C:\jenkins-agent\agent.jar"
-
-# 에이전트 시작 (Jenkins에서 제공하는 secret 사용)
-java -jar agent.jar -jnlpUrl http://jenkins-server:8080/computer/windows-build-agent/slave-agent.jnlp -secret [SECRET_KEY]
-```
+### 2\. 설치 플러그인
+- Gitea
+- Copy Artifact
+- Git Plugin
 
 ### 3\. CLI 파이프라인 특별 설정
 
