@@ -7,22 +7,40 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# develop 브랜치 보호
+if ($Bid -eq "develop") {
+    Write-Error "===========================================" 
+    Write-Error "경고: develop 브랜치는 삭제할 수 없습니다!"
+    Write-Error "===========================================" 
+    Write-Error "develop 브랜치는 상시 운영되는 테스트 환경입니다."
+    Write-Error "삭제가 필요한 경우 관리자에게 문의하세요."
+    Write-Error "===========================================" 
+    exit 1
+}
+
 $root = "C:\deploys\tests\$Bid"
 $Nssm = "nssm"
 $Nginx = "C:\nginx\nginx.exe"
-$Conf = "C:\nginx\conf\conf.d\tests-$Bid.conf"
+# nginx include 방식 설정 파일 경로
+$nginxRoot = Split-Path $Nginx -Parent
+$upstreamConf = "$nginxRoot\conf\include\tests-$Bid.upstream.conf"
+$locationConf = "$nginxRoot\conf\include\tests-$Bid.location.conf"
+# 기존 conf.d 방식 파일 (하위 호환성)
+$oldConf = "$nginxRoot\conf\conf.d\tests-$Bid.conf"
 
 Write-Host "===========================================`n"
-Write-Host "🧹 테스트 인스턴스 정리 시작`n"
+Write-Host "테스트 인스턴스 정리 시작`n"
 Write-Host "===========================================`n"
 Write-Host "• BID: $Bid"
 Write-Host "• 정리 대상: $root"
-Write-Host "• Nginx 설정: $Conf"
+Write-Host "• Nginx 설정:"
+Write-Host "  - Upstream: $upstreamConf"
+Write-Host "  - Location: $locationConf"
 Write-Host "===========================================`n"
 
 try {
     # 1. NSSM 서비스 중지 및 제거
-    Write-Host "⏹️ 1단계: NSSM 서비스 중지 중..."
+    Write-Host "단계 1: NSSM 서비스 중지 중..."
     
     $webServiceName = "cm-web-$Bid"
     $autodocServiceName = "cm-autodoc-$Bid"
@@ -60,25 +78,53 @@ try {
     }
     
     # 2. Nginx 설정 파일 제거 및 리로드
-    Write-Host "`n🌐 2단계: Nginx 설정 정리 중..."
+    Write-Host "`n단계 2: Nginx 설정 정리 중..."
     
-    if (Test-Path $Conf) {
-        Remove-Item $Conf -Force -ErrorAction SilentlyContinue
-        Write-Host "Nginx 설정 파일 제거 완료: $Conf"
-        
-        # Nginx 리로드
-        try {
-            & $Nginx -s reload
-            Write-Host "Nginx 리로드 완료"
-        } catch {
-            Write-Warning "Nginx 리로드 실패: $($_.Exception.Message)"
-        }
+    # Include 방식 설정 파일 제거
+    $configsRemoved = $false
+    
+    if (Test-Path $upstreamConf) {
+        Remove-Item $upstreamConf -Force -ErrorAction SilentlyContinue
+        Write-Host "Nginx upstream 설정 파일 제거 완료: $upstreamConf"
+        $configsRemoved = $true
     } else {
-        Write-Host "Nginx 설정 파일이 이미 없음: $Conf"
+        Write-Host "Nginx upstream 설정 파일이 이미 없음: $upstreamConf"
+    }
+    
+    if (Test-Path $locationConf) {
+        Remove-Item $locationConf -Force -ErrorAction SilentlyContinue
+        Write-Host "Nginx location 설정 파일 제거 완료: $locationConf"
+        $configsRemoved = $true
+    } else {
+        Write-Host "Nginx location 설정 파일이 이미 없음: $locationConf"
+    }
+    
+    # 기존 conf.d 방식 파일도 제거 (하위 호환성)
+    if (Test-Path $oldConf) {
+        Remove-Item $oldConf -Force -ErrorAction SilentlyContinue
+        Write-Host "기존 conf.d 설정 파일 제거 완료: $oldConf"
+        $configsRemoved = $true
+    }
+    
+    # Nginx 리로드 (설정 파일이 제거된 경우에만)
+    if ($configsRemoved) {
+        try {
+            # PowerShell 서비스 재시작 사용
+            Restart-Service -Name "nginx-frontend" -Force
+            Write-Host "Nginx 서비스 재시작 완료"
+        } catch {
+            Write-Warning "Nginx 서비스 재시작 실패, 직접 reload 시도: $($_.Exception.Message)"
+            try {
+                & $Nginx -p "$nginxRoot" -s reload 2>$null
+                Write-Host "Nginx 직접 리로드 완료"
+            } catch {
+                Write-Warning "Nginx 리로드 실패: $($_.Exception.Message)"
+            }
+        }
     }
     
     # 3. 배포 디렉토리 제거
-    Write-Host "`n🗂️ 3단계: 배포 디렉토리 정리 중..."
+    Write-Host "`n단계 3: 배포 디렉토리 정리 중..."
     
     if (Test-Path $root) {
         # 파일 잠금 해제를 위한 대기
@@ -96,7 +142,7 @@ try {
     }
     
     # 4. 포트 사용 확인 (정보성)
-    Write-Host "`n🔍 4단계: 포트 사용 상태 확인..."
+    Write-Host "`n단계 4: 포트 사용 상태 확인..."
     
     $backPort = [int]$Bid.GetHashCode() % 200 + 8100
     $autoPort = [int]$Bid.GetHashCode() % 200 + 8500
@@ -120,11 +166,11 @@ try {
     }
     
     Write-Host "`n===========================================`n"
-    Write-Host "✅ 테스트 인스턴스 정리 완료!`n"
+    Write-Host "테스트 인스턴스 정리 완료!`n"
     Write-Host "===========================================`n"
     Write-Host "• 정리된 BID: $Bid"
     Write-Host "• 제거된 서비스: $webServiceName, $autodocServiceName"
-    Write-Host "• 제거된 설정: $Conf"
+    Write-Host "• 제거된 설정: upstream, location 설정 파일"
     Write-Host "• 제거된 디렉토리: $root"
     Write-Host "===========================================`n"
     
@@ -133,9 +179,10 @@ try {
     Write-Host "`n수동 정리가 필요할 수 있습니다:"
     Write-Host "1. nssm stop cm-web-$Bid; nssm remove cm-web-$Bid confirm"
     Write-Host "2. nssm stop cm-autodoc-$Bid; nssm remove cm-autodoc-$Bid confirm"
-    Write-Host "3. Remove-Item $Conf -Force"
-    Write-Host "4. C:\nginx\nginx.exe -s reload"
-    Write-Host "5. Remove-Item $root -Recurse -Force"
+    Write-Host "3. Remove-Item $upstreamConf -Force"
+    Write-Host "4. Remove-Item $locationConf -Force"
+    Write-Host "5. Restart-Service -Name nginx-frontend -Force"
+    Write-Host "6. Remove-Item $root -Recurse -Force"
     
     throw $_.Exception
 }
