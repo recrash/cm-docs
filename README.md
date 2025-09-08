@@ -17,23 +17,36 @@ Git/SVN 저장소 변경사항을 분석하여 한국어 테스트 시나리오�
 ```
 cm-docs/
 ├── webservice/          # TestscenarioMaker 웹 서비스
-│   ├── frontend/        # React + TypeScript 프론트엔드
-│   ├── app/             # FastAPI 애플리케이션 (리팩토링됨)
+│   ├── app/             # 통합 FastAPI 애플리케이션
+│   │   ├── main.py      # FastAPI 애플리케이션 진입점 with lifespan manager
 │   │   ├── api/         # API 라우터 및 모델
-│   │   │   ├── routers/ # 도메인별 API 엔드포인트
+│   │   │   ├── routers/ # 도메인별 API 엔드포인트 (scenario, feedback, rag, files)
 │   │   │   └── models/  # Pydantic 데이터 모델
-│   │   ├── core/        # 핵심 비즈니스 로직 (기존 src/)
-│   │   │   ├── vector_db/    # RAG 벡터 데이터베이스
-│   │   │   └── *.py     # 분석 모듈들
-│   │   └── main.py      # FastAPI 애플리케이션 진입점
+│   │   ├── core/        # 핵심 비즈니스 로직 (리팩토링된 src/)
+│   │   │   ├── vector_db/       # RAG 벡터 데이터베이스
+│   │   │   ├── config_loader.py, git_analyzer.py
+│   │   │   ├── excel_writer.py, llm_handler.py
+│   │   │   └── logging_config.py, prompt_*.py
+│   │   └── services/    # 비즈니스 로직 레이어
+│   ├── frontend/        # React + TypeScript 프론트엔드
+│   │   ├── src/         # React 소스 코드
+│   │   │   ├── components/  # React 컴포넌트들
+│   │   │   ├── services/    # API 클라이언트 서비스
+│   │   │   ├── types/       # TypeScript 타입 정의
+│   │   │   └── utils/       # 유틸리티 함수들
+│   │   └── package.json # Node.js 의존성
 │   ├── data/            # 환경변수 기반 데이터 디렉토리 (개발환경 기본값)
 │   │   ├── logs/        # 로그 파일
 │   │   ├── models/      # AI 임베딩 모델
 │   │   ├── documents/   # 생성된 문서
 │   │   ├── templates/   # 템플릿 파일
-│   │   ├── outputs/     # Excel 출력
-│   │   └── db/          # 벡터 데이터베이스
-│   └── tests/           # 테스트 슈트 (E2E, API, 단위)
+│   │   └── outputs/     # Excel 출력
+│   ├── src/             # 기존 핵심 로직 (app/core/로 이관됨)
+│   └── tests/           # 테스트 슈트 (단위, API, 통합, E2E)
+│       ├── unit/        # 단위 테스트
+│       ├── api/         # API 테스트
+│       ├── integration/ # 통합 테스트
+│       └── e2e/         # E2E 테스트 (미래)
 ├── cli/                 # TestscenarioMaker CLI 도구
 │   ├── src/ts_cli/      # CLI 핵심 로직
 │   ├── scripts/         # 빌드 및 배포 스크립트
@@ -45,7 +58,10 @@ cm-docs/
 │   │   ├── templates/   # 문서 템플릿 (Word, Excel)
 │   │   └── documents/   # 생성된 문서 출력
 │   └── testHTML/        # HTML 테스트 파일
+├── scripts/             # 공통 스크립트 및 유틸리티
+├── infra/               # 인프라 설정 (nginx 등)
 ├── README.md            # 통합 프로젝트 문서
+├── CLAUDE.md            # Claude Code 개발 가이드
 └── pyproject.toml       # 공통 개발 환경 설정
 ```
 
@@ -53,7 +69,7 @@ cm-docs/
 
 ### 기술 스택
 - **프론트엔드**: React 18 + TypeScript + Material-UI + Vite
-- **백엔드**: FastAPI + Python 3.12 (Pseudo-MSA 아키텍처, 리팩토링됨)
+- **백엔드**: FastAPI + Python 3.12 (Pseudo-MSA 아키텍처, 통합 앱 구조)
 - **AI/LLM**: Ollama 통합 (qwen3:8b 모델)
 - **벡터 DB**: ChromaDB (RAG 시스템)
 - **테스팅**: Vitest + Playwright (E2E) + pytest (API)
@@ -88,9 +104,10 @@ cm-docs/
 각 서비스는 독립된 Python 가상환경과 환경변수 기반 데이터 경로를 사용합니다:
 
 ```bash
-# Webservice (Python 3.12 환경 - 리팩토링 후)
+# Webservice (Python 3.12 환경 - 통합 앱 구조)
 cd webservice
 source .venv/bin/activate
+export PYTHONPATH=$(pwd):$PYTHONPATH  # app.core 모듈 임포트용
 python --version  # Python 3.12.x
 
 # CLI (Python 3.13 환경) 
@@ -132,11 +149,11 @@ export PYTHONPATH=$(pwd):$PYTHONPATH
 export WEBSERVICE_DATA_PATH="/path/to/webservice/data"    # 프로덕션 전용
 export AUTODOC_DATA_PATH="/path/to/autodoc/data"          # 프로덕션 전용
 
-# 백엔드 서버 시작 (포트 8000) - 리팩토링된 구조
+# 백엔드 서버 시작 (포트 8000) - 통합 앱 구조
 cd webservice && python -m uvicorn app.main:app --reload --port 8000
 
-# 프론트엔드 개발 서버 시작 (개발: 3000, 배포: 80) - 프로젝트 루트에서 실행
-npm run dev
+# 프론트엔드 개발 서버 시작 (개발: 3000, 배포: 80)
+cd webservice/frontend && npm run dev
 
 # 전체 테스트 실행
 npm run test:all
@@ -331,7 +348,7 @@ pytest --cov=app --cov-report=html app/tests/
 ## 🛠 공통 개발 환경
 
 ### MSA 기반 독립 환경 관리
-- **Webservice**: Python 3.12 환경 (`webservice/.venv/`) + `requirements.txt` + `package.json` (리팩토링됨)
+- **Webservice**: Python 3.12 환경 (`webservice/.venv/`) + `requirements.txt` + `package.json` (통합 앱 구조)
 - **CLI**: Python 3.13 환경 (`cli/.venv/`) + `requirements.txt` + `requirements-dev.txt`  
 - **AutoDoc Service**: Python 3.12 환경 (`autodoc_service/.venv312/`) + `requirements.txt`
 - **공통**: 루트 `pyproject.toml` (개발 도구 설정)
@@ -369,7 +386,7 @@ AUTODOC_DATA_PATH=C:\deploys\data\autodoc_service
 
 ### 코드 품질
 ```bash
-# 코드 포맷팅 (프로젝트 루트에서) - 리팩토링된 구조 반영
+# 코드 포맷팅 (프로젝트 루트에서) - 통합 앱 구조 반영
 black webservice/app cli/src cli/tests autodoc_service/app
 isort webservice/app cli/src cli/tests autodoc_service/app
 
@@ -424,7 +441,7 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 #### 🚀 MSA 기반 독립 배포
 
 ```bash
-# Webservice 프로덕션 배포 (Python 3.12) - 리팩토링된 구조
+# Webservice 프로덕션 배포 (Python 3.12) - 통합 앱 구조
 cd webservice
 source .venv/bin/activate
 export PYTHONPATH=$(pwd):$PYTHONPATH  # 필수: app.core 모듈 임포트
@@ -490,7 +507,7 @@ server {
 ## 📊 품질 보증
 
 ### 테스트 커버리지 목표
-- **Webservice**: ≥80% 단위 테스트, ≥70% 통합 테스트 (Python 3.12 환경, 리팩토링됨)
+- **Webservice**: ≥80% 단위 테스트, ≥70% 통합 테스트 (Python 3.12 환경, 통합 앱 구조)
 - **CLI**: ≥85% 전체 커버리지 (Python 3.13 환경)
 - **AutoDoc Service**: ≥85% 전체 커버리지 (Python 3.12 환경)
 - **E2E**: 주요 사용자 워크플로우 100% 커버
@@ -506,7 +523,7 @@ server {
 
 ### 개발 워크플로우
 1. 해당 서브프로젝트 디렉토리에서 독립 환경 활성화
-   - `cd webservice && source .venv/bin/activate` (Python 3.12, 리팩토링됨)
+   - `cd webservice && source .venv/bin/activate` (Python 3.12, 통합 앱 구조)
    - `cd cli && source .venv/bin/activate` (Python 3.13)
    - `cd autodoc_service && source .venv312/bin/activate` (Python 3.12)
 2. 독립적인 테스트 슈트 실행 및 통과 확인
