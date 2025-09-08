@@ -23,7 +23,10 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                echo "소스코드 체크아웃 완료 - 브랜치: ${env.BRANCH_NAME}"
+                script {
+                    def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                    echo "소스코드 체크아웃 완료 - 브랜치: ${branchName}"
+                }
             }
         }
         
