@@ -211,6 +211,29 @@ pipeline {
                     }
                 }
                 
+                stage('🎨 Webservice Frontend CI/CD') {
+                    when {
+                        expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
+                    }
+                    steps {
+                        script {
+                            try {
+                                echo "Webservice Frontend 빌드/배포 시작"
+                                def frontendBuild = build job: "webservice-frontend-pipeline",
+                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                                
+                                env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
+                                echo "Webservice Frontend 배포 성공"
+                                
+                            } catch (Exception e) {
+                                env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
+                                env.FAILED_SERVICES += 'WebFrontend '
+                                echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
+                            }
+                        }
+                    }
+                }
+                
                 stage('⚡ CLI CI/CD') {
                     when {
                         expression { env.CLI_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
@@ -240,65 +263,8 @@ pipeline {
             }
         }
         
-        stage('🎨 2단계: Webservice Frontend CI/CD') {
-            when {
-                allOf {
-                    expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
-                    expression { env.CRITICAL_FAILURE == 'false' }  // Backend 성공 시에만 실행
-                }
-            }
-            steps {
-                script {
-                    try {
-                        echo "Webservice Frontend 빌드/배포 시작 (Backend 성공 확인됨)"
-                        def frontendBuild = build job: "webservice-frontend-pipeline",
-                              parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
-                        
-                        // Frontend 빌드된 아티팩트를 현재 작업공간으로 복사
-                        def frontendWorkspace = "C:\\\\ProgramData\\\\Jenkins\\\\.jenkins\\\\workspace\\\\webservice-frontend-pipeline"
-                        // Frontend 아티팩트 복사 로직
-                        def frontendZipPath = "${frontendWorkspace}\\\\webservice\\\\frontend.zip"
-                        def targetDir = "${WORKSPACE}\\\\webservice"
-                        def targetZipPath = "${targetDir}\\\\frontend.zip"
-                        
-                        // 대상 디렉토리 생성
-                        bat "if not exist \"${targetDir}\" mkdir \"${targetDir}\""
-                        
-                        // Frontend 아티팩트 복사 및 검증
-                        bat """
-                            if exist "${frontendZipPath}" (
-                                copy "${frontendZipPath}" "${targetZipPath}"
-                                if exist "${targetZipPath}" (
-                                    echo Frontend 아티팩트 복사 성공: frontend.zip
-                                ) else (
-                                    echo ERROR: Frontend 아티팩트 복사 실패
-                                    exit /b 1
-                                )
-                            ) else (
-                                echo ERROR: Frontend 아티팩트 없음: ${frontendZipPath}
-                                echo Frontend 파이프라인 작업공간 내용:
-                                dir "${frontendWorkspace}\\\\webservice" /b 2>nul || echo 디렉토리 없음
-                                exit /b 1
-                            )
-                        """
-                        
-                        echo "Frontend 빌드 및 아티팩트 전파 성공 - Build #${frontendBuild.getNumber()}"
-                        
-                        env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
-                        echo "Webservice Frontend 배포 성공"
-                        
-                    } catch (Exception e) {
-                        env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
-                        env.FAILED_SERVICES += 'WebFrontend '
-                        env.CRITICAL_FAILURE = 'true'  // Critical 서비스 실패
-                        echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
-                        error("Webservice Frontend 배포에 실패하여 파이프라인을 중단합니다.") // 파이프라인 중단
-                    }
-                }
-            }
-        }
         
-        stage('🔍 3단계: 통합 테스트') {
+        stage('🔍 2단계: 통합 테스트') {
             when {
                 expression { 
                     (env.WEBSERVICE_CHANGED == 'true' || 

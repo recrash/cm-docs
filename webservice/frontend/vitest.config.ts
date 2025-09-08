@@ -20,6 +20,14 @@ export default mergeConfig(
         '**/dist/**',
         '**/e2e/**'
       ],
+      pool: 'forks',
+      poolOptions: {
+        forks: {
+          singleFork: true,
+          minForks: 1,
+          maxForks: 1
+        }
+      },
       environmentOptions: {
         jsdom: {
           resources: 'usable'
