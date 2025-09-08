@@ -22,7 +22,7 @@ def test_get_feedback_stats(client, mock_dependencies):
     with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_feedback_stats.return_value = mock_stats
         
-        response = client.get("/feedback/stats")
+        response = client.get("/api/webservice/feedback/stats")
         
         assert response.status_code == 200
         data = response.json()
@@ -51,7 +51,7 @@ def test_submit_feedback_success(client, mock_dependencies):
             "scenario_content": {"test": "data"}
         }
         
-        response = client.post("/feedback/submit", json=request_data)
+        response = client.post("/api/webservice/feedback/submit", json=request_data)
         
         assert response.status_code == 200
         data = response.json()
@@ -73,7 +73,7 @@ def test_submit_feedback_failure(client, mock_dependencies):
             "scenario_content": {"test": "data"}
         }
         
-        response = client.post("/feedback/submit", json=request_data)
+        response = client.post("/api/webservice/feedback/submit", json=request_data)
         
         assert response.status_code == 500
         assert "피드백 저장 중 오류" in response.json()["detail"]
@@ -93,7 +93,7 @@ def test_get_feedback_examples(client):
     with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_feedback_examples.return_value = mock_examples
         
-        response = client.get("/feedback/examples/good?limit=5")
+        response = client.get("/api/webservice/feedback/examples/good?limit=5")
         
         assert response.status_code == 200
         data = response.json()
@@ -112,7 +112,7 @@ def test_get_improvement_insights(client):
     with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_improvement_insights.return_value = mock_insights
         
-        response = client.get("/feedback/insights")
+        response = client.get("/api/webservice/feedback/insights")
         
         assert response.status_code == 200
         data = response.json()
@@ -134,7 +134,7 @@ def test_get_prompt_enhancement_info(client):
         mock_instance.get_enhancement_summary.return_value = mock_summary
         mock_enhancer.return_value = mock_instance
         
-        response = client.get("/feedback/prompt-enhancement")
+        response = client.get("/api/webservice/feedback/prompt-enhancement")
         
         assert response.status_code == 200
         data = response.json()
@@ -153,7 +153,7 @@ def test_get_enhancement_preview_available(client):
         mock_instance.get_enhanced_prompt_preview.return_value = "개선된 프롬프트 미리보기"
         mock_enhancer.return_value = mock_instance
         
-        response = client.get("/feedback/prompt-enhancement/preview")
+        response = client.get("/api/webservice/feedback/prompt-enhancement/preview")
         
         assert response.status_code == 200
         data = response.json()
@@ -171,7 +171,7 @@ def test_get_enhancement_preview_not_available(client):
         mock_instance.get_enhanced_prompt_preview.return_value = "기본 프롬프트"
         mock_enhancer.return_value = mock_instance
         
-        response = client.get("/feedback/prompt-enhancement/preview")
+        response = client.get("/api/webservice/feedback/prompt-enhancement/preview")
         
         assert response.status_code == 200
         data = response.json()
@@ -198,7 +198,7 @@ def test_export_feedback_data(client):
         mock_conn.__exit__.return_value = None
         mock_connect.return_value = mock_conn
         
-        response = client.get("/feedback/export")
+        response = client.get("/api/webservice/feedback/export")
         
         assert response.status_code == 200
         data = response.json()
@@ -214,7 +214,7 @@ def test_get_feedback_count_by_category(client):
     with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_feedback_count_by_category.return_value = mock_counts
         
-        response = client.get("/feedback/count-by-category")
+        response = client.get("/api/webservice/feedback/count-by-category")
         
         assert response.status_code == 200
         data = response.json()
@@ -232,7 +232,7 @@ def test_reset_all_feedback(client):
         
         mock_manager.reset_all_feedback.return_value = True
         
-        response = client.delete("/feedback/reset/all?create_backup=true")
+        response = client.delete("/api/webservice/feedback/reset/all?create_backup=true")
         
         assert response.status_code == 200
         data = response.json()
@@ -246,7 +246,7 @@ def test_reset_feedback_by_category(client):
         
         mock_manager.reset_feedback_by_category.return_value = True
         
-        response = client.delete("/feedback/reset/category/good?create_backup=true")
+        response = client.delete("/api/webservice/feedback/reset/category/good?create_backup=true")
         
         assert response.status_code == 200
         data = response.json()
@@ -294,7 +294,7 @@ def test_list_backup_files_success(client):
         
         mock_backup_dir.glob.return_value = mock_files_list
         
-        response = client.get("/feedback/backup-files")
+        response = client.get("/api/webservice/feedback/backup-files")
         
         assert response.status_code == 200
         data = response.json()
@@ -310,7 +310,7 @@ def test_list_backup_files_no_directory(client):
         mock_backup_dir.exists.return_value = False
         mock_path.return_value = mock_backup_dir
         
-        response = client.get("/feedback/backup-files")
+        response = client.get("/api/webservice/feedback/backup-files")
         
         assert response.status_code == 200
         data = response.json()
@@ -332,7 +332,7 @@ def test_delete_backup_file_success(client):
         mock_backup_dir.__truediv__.return_value = mock_file
         mock_path_class.return_value = mock_backup_dir
         
-        response = client.delete(f"/feedback/backup-files/{filename}")
+        response = client.delete(f"/api/webservice/feedback/backup-files/{filename}")
         
         assert response.status_code == 200
         data = response.json()
@@ -345,7 +345,7 @@ def test_delete_backup_file_invalid_filename(client):
     
     invalid_filename = "invalid_file.txt"
     
-    response = client.delete(f"/feedback/backup-files/{invalid_filename}")
+    response = client.delete(f"/api/webservice/feedback/backup-files/{invalid_filename}")
     
     assert response.status_code == 400
     data = response.json()
@@ -366,7 +366,7 @@ def test_delete_backup_file_not_found(client):
         mock_backup_dir.__truediv__.return_value = mock_file
         mock_path_class.return_value = mock_backup_dir
         
-        response = client.delete(f"/feedback/backup-files/{filename}")
+        response = client.delete(f"/api/webservice/feedback/backup-files/{filename}")
         
         assert response.status_code == 404
         data = response.json()
@@ -386,7 +386,7 @@ def test_download_backup_file_success(client):
         
         mock_file_response.return_value = "mock_file_response"
         
-        response = client.get(f"/feedback/backup-files/{filename}/download")
+        response = client.get(f"/api/webservice/feedback/backup-files/{filename}/download")
         
         # FileResponse 가 호출되었는지 확인
         mock_file_response.assert_called_once()
@@ -399,7 +399,7 @@ def test_download_backup_file_invalid_filename(client):
     
     invalid_filename = "invalid_file.txt"
     
-    response = client.get(f"/feedback/backup-files/{invalid_filename}/download")
+    response = client.get(f"/api/webservice/feedback/backup-files/{invalid_filename}/download")
     
     assert response.status_code == 400
     data = response.json()
@@ -424,7 +424,7 @@ def test_generate_summary_report_success(client):
         mock_manager.get_feedback_stats.return_value = mock_stats
         mock_manager.get_improvement_insights.return_value = mock_insights
         
-        response = client.post("/feedback/summary-report")
+        response = client.post("/api/webservice/feedback/summary-report")
         
         assert response.status_code == 200
         data = response.json()
@@ -450,7 +450,7 @@ def test_generate_summary_report_error(client):
     with patch('app.api.routers.feedback.feedback_manager') as mock_manager:
         mock_manager.get_feedback_stats.side_effect = Exception("Database error")
         
-        response = client.post("/feedback/summary-report")
+        response = client.post("/api/webservice/feedback/summary-report")
         
         assert response.status_code == 500
         data = response.json()

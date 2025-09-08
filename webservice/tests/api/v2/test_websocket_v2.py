@@ -262,7 +262,7 @@ class TestV2WebSocketIntegration:
         websocket_routes = [route for route in app.routes if hasattr(route, 'path') and 'ws' in route.path]
         
         # v2 WebSocket 경로가 있는지 확인
-        v2_ws_routes = [route for route in websocket_routes if '/v2/ws/progress' in route.path]
+        v2_ws_routes = [route for route in websocket_routes if '/api/webservice/v2/ws/progress' in route.path]
         assert len(v2_ws_routes) > 0
     
     @pytest.mark.asyncio
@@ -331,7 +331,7 @@ class TestV2ProgressMessage:
         result = {
             "filename": "test_result.xlsx",
             "description": "테스트 시나리오",
-            "download_url": "/files/download/excel/test_result.xlsx"
+            "download_url": "/api/webservice/files/download/excel/test_result.xlsx"
         }
         
         msg = V2ProgressMessage(
