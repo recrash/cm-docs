@@ -85,12 +85,23 @@ pipeline {
                         changedFiles = ['webservice/', 'autodoc_service/', 'cli/']
                     }
 
+                    // *.md 파일은 제외하고 감지
+                    def filteredFiles = changedFiles.findAll { !it.endsWith('.md') }
+                    
                     // 서비스별 변경 감지 로직
-                    env.AUTODOC_CHANGED = changedFiles.any { it.startsWith('autodoc_service/') } ? 'true' : 'false'
-                    env.WEBSERVICE_CHANGED = changedFiles.any { it.startsWith('webservice/') } ? 'true' : 'false'
-                    env.CLI_CHANGED = changedFiles.any { it.startsWith('cli/') } ? 'true' : 'false'
-                    env.ROOT_CHANGED = changedFiles.any { 
-                        it.contains('Jenkinsfile') || it.contains('README.md')
+                    env.AUTODOC_CHANGED = filteredFiles.any { it.startsWith('autodoc_service/') } ? 'true' : 'false'
+                    env.WEBSERVICE_CHANGED = filteredFiles.any { it.startsWith('webservice/') } ? 'true' : 'false'
+                    env.CLI_CHANGED = filteredFiles.any { it.startsWith('cli/') } ? 'true' : 'false'
+                    
+                    // infra 폴더 변경 감지 (전체 배포 트리거)
+                    env.INFRA_CHANGED = filteredFiles.any { it.startsWith('infra/') } ? 'true' : 'false'
+                    
+                    // 루트 파일 정확한 매칭 (utilities/ 폴더는 제외)
+                    env.ROOT_CHANGED = filteredFiles.any { 
+                        it == 'Jenkinsfile' || 
+                        it == 'pyproject.toml' || 
+                        it == '.gitignore' ||
+                        (it.startsWith('scripts/') && !it.startsWith('utilities/'))
                     } ? 'true' : 'false'
 
                     echo """
@@ -100,7 +111,11 @@ pipeline {
                     • AutoDoc Service: ${env.AUTODOC_CHANGED}
                     • Webservice: ${env.WEBSERVICE_CHANGED}
                     • CLI: ${env.CLI_CHANGED}
+                    • Infrastructure: ${env.INFRA_CHANGED}
                     • Root/Config: ${env.ROOT_CHANGED}
+                    
+                    전체 변경 파일: ${changedFiles.size()}개
+                    빌드 대상 파일: ${filteredFiles.size()}개 (*.md 제외)
 
                     변경된 파일들:
                     ${changedFiles.join('\n')}
@@ -150,7 +165,7 @@ pipeline {
             parallel {
                 stage('🔧 AutoDoc Service CI/CD') {
                     when {
-                        expression { env.AUTODOC_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                        expression { env.AUTODOC_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
                     }
                     steps {
                         script {
@@ -174,7 +189,7 @@ pipeline {
                 
                 stage('🌐 Webservice Backend CI/CD') {
                     when {
-                        expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                        expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
                     }
                     steps {
                         script {
@@ -198,7 +213,7 @@ pipeline {
                 
                 stage('⚡ CLI CI/CD') {
                     when {
-                        expression { env.CLI_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                        expression { env.CLI_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
                     }
                     steps {
                         script {
@@ -228,7 +243,7 @@ pipeline {
         stage('🎨 2단계: Webservice Frontend CI/CD') {
             when {
                 allOf {
-                    expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' }
+                    expression { env.WEBSERVICE_CHANGED == 'true' || env.ROOT_CHANGED == 'true' || env.INFRA_CHANGED == 'true' }
                     expression { env.CRITICAL_FAILURE == 'false' }  // Backend 성공 시에만 실행
                 }
             }
@@ -288,7 +303,8 @@ pipeline {
                 expression { 
                     (env.WEBSERVICE_CHANGED == 'true' || 
                      env.AUTODOC_CHANGED == 'true' || 
-                     env.ROOT_CHANGED == 'true') &&
+                     env.ROOT_CHANGED == 'true' || 
+                     env.INFRA_CHANGED == 'true') &&
                     env.CRITICAL_FAILURE == 'false'  // Critical 서비스 성공 시에만 실행
                 }
             }
