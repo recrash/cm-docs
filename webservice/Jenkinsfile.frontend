@@ -52,8 +52,13 @@ pipeline {
                             script: 'git diff HEAD~1 HEAD --name-only | findstr /C:"package.json" /C:"package-lock.json"',
                             returnStatus: true
                         ) == 0
+
+                        def nodeModulesExists = bat(
+                            script: 'if exist node_modules (exit 0) else (exit 1)',
+                            returnStatus: true
+                        ) 
                         
-                        if (packageChanged) {
+                        if (packageChanged || !nodeModulesExists) {
                             echo "패키지 파일 변경 감지됨 - 의존성 업데이트 실행 (폐쇄망 모드)"
                             // 캐시 디렉토리 생성
                             bat "if not exist \"C:\\deploys\\packages\\npm-cache\" mkdir \"C:\\deploys\\packages\\npm-cache\""
