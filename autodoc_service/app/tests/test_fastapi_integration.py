@@ -236,7 +236,7 @@ class TestFastAPIIntegration:
     
     def test_cors_headers(self, client):
         """CORS 헤더 테스트"""
-        response = client.options("/")
+        response = client.options("/api/autodoc/")
 
         # FastAPI TestClient 환경에서 OPTIONS는 405가 될 수 있음. 200 또는 405 모두 허용
         assert response.status_code in (200, 405)
@@ -244,7 +244,7 @@ class TestFastAPIIntegration:
     def test_invalid_json_handling(self, client):
         """잘못된 JSON 처리 테스트"""
         response = client.post(
-            "/create-cm-word-enhanced",
+            "/api/autodoc/create-cm-word-enhanced",
             data="invalid json",
             headers={"content-type": "application/json"}
         )
@@ -261,7 +261,7 @@ class TestFastAPIIntegration:
             }
         }
 
-        response = client.post("/create-cm-word-enhanced", json=invalid_data)
+        response = client.post("/api/autodoc/create-cm-word-enhanced", json=invalid_data)
 
         # 해당 엔드포인트는 내부에서 모델 생성 중 ValidationError를 잡아 ok=False로 반환할 수 있음
         # 혹은 FastAPI가 422를 반환할 수 있으므로 두 케이스를 모두 허용
@@ -289,9 +289,9 @@ class TestFastAPIIntegration:
         assert response.status_code == 200
     
     @pytest.mark.parametrize("endpoint", [
-        "/create-cm-word-enhanced",
-        "/create-test-excel",
-        "/create-cm-list"
+        "/api/autodoc/create-cm-word-enhanced",
+        "/api/autodoc/create-test-excel",
+        "/api/autodoc/create-cm-list"
     ])
     def test_content_type_validation(self, client, endpoint):
         """Content-Type 검증 테스트"""
