@@ -190,7 +190,7 @@ pipeline {
         
         stage('Deploy') {
             when { 
-                branch 'main'
+                expression { params.BRANCH == 'main' }  // 파라미터 기반 조건으로 변경
             }
             steps {
                 script {

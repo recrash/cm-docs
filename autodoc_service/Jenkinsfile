@@ -195,7 +195,7 @@ pipeline {
         
         stage('Deploy') {
             when { 
-                branch 'main' // 'develop' 제거
+                expression { params.BRANCH == 'main' }  // 파라미터 기반 조건으로 변경
             }
             steps {
                 script {
