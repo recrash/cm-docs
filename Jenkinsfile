@@ -265,6 +265,31 @@ pipeline {
                                 env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
                                 echo "Webservice Frontend 배포 성공"
                                 
+                                // 테스트 인스턴스용 프론트엔드 아티팩트 복사
+                                if (env.IS_TEST == 'true') {
+                                    echo "테스트 인스턴스용 프론트엔드 아티팩트 복사 시작..."
+                                    
+                                    copyArtifacts(
+                                        projectName: 'webservice-frontend-pipeline',
+                                        selector: lastSuccessful(),
+                                        target: 'webservice/',
+                                        flatten: true,
+                                        fingerprintArtifacts: true
+                                    )
+                                    
+                                    // 아티팩트 존재 확인
+                                    bat '''
+                                    if exist "%WORKSPACE%\webservice\frontend.zip" (
+                                        echo "frontend.zip 복사 성공: %WORKSPACE%\webservice\frontend.zip"
+                                    ) else (
+                                        echo "frontend.zip 복사 실패"
+                                        exit 1
+                                    )
+                                    '''
+                                    
+                                    echo "테스트 인스턴스용 프론트엔드 아티팩트 복사 완료"
+                                }
+                                
                             } catch (Exception e) {
                                 env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
                                 env.FAILED_SERVICES += 'WebFrontend '
@@ -533,7 +558,7 @@ pipeline {
                     echo "==========================================="
                 }
             }
-        }
+        }        
         
         stage('🧪 Deploy Test Instance') {
             when { 
