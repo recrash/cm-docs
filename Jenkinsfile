@@ -78,8 +78,7 @@ pipeline {
                         changedFiles = bat(
                             script: "@echo off && ${gitCommand}",
                             returnStdout: true
-                        ).split('
-').findAll { it.trim() && !it.contains('>git ') && !it.contains('C:\\') }
+                        ).split('\\n').findAll { it.trim() && !it.contains('>git ') && !it.contains('C:\\') }
 
                     } catch (Exception e) {
                         echo "변경 감지 실패, 전체 빌드 실행: ${e.getMessage()}"
@@ -133,8 +132,7 @@ pipeline {
                     빌드 대상 파일: ${filteredFiles.size()}개 (*.md 제외)
 
                     변경된 파일들:
-                    ${filteredFiles.join('
-')}
+                    ${changedFiles.join('\n')}
                     ===========================================
                     """
                 }
