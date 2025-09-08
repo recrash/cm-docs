@@ -279,8 +279,8 @@ pipeline {
                                     
                                     // 아티팩트 존재 확인
                                     bat '''
-                                    if exist "%WORKSPACE%\webservice\frontend.zip" (
-                                        echo "frontend.zip 복사 성공: %WORKSPACE%\webservice\frontend.zip"
+                                    if exist "%WORKSPACE%\\webservice\\frontend.zip" (
+                                        echo "frontend.zip 복사 성공: %WORKSPACE%\\webservice\\frontend.zip"
                                     ) else (
                                         echo "frontend.zip 복사 실패"
                                         exit 1
