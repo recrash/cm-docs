@@ -16,33 +16,17 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 def test_parse_html_only_success():
     """HTML 파일 POST 시 JSON 200 응답 확인 (Task 1.1 DoD)"""
-    # fixtures에서 샘플 HTML 파일 찾기
-    sample_html = FIXTURES_DIR / "sample_itsupp.html"
+    # fixtures에서 샘플 HTML 파일 사용 (필수)
+    sample_html_path = FIXTURES_DIR / "sample_itsupp.html"
     
-    # 샘플 파일이 없으면 간단한 HTML 생성
-    if not sample_html.exists():
-        sample_html_content = """
-        <html>
-        <body>
-            <table>
-                <tr><td>제목</td><td>테스트 변경관리</td></tr>
-                <tr><td>변경관리번호</td><td>CM-2024-001</td></tr>
-                <tr><td>시스템</td><td>테스트시스템</td></tr>
-                <tr><td>요청자</td><td>홍길동</td></tr>
-                <tr><td>요청부서</td><td>IT개발팀</td></tr>
-            </table>
-        </body>
-        </html>
-        """
-        # 메모리에서 직접 파일 업로드
-        files = {"file": ("test.html", sample_html_content, "text/html")}
-    else:
-        # 실제 파일 사용
-        with open(sample_html, 'rb') as f:
-            files = {"file": ("sample_itsupp.html", f, "text/html")}
+    # 파일이 없으면 테스트 실패
+    assert sample_html_path.exists(), "테스트를 위해 fixtures/sample_itsupp.html 파일이 반드시 필요합니다."
     
-    # API 호출
-    response = client.post("/api/autodoc/parse-html-only", files=files)
+    # 실제 파일 사용
+    with open(sample_html_path, 'rb') as f:
+        files = {"file": ("sample_itsupp.html", f, "text/html")}
+        # API 호출 (파일이 열려있는 상태에서)
+        response = client.post("/api/autodoc/parse-html-only", files=files)
     
     # DoD 검증: HTTP 200 상태 코드
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
