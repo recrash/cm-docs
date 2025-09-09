@@ -115,6 +115,65 @@ async def health_check(request: Request):
         raise HTTPException(status_code=500, detail=f"헬스 체크 실패: {str(e)}")
 
 
+@router.post("/parse-html-only", response_model=ParseHtmlResponse)
+async def parse_html_only(request: Request, file: UploadFile = File(...)):
+    """HTML 파일 파싱 전용 엔드포인트
+    
+    업로드된 HTML 파일을 파싱하여 JSON 형태로만 반환 (파일 저장 없음)
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    start_time = time.time()
+    
+    logger.info(f"HTML 파싱 전용 요청: client_ip={client_ip}, filename={file.filename}, content_type={file.content_type}")
+    
+    try:
+        # 파일 타입 검증
+        if not file.content_type or 'html' not in file.content_type.lower():
+            if not file.filename or not file.filename.lower().endswith('.html'):
+                logger.warning(f"잘못된 파일 타입: filename={file.filename}, content_type={file.content_type}")
+                raise HTTPException(
+                    status_code=400, 
+                    detail="HTML 파일만 업로드 가능합니다"
+                )
+        
+        # 파일 내용 읽기
+        content = await file.read()
+        file_size = len(content)
+        html_content = content.decode('utf-8')
+        
+        logger.info(f"HTML 파일 읽기 완료: filename={file.filename}, size={file_size} bytes")
+        
+        # HTML 파싱
+        parsed_data = parse_itsupp_html(html_content)
+        field_count = len(parsed_data) if parsed_data else 0
+        
+        processing_time = time.time() - start_time
+        logger.info(f"HTML 파싱 전용 성공: filename={file.filename}, fields_parsed={field_count}, processing_time={processing_time:.3f}s")
+        
+        return ParseHtmlResponse(
+            success=True,
+            data=parsed_data
+        )
+        
+    except HTTPException:
+        # HTTPException은 그대로 재발생
+        raise
+    except UnicodeDecodeError as e:
+        processing_time = time.time() - start_time
+        logger.error(f"파일 인코딩 오류: filename={file.filename}, processing_time={processing_time:.3f}s, error={str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail="파일 인코딩 오류: UTF-8로 인코딩된 HTML 파일이 필요합니다"
+        )
+    except Exception as e:
+        processing_time = time.time() - start_time
+        logger.exception(f"HTML 파싱 실패: filename={file.filename}, processing_time={processing_time:.3f}s, error={str(e)}")
+        return ParseHtmlResponse(
+            success=False,
+            error=f"HTML 파싱 실패: {str(e)}"
+        )
+
+
 @router.post("/parse-html", response_model=ParseHtmlResponse)
 async def parse_html_endpoint(request: Request, file: UploadFile = File(...)):
     """HTML 파일 파싱 엔드포인트
@@ -168,6 +227,91 @@ async def parse_html_endpoint(request: Request, file: UploadFile = File(...)):
         return ParseHtmlResponse(
             success=False,
             error=f"HTML 파싱 실패: {str(e)}"
+        )
+
+
+@router.post("/build-cm-word", response_model=CreateDocumentResponse)
+async def build_cm_word(http_request: Request, data: ChangeRequest):
+    """JSON 기반 변경관리 Word 문서 생성 엔드포인트
+    
+    메타데이터 JSON을 받아서 Word 문서를 생성합니다.
+    """
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    start_time = time.time()
+    
+    logger.info(f"Word 문서 생성 API 요청: client_ip={client_ip}, change_id={data.change_id}, system={data.system}")
+    
+    try:
+        # Word 문서 생성
+        output_path = build_change_request_doc_label_based(data)
+        
+        processing_time = time.time() - start_time
+        file_size = output_path.stat().st_size if output_path.exists() else 0
+        
+        logger.info(f"Word 문서 생성 API 성공: filename={output_path.name}, size={file_size} bytes, processing_time={processing_time:.3f}s")
+        
+        # 다운로드 URL 포함하여 반환
+        return CreateDocumentResponse(
+            ok=True,
+            filename=output_path.name
+        )
+        
+    except ValueError as e:
+        processing_time = time.time() - start_time
+        logger.error(f"Word 문서 생성 API 검증 오류: processing_time={processing_time:.3f}s, error={str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        processing_time = time.time() - start_time
+        logger.error(f"Word 문서 생성 API 파일 오류: processing_time={processing_time:.3f}s, error={str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        processing_time = time.time() - start_time
+        logger.exception(f"Word 문서 생성 API 실패: processing_time={processing_time:.3f}s, error={str(e)}")
+        return CreateDocumentResponse(
+            ok=False,
+            error=f"Word 문서 생성 실패: {str(e)}"
+        )
+
+
+@router.post("/build-base-scenario", response_model=CreateDocumentResponse)
+async def build_base_scenario(request: Request, data: ChangeRequest):
+    """JSON 기반 기본 시나리오 Excel 생성 엔드포인트
+    
+    메타데이터 JSON을 받아서 기본 시나리오 Excel을 생성합니다.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    start_time = time.time()
+    
+    logger.info(f"기본 시나리오 Excel 생성 API 요청: client_ip={client_ip}, change_id={data.change_id}, system={data.system}")
+    
+    try:
+        # Excel 파일 생성
+        output_path = build_test_scenario_xlsx(data)
+        
+        processing_time = time.time() - start_time
+        file_size = output_path.stat().st_size if output_path.exists() else 0
+        
+        logger.info(f"기본 시나리오 Excel 생성 API 성공: filename={output_path.name}, size={file_size} bytes, processing_time={processing_time:.3f}s")
+        
+        return CreateDocumentResponse(
+            ok=True,
+            filename=output_path.name
+        )
+        
+    except ValueError as e:
+        processing_time = time.time() - start_time
+        logger.error(f"기본 시나리오 Excel 생성 API 검증 오류: processing_time={processing_time:.3f}s, error={str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        processing_time = time.time() - start_time
+        logger.error(f"기본 시나리오 Excel 생성 API 파일 오류: processing_time={processing_time:.3f}s, error={str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        processing_time = time.time() - start_time
+        logger.exception(f"기본 시나리오 Excel 생성 API 실패: processing_time={processing_time:.3f}s, error={str(e)}")
+        return CreateDocumentResponse(
+            ok=False,
+            error=f"기본 시나리오 Excel 생성 실패: {str(e)}"
         )
 
 
@@ -303,6 +447,56 @@ async def create_change_management_list(request: Request, data: List[Union[Chang
         return CreateDocumentResponse(
             ok=False,
             error=f"Excel 목록 생성 실패: {str(e)}"
+        )
+
+
+@router.post("/build-cm-list", response_model=CreateDocumentResponse)
+async def build_cm_list(request: Request, data: List[ChangeRequest]):
+    """JSON 기반 변경관리 목록 Excel 생성 엔드포인트
+    
+    메타데이터 JSON 배열을 받아서 변경요청 목록 Excel을 생성합니다.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    start_time = time.time()
+    
+    data_count = len(data) if data else 0
+    logger.info(f"목록 Excel 생성 API 요청: client_ip={client_ip}, data_count={data_count}")
+    
+    try:
+        if not data:
+            logger.warning("목록 Excel 생성 API 실패: 데이터가 비어있음")
+            raise HTTPException(status_code=400, detail="데이터가 비어있습니다")
+        
+        # Excel 목록 파일 생성
+        output_path = build_change_list_xlsx(data)
+        
+        processing_time = time.time() - start_time
+        file_size = output_path.stat().st_size if output_path.exists() else 0
+        
+        logger.info(f"목록 Excel 생성 API 성공: filename={output_path.name}, data_count={data_count}, size={file_size} bytes, processing_time={processing_time:.3f}s")
+        
+        return CreateDocumentResponse(
+            ok=True,
+            filename=output_path.name
+        )
+        
+    except HTTPException:
+        # HTTPException은 그대로 재발생
+        raise
+    except ValueError as e:
+        processing_time = time.time() - start_time
+        logger.error(f"목록 Excel 생성 API 검증 오류: data_count={data_count}, processing_time={processing_time:.3f}s, error={str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        processing_time = time.time() - start_time
+        logger.error(f"목록 Excel 생성 API 파일 오류: data_count={data_count}, processing_time={processing_time:.3f}s, error={str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        processing_time = time.time() - start_time
+        logger.exception(f"목록 Excel 생성 API 실패: data_count={data_count}, processing_time={processing_time:.3f}s, error={str(e)}")
+        return CreateDocumentResponse(
+            ok=False,
+            error=f"목록 Excel 생성 실패: {str(e)}"
         )
 
 
