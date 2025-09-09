@@ -424,7 +424,7 @@ packages/
 # 디버깅용 임시 파일들 (workspace hygiene)
 debug_*.py
 temp_*.py
-test_*.py
+scratch_test_*.py  # 임시 테스트 파일만 무시
 scratch.*
 debug.*
 
