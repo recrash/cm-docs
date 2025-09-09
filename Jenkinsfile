@@ -145,6 +145,22 @@ pipeline {
                     ${changedFiles.join('\n')}
                     ===========================================
                     """
+                    
+                    // 빌드 대상 파일이 없으면 성공으로 종료
+                    if (filteredFiles.size() == 0) {
+                        env.DEPLOYMENT_STATUS = 'NO_CHANGES_SUCCESS'
+                        currentBuild.result = 'SUCCESS'
+                        currentBuild.description = '📄 문서 변경만 있음 - 배포 스킵'
+                        
+                        echo """
+                        ℹ️ 빌드 대상 파일이 없어 파이프라인을 성공으로 종료합니다.
+                        - 전체 변경 파일: ${changedFiles.size()}개
+                        - 빌드 대상 파일: 0개
+                        - 파이프라인 상태: SUCCESS
+                        """
+                        
+                        return // 파이프라인 조기 종료
+                    }
                 }
             }
         }
