@@ -190,7 +190,10 @@ pipeline {
         
         stage('Deploy') {
             when { 
-                branch 'main'
+                expression { 
+                    def branch = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
+                    return branch == 'main' || branch.endsWith('/main')
+                }
             }
             steps {
                 script {
