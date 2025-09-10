@@ -491,6 +491,54 @@ class APIClient:
             self.logger.warning(f"서버 상태 확인 실패: {e}")
             return False
 
+    async def start_full_generation(
+        self, 
+        session_id: str, 
+        vcs_analysis_text: str, 
+        metadata_json: dict
+    ) -> dict:
+        """
+        전체 문서 생성 요청 (Phase 2 신규 API)
+        
+        Args:
+            session_id: WebSocket 세션 ID
+            vcs_analysis_text: Git/SVN 저장소 분석 결과 텍스트
+            metadata_json: HTML에서 파싱된 메타데이터 JSON
+            
+        Returns:
+            API 응답 JSON
+            
+        Raises:
+            APIError: API 요청 실패 시
+        """
+        try:
+            self.logger.info(f"전체 문서 생성 API 호출 시작: session_id={session_id}")
+            
+            # 요청 데이터 구성
+            request_data = {
+                "session_id": session_id,
+                "vcs_analysis_text": vcs_analysis_text,
+                "metadata_json": metadata_json
+            }
+            
+            # v2 오케스트레이션 API 호출
+            endpoint = "/api/webservice/v2/start-full-generation"
+            response = await self.client.post(endpoint, json=request_data, timeout=60.0)
+            
+            # 응답 처리
+            if response.is_success:
+                result = response.json()
+                self.logger.info(f"전체 문서 생성 API 호출 성공: session_id={session_id}")
+                return result
+            else:
+                self._handle_http_error(response)
+                
+        except Exception as e:
+            self.logger.error(f"전체 문서 생성 API 호출 실패: session_id={session_id}, error={str(e)}")
+            if isinstance(e, APIError):
+                raise
+            raise APIError(f"전체 문서 생성 API 요청 중 오류: {str(e)}")
+
     async def close(self) -> None:
         """클라이언트 종료"""
         await self.client.aclose()

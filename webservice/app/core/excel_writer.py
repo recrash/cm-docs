@@ -190,3 +190,34 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
     print(f"\n✅ 성공! '{final_filename}' 파일에 {len(test_cases)}개의 테스트 시나리오를 저장했습니다.")
     
     return final_filename
+
+
+def create_excel_file(test_cases: List[Dict[str, Any]], description: str = "", title: str = "") -> str:
+    """
+    Phase 2: 테스트 케이스로부터 엑셀 파일을 생성합니다.
+    
+    Args:
+        test_cases: 테스트 케이스 리스트
+        description: 시나리오 설명
+        title: 시나리오 제목
+        
+    Returns:
+        생성된 엑셀 파일의 파일명 (경로 제외)
+    """
+    # 기존 함수 호환성을 위한 JSON 구조 생성
+    result_json = {
+        "Test Cases": test_cases,
+        "Scenario Description": description or "Phase 2 생성 시나리오",
+        "Test Scenario Name": title or f"Phase 2 시나리오 {datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    }
+    
+    # 기존 save_results_to_excel 함수 사용
+    full_path = save_results_to_excel(result_json)
+    
+    if full_path:
+        # 파일명만 반환 (경로 제외)
+        return Path(full_path).name
+    
+    # 실패 시 기본 파일명 반환
+    timestamp = datetime.now().strftime(TIME_FORMAT)
+    return FILE_NAME_FORMAT.format(timestamp=timestamp)
