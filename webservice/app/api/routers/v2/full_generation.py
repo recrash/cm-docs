@@ -58,7 +58,7 @@ async def start_full_generation(
             "status": FullGenerationStatus.RECEIVED,
             "started_at": datetime.now(),
             "steps_completed": 0,
-            "total_steps": 6,  # 총 6단계
+            "total_steps": 4,  # 총 4단계로 단순화 (VCS분석 → 시나리오생성 → 문서생성 → 완료)
             "current_step": "요청 수신",
             "vcs_analysis_text": request.vcs_analysis_text,
             "metadata_json": request.metadata_json,
@@ -138,20 +138,20 @@ async def execute_full_generation(session_id: str, vcs_analysis_text: str, metad
         scenario_result = await generate_scenario_excel(vcs_analysis_text, metadata_json)
         session["results"]["scenario_filename"] = scenario_result.get("filename")
         
-        # Step 3, 4, 5: autodoc_service 문서 3종 동시 생성 (성능 최적화)
-        await update_session_status(session_id, FullGenerationStatus.GENERATING_WORD_DOC, "Word, Excel 목록, 기본 시나리오 동시 생성 중", 3)
+        # Step 3: autodoc_service 문서 2종 + 통합 시나리오 동시 생성 (성능 최적화)
+        await update_session_status(session_id, FullGenerationStatus.GENERATING_WORD_DOC, "Word, Excel 목록, 통합 시나리오 동시 생성 중", 3)
         
-        # asyncio.gather를 사용해 3개의 작업을 동시에 실행 (성능 3배 향상)
+        # asyncio.gather를 사용해 3개의 작업을 동시에 실행 (새로운 통합 API 사용)
         try:
             results = await asyncio.gather(
                 generate_word_document(metadata_json),
                 generate_excel_list([metadata_json]),
-                generate_base_scenario(metadata_json),
+                generate_integrated_scenario(metadata_json, scenario_result.get("test_cases", [])),
                 return_exceptions=True  # 작업 중 하나가 실패해도 나머지는 계속하도록
             )
             
             # 결과 처리
-            word_result, excel_list_result, base_scenario_result = results
+            word_result, excel_list_result, integrated_scenario_result = results
             
             # Word 결과 처리
             if isinstance(word_result, Exception):
@@ -169,39 +169,33 @@ async def execute_full_generation(session_id: str, vcs_analysis_text: str, metad
             else:
                 session["results"]["excel_list_filename"] = excel_list_result.get("filename")
             
-            # 기본 시나리오 결과 처리
-            if isinstance(base_scenario_result, Exception):
-                logger.error(f"기본 시나리오 생성 실패: {base_scenario_result}")
-                session["errors"].append(f"기본 시나리오 생성 실패: {base_scenario_result}")
-                base_scenario_result = {}
+            # 통합 시나리오 결과 처리
+            if isinstance(integrated_scenario_result, Exception):
+                logger.error(f"통합 시나리오 생성 실패: {integrated_scenario_result}")
+                session["errors"].append(f"통합 시나리오 생성 실패: {integrated_scenario_result}")
+                integrated_scenario_result = {}
             else:
-                session["results"]["base_scenario_filename"] = base_scenario_result.get("filename")
+                session["results"]["integrated_scenario_filename"] = integrated_scenario_result.get("filename")
+                # 하위 호환성을 위해 기존 키도 설정
+                session["results"]["base_scenario_filename"] = integrated_scenario_result.get("filename")
+                session["results"]["merged_excel_filename"] = integrated_scenario_result.get("filename")
                 
         except Exception as e:
             logger.error(f"병렬 문서 생성 중 예외 발생: {e}")
             # 실패한 경우 개별 시도
             word_result = await generate_word_document(metadata_json)
             excel_list_result = await generate_excel_list([metadata_json])
-            base_scenario_result = await generate_base_scenario(metadata_json)
+            integrated_scenario_result = await generate_integrated_scenario(metadata_json, scenario_result.get("test_cases", []))
             
             session["results"]["word_filename"] = word_result.get("filename")
             session["results"]["excel_list_filename"] = excel_list_result.get("filename")
-            session["results"]["base_scenario_filename"] = base_scenario_result.get("filename")
+            session["results"]["integrated_scenario_filename"] = integrated_scenario_result.get("filename")
+            # 하위 호환성을 위해 기존 키도 설정
+            session["results"]["base_scenario_filename"] = integrated_scenario_result.get("filename")
+            session["results"]["merged_excel_filename"] = integrated_scenario_result.get("filename")
         
-        # Step 6: Excel 시나리오 강화 (기본 템플릿에 LLM 테스트 케이스 추가)
-        await update_session_status(session_id, FullGenerationStatus.MERGING_EXCEL, "시나리오 강화 중 (LLM 테스트 케이스 추가)", 6)
-        if scenario_result.get("test_cases") and base_scenario_result.get("filename"):
-            enhanced_result = await enhance_base_scenario(
-                base_scenario_result["filename"],
-                scenario_result["test_cases"],
-                session_id,
-                metadata_json.get("change_id", "UNKNOWN")
-            )
-            session["results"]["merged_excel_filename"] = enhanced_result.get("merged_filename")
-        
-        # 완료
-        session["status"] = FullGenerationStatus.COMPLETED
-        session["current_step"] = "생성 완료"
+        # Step 4: 완료
+        await update_session_status(session_id, FullGenerationStatus.COMPLETED, "생성 완료", 4)
         session["completed_at"] = datetime.now()
         
         logger.info(f"전체 문서 생성 완료: {session_id}")
@@ -327,7 +321,7 @@ async def generate_excel_list(change_requests: list) -> Dict[str, Any]:
 
 async def generate_base_scenario(metadata_json: Dict[str, Any]) -> Dict[str, Any]:
     """
-    기본 시나리오 생성 (autodoc_service 호출)
+    기본 시나리오 생성 (autodoc_service 호출) - 하위 호환성용
     
     Args:
         metadata_json: 메타데이터
@@ -345,9 +339,30 @@ async def generate_base_scenario(metadata_json: Dict[str, Any]) -> Dict[str, Any
         raise
 
 
+async def generate_integrated_scenario(metadata_json: Dict[str, Any], llm_test_cases: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    통합 시나리오 생성 (기본 시나리오 + LLM 테스트 케이스 통합)
+    
+    Args:
+        metadata_json: 메타데이터
+        llm_test_cases: LLM이 생성한 테스트 케이스 목록
+        
+    Returns:
+        생성 결과
+    """
+    try:
+        async with AutoDocClient() as client:
+            result = await client.build_test_scenario(metadata_json, llm_test_cases)
+            return result
+            
+    except AutoDocServiceError as e:
+        logger.error(f"통합 시나리오 생성 실패: {e}")
+        raise
+
+
 async def enhance_base_scenario(base_scenario_filename: str, llm_test_cases: List[Dict[str, Any]], session_id: str, change_id: str) -> Dict[str, Any]:
     """
-    기본 시나리오에 LLM 테스트 케이스 추가 (새로운 최적화된 방식)
+    기본 시나리오에 LLM 테스트 케이스 추가 (레거시 방식 - 하위 호환성용)
     
     Args:
         base_scenario_filename: 기본 시나리오 파일명

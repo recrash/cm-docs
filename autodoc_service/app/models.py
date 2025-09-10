@@ -69,3 +69,9 @@ class HealthResponse(BaseModel):
     status: str
     templates_available: bool
     documents_dir_writable: bool
+
+
+class EnhancedScenarioRequest(BaseModel):
+    """통합 테스트 시나리오 생성 요청 모델"""
+    change_request: ChangeRequest = Field(..., description="기본 변경관리 데이터")
+    test_cases: Optional[List[Dict[str, Any]]] = Field(None, description="LLM이 생성한 추가 테스트 케이스")

@@ -20,7 +20,8 @@ from .models import (
     ChangeRequest, 
     ParseHtmlResponse, 
     CreateDocumentResponse, 
-    HealthResponse
+    HealthResponse,
+    EnhancedScenarioRequest
 )
 from .parsers.itsupp_html_parser import parse_itsupp_html
 from .services.label_based_word_builder import build_change_request_doc_label_based
@@ -253,7 +254,7 @@ async def build_cm_word(http_request: Request, data: ChangeRequest):
 
 @router.post("/build-base-scenario", response_model=CreateDocumentResponse)
 async def build_base_scenario(request: Request, data: ChangeRequest):
-    """JSON 기반 기본 시나리오 Excel 생성 엔드포인트
+    """JSON 기반 기본 시나리오 Excel 생성 엔드포인트 (하위 호환성)
     
     메타데이터 JSON을 받아서 기존 검증된 API를 호출하여 기본 시나리오 Excel을 생성합니다.
     """
@@ -264,6 +265,45 @@ async def build_base_scenario(request: Request, data: ChangeRequest):
     
     logger.info(f"build-base-scenario API 완료: 기존 API 호출 결과 반환")
     return result
+
+
+@router.post("/build-test-scenario", response_model=CreateDocumentResponse)
+async def build_test_scenario(request: Request, data: EnhancedScenarioRequest):
+    """JSON 기반 통합 테스트 시나리오 Excel 생성 엔드포인트
+    
+    기본 시나리오 + LLM 테스트 케이스를 통합하여 완성된 Excel을 생성합니다.
+    """
+    change_request = data.change_request
+    test_cases = data.test_cases or []
+    
+    logger.info(f"build-test-scenario API 호출: change_id={change_request.change_id}, system={change_request.system}, test_cases_count={len(test_cases)}")
+    
+    # 1. 기존 기본 시나리오 생성
+    base_result = await create_test_scenario_excel(request, change_request)
+    
+    if not base_result.ok:
+        logger.error(f"기본 시나리오 생성 실패: {base_result.error}")
+        return base_result
+    
+    # 2. LLM 테스트 케이스가 있으면 Excel에 행 추가
+    if test_cases:
+        try:
+            from .services.excel_enhancer import append_test_cases_to_excel
+            from .services.paths import get_documents_dir
+            
+            documents_dir = get_documents_dir()
+            excel_path = documents_dir / base_result.filename
+            
+            added_rows = append_test_cases_to_excel(excel_path, test_cases)
+            logger.info(f"LLM 테스트 케이스 {added_rows}개 추가 완료")
+            
+        except Exception as e:
+            logger.error(f"LLM 테스트 케이스 추가 실패: {e}")
+            # 기본 시나리오는 생성되었으므로 경고만 기록하고 계속 진행
+            logger.warning("기본 시나리오는 정상 생성되었습니다.")
+    
+    logger.info(f"build-test-scenario API 완료: 통합 시나리오 생성 성공")
+    return base_result
 
 
 @router.post("/create-cm-word-enhanced", response_model=CreateDocumentResponse)

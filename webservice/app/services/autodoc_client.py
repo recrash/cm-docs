@@ -18,6 +18,64 @@ class AutoDocServiceError(Exception):
     pass
 
 
+def transform_metadata_to_enhanced_request(metadata_json: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    webservice 메타데이터를 autodoc_service enhanced 요청 형식으로 변환
+    
+    Args:
+        metadata_json: webservice에서 전달받은 메타데이터
+        
+    Returns:
+        autodoc_service에서 기대하는 enhanced 요청 형식
+    """
+    raw_data = metadata_json.get("raw_data", {})
+    
+    # 디버그 로깅: 입력 데이터 확인
+    logger.info(f"변환 입력 데이터 - metadata_json keys: {list(metadata_json.keys())}")
+    logger.info(f"변환 입력 데이터 - raw_data keys: {list(raw_data.keys()) if raw_data else 'None'}")
+    
+    # raw_data가 API 응답 구조 {'success': true, 'data': {...}}인 경우 실제 데이터 추출
+    if raw_data and 'data' in raw_data and 'success' in raw_data:
+        logger.info("API 응답 구조 감지: raw_data['data']에서 실제 데이터 추출")
+        actual_data = raw_data.get('data', {})
+        logger.info(f"실제 데이터 keys: {list(actual_data.keys()) if actual_data else 'None'}")
+    else:
+        actual_data = raw_data
+        logger.info("직접 데이터 구조 사용")
+    
+    if actual_data:
+        logger.info(f"actual_data 샘플: 처리자_약칭={actual_data.get('처리자_약칭')}, 요청자={actual_data.get('요청자')}, 변경관리번호={actual_data.get('변경관리번호')}")
+    
+    # actual_data에서 실제 값을 추출하여 change_request 생성
+    change_request = {
+        "change_id": actual_data.get("변경관리번호") or metadata_json.get("change_id", "UNKNOWN"),
+        "title": actual_data.get("제목") or metadata_json.get("title", "제목 없음"),
+        "system": actual_data.get("요청시스템") or metadata_json.get("system", "시스템 없음"),
+        "requester": actual_data.get("요청자") or metadata_json.get("requester", "요청자 없음"),
+        "writer_short": actual_data.get("처리자_약칭") or actual_data.get("요청자") or metadata_json.get("requester", "요청자"),
+        "request_dept": actual_data.get("요청부서"),
+        "doc_no": actual_data.get("문서번호"),
+        "work_datetime": actual_data.get("작업일시"),
+        "deploy_datetime": actual_data.get("배포일시"),
+        "customer": actual_data.get("고객사"),
+        "worker_deployer": actual_data.get("배포자"),
+        "created_date": actual_data.get("작성일")
+    }
+    
+    # None 값 제거 (autodoc_service에서 Optional 필드들)
+    change_request = {k: v for k, v in change_request.items() if v is not None}
+    
+    # enhanced 요청 형식으로 변환
+    enhanced_request = {
+        "raw_data": actual_data,  # API 응답에서 추출한 실제 데이터 사용
+        "change_request": change_request
+    }
+    
+    logger.info(f"메타데이터 변환 완료: change_id={change_request.get('change_id')}, writer_short={change_request.get('writer_short')}")
+    
+    return enhanced_request
+
+
 class AutoDocClient:
     """AutoDoc Service HTTP 클라이언트"""
     
@@ -61,12 +119,12 @@ class AutoDocClient:
         except httpx.HTTPStatusError as e:
             raise AutoDocServiceError(f"AutoDoc Service 헬스 체크 실패: {e.response.status_code}")
     
-    async def build_cm_word(self, change_request: Dict[str, Any]) -> Dict[str, Any]:
+    async def build_cm_word(self, metadata_json: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Word 문서 생성 요청
+        Word 문서 생성 요청 (enhanced API 사용)
         
         Args:
-            change_request: 변경 요청 데이터
+            metadata_json: webservice 메타데이터 (raw_data 포함)
             
         Returns:
             생성 결과 (파일명 포함)
@@ -75,11 +133,14 @@ class AutoDocClient:
             raise AutoDocServiceError("클라이언트가 초기화되지 않았습니다")
         
         try:
-            logger.info(f"Word 문서 생성 요청: {change_request.get('change_id', 'N/A')}")
+            # 메타데이터를 enhanced 요청 형식으로 변환
+            enhanced_request = transform_metadata_to_enhanced_request(metadata_json)
+            
+            logger.info(f"Word 문서 생성 요청: {enhanced_request['change_request'].get('change_id', 'N/A')}")
             
             response = await self.client.post(
-                f"{self.base_url}/api/autodoc/build-cm-word",
-                json=change_request
+                f"{self.base_url}/api/autodoc/create-cm-word-enhanced",
+                json=enhanced_request
             )
             response.raise_for_status()
             result = response.json()
@@ -100,7 +161,7 @@ class AutoDocClient:
         Excel 목록 생성 요청
         
         Args:
-            change_requests: 변경 요청 데이터 목록
+            change_requests: 변경 요청 데이터 목록 (webservice 메타데이터 형식)
             
         Returns:
             생성 결과 (파일명 포함)
@@ -109,11 +170,17 @@ class AutoDocClient:
             raise AutoDocServiceError("클라이언트가 초기화되지 않았습니다")
         
         try:
-            logger.info(f"Excel 목록 생성 요청: {len(change_requests)}개 항목")
+            # 각 메타데이터를 ChangeRequest 형식으로 변환
+            transformed_requests = []
+            for metadata in change_requests:
+                enhanced_request = transform_metadata_to_enhanced_request(metadata)
+                transformed_requests.append(enhanced_request['change_request'])
+            
+            logger.info(f"Excel 목록 생성 요청: {len(transformed_requests)}개 항목")
             
             response = await self.client.post(
                 f"{self.base_url}/api/autodoc/build-cm-list",
-                json=change_requests
+                json=transformed_requests
             )
             response.raise_for_status()
             result = response.json()
@@ -129,12 +196,12 @@ class AutoDocClient:
         except httpx.HTTPStatusError as e:
             raise AutoDocServiceError(f"Excel 목록 생성 HTTP 오류: {e.response.status_code}")
     
-    async def build_base_scenario(self, change_request: Dict[str, Any]) -> Dict[str, Any]:
+    async def build_base_scenario(self, metadata_json: Dict[str, Any]) -> Dict[str, Any]:
         """
         기본 시나리오 Excel 생성 요청
         
         Args:
-            change_request: 변경 요청 데이터
+            metadata_json: webservice 메타데이터 (raw_data 포함)
             
         Returns:
             생성 결과 (파일명 포함)
@@ -143,6 +210,10 @@ class AutoDocClient:
             raise AutoDocServiceError("클라이언트가 초기화되지 않았습니다")
         
         try:
+            # 메타데이터를 ChangeRequest 형식으로 변환
+            enhanced_request = transform_metadata_to_enhanced_request(metadata_json)
+            change_request = enhanced_request['change_request']
+            
             logger.info(f"기본 시나리오 생성 요청: {change_request.get('change_id', 'N/A')}")
             
             response = await self.client.post(
@@ -162,6 +233,50 @@ class AutoDocClient:
             raise AutoDocServiceError(f"기본 시나리오 생성 요청 실패: {e}")
         except httpx.HTTPStatusError as e:
             raise AutoDocServiceError(f"기본 시나리오 생성 HTTP 오류: {e.response.status_code}")
+    
+    async def build_test_scenario(self, metadata_json: Dict[str, Any], test_cases: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """
+        테스트 시나리오 Excel 생성 요청 (기본 시나리오 + LLM 테스트 케이스 통합)
+        
+        Args:
+            metadata_json: webservice 메타데이터 (raw_data 포함)
+            test_cases: LLM이 생성한 추가 테스트 케이스 목록
+            
+        Returns:
+            생성 결과 (파일명 포함)
+        """
+        if not self.client:
+            raise AutoDocServiceError("클라이언트가 초기화되지 않았습니다")
+        
+        try:
+            # 메타데이터를 ChangeRequest 형식으로 변환
+            enhanced_request = transform_metadata_to_enhanced_request(metadata_json)
+            change_request = enhanced_request['change_request']
+            
+            logger.info(f"테스트 시나리오 생성 요청: {change_request.get('change_id', 'N/A')}, {len(test_cases) if test_cases else 0}개 테스트 케이스")
+            
+            request_data = {
+                "change_request": change_request,
+                "test_cases": test_cases or []
+            }
+            
+            response = await self.client.post(
+                f"{self.base_url}/api/autodoc/build-test-scenario",
+                json=request_data
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            if not result.get("ok", False):
+                raise AutoDocServiceError(f"테스트 시나리오 생성 실패: {result.get('error', '알 수 없는 오류')}")
+            
+            logger.info(f"테스트 시나리오 생성 완료: {result.get('filename')}")
+            return result
+            
+        except httpx.RequestError as e:
+            raise AutoDocServiceError(f"테스트 시나리오 생성 요청 실패: {e}")
+        except httpx.HTTPStatusError as e:
+            raise AutoDocServiceError(f"테스트 시나리오 생성 HTTP 오류: {e.response.status_code}")
     
     async def list_documents(self) -> Dict[str, Any]:
         """
