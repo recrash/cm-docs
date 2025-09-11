@@ -101,9 +101,12 @@ pipeline {
                     // 서비스별 변경 감지 로직
                     env.AUTODOC_CHANGED = filteredFiles.any { it.startsWith('autodoc_service/') || it == 'autodoc_service/Jenkinsfile' } ? 'true' : 'false'
                     
-                    // Webservice Backend 변경 감지 (frontend 제외)
+                    // Webservice Backend 변경 감지 (frontend 및 frontend Jenkinsfile 제외)
                     env.WEBSERVICE_BACKEND_CHANGED = filteredFiles.any { 
-                        (it.startsWith('webservice/') && !it.startsWith('webservice/frontend/')) || it == 'webservice/Jenkinsfile.backend'
+                        (it.startsWith('webservice/') && 
+                         !it.startsWith('webservice/frontend/') && 
+                         it != 'webservice/Jenkinsfile.frontend') || 
+                        it == 'webservice/Jenkinsfile.backend'
                     } ? 'true' : 'false'
                     
                     // Webservice Frontend 변경 감지
