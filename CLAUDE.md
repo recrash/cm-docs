@@ -22,7 +22,7 @@ cm-docs/
 ```bash
 # Webservice
 cd webservice && source .venv/bin/activate
-export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ modules
+export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for app/ modules
 
 # CLI
 cd cli && source .venv/bin/activate
@@ -41,7 +41,7 @@ subprocess.run(['git', 'status'], cwd=str(repo_path), capture_output=True)
 ```
 
 ### Environment Variable-Based Path System
-**Production Deployment Architecture** (커밋 f57efef에서 도입):
+**Production Deployment Architecture**:
 ```bash
 # Production environment variables
 export WEBSERVICE_DATA_PATH="C:/deploys/data/webservice"     # Windows
@@ -57,20 +57,20 @@ C:\deploys\
 │   └── autodoc_service\
 └── packages\               # Build artifacts (.whl files)
 
-# Development fallback (environment variables 없으면 자동 사용)
-# webservice/data/    - webservice 개발환경 기본값
-# autodoc_service/data/  - autodoc_service 개발환경 기본값
+# Development fallback (automatically used if environment variables are not set)
+# webservice/data/    - webservice development default
+# autodoc_service/data/  - autodoc_service development default
 ```
 
 **Data Directory Structure**:
 ```
 data/
-├── logs/         # 로그 파일 (환경변수 기반)
-├── models/       # AI 임베딩 모델 (webservice만)
-├── documents/    # 생성된 문서 출력
-├── templates/    # 템플릿 파일 (환경변수 기반)
-├── outputs/      # Excel 출력 (webservice만)
-└── db/           # 벡터 DB (webservice만)
+├── logs/         # Log files (environment variable based)
+├── models/       # AI embedding models (webservice only)
+├── documents/    # Generated document output
+├── templates/    # Template files (environment variable based)
+├── outputs/      # Excel output (webservice only)
+└── db/           # Vector DB (webservice only)
 ```
 
 ## Webservice Development
@@ -82,10 +82,10 @@ data/
 - **Vector DB**: ChromaDB for RAG system
 - **Testing**: Vitest + Playwright (E2E) + pytest
 
-### ChromaDB 의존성 관리
-**제약조건 파일 필수 사용**:
+### ChromaDB Dependency Management
+**Constraint file is mandatory**:
 ```bash
-pip install -r requirements.txt -c pip.constraints.txt  # ✅ 올바른 방법
+pip install -r requirements.txt -c pip.constraints.txt  # ✅ Correct method
 ```
 
 ### Development Commands
@@ -116,15 +116,15 @@ cd webservice/frontend && npm run build               # Production build
 ```
 
 ### Architecture Details
-**통합 앱 구조** (`app/`):
-- **Main Application** (`app/main.py`): FastAPI 애플리케이션 진입점 with lifespan manager
-- **Core modules** (`app/core/`): 리팩토링된 분석 로직 (config_loader, git_analyzer, excel_writer, llm_handler)
+**Unified app structure** (`app/`):
+- **Main Application** (`app/main.py`): FastAPI application entry point with lifespan manager
+- **Core modules** (`app/core/`): Refactored analysis logic (config_loader, git_analyzer, excel_writer, llm_handler)
 - **API Layer** (`app/api/`): 
   - **Routers** (`app/api/routers/`): Domain-based API endpoints
-  - **Models** (`app/api/models/`): Pydantic 데이터 모델
-- **Service Layer** (`app/services/`): 비즈니스 로직 레이어
+  - **Models** (`app/api/models/`): Pydantic data models
+- **Service Layer** (`app/services/`): Business logic layer
 
-**API 엔드포인트** (prefix: `/api/webservice`):
+**API Endpoints** (prefix: `/api/webservice`):
 - `/scenario` - v1 scenario generation (legacy)
 - `/v2/scenario` - v2 scenario generation (CLI integration)  
 - `/v2/ws/progress/{client_id}` - WebSocket progress updates
@@ -137,13 +137,6 @@ cd webservice/frontend && npm run build               # Production build
 - **React SPA** (`frontend/`): Material-UI components with real-time WebSocket updates
 - **RAG System**: ChromaDB + ko-sroberta-multitask embedding model
 - **V2 API Architecture**: CLI-focused endpoints with WebSocket-based progress tracking
-
-### ESLint Configuration
-**Frontend Rules** (`.eslintrc.cjs`):
-- TypeScript strict mode with React hooks validation
-- No unused variables warnings, no explicit any warnings
-- React refresh and hot reload support
-- Test files: Vitest globals, relaxed any restrictions
 
 ### Critical WebSocket Integration
 - **V1 WebSocket**: `/api/webservice/scenario/generate-ws` (legacy web interface)
@@ -163,9 +156,21 @@ cd webservice/frontend && npm run build               # Production build
 - `formatText()` function includes defensive null checks
 - Test case field rendering protected against missing data
 
+### Phase 2 Document Generation Pipeline
+**AutoDoc Service Integration**:
+- `AutoDocClient` in `app/services/autodoc_client.py` handles document generation
+- `transform_metadata_to_enhanced_request()` function converts webservice metadata to autodoc_service format
+- Supports API response structure detection: `{'success': true, 'data': {...}}` format
+- Enhanced request format includes both `raw_data` and `change_request` fields
+
+**Pipeline Flow**:
+```
+HTML parsing → webservice metadata → AutoDocClient transformation → autodoc_service → document generation
+```
+
 ### Webservice-Specific Guidelines
-- **명확한 명령이나 지시가 있기 전까지는 기존 기능 삭제 금지**
-- 프론트엔드 코드를 수정 할 때는 ESlint 정의를 확인하고, 수정을 한 다음에는 Typescript 컴파일 에러를 확인할 것
+- **Do not delete existing functionality unless explicitly instructed**
+- When modifying frontend code, check ESLint definitions and verify TypeScript compilation after changes
 - **E2E testing mandatory** for functionality verification
 - **Korean Language**: All user-facing content in Korean
 - Use `pathlib.Path` and relative paths for cross-platform compatibility
@@ -173,17 +178,17 @@ cd webservice/frontend && npm run build               # Production build
 ### Configuration
 ```bash
 webservice/config.json  # Main config (based on config.example.json)
-export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ imports
+export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for app/ imports
 
 # Production environment variables (optional, fallback to data/ subdirectories)
-export WEBSERVICE_DATA_PATH="/path/to/webservice/data"  # 프로덕션 전용
-export AUTODOC_DATA_PATH="/path/to/autodoc/data"        # 프로덕션 전용
+export WEBSERVICE_DATA_PATH="/path/to/webservice/data"  # Production only
+export AUTODOC_DATA_PATH="/path/to/autodoc/data"        # Production only
 ```
 
-### Nginx 기반 프론트엔드 배포
-- 운영환경: nginx로 서빙 (포트 80)
-- 개발환경: Vite 개발서버 (포트 3000)
-- Jenkins 파이프라인이 `dist/` 결과물을 `C:\nginx\html`에 전개
+### Nginx-based Frontend Deployment
+- Production environment: nginx serving on port 80
+- Development environment: Vite dev server (port 3000)
+- Jenkins pipeline deploys `dist/` artifacts to `C:\nginx\html`
 
 ## CLI Development
 
@@ -269,7 +274,7 @@ isort app/                                    # Sort imports
 
 ### API Endpoints
 - `/parse-html`: HTML file parsing
-- `/create-cm-word-enhanced`: Enhanced Word generation (12개 필드 매핑)
+- `/create-cm-word-enhanced`: Enhanced Word generation (12-field mapping)
 - `/create-test-excel`: Excel test scenario generation
 - `/download/{filename}`: Secure file download
 
@@ -293,39 +298,39 @@ Windows services managed through NSSM:
 - **Frontend**: nginx on port 80
 
 ### Pipeline Architecture
-**통합 멀티브랜치 파이프라인** (`Jenkinsfile`):
+**Unified multi-branch pipeline** (`Jenkinsfile`):
 - Change detection via Git diff
 - Parallel service deployment
 - Automatic rollback on failure
 
 **Service Pipelines**:
-- `webservice/Jenkinsfile.backend`: API testing → NSSM deployment (main/develop만)
-- `webservice/Jenkinsfile.frontend`: 브랜치별 빌드 전략 (main/develop → 운영 배포, feature/hotfix → 테스트만)
+- `webservice/Jenkinsfile.backend`: API testing → NSSM deployment (main/develop only)
+- `webservice/Jenkinsfile.frontend`: Branch-specific build strategy (main/develop → production deployment, feature/hotfix → testing only)
 - `autodoc_service/Jenkinsfile`: Template validation → NSSM deployment
-- `cli/Jenkinsfile`: Windows 환경 최적화 파이프라인
-  - UTF-8 인코딩 환경 설정 (`PYTHONIOENCODING`, `LANG`)
-  - 테스트 실패 허용 (`returnStatus: true`)
-  - Coverage report 자동 생성 (htmlcov)
-  - NSIS installer 빌드 및 경로 자동 감지
-  - Wheelhouse 기반 오프라인 의존성 설치 지원
+- `cli/Jenkinsfile`: Windows environment optimized pipeline
+  - UTF-8 encoding environment setup (`PYTHONIOENCODING`, `LANG`)
+  - Test failure tolerance (`returnStatus: true`)
+  - Automatic coverage report generation (htmlcov)
+  - NSIS installer build and automatic path detection
+  - Wheelhouse-based offline dependency installation support
 
-**브랜치별 배포 전략**:
-- **main/develop**: `/` 루트 경로 빌드 → `C:\nginx\html` 운영 배포
-- **feature/hotfix**: `/tests/${BRANCH_NAME}/` 서브경로 빌드 → 배포 스킵 (테스트만)
+**Branch-specific deployment strategy**:
+- **main/develop**: `/` root path build → `C:\nginx\html` production deployment
+- **feature/hotfix**: `/tests/${BRANCH_NAME}/` sub-path build → deployment skip (testing only)
 
-### 폐쇄망 의존성 관리 시스템
-**완전 오프라인 빌드 지원**:
-- **Python**: `wheelhouse/` 폴더에 .whl 파일 수집 (`download-all-dependencies.sh/ps1`)
-- **Node.js**: `npm-cache/` 폴더에 npm 패키지 수집 (새로 추가)
-- **deploy_test_env.ps1**: npm 캐시 우선 사용 (`--prefer-offline`)
+### Closed Network Dependency Management System
+**Complete offline build support**:
+- **Python**: .whl files collected in `wheelhouse/` folder (`download-all-dependencies.sh/ps1`)
+- **Node.js**: npm packages collected in `npm-cache/` folder (newly added)
+- **deploy_test_env.ps1**: npm cache priority usage (`--prefer-offline`)
 
-**의존성 수집 스크립트**:
+**Dependency collection scripts**:
 ```bash
 # Linux/macOS
-./download-all-dependencies.sh  # Python + npm 의존성 수집
+./download-all-dependencies.sh  # Python + npm dependency collection
 
 # Windows  
-.\Download-All-Dependencies.ps1  # Python + npm 의존성 수집
+.\Download-All-Dependencies.ps1  # Python + npm dependency collection
 ```
 
 ### Development Server
@@ -334,20 +339,20 @@ Windows services managed through NSSM:
 
 ## Quality Standards
 
-### 로깅 시스템 가이드라인
-**Unicode 및 Emoji 사용 금지** (Windows 호환성):
+### Logging System Guidelines
+**No Unicode and Emoji usage** (Windows compatibility):
 ```python
-# ❌ 잘못된 예시
-logger.info("🚀 서비스 시작...")
+# ❌ Wrong example
+logger.info("🚀 Service starting...")
 
-# ✅ 올바른 예시
-logger.info("서비스 시작...")
+# ✅ Correct example
+logger.info("Service starting...")
 ```
 
-### Pseudo MSA 개발 원칙
-- **로깅 의무화**: 모든 API 엔드포인트에서 로그 기록 필수
-- **테스트 의무화**: 기능 추가/변경 시 테스트 코드 필수
-- **안정성 우선**: 로깅과 테스트를 통한 유지보수성 확보
+### Pseudo MSA Development Principles
+- **Mandatory logging**: Log recording required for all API endpoints
+- **Mandatory testing**: Test code required when adding/changing functionality
+- **Stability priority**: Ensuring maintainability through logging and testing
 
 ### Performance Requirements
 - **Webservice API**: <200ms response time
@@ -387,19 +392,19 @@ logger.info("서비스 시작...")
 
 ## Environment Variable System
 
-### Path Management (커밋 f57efef)
+### Path Management
 **Production Environment Variables**:
-- `WEBSERVICE_DATA_PATH`: webservice 데이터 루트 경로
-- `AUTODOC_DATA_PATH`: autodoc_service 데이터 루트 경로
+- `WEBSERVICE_DATA_PATH`: webservice data root path
+- `AUTODOC_DATA_PATH`: autodoc_service data root path
 
-**Development Fallback** (환경변수 미설정시):
+**Development Fallback** (when environment variables are not set):
 - webservice: `webservice/data/`
 - autodoc_service: `autodoc_service/data/`
 
-**Path Functions** (자동 디렉토리 생성):
-- `get_data_root()`: 환경변수 기반 데이터 루트
+**Path Functions** (automatic directory creation):
+- `get_data_root()`: Environment variable-based data root
 - `get_logs_dir()`, `get_templates_dir()`, `get_documents_dir()`
-- `get_models_dir()`, `get_outputs_dir()`, `get_vector_db_dir()` (webservice만)
+- `get_models_dir()`, `get_outputs_dir()`, `get_vector_db_dir()` (webservice only)
 
 ## Template System Architecture
 
@@ -443,6 +448,12 @@ logger.info("서비스 시작...")
 - **Revision Analysis**: SVN uses revision numbers instead of commit hashes
 - **Frontend Error Recovery**: Null/undefined values in test case fields cause JavaScript errors
 
+### Phase 2 Pipeline Debugging
+- **Data Transformation Issues**: Check `transform_metadata_to_enhanced_request()` function in AutoDocClient
+- **API Response Structure**: Verify `raw_data` contains `{'success': true, 'data': {...}}` format
+- **Document Generation**: Check autodoc_service logs for template mapping errors
+- **File Naming**: Ensure actual HTML parsing data (e.g., "이대경") is used instead of fallback metadata (e.g., "테스터")
+
 ## VCS Repository Support
 
 ### Supported Version Control Systems
@@ -479,11 +490,11 @@ logger.info("서비스 시작...")
 - **NSSM Services**: Windows service management for production deployment
 - **Unicode Logging**: No emojis in logs for Windows compatibility
 - **JSON Parsing**: Dual format support for LLM responses (XML tags + markdown blocks)
-- **MCP 서버 사용**: 개발 할 때는 Context7 MCP를 사용하여 공식문서 및 최신문서를 참조할 것
-- 도구 결과를 받은 후, 그 품질을 신중히 반성하고 진행하기 전에 최적의 다음 단계를 결정하세요. 이 새로운 정보를 바탕으로 계획하고 반복하기 위해 사고를 사용한 다음, 최선의 다음 행동을 취하세요.
-- 최대 효율성을 위해, 여러 독립적인 작업을 수행해야 할 때마다 순차적으로가 아닌 동시에 모든 관련 도구를 호출하세요.
-- 반복을 위해 임시 새 파일, 스크립트 또는 도우미 파일을 생성하는 경우, 작업 끝에 이러한 파일을 제거하여 정리하세요.
-- 고품질의 범용 솔루션을 작성해주세요. 테스트 케이스뿐만 아니라 모든 유효한 입력에 대해 올바르게 작동하는 솔루션을 구현하세요. 
-  값을 하드코딩하거나 특정 테스트 입력에만 작동하는 솔루션을 만들지 마세요. 대신 문제를 일반적으로 해결하는 실제 로직을 구현하세요.
-  문제 요구사항을 이해하고 올바른 알고리즘을 구현하는 데 집중하세요. 테스트는 정확성을 확인하기 위한 것이지 솔루션을 정의하기 위한 것이 아닙니다. 모범 사례와 소프트웨어 설계 원칙을 따르는 원칙적인 구현을 제공하세요.
-- 작업이 불합리하거나 실행 불가능하거나 테스트 중 일부가 잘못된 경우 알려주세요. 솔루션은 견고하고 유지 관리 가능하며 확장 가능해야 합니다.
+- **MCP Server Usage**: Use Context7 MCP for official documentation and latest documentation when developing
+- After receiving tool results, carefully reflect on their quality and decide on the optimal next steps before proceeding. Use thinking to plan and iterate based on this new information, then take the best next action.
+- For maximum efficiency, whenever you need to perform multiple independent tasks, call all relevant tools simultaneously rather than sequentially.
+- When creating temporary new files, scripts, or helper files for iteration, clean up by removing these files at the end of your work.
+- Write high-quality, general-purpose solutions. Implement solutions that work correctly for all valid inputs, not just test cases. 
+  Do not hardcode values or create solutions that only work for specific test inputs. Instead, implement real logic that solves the problem generally.
+  Focus on understanding the problem requirements and implementing the correct algorithm. Tests are meant to verify correctness, not define the solution. Provide principled implementations that follow best practices and software design principles.
+- If a task is unreasonable, infeasible, or some tests are incorrect, let me know. Solutions should be robust, maintainable, and scalable.

@@ -130,3 +130,51 @@ export interface V2ResultData {
   prompt_size?: number
   added_chunks?: number
 }
+
+// Phase 3: Full Generation 관련 타입들
+export type WorkflowState = 'idle' | 'parsing' | 'waiting_cli' | 'processing' | 'completed' | 'error'
+
+export enum FullGenerationStatus {
+  STARTED = 'STARTED',
+  PARSING_HTML = 'PARSING_HTML',
+  ANALYZING_GIT = 'ANALYZING_GIT',
+  GENERATING_WORD = 'GENERATING_WORD',
+  GENERATING_EXCEL_LIST = 'GENERATING_EXCEL_LIST',
+  GENERATING_BASE_SCENARIO = 'GENERATING_BASE_SCENARIO',
+  MERGING_EXCEL = 'MERGING_EXCEL',
+  COMPLETED = 'COMPLETED',
+  ERROR = 'ERROR'
+}
+
+export interface FullGenerationProgressMessage {
+  session_id: string
+  status: FullGenerationStatus
+  message: string
+  progress: number
+  current_step: string
+  steps_completed: number
+  total_steps: number
+  details?: Record<string, unknown>
+  result?: FullGenerationResultData
+}
+
+export interface FullGenerationResultData {
+  session_id: string
+  word_filename?: string
+  excel_list_filename?: string
+  base_scenario_filename?: string
+  merged_excel_filename?: string
+  download_urls: {
+    word?: string
+    excel_list?: string
+    base_scenario?: string
+    merged_excel?: string
+    all?: string  // 일괄 다운로드 URL
+  }
+}
+
+export interface ParseHtmlResponse {
+  metadata: Record<string, unknown>
+  status: string
+  message?: string
+}

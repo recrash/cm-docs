@@ -7,6 +7,7 @@ import type {
   RAGInfo,
   RAGStatus,
   IndexingResult,
+  ParseHtmlResponse,
 } from '../types';
 import logger from '../utils/logger';
 
@@ -200,13 +201,80 @@ export const filesApi = {
   },
 };
 
+// AutoDoc Service API (Phase 3)
+export const autodocApi = {
+  parseHtmlOnly: async (file: File): Promise<ParseHtmlResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await axios.post(
+        `${window.location.protocol}//${window.location.hostname}:${window.location.port}/api/autodoc/parse-html-only`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 30000,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      logger.error('HTML parsing failed:', error as Error);
+      throw new Error('HTML 파일 파싱에 실패했습니다.');
+    }
+  },
+
+  // 3개 문서 일괄 다운로드
+  downloadAll: async (downloadUrls: Record<string, string>): Promise<void> => {
+    const downloads = [];
+    
+    // Word 문서 다운로드
+    if (downloadUrls.word) {
+      downloads.push({
+        url: downloadUrls.word,
+        filename: '변경관리_요청서.docx'
+      });
+    }
+    
+    // Excel 목록 다운로드
+    if (downloadUrls.excel_list) {
+      downloads.push({
+        url: downloadUrls.excel_list,
+        filename: '변경요청_목록.xlsx'
+      });
+    }
+    
+    // 기본 시나리오 다운로드
+    if (downloadUrls.base_scenario) {
+      downloads.push({
+        url: downloadUrls.base_scenario,
+        filename: '테스트_시나리오.xlsx'
+      });
+    }
+    
+    // 순차적으로 다운로드 실행
+    for (const item of downloads) {
+      const link = document.createElement('a');
+      link.href = item.url;
+      link.download = item.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // 다운로드 간 약간의 딜레이
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
+};
+
 // v2 API (CLI 연동용)
 export const v2Api = {
   /**
    * CLI에서 시나리오 생성을 요청하는 API
    */
   generateScenario: async (clientId: string, repoPath: string, usePerformanceMode: boolean = true) => {
-    const response = await api.post('/api/webservice/v2/scenario/generate', {
+    const response = await api.post('/v2/scenario/generate', {
       client_id: clientId,
       repo_path: repoPath,
       use_performance_mode: usePerformanceMode
@@ -218,7 +286,7 @@ export const v2Api = {
    * 특정 클라이언트의 생성 상태 조회
    */
   getGenerationStatus: async (clientId: string) => {
-    const response = await api.get(`/api/webservice/v2/scenario/status/${clientId}`);
+    const response = await api.get(`/v2/scenario/status/${clientId}`);
     return response.data;
   },
 
@@ -226,10 +294,10 @@ export const v2Api = {
    * v2 WebSocket URL 생성
    */
   getWebSocketUrl: (clientId: string) => {
-    const baseUrl = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = import.meta.env.DEV ? 'localhost:8000' : window.location.host;
     const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-    return `${baseUrl}//${host}${basePath}/api/webservice/v2/ws/progress/${clientId}`;
+    return `${protocol}//${host}${basePath}/api/webservice/v2/ws/progress/${clientId}`;
   }
 };
 
