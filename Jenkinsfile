@@ -309,10 +309,19 @@ pipeline {
                             try {
                                 echo "CLI 빌드/패키징 시작 (독립 파이프라인 호출)"
                                 
+                                def cliBaseUrl = 'https://cm-docs.cloud' // 기본값은 프로덕션 URL
+                                if (env.IS_TEST == 'true') {
+                                    // is_test가 true이면 브랜치별 테스트 URL 생성
+                                    cliBaseUrl += "/tests/${env.BID}"
+                                }
+                                echo "🚀 CLI에 주입할 Base URL: ${cliBaseUrl}"
                                 // CLI 전용 파이프라인 호출
                                 build job: 'cli-pipeline',
-                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)],
-                                      wait: true
+                                      parameters: [
+                                        string(name: 'BRANCH', value: env.BRANCH_NAME),
+                                        string(name: 'BASE_URL', value: cliBaseUrl)
+                                    ],
+                                    wait: true
                                 
                                 env.CLI_BUILD_STATUS = 'SUCCESS'
                                 echo "CLI 빌드/패키징 성공"

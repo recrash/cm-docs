@@ -3,6 +3,7 @@ pipeline {
     
     parameters {
         string(name: 'BRANCH', defaultValue: 'main', description: 'Branch name to build')
+        string(name: 'BASE_URL', defaultValue: 'https://cm-docs.cloud', description: 'API Base URL to bake into the executable')
     }
     
     environment {
@@ -152,11 +153,12 @@ pipeline {
                 dir('cli') {
                     script {
                         echo 'Building executable with PyInstaller'
+                        echo "API Base URL: ${params.BASE_URL}" // 받은 파라미터 확인
                         
                         // Run build script
                         bat '''
                             set PYTHONPATH=src
-                            .venv\\Scripts\\python.exe scripts\\build.py
+                            .venv\\Scripts\\python.exe scripts\\build.py --base-url "${params.BASE_URL}"
                         '''
                         
                         // Verify executable was created
