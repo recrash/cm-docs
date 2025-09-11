@@ -215,7 +215,7 @@ pipeline {
                             try {
                                 echo "AutoDoc Service 빌드/배포 시작"
                                 build job: 'autodoc_service-pipeline', 
-                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                                      parameters: [[$class: 'StringParameterValue', name: 'BRANCH', value: env.BRANCH_NAME]]
                                 
                                 env.AUTODOC_DEPLOY_STATUS = 'SUCCESS'
                                 echo "AutoDoc Service 배포 성공"
@@ -239,7 +239,7 @@ pipeline {
                             try {
                                 echo "Webservice Backend 빌드/배포 시작"
                                 build job: 'webservice-backend-pipeline',
-                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                                      parameters: [[$class: 'StringParameterValue', name: 'BRANCH', value: env.BRANCH_NAME]]
                                 
                                 env.WEBSERVICE_BACKEND_STATUS = 'SUCCESS'
                                 echo "Webservice Backend 배포 성공"
@@ -263,7 +263,7 @@ pipeline {
                             try {
                                 echo "Webservice Frontend 빌드/배포 시작"
                                 def frontendBuild = build job: "webservice-frontend-pipeline",
-                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                                      parameters: [[$class: 'StringParameterValue', name: 'BRANCH', value: env.BRANCH_NAME]]
                                 
                                 env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
                                 echo "Webservice Frontend 배포 성공"
@@ -321,8 +321,8 @@ pipeline {
                                 // CLI 전용 파이프라인 호출
                                 build job: 'cli-pipeline',
                                       parameters: [
-                                        string(name: 'BRANCH', value: env.BRANCH_NAME),
-                                        string(name: 'BASE_URL', value: cliBaseUrl)
+                                        [$class: 'StringParameterValue', name: 'BRANCH', value: env.BRANCH_NAME],
+                                        [$class: 'StringParameterValue', name: 'BASE_URL', value: cliBaseUrl]
                                     ],
                                     wait: true
                                 
