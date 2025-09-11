@@ -22,8 +22,16 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
                 script {
+                    // 파라미터로 받은 브랜치를 명시적으로 체크아웃 (defaultValue가 있어도 명시적 체크아웃 필요)
+                    echo "파라미터로 받은 브랜치로 체크아웃: ${params.BRANCH}"
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: "*/${params.BRANCH}"]],
+                        extensions: [],
+                        userRemoteConfigs: scm.userRemoteConfigs
+                    ])
+                    
                     // 현재 체크아웃된 브랜치 확인
                     def currentBranch = bat(
                         script: 'git rev-parse --abbrev-ref HEAD',
@@ -32,13 +40,13 @@ pipeline {
                     
                     echo "소스코드 체크아웃 완료 - 현재 브랜치: ${currentBranch}"
                     
-                    // 파라미터로 받은 브랜치와 비교
-                    if (params.BRANCH) {
-                        echo "요청된 브랜치: ${params.BRANCH}"
-                        if (currentBranch != params.BRANCH && !currentBranch.endsWith("/${params.BRANCH}")) {
-                            echo "경고: 요청된 브랜치와 현재 브랜치가 다를 수 있습니다"
-                        }
+                    // 검증
+                    if (currentBranch != params.BRANCH && !currentBranch.endsWith("/${params.BRANCH}")) {
+                        error("브랜치 체크아웃 실패! 요청: ${params.BRANCH}, 실제: ${currentBranch}")
                     }
+                    
+                    // Show current commit for verification
+                    bat 'git log --oneline -1'
                 }
             }
         }
