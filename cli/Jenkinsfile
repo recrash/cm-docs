@@ -54,7 +54,7 @@ pipeline {
             steps {
                 dir('cli') {
                     script {
-                        echo 'Setting up Python virtual environment'
+                        echo '빠른 테스트 환경 구축 (휠하우스 활용)'
                         
                         // Clean previous venv if exists
                         bat '''
@@ -64,46 +64,43 @@ pipeline {
                             )
                         '''
                         
-                        // Create new virtual environment
+                        // Python 3.13 가상환경 생성
+                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
+                        
+                        // 휠하우스 활용 고속 설치
+                        script {
+                            def wheelHouseExists = fileExists(env.WHEELHOUSE_PATH)
+                            
+                            if (wheelHouseExists) {
+                                echo '휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)'
+                                bat '''
+                                    .venv\\Scripts\\python.exe -m pip install --upgrade pip
+                                '''
+                                bat """
+                                    .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r requirements-dev.txt
+                                    .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -e .
+                                """
+                            } else {
+                                echo '휠하우스 없음 - 온라인 설치'
+                                bat '''
+                                    .venv\\Scripts\\python.exe -m pip install --upgrade pip
+                                    .venv\\Scripts\\pip.exe install -r requirements-dev.txt
+                                    .venv\\Scripts\\pip.exe install -e .
+                                '''
+                            }
+                        }
+                        
+                        // 주요 패키지 검증 (시간 단축)
                         bat '''
-                            echo Creating Python 3.13 virtual environment
-                            py -3.13 -m venv .venv
+                            .venv\\Scripts\\python.exe -c "import click; import rich; print('Test environment ready - CLI dependencies loaded')"
                         '''
                         
-                        // Upgrade pip
-                        bat '''
-                            echo Upgrading pip
-                            .venv\\Scripts\\python.exe -m pip install --upgrade pip
-                        '''
+                        echo '테스트 환경 구축 완료 (최적화됨)'
                     }
                 }
             }
         }
         
-        stage('Install Dependencies') {
-            steps {
-                dir('cli') {
-                    script {
-                        // Check if wheelhouse exists for offline mode
-                        def wheelHouseExists = fileExists(env.WHEELHOUSE_PATH)
-                        
-                        if (wheelHouseExists) {
-                            echo 'Installing dependencies from Wheelhouse (Offline Mode)'
-                            bat """
-                                .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r requirements-dev.txt
-                                .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -e .
-                            """
-                        } else {
-                            echo 'Installing dependencies from PyPI (Online Mode)'
-                            bat '''
-                                .venv\\Scripts\\pip.exe install -r requirements-dev.txt
-                                .venv\\Scripts\\pip.exe install -e .
-                            '''
-                        }
-                    }
-                }
-            }
-        }
         
         stage('Run Tests') {
             steps {
