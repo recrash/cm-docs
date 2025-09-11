@@ -16,6 +16,9 @@ pipeline {
         DEPLOY_PYTHON_CMD = "${DEPLOY_PATH}\\.venv312\\Scripts\\python.exe"
         DEPLOY_PIP_CMD = "${DEPLOY_PATH}\\.venv312\\Scripts\\pip.exe"
         
+        // 공유 캐시 폴더
+        WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'
+        
         // 환경변수 기반 데이터 경로 (커밋 f57efef)
         AUTODOC_DATA_PATH = 'C:\\deploys\\data\\autodoc_service'
         
