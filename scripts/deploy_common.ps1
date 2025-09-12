@@ -150,7 +150,7 @@ function Update-NginxConfig {
     
     if ($BackPort -and $BackPort -ne "null" -and $BackPort -ne "" -and $BackPort -ne $null) {
         $BackPortStr = "$BackPort"
-    } elseif ($BackPort -eq $null) {
+    } elseif ($BackPort -eq $null -or $BackPort -eq "") {
         $BackPortStr = $null  # webservice 전용 배포 시 null 유지
     } else {
         throw "잘못된 BackPort 값: [$BackPort]. 유효한 포트 번호를 지정하세요."
@@ -158,7 +158,7 @@ function Update-NginxConfig {
     
     if ($AutoPort -and $AutoPort -ne "null" -and $AutoPort -ne "" -and $AutoPort -ne $null) {
         $AutoPortStr = "$AutoPort"
-    } elseif ($AutoPort -eq $null) {
+    } elseif ($AutoPort -eq $null -or $AutoPort -eq "") {
         $AutoPortStr = $null  # autodoc 전용 배포 시 null 유지
     } else {
         throw "잘못된 AutoPort 값: [$AutoPort]. 유효한 포트 번호를 지정하세요."
@@ -175,15 +175,17 @@ function Update-NginxConfig {
     if ($BackPortStr) {
         $upstreamConf = $upstreamConf.Replace("{{BACK_PORT}}", $BackPortStr)
     } else {
-        # webservice upstream 블록 제거
-        $upstreamConf = $upstreamConf -replace "upstream test-{{BID}}-web \{[^}]*\}", ""
+        # webservice upstream 블록 제거 (개행 포함)
+        $upstreamConf = $upstreamConf -replace "(?ms)upstream test-$Bid-web \{.*?\}", ""
+        $upstreamConf = $upstreamConf -replace "\n\s*\n", "`n"  # 빈 줄 정리
     }
     
     if ($AutoPortStr) {
         $upstreamConf = $upstreamConf.Replace("{{AUTO_PORT}}", $AutoPortStr)
     } else {
-        # autodoc upstream 블록 제거
-        $upstreamConf = $upstreamConf -replace "upstream test-{{BID}}-autodoc \{[^}]*\}", ""
+        # autodoc upstream 블록 제거 (개행 포함)  
+        $upstreamConf = $upstreamConf -replace "(?ms)upstream test-$Bid-autodoc \{.*?\}", ""
+        $upstreamConf = $upstreamConf -replace "\n\s*\n", "`n"  # 빈 줄 정리
     }
     $upstreamOut = Join-Path $includeDir "tests-$Bid.upstream.conf"
     
