@@ -1,4 +1,4 @@
-# scripts/deploy_frontend_only.ps1
+﻿# scripts/deploy_frontend_only.ps1
 # 프론트엔드만 배포하는 스크립트
 
 param(

@@ -1,4 +1,4 @@
-# scripts/deploy_test_env_selective.ps1
+﻿# scripts/deploy_test_env_selective.ps1
 # 선택적 서비스 배포 스크립트 (기존 deploy_test_env.ps1의 개선 버전)
 
 param(

@@ -1,4 +1,4 @@
-# scripts/deploy_autodoc_only.ps1
+﻿# scripts/deploy_autodoc_only.ps1
 # AutoDoc 서비스만 배포하는 스크립트
 
 param(

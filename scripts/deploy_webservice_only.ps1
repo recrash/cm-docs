@@ -1,4 +1,4 @@
-# scripts/deploy_webservice_only.ps1
+﻿# scripts/deploy_webservice_only.ps1
 # 웹서비스 백엔드만 배포하는 스크립트
 
 param(

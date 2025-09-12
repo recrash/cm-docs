@@ -1,4 +1,4 @@
-# scripts/deploy_common.ps1
+﻿# scripts/deploy_common.ps1
 # 공통 배포 기능 모듈
 
 param(

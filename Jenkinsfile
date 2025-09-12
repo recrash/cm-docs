@@ -616,7 +616,7 @@ pipeline {
                     
                     if (servicesChanged.size() == 0) {
                         echo """
-                        ℹ️ 테스트 인스턴스 배포 스킵
+                        테스트 인스턴스 배포 스킵
                         - 변경된 서비스가 없거나 빌드가 실패한 서비스만 있습니다.
                         - Frontend 빌드 상태: ${env.WEBSERVICE_FRONTEND_STATUS ?: 'N/A'}
                         - Backend 빌드 상태: ${env.WEBSERVICE_BACKEND_STATUS ?: 'N/A'}
@@ -632,7 +632,7 @@ pipeline {
                         def frontendZipExists = fileExists("${WORKSPACE}/webservice/frontend.zip")
                         if (!frontendZipExists) {
                             echo """
-                            ⚠️ 경고: frontend.zip 파일이 없습니다.
+                            경고: frontend.zip 파일이 없습니다.
                             Frontend 배포를 스킵합니다.
                             """
                             deployFrontend = false
