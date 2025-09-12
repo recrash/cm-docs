@@ -241,5 +241,4 @@ function Test-ServiceHealth {
     }
 }
 
-# 함수들을 외부에서 사용할 수 있도록 내보내기
-Export-ModuleMember -Function Initialize-CommonDirectories, Cleanup-OldBranchFolders, Copy-MasterData, Update-NginxConfig, Test-ServiceHealth
+# PowerShell 스크립트에서 함수들이 자동으로 사용 가능

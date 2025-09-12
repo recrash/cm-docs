@@ -647,9 +647,7 @@ pipeline {
                     try {
                         bat """
                         chcp 65001 >NUL
-                        powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ^
-                        ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; ^
-                        Cleanup-OldBranchFolders -Bid '%BID%' -Nssm '%NSSM_PATH%'"
+                        powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Cleanup-OldBranchFolders -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
                         """
                         echo "✓ 공통 초기화 완료"
                     } catch (Exception initError) {
@@ -749,18 +747,14 @@ pipeline {
                             
                             bat """
                             chcp 65001 >NUL
-                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ^
-                            ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; ^
-                            Update-NginxConfig -Bid '%BID%' -BackPort ${backPortParam} -AutoPort ${autoPortParam} -Nginx '%NGINX_PATH%'"
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Update-NginxConfig -Bid '%BID%' -BackPort ${backPortParam} -AutoPort ${autoPortParam} -Nginx '%NGINX_PATH%'}"
                             """
                             
                             // 최종 서비스 상태 확인
                             echo "🔍 최종 서비스 상태 확인 중..."
                             bat """
                             chcp 65001 >NUL
-                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ^
-                            ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; ^
-                            Test-ServiceHealth -BackPort ${backPortParam} -AutoPort ${autoPortParam} -Bid '%BID%' -Nssm '%NSSM_PATH%'"
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Test-ServiceHealth -BackPort ${backPortParam} -AutoPort ${autoPortParam} -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
                             """
                             
                             // 성공한 서비스들 로그
