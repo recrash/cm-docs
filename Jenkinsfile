@@ -578,24 +578,251 @@ pipeline {
                 expression { env.IS_TEST == 'true' } 
             }
             steps {
-                bat '''
-                chcp 65001 >NUL
-                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_test_env.ps1" ^
-                    -Bid "%BID%" ^
-                    -BackPort %BACK_PORT% ^
-                    -AutoPort %AUTO_PORT% ^
-                    -Py "%PY_PATH%" ^
-                    -Nssm "%NSSM_PATH%" ^
-                    -Nginx "%NGINX_PATH%" ^
-                    -NginxConfDir "%NGINX_CONF_DIR%" ^
-                    -WebSrc "%WORKSPACE%\\webservice" ^
-                    -AutoSrc "%WORKSPACE%\\autodoc_service" ^
-                    -WebBackDst "%WEB_BACK_DST%" ^
-                    -WebFrontDst "%WEB_FRONT_DST%" ^
-                    -AutoDst "%AUTO_DST%" ^
-                    -UrlPrefix "%URL_PREFIX%" ^
-                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
-                '''
+                script {
+                    echo """
+                    ===========================================
+                    🚀 테스트 인스턴스 병렬 배포 시작
+                    ===========================================
+                    • 브랜치: ${env.BRANCH_NAME}
+                    • BID: ${env.BID}
+                    • 변경된 서비스 감지:
+                      - Frontend: ${env.WEBSERVICE_FRONTEND_CHANGED}
+                      - Backend: ${env.WEBSERVICE_BACKEND_CHANGED}
+                      - AutoDoc: ${env.AUTODOC_CHANGED}
+                    ===========================================
+                    """
+                    
+                    // 배포 상태 공유를 위한 Map
+                    def deployResults = [:]
+                    def servicesChanged = []
+                    
+                    // 각 서비스 변경 여부와 빌드 성공 여부 확인
+                    def deployFrontend = (env.WEBSERVICE_FRONTEND_CHANGED == 'true' && env.WEBSERVICE_FRONTEND_STATUS == 'SUCCESS')
+                    def deployBackend = (env.WEBSERVICE_BACKEND_CHANGED == 'true' && env.WEBSERVICE_BACKEND_STATUS == 'SUCCESS')
+                    def deployAutodoc = (env.AUTODOC_CHANGED == 'true' && env.AUTODOC_DEPLOY_STATUS == 'SUCCESS')
+                    
+                    // 전체 재배포가 필요한 경우 (인프라 또는 루트 변경)
+                    if (env.INFRA_CHANGED == 'true' || env.ROOT_CHANGED == 'true') {
+                        echo "인프라 또는 루트 설정 변경 감지 - 모든 서비스 재배포"
+                        deployFrontend = true
+                        deployBackend = true
+                        deployAutodoc = true
+                        servicesChanged = ['Frontend', 'Backend', 'AutoDoc']
+                    } else {
+                        if (deployFrontend) servicesChanged.add('Frontend')
+                        if (deployBackend) servicesChanged.add('Backend')
+                        if (deployAutodoc) servicesChanged.add('AutoDoc')
+                    }
+                    
+                    if (servicesChanged.size() == 0) {
+                        echo """
+                        ℹ️ 테스트 인스턴스 배포 스킵
+                        - 변경된 서비스가 없거나 빌드가 실패한 서비스만 있습니다.
+                        - Frontend 빌드 상태: ${env.WEBSERVICE_FRONTEND_STATUS ?: 'N/A'}
+                        - Backend 빌드 상태: ${env.WEBSERVICE_BACKEND_STATUS ?: 'N/A'}
+                        - AutoDoc 빌드 상태: ${env.AUTODOC_DEPLOY_STATUS ?: 'N/A'}
+                        """
+                        return
+                    }
+                    
+                    echo "병렬 배포할 서비스: ${servicesChanged.join(', ')}"
+                    
+                    // Frontend 아티팩트 확인 (Frontend 배포 시에만)
+                    if (deployFrontend) {
+                        def frontendZipExists = fileExists("${WORKSPACE}/webservice/frontend.zip")
+                        if (!frontendZipExists) {
+                            echo """
+                            ⚠️ 경고: frontend.zip 파일이 없습니다.
+                            Frontend 배포를 스킵합니다.
+                            """
+                            deployFrontend = false
+                            servicesChanged.remove('Frontend')
+                        } else {
+                            echo "✓ frontend.zip 아티팩트 확인 완료"
+                        }
+                    }
+                    
+                    // 공통 초기화 먼저 수행 (병렬 배포 전)
+                    echo "📋 공통 초기화 작업 수행 중..."
+                    try {
+                        bat """
+                        chcp 65001 >NUL
+                        powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ^
+                        ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; ^
+                        Cleanup-OldBranchFolders -Bid '%BID%' -Nssm '%NSSM_PATH%'"
+                        """
+                        echo "✓ 공통 초기화 완료"
+                    } catch (Exception initError) {
+                        error("공통 초기화 실패: ${initError.getMessage()}")
+                    }
+                    
+                    // 병렬 배포 실행
+                    def parallelDeployments = [:]
+                    
+                    // Frontend 배포 작업
+                    if (deployFrontend) {
+                        parallelDeployments['Frontend'] = {
+                            echo "🎨 Frontend 배포 시작..."
+                            try {
+                                bat """
+                                chcp 65001 >NUL
+                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_frontend_only.ps1" ^
+                                    -Bid "%BID%" ^
+                                    -WebSrc "%WORKSPACE%\\webservice" ^
+                                    -WebFrontDst "%WEB_FRONT_DST%" ^
+                                    -UrlPrefix "%URL_PREFIX%" ^
+                                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
+                                """
+                                deployResults['Frontend'] = 'SUCCESS'
+                                echo "✅ Frontend 배포 성공"
+                            } catch (Exception e) {
+                                deployResults['Frontend'] = 'FAILED'
+                                echo "❌ Frontend 배포 실패: ${e.getMessage()}"
+                                throw e
+                            }
+                        }
+                    }
+                    
+                    // Backend 배포 작업
+                    if (deployBackend) {
+                        parallelDeployments['Backend'] = {
+                            echo "⚙️ Backend 배포 시작..."
+                            try {
+                                bat """
+                                chcp 65001 >NUL
+                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_webservice_only.ps1" ^
+                                    -Bid "%BID%" ^
+                                    -BackPort %BACK_PORT% ^
+                                    -Py "%PY_PATH%" ^
+                                    -Nssm "%NSSM_PATH%" ^
+                                    -Nginx "%NGINX_PATH%" ^
+                                    -WebSrc "%WORKSPACE%\\webservice" ^
+                                    -WebBackDst "%WEB_BACK_DST%" ^
+                                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
+                                """
+                                deployResults['Backend'] = 'SUCCESS'
+                                echo "✅ Backend 배포 성공"
+                            } catch (Exception e) {
+                                deployResults['Backend'] = 'FAILED'
+                                echo "❌ Backend 배포 실패: ${e.getMessage()}"
+                                throw e
+                            }
+                        }
+                    }
+                    
+                    // AutoDoc 배포 작업
+                    if (deployAutodoc) {
+                        parallelDeployments['AutoDoc'] = {
+                            echo "📄 AutoDoc 배포 시작..."
+                            try {
+                                bat """
+                                chcp 65001 >NUL
+                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_autodoc_only.ps1" ^
+                                    -Bid "%BID%" ^
+                                    -AutoPort %AUTO_PORT% ^
+                                    -Py "%PY_PATH%" ^
+                                    -Nssm "%NSSM_PATH%" ^
+                                    -Nginx "%NGINX_PATH%" ^
+                                    -AutoSrc "%WORKSPACE%\\autodoc_service" ^
+                                    -AutoDst "%AUTO_DST%" ^
+                                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
+                                """
+                                deployResults['AutoDoc'] = 'SUCCESS'
+                                echo "✅ AutoDoc 배포 성공"
+                            } catch (Exception e) {
+                                deployResults['AutoDoc'] = 'FAILED'
+                                echo "❌ AutoDoc 배포 실패: ${e.getMessage()}"
+                                throw e
+                            }
+                        }
+                    }
+                    
+                    if (parallelDeployments.size() > 0) {
+                        try {
+                            // 병렬 실행
+                            parallel parallelDeployments
+                            
+                            // 통합 Nginx 설정 업데이트 (병렬 배포 후)
+                            echo "🔧 통합 Nginx 설정 업데이트 중..."
+                            def backPortParam = deployBackend ? env.BACK_PORT : 'null'
+                            def autoPortParam = deployAutodoc ? env.AUTO_PORT : 'null'
+                            
+                            bat """
+                            chcp 65001 >NUL
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ^
+                            ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; ^
+                            Update-NginxConfig -Bid '%BID%' -BackPort ${backPortParam} -AutoPort ${autoPortParam} -Nginx '%NGINX_PATH%'"
+                            """
+                            
+                            // 최종 서비스 상태 확인
+                            echo "🔍 최종 서비스 상태 확인 중..."
+                            bat """
+                            chcp 65001 >NUL
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ^
+                            ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; ^
+                            Test-ServiceHealth -BackPort ${backPortParam} -AutoPort ${autoPortParam} -Bid '%BID%' -Nssm '%NSSM_PATH%'"
+                            """
+                            
+                            // 성공한 서비스들 로그
+                            def successfulServices = []
+                            def failedServices = []
+                            deployResults.each { service, status ->
+                                if (status == 'SUCCESS') {
+                                    successfulServices.add(service)
+                                } else {
+                                    failedServices.add(service)
+                                }
+                            }
+                            
+                            echo """
+                            ===========================================
+                            ✅ 병렬 배포 완료
+                            ===========================================
+                            • 성공한 서비스: ${successfulServices.join(', ')}
+                            ${failedServices.size() > 0 ? "• 실패한 서비스: ${failedServices.join(', ')}" : ""}
+                            • 배포 시간: 병렬 처리로 단축
+                            ===========================================
+                            """
+                            
+                        } catch (Exception e) {
+                            echo """
+                            ❌ 병렬 배포 중 일부 실패 발생
+                            에러: ${e.getMessage()}
+                            배포 결과: ${deployResults}
+                            
+                            기존 deploy_test_env.ps1로 폴백 시도...
+                            """
+                            
+                            // 폴백: 기존 스크립트 사용 (호환성 유지)
+                            try {
+                                bat """
+                                chcp 65001 >NUL
+                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_test_env.ps1" ^
+                                    -Bid "%BID%" ^
+                                    -BackPort %BACK_PORT% ^
+                                    -AutoPort %AUTO_PORT% ^
+                                    -Py "%PY_PATH%" ^
+                                    -Nssm "%NSSM_PATH%" ^
+                                    -Nginx "%NGINX_PATH%" ^
+                                    -NginxConfDir "%NGINX_CONF_DIR%" ^
+                                    -WebSrc "%WORKSPACE%\\webservice" ^
+                                    -AutoSrc "%WORKSPACE%\\autodoc_service" ^
+                                    -WebBackDst "%WEB_BACK_DST%" ^
+                                    -WebFrontDst "%WEB_FRONT_DST%" ^
+                                    -AutoDst "%AUTO_DST%" ^
+                                    -UrlPrefix "%URL_PREFIX%" ^
+                                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
+                                """
+                                echo "폴백 성공: 기존 스크립트로 배포 완료"
+                            } catch (Exception fallbackError) {
+                                error("테스트 인스턴스 배포 완전 실패: ${fallbackError.getMessage()}")
+                            }
+                        }
+                    } else {
+                        echo "배포할 서비스가 없습니다."
+                    }
+                }
+                
                 echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
             }
         }
