@@ -153,10 +153,13 @@ pipeline {
                         echo "API Base URL: ${params.BASE_URL}" // 받은 파라미터 확인
                         
                         // Run build script
-                        bat '''
-                            set PYTHONPATH=src
-                            .venv\\Scripts\\python.exe scripts\\build.py --base-url "${params.BASE_URL}"
-                        '''
+                        script {
+                            def baseUrl = params.BASE_URL ?: 'https://cm-docs.cloud'
+                            bat """
+                                set PYTHONPATH=src
+                                .venv\\Scripts\\python.exe scripts\\build.py --base-url "${baseUrl}"
+                            """
+                        }
                         
                         // Verify executable was created
                         script {
