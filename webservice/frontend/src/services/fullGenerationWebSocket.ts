@@ -30,8 +30,10 @@ export class FullGenerationWebSocket {
 
     this.isIntentionallyClosed = false
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.host
-    const wsUrl = `${protocol}//${host}/api/webservice/v2/ws/full-generation/${this.sessionId}`
+    const host = window.location.hostname
+    const port = import.meta.env.DEV ? '8000' : window.location.port
+    const basePath = import.meta.env.BASE_URL.replace(/\/$/, '')
+    const wsUrl = `${protocol}//${host}:${port}${basePath}/api/webservice/v2/ws/full-generation/${this.sessionId}`
 
     console.log(`[FullGenWS] Connecting to: ${wsUrl}`)
 
