@@ -17,7 +17,6 @@ export class FullGenerationWebSocket {
   private reconnectAttempts = 0
   private maxReconnectAttempts = 15   // V2와 동일하게 증가
   private reconnectDelay = 1000       // V2와 동일한 재연결 지연
-  private isIntentionallyClosed = false
   private pingInterval: number | null = null  // Ping-Pong 시스템
 
   constructor(sessionId: string, config: FullGenerationWebSocketConfig = {}) {
@@ -31,7 +30,6 @@ export class FullGenerationWebSocket {
       return
     }
 
-    this.isIntentionallyClosed = false
     
     // V2와 동일한 방식으로 WebSocket URL 구성
     const wsUrl = buildWsUrl(`/api/webservice/v2/ws/full-generation/${this.sessionId}`)
@@ -154,7 +152,6 @@ export class FullGenerationWebSocket {
 
   disconnect(): void {
     console.log('[FullGenWS] Disconnecting...')
-    this.isIntentionallyClosed = true
     
     // ping 인터벌 정리 (V2와 동일)
     if (this.pingInterval) {
