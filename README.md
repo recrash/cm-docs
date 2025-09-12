@@ -149,10 +149,10 @@ export PYTHONPATH=$(pwd):$PYTHONPATH
 export WEBSERVICE_DATA_PATH="/path/to/webservice/data"    # 프로덕션 전용
 export AUTODOC_DATA_PATH="/path/to/autodoc/data"          # 프로덕션 전용
 
-# 백엔드 서버 시작 (포트 8000) - 통합 앱 구조
+# 백엔드 서버 시작 (포트 8000) - Webservice API
 cd webservice && python -m uvicorn app.main:app --reload --port 8000
 
-# 프론트엔드 개발 서버 시작 (개발: 3000, 배포: 80)
+# 프론트엔드 개발 서버 시작 (개발: 3000, 운영: nginx 80)
 cd webservice/frontend && npm run dev
 
 # 전체 테스트 실행
@@ -282,10 +282,10 @@ python run_autodoc_service.py
 
 # 수동 실행
 pip install -r requirements.txt
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 
 # 브라우저에서 API 문서 확인
-open http://localhost:8000/docs
+open http://localhost:8001/docs
 ```
 
 ### API 사용 예제
@@ -293,11 +293,11 @@ open http://localhost:8000/docs
 #### 권장 워크플로우 (완전한 필드 매핑)
 ```bash
 # 1. HTML 파싱하여 구조화된 데이터 추출
-curl -X POST "http://localhost:8000/parse-html" \
+curl -X POST "http://localhost:8001/parse-html" \
      -F "file=@testHTML/충유오더.html"
 
 # 2. 향상된 엔드포인트로 완전한 Word 문서 생성 (12개 필드 모두 매핑)
-curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
+curl -X POST "http://localhost:8001/create-cm-word-enhanced" \
      -H "Content-Type: application/json" \
      -d '{
        "raw_data": {
@@ -317,13 +317,13 @@ curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
      }'
 
 # 3. 생성된 완전한 문서 다운로드
-curl -O "http://localhost:8000/download/[250816 홍길동] 변경관리요청서 TEST_001 시스템 구조 개선.docx"
+curl -O "http://localhost:8001/download/[250816 홍길동] 변경관리요청서 TEST_001 시스템 구조 개선.docx"
 ```
 
 #### 단순 워크플로우 (기본 정보만)
 ```bash
 # 기본 정보로만 문서 생성 (일부 필드 누락 가능)
-curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
+curl -X POST "http://localhost:8001/create-cm-word-enhanced" \
      -H "Content-Type: application/json" \
      -d '{
        "change_request": {
@@ -348,9 +348,9 @@ pytest --cov=app --cov-report=html app/tests/
 ## 🛠 공통 개발 환경
 
 ### MSA 기반 독립 환경 관리
-- **Webservice**: Python 3.12 환경 (`webservice/.venv/`) + `requirements.txt` + `package.json` (통합 앱 구조)
+- **Webservice (포트 8000)**: Python 3.12 환경 (`webservice/.venv/`) + `requirements.txt` + `package.json` (통합 앱 구조)
 - **CLI**: Python 3.13 환경 (`cli/.venv/`) + `requirements.txt` + `requirements-dev.txt`  
-- **AutoDoc Service**: Python 3.12 환경 (`autodoc_service/.venv312/`) + `requirements.txt`
+- **AutoDoc Service (포트 8001)**: Python 3.12 환경 (`autodoc_service/.venv312/`) + `requirements.txt`
 - **공통**: 루트 `pyproject.toml` (개발 도구 설정)
 
 ### 통합된 설정 관리
@@ -412,6 +412,13 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 
 ## 🚀 배포 및 CI/CD
 
+### 개발 서버 정보
+- **서버**: `34.64.173.97` (GCP VM T4 인스턴스 - vCPU:4, RAM:15GB)
+- **오픈 포트**: 8000 (Webservice), 8001 (AutoDoc), 3000 (Dev), 80 (Nginx)
+- **환경**: Windows Server 2019 with Jenkins CI/CD
+- **VCS 지원**: Git 및 SVN 저장소 모두 지원
+- **NSSM 서비스**: webservice(8000), autodoc_service(8001), nginx(80)
+
 ### 독립적인 배포 파이프라인
 각 서브프로젝트는 독립적인 CI/CD 파이프라인을 가집니다:
 
@@ -430,11 +437,20 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
   - macOS 디스크 이미지 (.dmg) + 헬퍼 앱
   - Linux AppImage 또는 패키지
 
-### 폐쇄망 의존성 관리
-**완전 오프라인 빌드 시스템**:
-- **Python 의존성**: `wheelhouse/` 폴더에 .whl 파일 수집
-- **npm 의존성**: `npm-cache/` 폴더에 Node.js 패키지 수집 (**신규 추가**)
-- **통합 스크립트**: `download-all-dependencies.sh/ps1`로 Python + npm 의존성 동시 수집
+### 폐쇄망 의존성 관리 시스템
+**완전 오프라인 빌드 지원**:
+- **Python**: .whl 파일을 `wheelhouse/` 폴더에 수집 (`download-all-dependencies.sh/ps1`)
+- **Node.js**: npm 패키지를 `npm-cache/` 폴더에 수집 (**신규 추가**)
+- **deploy_test_env.ps1**: npm 캐시 우선 사용 (`--prefer-offline`)
+
+**의존성 수집 스크립트**:
+```bash
+# Linux/macOS
+./download-all-dependencies.sh  # Python + npm 의존성 수집
+
+# Windows  
+.\Download-All-Dependencies.ps1  # Python + npm 의존성 수집
+```
 
 ### 환경별 배포
 
@@ -467,7 +483,7 @@ source .venv312/bin/activate
 
 # 프로덕션 환경변수 설정 (선택적)
 export AUTODOC_DATA_PATH="/opt/data/autodoc_service"  # 프로덕션용
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
 
 ### Nginx로 프론트엔드 배포
@@ -489,8 +505,25 @@ server {
         try_files $uri /index.html;
     }
 
-    location /api/ {
+    # Webservice API (포트 8000)
+    location /api/webservice/ {
         proxy_pass http://127.0.0.1:8000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket 지원
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+    }
+    
+    # AutoDoc Service API (포트 8001)
+    location /api/autodoc/ {
+        proxy_pass http://127.0.0.1:8001;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -513,9 +546,9 @@ server {
 - **E2E**: 주요 사용자 워크플로우 100% 커버
 
 ### 성능 기준
-- **Webservice API**: 응답시간 <200ms, WebSocket 연결 <1초, RAG 초기화 <25초 (Python 3.12)
+- **Webservice API (포트 8000)**: 응답시간 <200ms, WebSocket 연결 <1초, RAG 초기화 <25초 (Python 3.12)
 - **CLI**: Git/SVN 저장소 분석 <30초, URL 프로토콜 처리 <5초 (Python 3.13)
-- **AutoDoc Service**: HTML 파싱 <1초, Word 생성 <3초, Excel 생성 <2초 (Python 3.12)
+- **AutoDoc Service (포트 8001)**: HTML 파싱 <1초, Word 생성 <3초, Excel 생성 <2초 (Python 3.12)
 - **빌드**: 전체 빌드 시간 <10분
 - **VCS 호환성**: Git 및 SVN 저장소 모두에서 일관된 성능 보장
 
