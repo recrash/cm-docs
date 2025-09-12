@@ -326,7 +326,7 @@ export default function ScenarioGenerationTab() {
         setError('CLI가 응답하지 않습니다. 프로그램이 설치되어 있는지 확인해주세요.')
         setWorkflowState('error')
         ws.disconnect()
-      }, 15000)
+      }, 30000)
       
       setCliTimeout(timeout as unknown as number)
       

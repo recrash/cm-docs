@@ -182,7 +182,7 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
             response = session.post(
                 api_url,
                 json=request_data,
-                timeout=(10, 30)  # (연결 타임아웃, 읽기 타임아웃)
+                timeout=(30, 60)  # (연결 타임아웃, 읽기 타임아웃)
             )
             
             # HTTP 상태 코드 확인
