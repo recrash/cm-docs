@@ -86,6 +86,56 @@ async def start_full_generation(
         raise HTTPException(status_code=500, detail=f"전체 문서 생성 시작 실패: {e}")
 
 
+@router.post("/init-session/{session_id}")
+async def init_full_generation_session(session_id: str):
+    """
+    전체 문서 생성 세션 초기화 (WebSocket 연결 전 사전 등록)
+    
+    Args:
+        session_id: 세션 ID
+        
+    Returns:
+        세션 초기화 응답
+    """
+    try:
+        logger.info(f"전체 문서 생성 세션 초기화: session_id={session_id}")
+        
+        # 세션이 이미 존재하면 기존 세션 반환
+        if session_id in generation_sessions:
+            logger.info(f"기존 세션 발견: {session_id}")
+            return JSONResponse({
+                "session_id": session_id,
+                "status": "existing",
+                "message": "기존 세션이 존재합니다."
+            })
+        
+        # 새 세션 초기화
+        generation_sessions[session_id] = {
+            "status": FullGenerationStatus.RECEIVED,
+            "started_at": datetime.now(),
+            "steps_completed": 0,
+            "total_steps": 4,
+            "current_step": "세션 대기 중",
+            "vcs_analysis_text": "",
+            "metadata_json": {},
+            "results": {},
+            "errors": [],
+            "warnings": []
+        }
+        
+        logger.info(f"새 세션 생성 완료: {session_id}")
+        
+        return JSONResponse({
+            "session_id": session_id,
+            "status": "initialized",
+            "message": "새 세션이 생성되었습니다."
+        })
+        
+    except Exception as e:
+        logger.error(f"세션 초기화 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"세션 초기화 실패: {e}")
+
+
 @router.get("/full-generation-status/{session_id}")
 async def get_full_generation_status(session_id: str):
     """

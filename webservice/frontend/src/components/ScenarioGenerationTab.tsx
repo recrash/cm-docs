@@ -28,7 +28,7 @@ import {
   ListAlt,
   Assignment
 } from '@mui/icons-material'
-import { ragApi, filesApi, autodocApi } from '../services/api'
+import { ragApi, filesApi, autodocApi, v2Api } from '../services/api'
 import { V2ProgressWebSocket, generateClientId, generateSessionId, type V2ProgressMessage, V2GenerationStatus } from '../services/v2WebSocket'
 import { FullGenerationWebSocket } from '../services/fullGenerationWebSocket'
 import ScenarioResultViewer from './ScenarioResultViewer'
@@ -254,7 +254,19 @@ export default function ScenarioGenerationTab() {
       setFullGenSessionId(sessionId)
       console.log('📋 Full Generation 시작:', { sessionId, repoPath, htmlFile: htmlFile.name })
       
-      // 2. WebSocket 연결
+      // 2. 백엔드에 세션 사전 등록
+      try {
+        console.log('🔧 세션 초기화 중...')
+        await v2Api.initFullGenerationSession(sessionId)
+        console.log('✅ 세션 초기화 완료')
+      } catch (sessionError) {
+        console.error('❌ 세션 초기화 실패:', sessionError)
+        setError('세션 초기화에 실패했습니다. 다시 시도해주세요.')
+        setWorkflowState('error')
+        return
+      }
+      
+      // 3. WebSocket 연결
       const ws = new FullGenerationWebSocket(sessionId, {
         onProgress: (progress) => {
           console.log('📊 Full Generation 진행:', progress)
@@ -299,7 +311,7 @@ export default function ScenarioGenerationTab() {
       setFullGenWebSocket(ws)
       ws.connect()
       
-      // 3. HTML 파일 파싱
+      // 4. HTML 파일 파싱
       console.log('📄 HTML 파일 파싱 중...')
       const parseResult = await autodocApi.parseHtmlOnly(htmlFile)
       
@@ -309,18 +321,18 @@ export default function ScenarioGenerationTab() {
       
       console.log('✅ HTML 파싱 완료:', parseResult)
       
-      // 4. 메타데이터 Base64 인코딩
+      // 5. 메타데이터 Base64 인코딩
       const metadataJson = JSON.stringify(parseResult.data)
       const metadataBase64 = btoa(unescape(encodeURIComponent(metadataJson)))
       
-      // 5. CLI 호출
+      // 6. CLI 호출
       setWorkflowState('waiting_cli')
       const customUrl = `testscenariomaker://full-generate?sessionId=${sessionId}&repoPath=${encodeURIComponent(repoPath)}&metadata=${metadataBase64}`
       console.log('🔗 Full Generation CLI URL:', customUrl)
       
       window.location.href = customUrl
       
-      // 6. 15초 타임아웃 설정
+      // 7. 30초 타임아웃 설정
       const timeout = setTimeout(() => {
         console.log('⏰ CLI 타임아웃')
         setError('CLI가 응답하지 않습니다. 프로그램이 설치되어 있는지 확인해주세요.')

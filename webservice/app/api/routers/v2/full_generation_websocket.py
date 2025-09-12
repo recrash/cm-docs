@@ -7,6 +7,7 @@ sessionId 기반의 전체 문서 생성 진행 상황을 실시간으로 전송
 import asyncio
 import json
 import logging
+import time
 from typing import Dict, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -37,23 +38,70 @@ async def handle_full_generation_websocket(websocket: WebSocket, session_id: str
     logger.info(f"전체 문서 생성 WebSocket 클라이언트 연결: session_id={session_id}")
     
     try:
-        # 현재 상태 즉시 전송
-        if session_id in generation_sessions:
-            await send_current_status(websocket, session_id)
-        
-        # 주기적으로 상태 업데이트 전송
+        # WebSocket 메시지 처리 루프
         while True:
-            if session_id in generation_sessions:
-                session = generation_sessions[session_id]
+            try:
+                # 1초 타임아웃으로 메시지 수신 대기
+                message = await asyncio.wait_for(websocket.receive_text(), timeout=1.0)
                 
-                # 완료 또는 오류 상태면 최종 메시지 전송 후 종료
-                if session["status"] in [FullGenerationStatus.COMPLETED, FullGenerationStatus.ERROR]:
+                # ping 메시지 처리 (V2와 동일한 keepalive 시스템)
+                if message.strip() == 'ping':
+                    pong_response = f'{{"type":"pong","timestamp":{time.time()}}}'
+                    await websocket.send_text(pong_response)
+                    logger.debug(f"🏓 Full Generation pong 응답 전송: {session_id}")
+                    continue
+                    
+                # 다른 메시지 타입 처리 (필요시 확장)
+                logger.debug(f"Full Generation WebSocket 메시지 수신: {session_id}, {message}")
+                
+            except asyncio.TimeoutError:
+                # 타임아웃 시 현재 상태 확인 및 전송
+                if session_id in generation_sessions:
+                    session = generation_sessions[session_id]
+                    
+                    # 완료 또는 오류 상태면 최종 메시지 전송 후 종료
+                    if session["status"] in [FullGenerationStatus.COMPLETED, FullGenerationStatus.ERROR]:
+                        await send_current_status(websocket, session_id)
+                        break
+                    
                     await send_current_status(websocket, session_id)
-                    break
+                else:
+                    # 세션이 없는 경우 대기 메시지 전송 (최대 30초)
+                    wait_count = getattr(websocket, '_wait_count', 0)
+                    websocket._wait_count = wait_count + 1
+                    
+                    if wait_count >= 30:  # 30초 대기 후 타임아웃
+                        error_message = FullGenerationProgressMessage(
+                            session_id=session_id,
+                            status=FullGenerationStatus.ERROR,
+                            message="세션이 생성되지 않았습니다. 다시 시도해주세요.",
+                            progress=0,
+                            current_step="세션 대기 타임아웃",
+                            steps_completed=0,
+                            total_steps=4,
+                            details={"error": "session_timeout"},
+                            result=None
+                        )
+                        await websocket.send_text(error_message.json())
+                        break
+                    else:
+                        # 세션 대기 메시지 전송
+                        wait_message = FullGenerationProgressMessage(
+                            session_id=session_id,
+                            status=FullGenerationStatus.RECEIVED,
+                            message=f"세션 생성을 대기하는 중... ({wait_count}/30초)",
+                            progress=0,
+                            current_step="세션 대기 중",
+                            steps_completed=0,
+                            total_steps=4,
+                            details={"type": "keepalive", "wait_count": wait_count},
+                            result=None
+                        )
+                        await websocket.send_text(wait_message.json())
                 
-                await send_current_status(websocket, session_id)
-            
-            await asyncio.sleep(2)  # 2초마다 상태 확인
+            except Exception as e:
+                logger.error(f"WebSocket 메시지 처리 중 오류: {e}")
+                break
     
     except WebSocketDisconnect:
         logger.info(f"전체 문서 생성 WebSocket 클라이언트 연결 해제: session_id={session_id}")

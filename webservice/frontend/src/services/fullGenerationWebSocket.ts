@@ -1,5 +1,5 @@
 import { FullGenerationProgressMessage, FullGenerationResultData, FullGenerationStatus } from '../types'
-import { buildWsUrl } from './wsUrl'
+import { v2Api } from './api'
 
 export interface FullGenerationWebSocketConfig {
   onProgress?: (message: FullGenerationProgressMessage) => void
@@ -31,8 +31,8 @@ export class FullGenerationWebSocket {
     }
 
     
-    // V2와 동일한 방식으로 WebSocket URL 구성
-    const wsUrl = buildWsUrl(`/api/webservice/v2/ws/full-generation/${this.sessionId}`)
+    // v2Api를 사용하여 WebSocket URL 구성
+    const wsUrl = v2Api.getFullGenerationWebSocketUrl(this.sessionId)
     console.log(`[FullGenWS] Connecting to: ${wsUrl}`)
 
     try {

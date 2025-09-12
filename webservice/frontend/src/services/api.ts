@@ -298,6 +298,24 @@ export const v2Api = {
     const host = import.meta.env.DEV ? 'localhost:8000' : window.location.host;
     const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
     return `${protocol}//${host}${basePath}/api/webservice/v2/ws/progress/${clientId}`;
+  },
+
+  /**
+   * Full Generation 세션 초기화
+   */
+  initFullGenerationSession: async (sessionId: string) => {
+    const response = await api.post(`/v2/init-session/${sessionId}`);
+    return response.data;
+  },
+
+  /**
+   * Full Generation WebSocket URL 생성
+   */
+  getFullGenerationWebSocketUrl: (sessionId: string) => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = import.meta.env.DEV ? 'localhost:8000' : window.location.host;
+    const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+    return `${protocol}//${host}${basePath}/api/webservice/v2/ws/full-generation/${sessionId}`;
   }
 };
 
