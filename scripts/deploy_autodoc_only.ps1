@@ -9,7 +9,8 @@ param(
     [Parameter(Mandatory=$true)][string]$Nginx,
     [Parameter(Mandatory=$true)][string]$AutoSrc,     # repo/autodoc_service
     [Parameter(Mandatory=$true)][string]$AutoDst,     # C:\deploys\test\{BID}\apps\autodoc_service
-    [Parameter(Mandatory=$true)][string]$PackagesRoot # "C:\deploys\test\{BID}\packages"
+    [Parameter(Mandatory=$true)][string]$PackagesRoot, # "C:\deploys\test\{BID}\packages"
+    [Parameter(Mandatory=$false)][switch]$ForceUpdateDeps = $false  # 의존성 강제 업데이트
 )
 
 $ErrorActionPreference = "Stop"
@@ -95,17 +96,20 @@ try {
         $autodocServiceExists = $false
     }
     
-    # 서비스 중지 후 가상환경 정리 (파일 잠금 방지)
-    if (Test-Path "$AutoDst\.venv312") {
-        Write-Host "기존 가상환경 정리 중..."
-        Start-Sleep -Seconds 2  # 추가 대기
-        Remove-Item -Recurse -Force "$AutoDst\.venv312"
-        Write-Host "기존 가상환경 정리 완료"
+    # 스마트 가상환경 관리 (기존 환경 유지 또는 생성)
+    $needsDependencies = $false
+    if (-not (Test-Path "$AutoDst\.venv312")) {
+        Write-Host "가상환경 생성 중..."
+        & $PythonPath -m venv "$AutoDst\.venv312"
+        $needsDependencies = $true
+        Write-Host "새 가상환경 생성 완료"
+    } else {
+        Write-Host "기존 가상환경 유지 (빠른 배포)"
+        if ($ForceUpdateDeps) {
+            Write-Host "ForceUpdateDeps 옵션: 의존성 강제 업데이트"
+            $needsDependencies = $true
+        }
     }
-    
-    # AutoDoc 가상환경 생성
-    Write-Host "AutoDoc 가상환경 생성 중..."
-    & $PythonPath -m venv "$AutoDst\.venv312"
     
     # AutoDoc Wheel 경로 결정
     $BranchAutoWheelPath = "$PackagesRoot\autodoc_service"
@@ -122,18 +126,35 @@ try {
         throw "autodoc_service wheel 파일을 찾을 수 없습니다: $BranchAutoWheelPath 또는 $GlobalWheelPath\autodoc_service"
     }
     
-    # 1. AutoDoc 의존성 먼저 설치 (wheelhouse에서)
-    Write-Host "  - AutoDoc 의존성 설치 (from wheelhouse)..."
+    # pip 경로 설정
     $autoPip = "$AutoDst\.venv312\Scripts\pip.exe"
-    & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
     
-    # 2. AutoDoc wheel 설치
-    Write-Host "  - autodoc_service.whl 패키지 설치..."
-    & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$AutoWheelSource" autodoc_service
+    # 1. 선택적 의존성 설치 (새 환경이거나 강제 업데이트 시에만)
+    if ($needsDependencies) {
+        Write-Host "  - 의존성 설치 (from wheelhouse)..."
+        & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
+    } else {
+        Write-Host "  - 의존성 스킵 (기존 환경 유지 - 고속 배포)"
+    }
     
-    # AutoDoc 추가 의존성 설치 (안전성을 위해 재실행)
-    & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
-    Write-Host "AutoDoc 설치 완료"
+    # 2. Jenkins와 동일한 wheel 교체 로직 (초고속)
+    $autoWheelFile = Get-ChildItem -Path "$AutoWheelSource" -Filter "autodoc_service-*.whl" | Select-Object -First 1
+    Write-Host "효율적인 재설치 시작: $($autoWheelFile.Name)"
+    
+    # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
+    Write-Host "  - 기존 autodoc_service 패키지 제거 중..."
+    & $autoPip uninstall autodoc_service -y 2>&1 | Out-Null
+    Write-Host "  - 기존 패키지 제거 완료"
+    
+    # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
+    if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {
+        Write-Host "  - 휠하우스 발견 - 오프라인 빠른 설치"
+        & $autoPip install $autoWheelFile.FullName --no-index --find-links="$GlobalWheelPath\wheelhouse" --no-deps
+    } else {
+        Write-Host "  - 일반 설치 모드"
+        & $autoPip install $autoWheelFile.FullName --no-deps
+    }
+    Write-Host "AutoDoc 설치 완료 (Jenkins 스타일 고속 배포)"
     
     # 5. 마스터 데이터 복사
     Copy-MasterData -TestWebDataPath $null -TestAutoDataPath $TestAutoDataPath

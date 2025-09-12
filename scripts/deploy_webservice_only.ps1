@@ -9,7 +9,8 @@ param(
     [Parameter(Mandatory=$true)][string]$Nginx,
     [Parameter(Mandatory=$true)][string]$WebSrc,      # repo/webservice
     [Parameter(Mandatory=$true)][string]$WebBackDst,  # C:\deploys\test\{BID}\apps\webservice
-    [Parameter(Mandatory=$true)][string]$PackagesRoot # "C:\deploys\test\{BID}\packages"
+    [Parameter(Mandatory=$true)][string]$PackagesRoot, # "C:\deploys\test\{BID}\packages"
+    [Parameter(Mandatory=$false)][switch]$ForceUpdateDeps = $false  # 의존성 강제 업데이트
 )
 
 $ErrorActionPreference = "Stop"
@@ -100,17 +101,20 @@ try {
         $webServiceExists = $false
     }
     
-    # 서비스 중지 후 가상환경 정리 (파일 잠금 방지)
-    if (Test-Path "$WebBackDst\.venv") {
-        Write-Host "기존 가상환경 정리 중..."
-        Start-Sleep -Seconds 2  # 추가 대기
-        Remove-Item -Recurse -Force "$WebBackDst\.venv"
-        Write-Host "기존 가상환경 정리 완료"
+    # 스마트 가상환경 관리 (기존 환경 유지 또는 생성)
+    $needsDependencies = $false
+    if (-not (Test-Path "$WebBackDst\.venv")) {
+        Write-Host "가상환경 생성 중..."
+        & $PythonPath -m venv "$WebBackDst\.venv"
+        $needsDependencies = $true
+        Write-Host "새 가상환경 생성 완료"
+    } else {
+        Write-Host "기존 가상환경 유지 (빠른 배포)"
+        if ($ForceUpdateDeps) {
+            Write-Host "ForceUpdateDeps 옵션: 의존성 강제 업데이트"
+            $needsDependencies = $true
+        }
     }
-    
-    # 웹서비스 가상환경 생성
-    Write-Host "웹서비스 가상환경 생성 중..."
-    & $PythonPath -m venv "$WebBackDst\.venv"
     
     # Wheel 경로 결정 (브랜치 → 글로벌 폴백)
     $BranchWebWheelPath = "$PackagesRoot\webservice"
@@ -127,20 +131,39 @@ try {
         throw "webservice wheel 파일을 찾을 수 없습니다: $BranchWebWheelPath 또는 $GlobalWheelPath\webservice"
     }
     
-    # 1. 의존성 먼저 설치 (wheelhouse에서)
-    Write-Host "  - 의존성 설치 (from wheelhouse)..."
+    # pip 경로 설정
     $webPip = "$WebBackDst\.venv\Scripts\pip.exe"
-    if (Test-Path "$WebSrc\pip.constraints.txt") {
-        & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
+    
+    # 1. 선택적 의존성 설치 (새 환경이거나 강제 업데이트 시에만)
+    if ($needsDependencies) {
+        Write-Host "  - 의존성 설치 (from wheelhouse)..."
+        if (Test-Path "$WebSrc\pip.constraints.txt") {
+            & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
+        } else {
+            & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
+        }
     } else {
-        & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
+        Write-Host "  - 의존성 스킵 (기존 환경 유지 - 고속 배포)"
     }
     
-    # 2. 의존성 검사 없이 .whl 패키지 설치
-    Write-Host "  - webservice.whl 패키지 설치 (--no-deps)..."
+    # 2. Jenkins와 동일한 wheel 교체 로직 (초고속)
     $webWheelFile = Get-ChildItem -Path "$WebWheelSource" -Filter "webservice-*.whl" | Select-Object -First 1
-    & $webPip install $webWheelFile.FullName --no-deps
-    Write-Host "웹서비스 설치 완료"
+    Write-Host "효율적인 재설치 시작: $($webWheelFile.Name)"
+    
+    # 기존 webservice 패키지만 언인스톨 (의존성은 유지)
+    Write-Host "  - 기존 webservice 패키지 제거 중..."
+    & $webPip uninstall webservice -y 2>&1 | Out-Null
+    Write-Host "  - 기존 패키지 제거 완료"
+    
+    # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
+    if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {
+        Write-Host "  - 휠하우스 발견 - 오프라인 빠른 설치"
+        & $webPip install $webWheelFile.FullName --no-index --find-links="$GlobalWheelPath\wheelhouse" --no-deps
+    } else {
+        Write-Host "  - 일반 설치 모드"
+        & $webPip install $webWheelFile.FullName --no-deps
+    }
+    Write-Host "웹서비스 설치 완료 (Jenkins 스타일 고속 배포)"
     
     # 5. 마스터 데이터 복사
     Copy-MasterData -TestWebDataPath $TestWebDataPath -TestAutoDataPath $null
