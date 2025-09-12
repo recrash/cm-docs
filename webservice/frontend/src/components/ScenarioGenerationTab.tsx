@@ -303,14 +303,14 @@ export default function ScenarioGenerationTab() {
       console.log('📄 HTML 파일 파싱 중...')
       const parseResult = await autodocApi.parseHtmlOnly(htmlFile)
       
-      if (!parseResult.metadata) {
+      if (!parseResult.success || !parseResult.data) {
         throw new Error('HTML 파일 파싱 실패: 메타데이터를 추출할 수 없습니다.')
       }
       
       console.log('✅ HTML 파싱 완료:', parseResult)
       
       // 4. 메타데이터 Base64 인코딩
-      const metadataJson = JSON.stringify(parseResult.metadata)
+      const metadataJson = JSON.stringify(parseResult.data)
       const metadataBase64 = btoa(unescape(encodeURIComponent(metadataJson)))
       
       // 5. CLI 호출

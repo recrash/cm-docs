@@ -174,7 +174,7 @@ export interface FullGenerationResultData {
 }
 
 export interface ParseHtmlResponse {
-  metadata: Record<string, unknown>
-  status: string
-  message?: string
+  success: boolean
+  data: Record<string, unknown>
+  error: string | null
 }
