@@ -61,8 +61,49 @@ try {
         $PythonPath = $PythonPath.Replace('%LOCALAPPDATA%', $env:LOCALAPPDATA)
     }
     
-    # 기존 가상환경 정리
+    # 6. 서비스 관리 (가상환경 정리 전에 먼저 수행)
+    Write-Host "`n단계 4: 웹서비스 서비스 관리 중..."
+    
+    # develop 브랜치 여부 확인
+    $isDevelop = $Bid -eq "develop"
+    
+    # 웹서비스 처리
+    $webServiceName = "cm-web-$Bid"
+    $webServiceExists = $false
+    
+    Write-Host "웹서비스 확인: $webServiceName"
+    
+    try {
+        $windowsService = Get-Service -Name $webServiceName -ErrorAction Stop
+        $webServiceExists = $true
+        Write-Host "  -> 기존 서비스 발견 (Windows 상태: $($windowsService.Status))"
+        
+        Write-Host "  -> 서비스 중지 중..."
+        & $Nssm stop $webServiceName
+        Start-Sleep -Seconds 3  # 서비스 완전 중지 대기
+        
+        if (-not $isDevelop) {
+            Write-Host "  -> 일반 브랜치: 서비스 제거"
+            & $Nssm remove $webServiceName confirm
+            Start-Sleep -Seconds 2
+            $webServiceExists = $false
+            
+            # 최종 확인
+            $finalService = Get-Service -Name $webServiceName -ErrorAction SilentlyContinue
+            if ($finalService) {
+                throw "오류: 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $($finalService.Status))."
+            }
+            Write-Host "  -> 서비스 제거 완료"
+        }
+    } catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
+        Write-Host "  -> 서비스가 존재하지 않음"
+        $webServiceExists = $false
+    }
+    
+    # 서비스 중지 후 가상환경 정리 (파일 잠금 방지)
     if (Test-Path "$WebBackDst\.venv") {
+        Write-Host "기존 가상환경 정리 중..."
+        Start-Sleep -Seconds 2  # 추가 대기
         Remove-Item -Recurse -Force "$WebBackDst\.venv"
         Write-Host "기존 가상환경 정리 완료"
     }
@@ -104,48 +145,7 @@ try {
     # 5. 마스터 데이터 복사
     Copy-MasterData -TestWebDataPath $TestWebDataPath -TestAutoDataPath $null
     
-    # 6. 서비스 관리
-    Write-Host "`n단계 4: 웹서비스 서비스 관리 중..."
-    
-    # develop 브랜치 여부 확인
-    $isDevelop = $Bid -eq "develop"
-    
-    # 웹서비스 처리
-    $webServiceName = "cm-web-$Bid"
-    $webServiceExists = $false
-    
-    Write-Host "웹서비스 확인: $webServiceName"
-    
-    try {
-        $windowsService = Get-Service -Name $webServiceName -ErrorAction Stop
-        $webServiceExists = $true
-        Write-Host "  -> 기존 서비스 발견 (Windows 상태: $($windowsService.Status))"
-        
-        if ($isDevelop) {
-            Write-Host "  -> develop 브랜치: 서비스 재사용을 위해 중지만 수행"
-            & $Nssm stop $webServiceName
-            Start-Sleep -Seconds 2
-        } else {
-            Write-Host "  -> 일반 브랜치: 서비스 제거 후 재생성"
-            & $Nssm stop $webServiceName
-            Start-Sleep -Seconds 2
-            & $Nssm remove $webServiceName confirm
-            Start-Sleep -Seconds 2
-            $webServiceExists = $false
-            
-            # 최종 확인
-            $finalService = Get-Service -Name $webServiceName -ErrorAction SilentlyContinue
-            if ($finalService) {
-                throw "오류: 서비스 '$webServiceName'을 제거하지 못했습니다 (상태: $($finalService.Status))."
-            }
-            Write-Host "  -> 서비스 제거 완료"
-        }
-    } catch [Microsoft.PowerShell.Commands.ServiceCommandException] {
-        Write-Host "  -> 서비스가 존재하지 않음"
-        $webServiceExists = $false
-    }
-    
-    # 웹서비스 서비스 등록 또는 재시작
+    # 6. 웹서비스 서비스 등록 또는 재시작
     if ($isDevelop -and $webServiceExists) {
         Write-Host "웹서비스 재시작 중 (develop 브랜치)..."
         & $Nssm start "cm-web-$Bid"
