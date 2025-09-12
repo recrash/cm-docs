@@ -525,13 +525,11 @@ class APIClient:
             endpoint = "/api/webservice/v2/start-full-generation"
             response = await self.client.post(endpoint, json=request_data, timeout=60.0)
             
-            # 응답 처리
-            if response.is_success:
-                result = response.json()
-                self.logger.info(f"전체 문서 생성 API 호출 성공: session_id={session_id}")
-                return result
-            else:
-                self._handle_http_error(response)
+            # 응답 처리 (_handle_response 사용)
+            await self._handle_response(response)
+            result = response.json()
+            self.logger.info(f"전체 문서 생성 API 호출 성공: session_id={session_id}")
+            return result
                 
         except Exception as e:
             self.logger.error(f"전체 문서 생성 API 호출 실패: session_id={session_id}, error={str(e)}")
