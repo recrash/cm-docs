@@ -144,14 +144,18 @@ function Update-NginxConfig {
         Write-Host "Nginx include 디렉토리 생성: $includeDir"
     }
     
+    # 포트 값 처리 (null이면 기본값 사용)
+    $BackPortStr = if ($BackPort) { "$BackPort" } else { "8000" }
+    $AutoPortStr = if ($AutoPort) { "$AutoPort" } else { "8001" }
+    
     # Upstream 설정 파일 생성
     $upstreamTpl = Get-Content -Raw $upstreamTemplatePath
-    $upstreamConf = $upstreamTpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", "$BackPort").Replace("{{AUTO_PORT}}", "$AutoPort")
+    $upstreamConf = $upstreamTpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", $BackPortStr).Replace("{{AUTO_PORT}}", $AutoPortStr)
     $upstreamOut = Join-Path $includeDir "tests-$Bid.upstream.conf"
     
     # Location 설정 파일 생성  
     $locationTpl = Get-Content -Raw $locationTemplatePath
-    $locationConf = $locationTpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", "$BackPort").Replace("{{AUTO_PORT}}", "$AutoPort")
+    $locationConf = $locationTpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", $BackPortStr).Replace("{{AUTO_PORT}}", $AutoPortStr)
     $locationOut = Join-Path $includeDir "tests-$Bid.location.conf"
     
     # BOM 없는 UTF8 인코딩으로 파일 저장
