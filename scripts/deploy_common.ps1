@@ -144,13 +144,47 @@ function Update-NginxConfig {
         Write-Host "Nginx include 디렉토리 생성: $includeDir"
     }
     
-    # 포트 값 처리 (null이면 기본값 사용)
-    $BackPortStr = if ($BackPort) { "$BackPort" } else { "8000" }
-    $AutoPortStr = if ($AutoPort) { "$AutoPort" } else { "8001" }
+    # 포트 값 검증 (null이면 에러 발생 - 메인 서비스 충돌 방지)
+    Write-Host "DEBUG: BackPort 원본 값: [$BackPort]"
+    Write-Host "DEBUG: AutoPort 원본 값: [$AutoPort]"
     
-    # Upstream 설정 파일 생성
+    if ($BackPort -and $BackPort -ne "null" -and $BackPort -ne "" -and $BackPort -ne $null) {
+        $BackPortStr = "$BackPort"
+    } elseif ($BackPort -eq $null) {
+        $BackPortStr = $null  # webservice 전용 배포 시 null 유지
+    } else {
+        throw "잘못된 BackPort 값: [$BackPort]. 유효한 포트 번호를 지정하세요."
+    }
+    
+    if ($AutoPort -and $AutoPort -ne "null" -and $AutoPort -ne "" -and $AutoPort -ne $null) {
+        $AutoPortStr = "$AutoPort"
+    } elseif ($AutoPort -eq $null) {
+        $AutoPortStr = $null  # autodoc 전용 배포 시 null 유지
+    } else {
+        throw "잘못된 AutoPort 값: [$AutoPort]. 유효한 포트 번호를 지정하세요."
+    }
+    
+    Write-Host "DEBUG: 처리된 BackPortStr: [$BackPortStr]"
+    Write-Host "DEBUG: 처리된 AutoPortStr: [$AutoPortStr]"
+    
+    # Upstream 설정 파일 생성 (조건부 - null 포트는 제외)
     $upstreamTpl = Get-Content -Raw $upstreamTemplatePath
-    $upstreamConf = $upstreamTpl.Replace("{{BID}}", $Bid).Replace("{{BACK_PORT}}", $BackPortStr).Replace("{{AUTO_PORT}}", $AutoPortStr)
+    $upstreamConf = $upstreamTpl.Replace("{{BID}}", $Bid)
+    
+    # 포트별 조건부 처리
+    if ($BackPortStr) {
+        $upstreamConf = $upstreamConf.Replace("{{BACK_PORT}}", $BackPortStr)
+    } else {
+        # webservice upstream 블록 제거
+        $upstreamConf = $upstreamConf -replace "upstream test-{{BID}}-web \{[^}]*\}", ""
+    }
+    
+    if ($AutoPortStr) {
+        $upstreamConf = $upstreamConf.Replace("{{AUTO_PORT}}", $AutoPortStr)
+    } else {
+        # autodoc upstream 블록 제거
+        $upstreamConf = $upstreamConf -replace "upstream test-{{BID}}-autodoc \{[^}]*\}", ""
+    }
     $upstreamOut = Join-Path $includeDir "tests-$Bid.upstream.conf"
     
     # Location 설정 파일 생성  
