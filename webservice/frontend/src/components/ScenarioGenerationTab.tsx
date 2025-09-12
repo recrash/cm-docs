@@ -29,7 +29,7 @@ import {
   Assignment
 } from '@mui/icons-material'
 import { ragApi, filesApi, autodocApi } from '../services/api'
-import { V2ProgressWebSocket, generateClientId, type V2ProgressMessage, V2GenerationStatus } from '../services/v2WebSocket'
+import { V2ProgressWebSocket, generateClientId, generateSessionId, type V2ProgressMessage, V2GenerationStatus } from '../services/v2WebSocket'
 import { FullGenerationWebSocket } from '../services/fullGenerationWebSocket'
 import ScenarioResultViewer from './ScenarioResultViewer'
 import FeedbackModal from './FeedbackModal'
@@ -249,8 +249,8 @@ export default function ScenarioGenerationTab() {
       setFullGenProgress(null)
       setWorkflowState('parsing')
       
-      // 1. sessionId 생성
-      const sessionId = generateClientId()
+      // 1. sessionId 생성 (Full Generation용)
+      const sessionId = generateSessionId()
       setFullGenSessionId(sessionId)
       console.log('📋 Full Generation 시작:', { sessionId, repoPath, htmlFile: htmlFile.name })
       
