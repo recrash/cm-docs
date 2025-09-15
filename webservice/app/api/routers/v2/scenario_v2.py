@@ -21,8 +21,10 @@ from .models import (
     V2GenerationResponse, 
     V2ProgressMessage,
     V2GenerationStatus,
-    V2ResultData
+    V2ResultData,
+    SessionStatus
 )
+from .session import get_session_store, update_session_status
 from .progress_websocket import v2_connection_manager
 from ....core.git_analyzer import get_git_analysis_text
 from ....core.llm_handler import call_ollama_llm, OllamaAPIError
@@ -230,12 +232,18 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
             result=result_data.model_dump()
         )
 
+        # 세션 상태를 완료로 업데이트 (client_id를 session_id로 사용)
+        update_session_status(client_id, SessionStatus.COMPLETED)
+        
         logger.info(f"클라이언트 {client_id}의 시나리오 생성 완료: {filename} (VCS: {vcs_type})")
 
     except Exception as e:
         logger.exception(f"클라이언트 {client_id}의 시나리오 생성 중 오류 발생")
         logger.error(f"SVN 오류 세부사항 - VCS타입: {request.vcs_type}, 저장소경로: {request.repo_path}, 분석데이터크기: {len(request.changes_text) if request.changes_text else 0}")
         logger.error(f"오류 타입: {type(e).__name__}, 오류 메시지: {str(e)}")
+        
+        # 세션 상태를 실패로 업데이트 (client_id를 session_id로 사용)
+        update_session_status(client_id, SessionStatus.FAILED, error_message=str(e))
         
         error_msg = V2ProgressMessage(
             client_id=client_id,
@@ -265,6 +273,23 @@ async def generate_scenario_v2(request: V2GenerationRequest, background_tasks: B
     """
     try:
         logger.info(f"v2 시나리오 생성 요청 수신: client_id={request.client_id}, repo_path={request.repo_path}, vcs_type={request.vcs_type}, repo_valid={request.is_valid_repo}")
+        
+        # 세션 저장소에서 VCS 분석 데이터 조회 시도 (client_id를 session_id로 사용)
+        session_store = get_session_store()
+        if not request.changes_text or request.changes_text.strip() == "":
+            if request.client_id in session_store:
+                stored_data = session_store[request.client_id]
+                stored_vcs_text = stored_data.get("vcs_analysis_text", "")
+                if stored_vcs_text:
+                    request.changes_text = stored_vcs_text
+                    logger.info(f"세션 저장소에서 VCS 분석 데이터 복원: {request.client_id}")
+                    
+                    # 세션 상태를 진행 중으로 업데이트
+                    update_session_status(request.client_id, SessionStatus.IN_PROGRESS)
+                else:
+                    logger.warning(f"세션 저장소에 VCS 분석 데이터 없음: {request.client_id}")
+            else:
+                logger.warning(f"세션 저장소에 데이터 없음: {request.client_id}")
         
         # 이미 진행 중인 작업인지 확인
         if request.client_id in active_generations:

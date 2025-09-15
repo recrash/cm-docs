@@ -17,8 +17,10 @@ from .models import (
     FullGenerationRequest, 
     FullGenerationResponse, 
     FullGenerationStatus, 
-    FullGenerationResultData
+    FullGenerationResultData,
+    SessionStatus
 )
+from .session import get_session_store, update_session_status as session_update_status
 from app.services.autodoc_client import AutoDocClient, AutoDocServiceError
 from app.services.excel_merger import ExcelMerger, ExcelMergerError
 from app.core.llm_handler import LLMHandler
@@ -52,6 +54,19 @@ async def start_full_generation(
     """
     try:
         logger.info(f"전체 문서 생성 시작: session_id={request.session_id}")
+        
+        # 세션 저장소에서 메타데이터 조회 시도
+        session_store = get_session_store()
+        if not request.metadata_json or request.metadata_json == {}:
+            if request.session_id in session_store:
+                stored_data = session_store[request.session_id]
+                request.metadata_json = stored_data.get("metadata", {})
+                logger.info(f"세션 저장소에서 메타데이터 복원: {request.session_id}")
+                
+                # 세션 상태를 진행 중으로 업데이트
+                session_update_status(request.session_id, SessionStatus.IN_PROGRESS)
+            else:
+                logger.warning(f"세션 저장소에 메타데이터 없음: {request.session_id}")
         
         # 세션 초기화
         generation_sessions[request.session_id] = {

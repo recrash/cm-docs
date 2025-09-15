@@ -4,7 +4,7 @@ v2 API 메인 라우터
 """
 
 from fastapi import APIRouter, WebSocket
-from . import scenario_v2, full_generation
+from . import scenario_v2, full_generation, session
 from .progress_websocket import handle_v2_websocket
 from .full_generation_websocket import handle_full_generation_websocket
 
@@ -16,6 +16,9 @@ v2_router.include_router(scenario_v2.router, prefix="/scenario")
 
 # Phase 2: 전체 문서 생성 라우터 포함
 v2_router.include_router(full_generation.router, prefix="", tags=["Phase 2 Full Generation"])
+
+# 세션 관리 라우터 포함
+v2_router.include_router(session.router, prefix="", tags=["Session Management"])
 
 # WebSocket 엔드포인트 직접 등록
 @v2_router.websocket("/ws/progress/{client_id}")

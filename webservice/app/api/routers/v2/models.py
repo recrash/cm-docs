@@ -6,6 +6,7 @@ CLI 연동을 위한 데이터 모델 정의
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 from enum import Enum
+from datetime import datetime
 
 
 class V2GenerationStatus(str, Enum):
@@ -138,3 +139,43 @@ class FullGenerationResultData(BaseModel):
     # 오류 정보 (있는 경우)
     errors: list = Field(default_factory=list, description="발생한 오류 목록")
     warnings: list = Field(default_factory=list, description="경고 메시지 목록")
+
+
+# 세션 관리 관련 모델들
+class SessionStatus(str, Enum):
+    """세션 상태 열거형"""
+    PREPARED = "prepared"       # 준비됨
+    IN_PROGRESS = "in_progress" # 진행 중
+    COMPLETED = "completed"     # 완료됨
+    FAILED = "failed"          # 실패함
+    EXPIRED = "expired"        # 만료됨
+
+
+class PrepareSessionRequest(BaseModel):
+    """세션 준비 요청"""
+    session_id: Optional[str] = Field(None, description="기존 세션 ID (없으면 자동 생성)")
+    metadata_json: Dict[str, Any] = Field(..., description="HTML 파싱된 메타데이터")
+    html_file_path: Optional[str] = Field(None, description="원본 HTML 파일 경로")
+    vcs_analysis_text: Optional[str] = Field(None, description="VCS 분석 텍스트 (선택적)")
+    
+
+class PrepareSessionResponse(BaseModel):
+    """세션 준비 응답"""
+    session_id: str = Field(..., description="생성/사용된 세션 ID")
+    status: str = Field(..., description="준비 상태")
+    retry_attempt: Optional[int] = Field(None, description="재시도 횟수")
+    max_retries: Optional[int] = Field(None, description="최대 재시도 횟수")
+    message: Optional[str] = Field(None, description="상태 메시지")
+
+
+class SessionStatusResponse(BaseModel):
+    """세션 상태 응답"""
+    session_id: str
+    status: SessionStatus
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    failed_at: Optional[datetime] = None
+    retry_count: int = 0
+    usage_count: int = 0
+    last_error: Optional[Dict[str, Any]] = None
+    previous_errors: list = []
