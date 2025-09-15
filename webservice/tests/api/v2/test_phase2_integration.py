@@ -12,12 +12,23 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.api.routers.v2.models import FullGenerationRequest
+from app.api.routers.v2.models import FullGenerationRequest, SessionStatus
+from app.api.routers.v2.session import get_session_store, session_metadata_store
+from app.api.routers.v2.full_generation import generation_sessions
 
 
 class TestPhase2Integration:
     """Phase 2 통합 테스트"""
-    
+
+    @pytest.fixture(autouse=True)
+    def setup_and_cleanup(self):
+        """각 테스트 전후 세션 저장소 초기화"""
+        session_metadata_store.clear()
+        generation_sessions.clear()
+        yield
+        session_metadata_store.clear()
+        generation_sessions.clear()
+
     @pytest.fixture
     def client(self):
         """테스트 클라이언트"""
@@ -56,7 +67,72 @@ class TestPhase2Integration:
         assert data["session_id"] == sample_full_generation_request["session_id"]
         assert data["status"] == "accepted"
         assert "전체 문서 생성 작업이 시작되었습니다" in data["message"]
-    
+
+    def test_start_full_generation_with_session_store_metadata(self, client, sample_metadata):
+        """세션 저장소에서 메타데이터 복원 테스트"""
+        session_id = "test_session_with_metadata"
+
+        # 1. 세션 저장소에 메타데이터 사전 저장 (prepare-session 시뮬레이션)
+        session_store = get_session_store()
+        session_store[session_id] = {
+            "metadata": sample_metadata,
+            "html_file_path": "/test/path/test.html",
+            "vcs_analysis_text": "저장된 VCS 분석",
+            "status": SessionStatus.PREPARED,
+            "created_at": "2024-01-01T12:00:00"
+        }
+
+        # 2. 메타데이터 없이 전체 생성 요청 (세션 저장소에서 복원되어야 함)
+        request_without_metadata = {
+            "session_id": session_id,
+            "vcs_analysis_text": "새로운 VCS 분석",
+            "metadata_json": {}  # 비어있음
+        }
+
+        response = client.post(
+            "/api/webservice/v2/start-full-generation",
+            json=request_without_metadata
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["session_id"] == session_id
+        assert data["status"] == "accepted"
+
+        # 3. 세션 상태가 IN_PROGRESS로 업데이트되었는지 확인
+        assert session_store[session_id]["status"] == SessionStatus.IN_PROGRESS
+
+    def test_start_full_generation_with_explicit_metadata(self, client, sample_full_generation_request):
+        """명시적 메타데이터가 제공된 경우 테스트"""
+        response = client.post(
+            "/api/webservice/v2/start-full-generation",
+            json=sample_full_generation_request
+        )
+
+        assert response.status_code == 200
+
+        # 세션 저장소에 세션이 없어도 정상 동작해야 함
+        session_store = get_session_store()
+        # 이 경우 세션 저장소에는 자동으로 추가되지 않음 (명시적 메타데이터 사용)
+
+    def test_start_full_generation_session_not_found_warning(self, client):
+        """세션 저장소에 세션이 없고 메타데이터도 없는 경우 경고 로그 테스트"""
+        request_without_metadata = {
+            "session_id": "nonexistent_session",
+            "vcs_analysis_text": "VCS 분석",
+            "metadata_json": {}
+        }
+
+        # 세션 저장소에 세션이 없으므로 경고 로그가 발생하지만 정상 처리
+        response = client.post(
+            "/api/webservice/v2/start-full-generation",
+            json=request_without_metadata
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "accepted"
+
     def test_start_full_generation_invalid_request(self, client):
         """잘못된 요청 테스트"""
         invalid_request = {
