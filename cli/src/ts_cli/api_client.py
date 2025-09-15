@@ -537,6 +537,48 @@ class APIClient:
                 raise
             raise APIError(f"전체 문서 생성 API 요청 중 오류: {str(e)}")
 
+    async def get_session_metadata(self, session_id: str) -> Optional[dict]:
+        """
+        세션 메타데이터 조회
+        
+        Args:
+            session_id: 세션 ID
+            
+        Returns:
+            세션 메타데이터 딕셔너리 또는 None
+            
+        Raises:
+            APIError: API 요청 실패 시
+        """
+        try:
+            self.logger.info(f"세션 메타데이터 조회: session_id={session_id}")
+            
+            # 세션 메타데이터 조회 API 호출
+            endpoint = f"/api/webservice/v2/session/{session_id}/metadata"
+            response = await self.client.get(endpoint, timeout=30.0)
+            
+            # 404는 정상적인 경우 (세션이 없음)
+            if response.status_code == 404:
+                self.logger.info(f"세션 메타데이터 없음: session_id={session_id}")
+                return None
+                
+            # 기타 오류 응답 처리
+            await self._handle_response(response)
+            result = response.json()
+            
+            self.logger.info(f"세션 메타데이터 조회 성공: session_id={session_id}")
+            return result
+                
+        except APIError as e:
+            # 404 오류는 None 반환
+            if e.status_code == 404:
+                return None
+            self.logger.error(f"세션 메타데이터 조회 실패: session_id={session_id}, error={str(e)}")
+            raise
+        except Exception as e:
+            self.logger.error(f"세션 메타데이터 조회 중 오류: session_id={session_id}, error={str(e)}")
+            raise APIError(f"세션 메타데이터 조회 요청 중 오류: {str(e)}")
+
     async def close(self) -> None:
         """클라이언트 종료"""
         await self.client.aclose()

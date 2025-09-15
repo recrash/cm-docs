@@ -246,8 +246,11 @@ class CLIBuilder:
 
         # 동적 config.ini 생성 로직 추가!
         dynamic_config_file_path = self._create_dynamic_config()
-        build_info['datas'].append((str(dynamic_config_file_path), "config"))
+        # PyInstaller datas 형식: (source_file, destination_directory)
+        # "."는 번들의 루트 디렉토리를 의미
+        build_info['datas'].append((str(dynamic_config_file_path), "."))
         print(f"   Including dynamic config file: {dynamic_config_file_path}")
+        print(f"   Will be bundled as: config.ini")
         
         # Check optional files
         # config_file = self.project_root / "config" / "config.ini"
@@ -293,25 +296,32 @@ class CLIBuilder:
 
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 # Set project paths
 project_root = Path(r"{str(self.project_root)}")
 src_dir = project_root / "src"
 
+# Collect all ts_cli modules and data files
+hiddenimports = collect_submodules('ts_cli')
+datas_from_packages = collect_data_files('ts_cli')
+
 # Analysis settings
 a = Analysis(
     [r"{str(build_info['main_script'])}"],
-    pathex=[str(src_dir)],
+    pathex=[str(src_dir), str(src_dir / "ts_cli")],
     binaries=[],
-    datas={datas_str},
-    hiddenimports=[
-        'ts_cli',
-        'ts_cli.vcs',
-        'ts_cli.utils',
+    datas={datas_str} + datas_from_packages,
+    hiddenimports=hiddenimports + [
         'click',
         'rich',
         'httpx',
         'tenacity',
+        'configparser',
+        'pathlib',
+        'json',
+        'tempfile',
+        'logging',
     ],
     hookspath=[],
     hooksconfig={{}},
