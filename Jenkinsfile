@@ -915,12 +915,10 @@ pipeline {
                             
                             // 포트 정보 추가
                             if (deployBackend && env.BACK_PORT) {
-                                deploymentSummary += "
-• Backend 포트: ${env.BACK_PORT}"
+                                deploymentSummary += "\n• Backend 포트: ${env.BACK_PORT}"
                             }
                             if (deployAutodoc && env.AUTO_PORT) {
-                                deploymentSummary += "
-• AutoDoc 포트: ${env.AUTO_PORT}"
+                                deploymentSummary += "\n• AutoDoc 포트: ${env.AUTO_PORT}"
                             }
                             
                             deploymentSummary += """
