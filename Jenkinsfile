@@ -642,7 +642,29 @@ pipeline {
                         }
                     }
                     
-                    // 공통 초기화 먼저 수행 (병렬 배포 전)
+                    // 배포 전 포트 유효성 검사 (병렬 배포 안전성 확보)
+                    echo "🔍 배포 포트 유효성 사전 검사 중..."
+                    try {
+                        def portValidationCmd = ". '.\scripts\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\deploys\tests\%BID%\packages'; "
+                        
+                        if (deployBackend && env.BACK_PORT) {
+                            portValidationCmd += "Validate-DeploymentPorts -BackPort ${env.BACK_PORT} -Bid '%BID%' -NssmPath '%NSSM_PATH%'; "
+                        }
+                        
+                        if (deployAutodoc && env.AUTO_PORT) {
+                            portValidationCmd += "Validate-DeploymentPorts -AutoPort ${env.AUTO_PORT} -Bid '%BID%' -NssmPath '%NSSM_PATH%'; "
+                        }
+                        
+                        bat """
+                        chcp 65001 >NUL
+                        powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {${portValidationCmd}}"
+                        """
+                        echo "✓ 포트 유효성 검사 완료 - 병렬 배포 안전"
+                    } catch (Exception portError) {
+                        error("포트 유효성 검사 실패: ${portError.getMessage()}")
+                    }
+                    
+                    // 공통 초기화 수행 (병렬 배포 전)
                     echo "📋 공통 초기화 작업 수행 중..."
                     try {
                         bat """
@@ -811,15 +833,13 @@ pipeline {
                             
                             if (deployBackend && env.BACK_PORT) {
                                 nginxUpdateCmd += " -BackPort ${env.BACK_PORT}"
-                            } else {
-                                nginxUpdateCmd += " -BackPort `$null"
                             }
-                            
+                            // BackPort가 없으면 파라미터 자체를 전달하지 않음
+
                             if (deployAutodoc && env.AUTO_PORT) {
                                 nginxUpdateCmd += " -AutoPort ${env.AUTO_PORT}"
-                            } else {
-                                nginxUpdateCmd += " -AutoPort `$null"
                             }
+                            // AutoPort가 없으면 파라미터 자체를 전달하지 않음
                             
                             nginxUpdateCmd += " -Nginx '%NGINX_PATH%'"
                             
@@ -827,6 +847,28 @@ pipeline {
                             chcp 65001 >NUL
                             powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {${nginxUpdateCmd}}"
                             """
+                            
+                            // 배포 후 포트 상태 검증
+                            echo "🔍 배포 후 포트 상태 검증 중..."
+                            try {
+                                def portVerificationCmd = ". '.\scripts\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\deploys\tests\%BID%\packages'; "
+                                
+                                if (deployBackend && env.BACK_PORT) {
+                                    portVerificationCmd += "Test-PortAvailable -Port ${env.BACK_PORT} -ProcessName python; "
+                                }
+                                
+                                if (deployAutodoc && env.AUTO_PORT) {
+                                    portVerificationCmd += "Test-PortAvailable -Port ${env.AUTO_PORT} -ProcessName python; "
+                                }
+                                
+                                bat """
+                                chcp 65001 >NUL
+                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {${portVerificationCmd}}"
+                                """
+                                echo "✓ 포트 상태 검증 완료 - 병렬 배포 성공"
+                            } catch (Exception portVerifyError) {
+                                echo "⚠️ 포트 상태 검증 중 경고: ${portVerifyError.getMessage()}"
+                            }
                             
                             // 최종 서비스 상태 확인
                             echo "🔍 최종 서비스 상태 확인 중..."
@@ -864,15 +906,30 @@ pipeline {
                                 }
                             }
                             
-                            echo """
+                            def deploymentSummary = """
                             ===========================================
                             ✅ 병렬 배포 완료
                             ===========================================
                             • 성공한 서비스: ${successfulServices.join(', ')}
                             ${failedServices.size() > 0 ? "• 실패한 서비스: ${failedServices.join(', ')}" : ""}
                             • 배포 시간: 병렬 처리로 단축
+                            """
+                            
+                            // 포트 정보 추가
+                            if (deployBackend && env.BACK_PORT) {
+                                deploymentSummary += "
+• Backend 포트: ${env.BACK_PORT}"
+                            }
+                            if (deployAutodoc && env.AUTO_PORT) {
+                                deploymentSummary += "
+• AutoDoc 포트: ${env.AUTO_PORT}"
+                            }
+                            
+                            deploymentSummary += """
                             ===========================================
                             """
+                            
+                            echo deploymentSummary
                             
                         } catch (Exception e) {
                             // 구체적인 에러 분석 및 해결 가이드 제공

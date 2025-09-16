@@ -13,7 +13,768 @@ $ErrorActionPreference = "Stop"
 # UTF-8 출력 설정 (한글 지원)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
+# ===============================================
+# 배포 락 메커니즘 함수들
+# ===============================================
+
+function Acquire-DeploymentLock {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$LockType,
+
+        [Parameter(Mandatory=$false)]
+        [int]$TimeoutSeconds = 60,
+
+        [Parameter(Mandatory=$false)]
+        [string]$LockReason = "배포 작업"
+    )
+
+    $lockDir = "C:\deploys\locks"
+    $lockFile = "$lockDir\$LockType.lock"
+    $processId = $PID
+    $hostName = $env:COMPUTERNAME
+    $userName = $env:USERNAME
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+    # 락 디렉토리 생성
+    if (-not (Test-Path $lockDir)) {
+        New-Item -ItemType Directory -Force -Path $lockDir | Out-Null
+    }
+
+    $startTime = Get-Date
+    $lockAcquired = $false
+
+    Write-Host "[$LockType] 락 획득 시도 중... (최대 ${TimeoutSeconds}초 대기)"
+
+    while (-not $lockAcquired -and ((Get-Date) - $startTime).TotalSeconds -lt $TimeoutSeconds) {
+        try {
+            # 기존 락 파일 확인
+            if (Test-Path $lockFile) {
+                $lockContent = Get-Content $lockFile -Raw -ErrorAction SilentlyContinue
+                if ($lockContent) {
+                    $lockInfo = $lockContent | ConvertFrom-Json -ErrorAction SilentlyContinue
+                    if ($lockInfo) {
+                        $lockAge = (Get-Date) - [DateTime]::Parse($lockInfo.Timestamp)
+
+                        # 락이 10분 이상 오래되었으면 삭제 (좀비 락 방지)
+                        if ($lockAge.TotalMinutes -gt 10) {
+                            Write-Host "[$LockType] 오래된 락 파일 발견 (${lockAge.TotalMinutes:F1}분). 정리합니다."
+                            Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
+                        } else {
+                            Write-Host "[$LockType] 락이 사용 중입니다. 소유자: $($lockInfo.UserName)@$($lockInfo.HostName) (PID: $($lockInfo.ProcessId))"
+                            Start-Sleep -Seconds 2
+                            continue
+                        }
+                    }
+                }
+            }
+
+            # 락 파일 생성 시도
+            $lockData = @{
+                LockType = $LockType
+                ProcessId = $processId
+                HostName = $hostName
+                UserName = $userName
+                Timestamp = $timestamp
+                Reason = $LockReason
+            } | ConvertTo-Json -Compress
+
+            # 원자적 락 파일 생성 (임시 파일 → 이동)
+            $tempFile = "$lockFile.tmp.$processId"
+            $lockData | Out-File -FilePath $tempFile -Encoding UTF8 -NoNewline
+            Move-Item $tempFile $lockFile -ErrorAction Stop
+
+            $lockAcquired = $true
+            Write-Host "[$LockType] 락 획득 성공! (프로세스: $processId, 사용자: $userName)"
+
+        } catch {
+            Start-Sleep -Milliseconds 500
+        }
+    }
+
+    if (-not $lockAcquired) {
+        throw "[$LockType] 락 획득 실패: ${TimeoutSeconds}초 내에 락을 획득할 수 없습니다."
+    }
+
+    return $lockFile
+}
+
+function Release-DeploymentLock {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$LockType
+    )
+
+    $lockDir = "C:\deploys\locks"
+    $lockFile = "$lockDir\$LockType.lock"
+
+    try {
+        if (Test-Path $lockFile) {
+            # 락 소유권 확인
+            $lockContent = Get-Content $lockFile -Raw -ErrorAction SilentlyContinue
+            if ($lockContent) {
+                $lockInfo = $lockContent | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($lockInfo -and $lockInfo.ProcessId -eq $PID) {
+                    Remove-Item $lockFile -Force
+                    Write-Host "[$LockType] 락 해제 완료 (프로세스: $PID)"
+                } else {
+                    Write-Host "[$LockType] 경고: 다른 프로세스가 소유한 락입니다. 강제 해제하지 않습니다."
+                }
+            } else {
+                # 빈 락 파일이면 제거
+                Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
+                Write-Host "[$LockType] 빈 락 파일 정리 완료"
+            }
+        }
+    } catch {
+        Write-Host "[$LockType] 락 해제 중 에러: $($_.Exception.Message)"
+    }
+}
+
+function Test-LockAvailable {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$LockType
+    )
+
+    $lockDir = "C:\deploys\locks"
+    $lockFile = "$lockDir\$LockType.lock"
+
+    if (-not (Test-Path $lockFile)) {
+        return $true
+    }
+
+    try {
+        $lockContent = Get-Content $lockFile -Raw -ErrorAction SilentlyContinue
+        if (-not $lockContent) {
+            return $true
+        }
+
+        $lockInfo = $lockContent | ConvertFrom-Json -ErrorAction SilentlyContinue
+        if (-not $lockInfo) {
+            return $true
+        }
+
+        $lockAge = (Get-Date) - [DateTime]::Parse($lockInfo.Timestamp)
+
+        # 10분 이상 오래된 락은 사실상 사용 가능
+        if ($lockAge.TotalMinutes -gt 10) {
+            return $true
+        }
+
+        return $false
+    } catch {
+        return $true
+    }
+}
+
+# ===============================================
+# NSSM 서비스 관리 함수들 (락 보호)
+# ===============================================
+
+function Register-Service-WithLock {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$ServiceName,
+
+        [Parameter(Mandatory=$true)]
+        [string]$ExecutablePath,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Arguments,
+
+        [Parameter(Mandatory=$true)]
+        [string]$NssmPath,
+
+        [Parameter(Mandatory=$false)]
+        [int]$TimeoutSeconds = 60
+    )
+
+    $lockFile = $null
+    try {
+        # NSSM 서비스 등록 락 획득
+        $lockFile = Acquire-DeploymentLock -LockType "nssm-service" -TimeoutSeconds $TimeoutSeconds -LockReason "NSSM 서비스 등록 ($ServiceName)"
+
+        Write-Host "NSSM 서비스 등록 중... (락 보호됨): $ServiceName"
+
+        # 기존 서비스 확인 및 제거
+        $existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if ($existingService) {
+            Write-Host "기존 서비스 발견, 제거 중: $ServiceName"
+
+            # 서비스 중지
+            if ($existingService.Status -eq "Running") {
+                Write-Host "  -> 서비스 중지 중..."
+                & $NssmPath stop $ServiceName 2>$null
+                Start-Sleep -Seconds 5
+            }
+
+            # 서비스 제거
+            Write-Host "  -> 서비스 제거 중..."
+            & $NssmPath remove $ServiceName confirm 2>$null
+            Start-Sleep -Seconds 2
+        }
+
+        # 새 서비스 설치
+        Write-Host "  -> 새 서비스 설치: $ServiceName"
+        $installResult = & $NssmPath install $ServiceName $ExecutablePath $Arguments 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "NSSM 서비스 설치 실패 (ExitCode: $LASTEXITCODE): $installResult"
+        }
+
+        # 서비스 시작
+        Write-Host "  -> 서비스 시작 중..."
+        $startResult = & $NssmPath start $ServiceName 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "NSSM 서비스 시작 실패 (ExitCode: $LASTEXITCODE): $startResult"
+            Write-Host "Windows 서비스로 시작 시도..."
+            Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        }
+
+        # 서비스 상태 확인
+        Start-Sleep -Seconds 3
+        $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if ($service -and $service.Status -eq "Running") {
+            Write-Host "✓ NSSM 서비스 등록 및 시작 완료: $ServiceName (상태: $($service.Status))"
+        } else {
+            Write-Warning "NSSM 서비스 등록은 완료되었으나 상태가 비정상입니다: $ServiceName (상태: $($service.Status if $service else 'N/A'))"
+        }
+
+    } catch {
+        Write-Error "NSSM 서비스 등록 실패: $ServiceName - $($_.Exception.Message)"
+        throw
+    } finally {
+        # NSSM 서비스 등록 락 해제
+        if ($lockFile) {
+            Release-DeploymentLock -LockType "nssm-service"
+        }
+    }
+}
+
+function Unregister-Service-WithLock {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$ServiceName,
+
+        [Parameter(Mandatory=$true)]
+        [string]$NssmPath,
+
+        [Parameter(Mandatory=$false)]
+        [int]$TimeoutSeconds = 60
+    )
+
+    $lockFile = $null
+    try {
+        # NSSM 서비스 등록 락 획득
+        $lockFile = Acquire-DeploymentLock -LockType "nssm-service" -TimeoutSeconds $TimeoutSeconds -LockReason "NSSM 서비스 제거 ($ServiceName)"
+
+        Write-Host "NSSM 서비스 제거 중... (락 보호됨): $ServiceName"
+
+        $existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if ($existingService) {
+            # 서비스 중지
+            if ($existingService.Status -eq "Running") {
+                Write-Host "  -> 서비스 중지 중..."
+                & $NssmPath stop $ServiceName 2>$null
+                Start-Sleep -Seconds 5
+
+                # 강제 프로세스 종료
+                $processName = $ServiceName.Replace("cm-", "").Replace("-$Bid", "")
+                Get-Process -Name "*python*" -ErrorAction SilentlyContinue |
+                Where-Object { $_.CommandLine -like "*$ServiceName*" -or $_.CommandLine -like "*$processName*" } |
+                ForEach-Object {
+                    Write-Host "  -> 관련 프로세스 강제 종료: $($_.ProcessName) (PID: $($_.Id))"
+                    Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+                }
+                Start-Sleep -Seconds 2
+            }
+
+            # 서비스 제거
+            Write-Host "  -> 서비스 제거 중..."
+            & $NssmPath remove $ServiceName confirm 2>$null
+            Write-Host "✓ NSSM 서비스 제거 완료: $ServiceName"
+        } else {
+            Write-Host "제거할 서비스가 존재하지 않습니다: $ServiceName"
+        }
+
+    } catch {
+        Write-Error "NSSM 서비스 제거 실패: $ServiceName - $($_.Exception.Message)"
+        throw
+    } finally {
+        # NSSM 서비스 등록 락 해제
+        if ($lockFile) {
+            Release-DeploymentLock -LockType "nssm-service"
+        }
+    }
+}
+
+# ===============================================
+# 향상된 프로세스 정리 시스템
+# ===============================================
+
+function Stop-ServiceGracefully {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$ServiceName,
+
+        [Parameter(Mandatory=$true)]
+        [string]$NssmPath,
+
+        [Parameter(Mandatory=$false)]
+        [int]$MaxWaitSeconds = 30,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$ForceKill
+    )
+
+    Write-Host "서비스 안전 중지 중: $ServiceName"
+
+    # 1. 서비스 존재 확인
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if (-not $service) {
+        Write-Host "  -> 서비스가 존재하지 않습니다: $ServiceName"
+        return $true
+    }
+
+    Write-Host "  -> 현재 상태: $($service.Status)"
+
+    # 2. 이미 중지된 경우 빠른 리턴
+    if ($service.Status -eq "Stopped") {
+        Write-Host "  -> 이미 중지된 상태입니다"
+        return $true
+    }
+
+    # 3. NSSM을 통한 정상 중지 시도
+    try {
+        Write-Host "  -> NSSM 정상 중지 시도..."
+        & $NssmPath stop $ServiceName 2>$null
+        Start-Sleep -Seconds 3
+    } catch {
+        Write-Host "  -> NSSM 중지 실패: $($_.Exception.Message)"
+    }
+
+    # 4. 프로세스 완전 종료 확인
+    $startTime = Get-Date
+    $processTerminated = $false
+
+    while (((Get-Date) - $startTime).TotalSeconds -lt $MaxWaitSeconds -and -not $processTerminated) {
+        # 서비스 상태 재확인
+        $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if (-not $service -or $service.Status -eq "Stopped") {
+            $processTerminated = $true
+            break
+        }
+
+        # 관련 프로세스 확인
+        $relatedProcesses = Get-Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.ProcessName -like "*python*" -and
+            ($_.CommandLine -like "*$ServiceName*" -or $_.CommandLine -like "*uvicorn*")
+        }
+
+        if ($relatedProcesses.Count -eq 0) {
+            $processTerminated = $true
+            break
+        }
+
+        Write-Host "  -> 프로세스 종료 대기 중... ($([int]((Get-Date) - $startTime).TotalSeconds)/$MaxWaitSeconds 초)"
+        Start-Sleep -Seconds 2
+    }
+
+    # 5. 강제 종료 (필요시)
+    if (-not $processTerminated) {
+        if ($ForceKill) {
+            Write-Host "  -> 강제 프로세스 종료 시작..."
+
+            # Python 프로세스 강제 종료
+            Get-Process -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.ProcessName -like "*python*" -and
+                ($_.CommandLine -like "*$ServiceName*" -or $_.CommandLine -like "*uvicorn*")
+            } |
+            ForEach-Object {
+                Write-Host "    - 프로세스 강제 종료: $($_.ProcessName) (PID: $($_.Id))"
+                try {
+                    Stop-Process -Id $_.Id -Force -ErrorAction Stop
+                } catch {
+                    Write-Warning "    - 프로세스 강제 종료 실패 (PID: $($_.Id)): $($_.Exception.Message)"
+                }
+            }
+
+            # Windows 서비스 강제 중지
+            try {
+                Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+                Write-Host "    - Windows 서비스 강제 중지 완료"
+            } catch {
+                Write-Warning "    - Windows 서비스 강제 중지 실패: $($_.Exception.Message)"
+            }
+
+            Start-Sleep -Seconds 3
+            $processTerminated = $true
+        } else {
+            Write-Warning "  -> 프로세스가 ${MaxWaitSeconds}초 내에 종료되지 않았습니다. 강제 종료가 필요할 수 있습니다."
+            return $false
+        }
+    }
+
+    # 6. 파일 잠금 해제 확인
+    Write-Host "  -> 파일 잠금 해제 확인 중..."
+    Start-Sleep -Seconds 2
+
+    # 7. 최종 상태 확인
+    $finalService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($finalService -and $finalService.Status -eq "Stopped") {
+        Write-Host "✓ 서비스 안전 중지 완료: $ServiceName"
+        return $true
+    } elseif (-not $finalService) {
+        Write-Host "✓ 서비스 제거 확인: $ServiceName"
+        return $true
+    } else {
+        Write-Warning "✗ 서비스 중지 실패: $ServiceName (상태: $($finalService.Status))"
+        return $false
+    }
+}
+
+function Test-FileLockStatus {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$FilePath,
+
+        [Parameter(Mandatory=$false)]
+        [int]$TimeoutSeconds = 10
+    )
+
+    if (-not (Test-Path $FilePath)) {
+        return $true  # 파일이 없으면 잠금도 없음
+    }
+
+    $startTime = Get-Date
+    while (((Get-Date) - $startTime).TotalSeconds -lt $TimeoutSeconds) {
+        try {
+            # 파일 쓰기 시도로 잠금 상태 확인
+            $testFile = "$FilePath.locktest"
+            "test" | Out-File -FilePath $testFile -ErrorAction Stop
+            Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+            return $true  # 잠금 없음
+        } catch {
+            Start-Sleep -Milliseconds 500
+        }
+    }
+
+    return $false  # 잠금 상태
+}
+
+function Remove-DirectoryGracefully {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$DirectoryPath,
+
+        [Parameter(Mandatory=$false)]
+        [int]$MaxRetries = 3,
+
+        [Parameter(Mandatory=$false)]
+        [int]$DelayBetweenRetries = 2
+    )
+
+    if (-not (Test-Path $DirectoryPath)) {
+        Write-Host "  -> 디렉토리가 이미 존재하지 않습니다: $DirectoryPath"
+        return $true
+    }
+
+    Write-Host "  -> 디렉토리 안전 제거 중: $DirectoryPath"
+
+    for ($attempt = 1; $attempt -le $MaxRetries; $attempt++) {
+        try {
+            # 디렉토리 내 실행 파일들의 잠금 상태 확인
+            $executableFiles = Get-ChildItem -Path $DirectoryPath -Recurse -Include "*.exe", "*.dll" -ErrorAction SilentlyContinue
+            $lockedFiles = @()
+
+            foreach ($file in $executableFiles) {
+                if (-not (Test-FileLockStatus -FilePath $file.FullName -TimeoutSeconds 2)) {
+                    $lockedFiles += $file.FullName
+                }
+            }
+
+            if ($lockedFiles.Count -gt 0) {
+                Write-Host "    - 잠금된 파일 발견 (시도 $attempt/$MaxRetries): $($lockedFiles.Count)개"
+                if ($attempt -lt $MaxRetries) {
+                    Write-Host "    - ${DelayBetweenRetries}초 후 재시도..."
+                    Start-Sleep -Seconds $DelayBetweenRetries
+                    continue
+                }
+            }
+
+            # 디렉토리 제거 시도
+            Remove-Item -Path $DirectoryPath -Recurse -Force -ErrorAction Stop
+            Write-Host "  ✓ 디렉토리 제거 완료: $DirectoryPath"
+            return $true
+
+        } catch {
+            Write-Host "    - 디렉토리 제거 실패 (시도 $attempt/$MaxRetries): $($_.Exception.Message)"
+            if ($attempt -lt $MaxRetries) {
+                Start-Sleep -Seconds $DelayBetweenRetries
+            }
+        }
+    }
+
+    Write-Warning "  ✗ 디렉토리 제거 실패 (최대 재시도 도달): $DirectoryPath"
+    return $false
+}
+
+# ===============================================
+# 포트 충돌 방지 시스템
+# ===============================================
+
+function Test-PortAvailable {
+    param(
+        [Parameter(Mandatory=$true)]
+        [int]$Port,
+        
+        [Parameter(Mandatory=$false)]
+        [string]$ProcessName = $null
+    )
+    
+    Write-Host "포트 가용성 확인: $Port"
+    
+    try {
+        # 1. 포트 사용 중인 프로세스 확인
+        $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+        
+        if ($connections) {
+            foreach ($conn in $connections) {
+                $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+                if ($process) {
+                    Write-Host "  -> 포트 $Port 사용 중: PID=$($process.Id), 프로세스=$($process.ProcessName)"
+                    
+                    # 지정된 프로세스명과 일치하는지 확인
+                    if ($ProcessName -and $process.ProcessName -like "*$ProcessName*") {
+                        Write-Host "  -> 동일 서비스 프로세스로 판단됨: $ProcessName"
+                        return $false, "SAME_SERVICE", $process
+                    } else {
+                        Write-Host "  -> 다른 프로세스가 포트를 사용 중"
+                        return $false, "CONFLICT", $process
+                    }
+                }
+            }
+        }
+        
+        # 2. TCP 리스너 확인
+        $listeners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+        if ($listeners) {
+            Write-Host "  -> 포트 $Port 에서 리스너 발견"
+            return $false, "LISTENER", $null
+        }
+        
+        Write-Host "  -> 포트 $Port 사용 가능"
+        return $true, "AVAILABLE", $null
+        
+    } catch {
+        Write-Warning "포트 확인 중 오류: $($_.Exception.Message)"
+        return $false, "ERROR", $null
+    }
+}
+
+function Wait-ForPortRelease {
+    param(
+        [Parameter(Mandatory=$true)]
+        [int]$Port,
+        
+        [Parameter(Mandatory=$false)]
+        [int]$MaxWaitSeconds = 60,
+        
+        [Parameter(Mandatory=$false)]
+        [int]$CheckIntervalSeconds = 2
+    )
+    
+    Write-Host "포트 해제 대기: $Port (최대 ${MaxWaitSeconds}초)"
+    
+    $elapsed = 0
+    while ($elapsed -lt $MaxWaitSeconds) {
+        $available, $status, $process = Test-PortAvailable -Port $Port
+        
+        if ($available) {
+            Write-Host "  -> 포트 $Port 해제 완료 (${elapsed}초 경과)"
+            return $true
+        }
+        
+        Write-Host "  -> 포트 해제 대기 중... (${elapsed}/${MaxWaitSeconds}초)"
+        Start-Sleep -Seconds $CheckIntervalSeconds
+        $elapsed += $CheckIntervalSeconds
+    }
+    
+    Write-Warning "포트 $Port 해제 시간 초과 (${MaxWaitSeconds}초)"
+    return $false
+}
+
+function Resolve-PortConflict {
+    param(
+        [Parameter(Mandatory=$true)]
+        [int]$Port,
+        
+        [Parameter(Mandatory=$false)]
+        [string]$ServiceName = $null,
+        
+        [Parameter(Mandatory=$false)]
+        [string]$NssmPath = $null,
+        
+        [Parameter(Mandatory=$false)]
+        [switch]$ForceKill
+    )
+    
+    Write-Host "포트 충돌 해결 시도: $Port"
+    
+    $available, $status, $process = Test-PortAvailable -Port $Port
+    
+    if ($available) {
+        Write-Host "  -> 포트 사용 가능"
+        return $true
+    }
+    
+    switch ($status) {
+        "SAME_SERVICE" {
+            if ($ServiceName -and $NssmPath) {
+                Write-Host "  -> 동일 서비스 프로세스 감지: $ServiceName"
+                Write-Host "  -> 기존 서비스 정상 중지 시도..."
+                
+                $stopResult = Stop-ServiceGracefully -ServiceName $ServiceName -NssmPath $NssmPath -MaxWaitSeconds 30 -ForceKill:$ForceKill
+                if ($stopResult) {
+                    $waitResult = Wait-ForPortRelease -Port $Port -MaxWaitSeconds 30
+                    return $waitResult
+                } else {
+                    Write-Warning "서비스 중지 실패: $ServiceName"
+                    return $false
+                }
+            } else {
+                Write-Warning "서비스 정보 부족으로 자동 해결 불가"
+                return $false
+            }
+        }
+        
+        "CONFLICT" {
+            if ($ForceKill -and $process) {
+                Write-Warning "  -> 강제 종료 옵션 활성화: PID=$($process.Id)"
+                try {
+                    Stop-Process -Id $process.Id -Force
+                    $waitResult = Wait-ForPortRelease -Port $Port -MaxWaitSeconds 15
+                    return $waitResult
+                } catch {
+                    Write-Error "프로세스 강제 종료 실패: $($_.Exception.Message)"
+                    return $false
+                }
+            } else {
+                Write-Error "포트 $Port 가 다른 프로세스에 의해 사용 중입니다. PID=$($process.Id), 프로세스=$($process.ProcessName)"
+                Write-Error "해결 방법:"
+                Write-Error "  1. 해당 프로세스를 수동으로 종료"
+                Write-Error "  2. -ForceKill 옵션 사용 (주의 필요)"
+                Write-Error "  3. 다른 포트 사용"
+                return $false
+            }
+        }
+        
+        "LISTENER" {
+            Write-Error "포트 $Port 에서 리스너가 활성화되어 있습니다"
+            return $false
+        }
+        
+        default {
+            Write-Error "알 수 없는 포트 상태: $status"
+            return $false
+        }
+    }
+}
+
+function Validate-DeploymentPorts {
+    param(
+        [Parameter(Mandatory=$false)]
+        [int]$BackPort = $null,
+        
+        [Parameter(Mandatory=$false)]
+        [int]$AutoPort = $null,
+        
+        [Parameter(Mandatory=$false)]
+        [string]$Bid = $null,
+        
+        [Parameter(Mandatory=$false)]
+        [string]$NssmPath = $null,
+        
+        [Parameter(Mandatory=$false)]
+        [switch]$ForceResolve
+    )
+    
+    Write-Host "배포 포트 유효성 검사 시작"
+    
+    # 필수 포트 범위 검증
+    $validPorts = @()
+    $conflicts = @()
+    
+    if ($BackPort) {
+        if ($BackPort -lt 1024 -or $BackPort -gt 65535) {
+            throw "잘못된 백엔드 포트 범위: $BackPort (1024-65535 범위 필요)"
+        }
+        $validPorts += @{ Type="Backend"; Port=$BackPort; Service="cm-web-$Bid" }
+    }
+    
+    if ($AutoPort) {
+        if ($AutoPort -lt 1024 -or $AutoPort -gt 65535) {
+            throw "잘못된 AutoDoc 포트 범위: $AutoPort (1024-65535 범위 필요)"
+        }
+        $validPorts += @{ Type="AutoDoc"; Port=$AutoPort; Service="cm-autodoc-$Bid" }
+    }
+    
+    # 포트 중복 검사
+    if ($BackPort -and $AutoPort -and $BackPort -eq $AutoPort) {
+        throw "포트 중복: 백엔드와 AutoDoc 서비스가 동일한 포트를 사용할 수 없습니다 (포트: $BackPort)"
+    }
+    
+    # 각 포트별 충돌 검사 및 해결
+    foreach ($portInfo in $validPorts) {
+        $port = $portInfo.Port
+        $service = $portInfo.Service
+        $type = $portInfo.Type
+        
+        Write-Host "  -> $type 포트 검사: $port"
+        
+        if ($ForceResolve) {
+            $resolved = Resolve-PortConflict -Port $port -ServiceName $service -NssmPath $NssmPath -ForceKill
+            if (-not $resolved) {
+                $conflicts += "포트 $port ($type) 충돌 해결 실패"
+            }
+        } else {
+            $available, $status, $process = Test-PortAvailable -Port $port
+            if (-not $available) {
+                $conflicts += "포트 $port ($type) 사용 불가: $status"
+            }
+        }
+    }
+    
+    # 충돌 결과 보고
+    if ($conflicts.Count -gt 0) {
+        Write-Error "포트 유효성 검사 실패:"
+        foreach ($conflict in $conflicts) {
+            Write-Error "  - $conflict"
+        }
+        
+        if (-not $ForceResolve) {
+            Write-Error ""
+            Write-Error "해결 방법:"
+            Write-Error "  1. 충돌하는 서비스를 수동으로 중지"
+            Write-Error "  2. Validate-DeploymentPorts -ForceResolve 옵션 사용"
+            Write-Error "  3. 다른 포트 번호 사용"
+        }
+        
+        throw "포트 충돌로 인한 배포 실패"
+    }
+    
+    Write-Host "✓ 모든 포트 유효성 검사 통과"
+    return $true
+}
+
+# ===============================================
 # 공통 함수 정의
+# ===============================================
+
 function Initialize-CommonDirectories {
     param($PackagesRoot, $Bid)
     
@@ -37,108 +798,49 @@ function Initialize-CommonDirectories {
 
 function Cleanup-OldBranchFolders {
     param($Bid, $Nssm)
-    
-    Write-Host "단계 0: 기존 폴더 정리 중..."
+
+    Write-Host "단계 0: 기존 폴더 정리 중... (향상된 프로세스 정리 시스템)"
     $testRoot = "C:\deploys\tests"
     $currentBranch = $Bid
     $lowerBranch = $currentBranch.ToLower()
-    
+
     # 소문자 버전 폴더가 존재하고 현재 브랜치명과 다른 경우 정리
     $lowerBranchPath = "$testRoot\$lowerBranch"
     if (($currentBranch -ne $lowerBranch) -and (Test-Path $lowerBranchPath)) {
         Write-Host "기존 소문자 브랜치 폴더 발견: $lowerBranchPath"
-        
-        # 기존 서비스 중지
+
+        # 기존 서비스 안전 중지
         try {
             $oldWebService = "cm-web-$lowerBranch"
             $oldAutoService = "cm-autodoc-$lowerBranch"
-            
-            # 웹서비스 정리
-            $oldWebSvc = Get-Service -Name $oldWebService -ErrorAction SilentlyContinue
-            if ($oldWebSvc) {
-                Write-Host "기존 웹서비스 중지: $oldWebService"
-                & $Nssm stop $oldWebService 2>$null
-                
-                # 프로세스 완전 종료 확인 및 강제 종료
-                Write-Host "  - 프로세스 완전 종료 확인 중..."
-                $maxWait = 15  # 최대 15초 대기
-                $waited = 0
-                do {
-                    Start-Sleep -Seconds 1
-                    $waited++
-                    $remainingProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*$oldWebService*" -or $_.CommandLine -like "*uvicorn*" }
-                    if (-not $remainingProcess) { break }
-                    Write-Host "    프로세스 종료 대기 중... ($waited/$maxWait)"
-                } while ($waited -lt $maxWait)
-                
-                # 강제 종료가 필요한 경우
-                if ($remainingProcess) {
-                    Write-Warning "  - 프로세스가 완전히 종료되지 않았습니다. 강제 종료를 시도합니다."
-                    $remainingProcess | ForEach-Object { 
-                        try {
-                            Stop-Process -Id $_.Id -Force -ErrorAction Stop
-                            Write-Host "    강제 종료: PID $($_.Id)"
-                        } catch {
-                            Write-Warning "    강제 종료 실패: PID $($_.Id) - $($_.Exception.Message)"
-                        }
-                    }
-                    Start-Sleep -Seconds 3
-                }
-                
-                & $Nssm remove $oldWebService confirm 2>$null
-                Write-Host "  - 웹서비스 제거 완료"
+
+            # 향상된 웹서비스 정리
+            $webStopResult = Stop-ServiceGracefully -ServiceName $oldWebService -NssmPath $Nssm -MaxWaitSeconds 30 -ForceKill
+            if ($webStopResult) {
+                Unregister-Service-WithLock -ServiceName $oldWebService -NssmPath $Nssm
+            } else {
+                Write-Warning "웹서비스 중지에 실패했지만 계속 진행합니다: $oldWebService"
             }
-            
-            # AutoDoc 서비스 정리
-            $oldAutoSvc = Get-Service -Name $oldAutoService -ErrorAction SilentlyContinue
-            if ($oldAutoSvc) {
-                Write-Host "기존 AutoDoc 서비스 중지: $oldAutoService"
-                & $Nssm stop $oldAutoService 2>$null
-                
-                # 프로세스 완전 종료 확인 및 강제 종료
-                Write-Host "  - 프로세스 완전 종료 확인 중..."
-                $maxWait = 15  # 최대 15초 대기
-                $waited = 0
-                do {
-                    Start-Sleep -Seconds 1
-                    $waited++
-                    $remainingProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*$oldAutoService*" -or $_.CommandLine -like "*autodoc*" }
-                    if (-not $remainingProcess) { break }
-                    Write-Host "    프로세스 종료 대기 중... ($waited/$maxWait)"
-                } while ($waited -lt $maxWait)
-                
-                # 강제 종료가 필요한 경우
-                if ($remainingProcess) {
-                    Write-Warning "  - 프로세스가 완전히 종료되지 않았습니다. 강제 종료를 시도합니다."
-                    $remainingProcess | ForEach-Object { 
-                        try {
-                            Stop-Process -Id $_.Id -Force -ErrorAction Stop
-                            Write-Host "    강제 종료: PID $($_.Id)"
-                        } catch {
-                            Write-Warning "    강제 종료 실패: PID $($_.Id) - $($_.Exception.Message)"
-                        }
-                    }
-                    Start-Sleep -Seconds 3
-                }
-                
-                & $Nssm remove $oldAutoService confirm 2>$null
-                Write-Host "  - AutoDoc 서비스 제거 완료"
+
+            # 향상된 AutoDoc 서비스 정리
+            $autoStopResult = Stop-ServiceGracefully -ServiceName $oldAutoService -NssmPath $Nssm -MaxWaitSeconds 30 -ForceKill
+            if ($autoStopResult) {
+                Unregister-Service-WithLock -ServiceName $oldAutoService -NssmPath $Nssm
+            } else {
+                Write-Warning "AutoDoc 서비스 중지에 실패했지만 계속 진행합니다: $oldAutoService"
             }
-            
-            # 추가 대기 시간 (파일 잠금 해제 보장)
-            Write-Host "파일 잠금 해제를 위한 추가 대기..."
-            Start-Sleep -Seconds 5  # 10초에서 5초로 단축 (프로세스 확인 로직 추가로)
-            
+
         } catch {
-            Write-Host "기존 서비스 정리 중 오류 (무시): $($_.Exception.Message)"
+            Write-Warning "기존 서비스 정리 중 오류: $($_.Exception.Message)"
         }
-        
-        # 기존 폴더 삭제
-        try {
-            Remove-Item -Path $lowerBranchPath -Recurse -Force
-            Write-Host "기존 소문자 브랜치 폴더 삭제 완료: $lowerBranchPath"
-        } catch {
-            Write-Host "경고: 기존 폴더 삭제 실패: $($_.Exception.Message)"
+
+        # 향상된 디렉토리 안전 제거
+        $directoryRemoved = Remove-DirectoryGracefully -DirectoryPath $lowerBranchPath -MaxRetries 3 -DelayBetweenRetries 3
+
+        if ($directoryRemoved) {
+            Write-Host "✓ 기존 브랜치 폴더 정리 완료: $lowerBranchPath"
+        } else {
+            Write-Warning "기존 브랜치 폴더 제거 실패 (배포는 계속 진행): $lowerBranchPath"
         }
     }
 }
@@ -182,9 +884,26 @@ function Copy-MasterData {
 }
 
 function Update-NginxConfig {
-    param($Bid, $BackPort, $AutoPort, $Nginx)
-    
-    Write-Host "Nginx 설정 적용 중..."
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Bid,
+
+        [Parameter(Mandatory=$false)]
+        $BackPort = $null,
+
+        [Parameter(Mandatory=$false)]
+        $AutoPort = $null,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Nginx
+    )
+
+    # Nginx 설정 락 획득 (병렬 배포 충돌 방지)
+    $lockFile = $null
+    try {
+        $lockFile = Acquire-DeploymentLock -LockType "nginx-config" -TimeoutSeconds 120 -LockReason "Nginx 설정 업데이트 (Branch: $Bid)"
+
+        Write-Host "Nginx 설정 적용 중... (락 보호됨)"
     
     # 템플릿 파일 경로
     $upstreamTemplatePath = "$PSScriptRoot\..\infra\nginx\tests.upstream.template.conf"
@@ -225,7 +944,8 @@ function Update-NginxConfig {
     
     # 단일 서비스 배포 시 파라미터 검증
     if ($BackPort -eq $null -and $AutoPort -eq $null) {
-        throw "BackPort와 AutoPort 모두 null입니다. 최소 하나의 포트는 지정되어야 합니다.`n해결방법: PowerShell에서 `$null 대신 문자열 'null'이 전달되었을 가능성을 확인하세요."
+        Write-Host "WARNING: BackPort와 AutoPort 모두 null입니다. 기존 upstream 설정을 보존합니다."
+        Write-Host "INFO: 이는 정상적인 상황일 수 있습니다 (변경사항이 없거나 기존 설정 유지)"
     }
     
     # BackPort 검증
@@ -481,6 +1201,13 @@ function Update-NginxConfig {
         } catch {
             Write-Warning "Nginx 리로드 완전 실패: $($_.Exception.Message)"
             Write-Host "참고: 수동으로 nginx 재시작 필요할 수 있습니다"
+        }
+    }
+
+    } finally {
+        # Nginx 설정 락 해제
+        if ($lockFile) {
+            Release-DeploymentLock -LockType "nginx-config"
         }
     }
 }

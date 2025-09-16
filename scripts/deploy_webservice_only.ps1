@@ -35,14 +35,24 @@ try {
     $TestWebDataPath = "$($commonDirs.TestDataRoot)\webservice"
     $TestLogsPath = $commonDirs.TestLogsPath
     
+    # 1.5. 포트 유효성 검사 및 충돌 해결
+    Write-Host "`n단계 1.5: 배포 포트 유효성 검사 중..."
+    try {
+        Validate-DeploymentPorts -BackPort $BackPort -Bid $Bid -NssmPath $Nssm -ForceResolve
+        Write-Host "포트 유효성 검사 완료"
+    } catch {
+        Write-Error "포트 유효성 검사 실패: $($_.Exception.Message)"
+        throw
+    }
+    
     # 2. 웹서비스 디렉토리 생성
-    Write-Host "단계 1: 웹서비스 디렉토리 생성 중..."
+    Write-Host "`n단계 2: 웹서비스 디렉토리 생성 중..."
     New-Item -ItemType Directory -Force -Path $WebBackDst, $TestWebDataPath | Out-Null
     New-Item -ItemType Directory -Force -Path "$PackagesRoot\webservice" | Out-Null
     Write-Host "디렉토리 생성 완료: $WebBackDst"
     
     # 3. Config 파일 준비
-    Write-Host "`n단계 2: Config 파일 준비 중..."
+    Write-Host "`n단계 3: Config 파일 준비 중..."
     if (Test-Path "$WebSrc\config.test.json") {
         Copy-Item -Force "$WebSrc\config.test.json" "$TestWebDataPath\config.json"
         Write-Host "테스트용 config 복사: $TestWebDataPath\config.json"
@@ -202,14 +212,15 @@ try {
         & $Nssm start "cm-web-$Bid"
         Write-Host "웹서비스 재시작 완료 (Port: $BackPort)"
     } else {
-        Write-Host "웹서비스 서비스 등록 중..."
-        & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
+        # 락 보호된 NSSM 서비스 등록 사용
+        Register-Service-WithLock -ServiceName "cm-web-$Bid" -ExecutablePath "$WebBackDst\.venv\Scripts\python.exe" -Arguments "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort" -NssmPath $Nssm
+
+        # 추가 NSSM 설정
         & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
         & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
-        & $Nssm start "cm-web-$Bid"
-        Write-Host "웹서비스 서비스 시작 완료 (Port: $BackPort)"
+        Write-Host "웹서비스 서비스 등록 및 시작 완료 (Port: $BackPort)"
     }
     
     # 7. Nginx 설정 업데이트 (백엔드 포트만)

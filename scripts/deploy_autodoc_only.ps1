@@ -35,21 +35,31 @@ try {
     $TestAutoDataPath = "$($commonDirs.TestDataRoot)\autodoc_service"
     $TestLogsPath = $commonDirs.TestLogsPath
     
+    # 1.5. 포트 유효성 검사 및 충돌 해결
+    Write-Host "`n단계 1.5: 배포 포트 유효성 검사 중..."
+    try {
+        Validate-DeploymentPorts -AutoPort $AutoPort -Bid $Bid -NssmPath $Nssm -ForceResolve
+        Write-Host "포트 유효성 검사 완료"
+    } catch {
+        Write-Error "포트 유효성 검사 실패: $($_.Exception.Message)"
+        throw
+    }
+    
     # 2. AutoDoc 디렉토리 생성
-    Write-Host "단계 1: AutoDoc 디렉토리 생성 중..."
+    Write-Host "`n단계 2: AutoDoc 디렉토리 생성 중..."
     New-Item -ItemType Directory -Force -Path $AutoDst, $TestAutoDataPath | Out-Null
     New-Item -ItemType Directory -Force -Path "$PackagesRoot\autodoc_service" | Out-Null
     Write-Host "디렉토리 생성 완료: $AutoDst"
     
     # 3. Config 파일 및 템플릿 준비
-    Write-Host "`n단계 2: Config 파일 및 템플릿 준비 중..."
+    Write-Host "`n단계 3: Config 파일 및 템플릿 준비 중..."
     if (Test-Path "$AutoSrc\data\templates") {
         Copy-Item -Recurse -Force "$AutoSrc\data\templates" "$TestAutoDataPath\templates"
         Write-Host "AutoDoc 템플릿 복사 완료"
     }
     
     # 4. Wheel 설치
-    Write-Host "`n단계 3: AutoDoc Wheel 설치 중..."
+    Write-Host "`n단계 4: AutoDoc Wheel 설치 중..."
     
     # Python 경로 확장
     $PythonPath = $Py
@@ -165,14 +175,15 @@ try {
         & $Nssm start "cm-autodoc-$Bid"
         Write-Host "AutoDoc 서비스 재시작 완료 (Port: $AutoPort)"
     } else {
-        Write-Host "AutoDoc 서비스 등록 중..."
-        & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
+        # 락 보호된 NSSM 서비스 등록 사용
+        Register-Service-WithLock -ServiceName "cm-autodoc-$Bid" -ExecutablePath "$AutoDst\.venv312\Scripts\python.exe" -Arguments "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort" -NssmPath $Nssm
+
+        # 추가 NSSM 설정
         & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
         & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
         & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
         & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
-        & $Nssm start "cm-autodoc-$Bid"
-        Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
+        Write-Host "AutoDoc 서비스 등록 및 시작 완료 (Port: $AutoPort)"
     }
     
     # 7. Nginx 설정 업데이트 (AutoDoc 포트만)
