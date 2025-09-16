@@ -209,8 +209,9 @@ try {
         # 락 보호된 NSSM 서비스 등록 사용
         Register-Service-WithLock -ServiceName "cm-web-$Bid" -ExecutablePath "$WebBackDst\.venv\Scripts\python.exe" -Arguments "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort" -NssmPath $Nssm
 
-        # 추가 NSSM 설정
-        & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
+        # 추가 NSSM 설정 (webservice 루트 디렉토리로 설정)
+        $WebServiceRoot = Split-Path $WebBackDst -Parent
+        & $Nssm set "cm-web-$Bid" AppDirectory $WebServiceRoot
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
         & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
