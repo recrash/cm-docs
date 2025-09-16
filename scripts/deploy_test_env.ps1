@@ -188,7 +188,7 @@ try {
     & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
     Write-Host "AutoDoc 설치 완료"
     
-    # 4. 프론트엔드 아티팩트 배포 (작업 공간에서)
+    # 4. 프론트엔드 아티팩트 배포 (작업 공간에서) - 조건부 처리
     Write-Host "`n단계 4: 프론트엔드 아티팩트 배포 중..."
     
     # 현재 작업 공간에 복사된 frontend.zip 아티팩트 경로
@@ -213,7 +213,32 @@ try {
         
         Write-Host "프론트엔드 아티팩트 배포 완료"
     } else {
-        throw "프론트엔드 아티팩트를 찾을 수 없습니다: $FrontendZip`nJenkinsfile의 copyArtifacts 단계가 성공했는지 확인하세요."
+        Write-Warning "프론트엔드 아티팩트를 찾을 수 없습니다: $FrontendZip"
+        Write-Warning "Frontend 변경이 없거나 빌드가 실패한 경우일 수 있습니다."
+        
+        # 기존 프론트엔드가 있는지 확인
+        if (Test-Path "$WebFrontDst\index.html") {
+            Write-Host "기존 프론트엔드 파일이 존재하여 배포를 건너뜁니다."
+        } else {
+            # 기본 HTML 파일 생성 (최소한의 대체)
+            $defaultHtml = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>테스트 환경</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>테스트 환경 - 프론트엔드 빌드 대기 중</h1>
+    <p>브랜치: $Bid</p>
+    <p>프론트엔드 빌드가 완료되면 자동으로 업데이트됩니다.</p>
+</body>
+</html>
+"@
+            New-Item -ItemType Directory -Force -Path $WebFrontDst | Out-Null
+            Set-Content -Path "$WebFrontDst\index.html" -Value $defaultHtml -Encoding UTF8
+            Write-Host "기본 HTML 파일 생성 완료 (프론트엔드 빌드 대기용)"
+        }
     }
     
    # 5. NSSM 서비스 등록

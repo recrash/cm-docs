@@ -675,7 +675,24 @@ pipeline {
                                 echo "✅ Frontend 배포 성공"
                             } catch (Exception e) {
                                 deployResults['Frontend'] = 'FAILED'
-                                echo "❌ Frontend 배포 실패: ${e.getMessage()}"
+                                echo """
+                                ❌ Frontend 배포 실패
+                                ===========================================
+                                에러: ${e.getMessage()}
+                                
+                                📋 Frontend 배포 문제 해결:
+                                1. frontend.zip 파일 확인:
+                                   - 경로: ${WORKSPACE}\\webservice\\frontend.zip
+                                   - 파일 존재 여부와 크기 확인
+                                
+                                2. 배포 디렉토리 권한:
+                                   - 대상: ${env.WEB_FRONT_DST}
+                                   - nginx 프로세스 접근 권한 확인
+                                
+                                3. 디스크 공간 확인:
+                                   - C: 드라이브 여유 공간 확인
+                                ===========================================
+                                """
                                 throw e
                             }
                         }
@@ -702,7 +719,30 @@ pipeline {
                                 echo "✅ Backend 배포 성공"
                             } catch (Exception e) {
                                 deployResults['Backend'] = 'FAILED'
-                                echo "❌ Backend 배포 실패: ${e.getMessage()}"
+                                echo """
+                                ❌ Backend 배포 실패
+                                ===========================================
+                                에러: ${e.getMessage()}
+                                포트: ${env.BACK_PORT}
+                                
+                                📋 Backend 배포 문제 해결:
+                                1. 포트 충돌 확인:
+                                   - 포트 ${env.BACK_PORT} 사용 확인: netstat -ano | findstr ${env.BACK_PORT}
+                                   - 기존 서비스 중지: nssm stop cm-web-${env.BID}
+                                
+                                2. 프로세스 정리:
+                                   - Python 프로세스 확인: tasklist | findstr python
+                                   - 강제 종료: taskkill /f /im python.exe
+                                
+                                3. 서비스 상태 확인:
+                                   - 서비스 조회: sc query cm-web-${env.BID}
+                                   - 수동 제거: nssm remove cm-web-${env.BID} confirm
+                                
+                                4. 권한 문제:
+                                   - 배포 경로: ${env.WEB_BACK_DST}
+                                   - NSSM 실행 권한 확인
+                                ===========================================
+                                """
                                 throw e
                             }
                         }
@@ -729,7 +769,30 @@ pipeline {
                                 echo "✅ AutoDoc 배포 성공"
                             } catch (Exception e) {
                                 deployResults['AutoDoc'] = 'FAILED'
-                                echo "❌ AutoDoc 배포 실패: ${e.getMessage()}"
+                                echo """
+                                ❌ AutoDoc 배포 실패
+                                ===========================================
+                                에러: ${e.getMessage()}
+                                포트: ${env.AUTO_PORT}
+                                
+                                📋 AutoDoc 배포 문제 해결:
+                                1. 포트 충돌 확인:
+                                   - 포트 ${env.AUTO_PORT} 사용 확인: netstat -ano | findstr ${env.AUTO_PORT}
+                                   - 기존 서비스 중지: nssm stop cm-autodoc-${env.BID}
+                                
+                                2. 템플릿 파일 확인:
+                                   - 템플릿 경로: C:\\deploys\\data\\autodoc_service\\templates\\
+                                   - 템플릿 파일 존재 여부 확인
+                                
+                                3. Python 환경:
+                                   - Python 3.12 설치 확인
+                                   - 가상환경 경로: ${env.AUTO_DST}\\.venv312
+                                
+                                4. 서비스 상태:
+                                   - 서비스 조회: sc query cm-autodoc-${env.BID}
+                                   - 수동 제거: nssm remove cm-autodoc-${env.BID} confirm
+                                ===========================================
+                                """
                                 throw e
                             }
                         }
@@ -742,19 +805,52 @@ pipeline {
                             
                             // 통합 Nginx 설정 업데이트 (병렬 배포 후)
                             echo "🔧 통합 Nginx 설정 업데이트 중..."
-                            def backPortParam = deployBackend ? env.BACK_PORT : 'null'
-                            def autoPortParam = deployAutodoc ? env.AUTO_PORT : 'null'
+                            
+                            // PowerShell 파라미터 구성 (null 대신 $null 사용)
+                            def nginxUpdateCmd = ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Update-NginxConfig -Bid '%BID%'"
+                            
+                            if (deployBackend && env.BACK_PORT) {
+                                nginxUpdateCmd += " -BackPort ${env.BACK_PORT}"
+                            } else {
+                                nginxUpdateCmd += " -BackPort `$null"
+                            }
+                            
+                            if (deployAutodoc && env.AUTO_PORT) {
+                                nginxUpdateCmd += " -AutoPort ${env.AUTO_PORT}"
+                            } else {
+                                nginxUpdateCmd += " -AutoPort `$null"
+                            }
+                            
+                            nginxUpdateCmd += " -Nginx '%NGINX_PATH%'"
                             
                             bat """
                             chcp 65001 >NUL
-                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Update-NginxConfig -Bid '%BID%' -BackPort ${backPortParam} -AutoPort ${autoPortParam} -Nginx '%NGINX_PATH%'}"
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {${nginxUpdateCmd}}"
                             """
                             
                             // 최종 서비스 상태 확인
                             echo "🔍 최종 서비스 상태 확인 중..."
+                            
+                            // 서비스 헬스체크 파라미터 구성
+                            def healthCheckCmd = ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Test-ServiceHealth"
+                            
+                            if (deployBackend && env.BACK_PORT) {
+                                healthCheckCmd += " -BackPort ${env.BACK_PORT}"
+                            } else {
+                                healthCheckCmd += " -BackPort `$null"
+                            }
+                            
+                            if (deployAutodoc && env.AUTO_PORT) {
+                                healthCheckCmd += " -AutoPort ${env.AUTO_PORT}"
+                            } else {
+                                healthCheckCmd += " -AutoPort `$null"
+                            }
+                            
+                            healthCheckCmd += " -Bid '%BID%' -Nssm '%NSSM_PATH%'"
+                            
                             bat """
                             chcp 65001 >NUL
-                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Test-ServiceHealth -BackPort ${backPortParam} -AutoPort ${autoPortParam} -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {${healthCheckCmd}}"
                             """
                             
                             // 성공한 서비스들 로그
@@ -779,38 +875,27 @@ pipeline {
                             """
                             
                         } catch (Exception e) {
-                            echo """
-                            ❌ 병렬 배포 중 일부 실패 발생
-                            에러: ${e.getMessage()}
-                            배포 결과: ${deployResults}
+                            // 구체적인 에러 분석 및 해결 가이드 제공
+                            def errorMessage = e.getMessage()
+                            def errorAnalysis = analyzeDeploymentError(errorMessage, deployResults)
                             
-                            기존 deploy_test_env.ps1로 폴백 시도...
+                            echo """
+                            ❌ 병렬 배포 실패 - 상세 분석
+                            ===========================================
+                            에러 메시지: ${errorMessage}
+                            실패한 배포 단계: ${deployResults}
+                            
+                            ${errorAnalysis.diagnosis}
+                            
+                            해결 방법:
+                            ${errorAnalysis.solution}
+                            
+                            ⚠️ 배포가 중단되었습니다. 위 해결 방법을 적용한 후 다시 시도해주세요.
+                            ===========================================
                             """
                             
-                            // 폴백: 기존 스크립트 사용 (호환성 유지)
-                            try {
-                                bat """
-                                chcp 65001 >NUL
-                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_test_env.ps1" ^
-                                    -Bid "%BID%" ^
-                                    -BackPort %BACK_PORT% ^
-                                    -AutoPort %AUTO_PORT% ^
-                                    -Py "%PY_PATH%" ^
-                                    -Nssm "%NSSM_PATH%" ^
-                                    -Nginx "%NGINX_PATH%" ^
-                                    -NginxConfDir "%NGINX_CONF_DIR%" ^
-                                    -WebSrc "%WORKSPACE%\\webservice" ^
-                                    -AutoSrc "%WORKSPACE%\\autodoc_service" ^
-                                    -WebBackDst "%WEB_BACK_DST%" ^
-                                    -WebFrontDst "%WEB_FRONT_DST%" ^
-                                    -AutoDst "%AUTO_DST%" ^
-                                    -UrlPrefix "%URL_PREFIX%" ^
-                                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
-                                """
-                                echo "폴백 성공: 기존 스크립트로 배포 완료"
-                            } catch (Exception fallbackError) {
-                                error("테스트 인스턴스 배포 완전 실패: ${fallbackError.getMessage()}")
-                            }
+                            // 즉시 실패 처리 (폴백 없음)
+                            error("테스트 인스턴스 배포 실패: ${errorMessage}")
                         }
                     } else {
                         echo "배포할 서비스가 없습니다."
@@ -993,4 +1078,88 @@ def pickPort(String b, int base, int span) {
     int hash = b.hashCode()
     if (hash < 0) hash = -hash  // 음수 처리
     return (int)(base + (hash % span))
+}
+
+@NonCPS
+def analyzeDeploymentError(String errorMessage, Map deployResults) {
+    def diagnosis = ""
+    def solution = ""
+    
+    // AutoPort null 에러 분석
+    if (errorMessage.contains("AutoPort") || errorMessage.contains("BackPort")) {
+        diagnosis = """
+        📌 포트 파라미터 전달 문제 감지
+        - PowerShell에 잘못된 포트 값이 전달되었습니다
+        - 'null' 문자열이 실제 null 대신 전달되어 발생한 문제입니다
+        """
+        solution = """
+        1. PowerShell 파라미터에서 $null 사용을 확인하세요
+        2. Jenkins 환경변수가 올바르게 설정되었는지 확인하세요
+        3. Port 할당 로직을 점검하세요 (pickPort 함수)
+        """
+    }
+    
+    // Permission denied 에러 분석
+    else if (errorMessage.contains("Access is denied") || errorMessage.contains("Permission denied")) {
+        diagnosis = """
+        📌 파일 접근 권한 문제 감지
+        - 서비스 프로세스가 완전히 종료되지 않아 파일이 잠겨있습니다
+        - NSSM 서비스 중지 후 프로세스가 남아있는 상황입니다
+        """
+        solution = """
+        1. NSSM 서비스를 수동으로 중지: nssm stop [서비스명]
+        2. 프로세스 강제 종료: taskkill /f /im python.exe
+        3. 잠금 파일 삭제 후 재시도하세요
+        4. 서비스 중지 후 10초 이상 대기를 고려하세요
+        """
+    }
+    
+    // 서비스 등록 실패 분석
+    else if (errorMessage.contains("service") && (errorMessage.contains("install") || errorMessage.contains("start"))) {
+        diagnosis = """
+        📌 NSSM 서비스 등록/시작 실패
+        - 동일한 이름의 서비스가 이미 존재하거나
+        - 서비스 설정에 문제가 있습니다
+        """
+        solution = """
+        1. 기존 서비스 확인: sc query [서비스명]
+        2. 기존 서비스 삭제: nssm remove [서비스명] confirm
+        3. Windows 이벤트 로그를 확인하세요
+        4. NSSM 로그를 확인하세요
+        """
+    }
+    
+    // 일반적인 배포 실패
+    else {
+        diagnosis = """
+        📌 일반적인 배포 실패
+        - 예상하지 못한 오류가 발생했습니다
+        - 배포 단계별 상세 로그를 확인이 필요합니다
+        """
+        solution = """
+        1. PowerShell 실행 정책을 확인하세요: Get-ExecutionPolicy
+        2. UTF-8 인코딩 설정을 확인하세요
+        3. 배포 스크립트 경로와 권한을 확인하세요
+        4. Windows 서비스 상태를 확인하세요
+        """
+    }
+    
+    // 실패한 서비스별 추가 정보
+    def failedServices = deployResults.findAll { key, value -> value == 'FAILED' }.keySet()
+    if (failedServices.size() > 0) {
+        diagnosis += """
+        
+        📊 실패한 서비스: ${failedServices.join(', ')}
+        """
+        solution += """
+        
+        실패한 서비스별 로그 확인:
+        ${failedServices.collect { "- ${it}: C:\\deploys\\tests\\%BID%\\logs\\${it.toLowerCase()}-*.log" }.join('\n        ')}
+        """
+    }
+    
+    return [
+        diagnosis: diagnosis.trim(),
+        solution: solution.trim()
+    ]
 }

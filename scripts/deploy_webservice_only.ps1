@@ -81,7 +81,35 @@ try {
         
         Write-Host "  -> 서비스 중지 중..."
         & $Nssm stop $webServiceName
-        Start-Sleep -Seconds 3  # 서비스 완전 중지 대기
+        
+        # 프로세스 완전 종료 확인 및 강제 종료
+        Write-Host "  -> 프로세스 완전 종료 확인 중..."
+        $maxWait = 15  # 최대 15초 대기
+        $waited = 0
+        do {
+            Start-Sleep -Seconds 1
+            $waited++
+            $remainingProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object { 
+                $_.CommandLine -like "*$webServiceName*" -or 
+                ($_.CommandLine -like "*uvicorn*" -and $_.CommandLine -like "*$BackPort*")
+            }
+            if (-not $remainingProcess) { break }
+            Write-Host "    프로세스 종료 대기 중... ($waited/$maxWait)"
+        } while ($waited -lt $maxWait)
+        
+        # 강제 종료가 필요한 경우
+        if ($remainingProcess) {
+            Write-Warning "  -> 프로세스가 완전히 종료되지 않았습니다. 강제 종료를 시도합니다."
+            $remainingProcess | ForEach-Object { 
+                try {
+                    Stop-Process -Id $_.Id -Force -ErrorAction Stop
+                    Write-Host "    강제 종료: PID $($_.Id)"
+                } catch {
+                    Write-Warning "    강제 종료 실패: PID $($_.Id) - $($_.Exception.Message)"
+                }
+            }
+            Start-Sleep -Seconds 3
+        }
         
         if (-not $isDevelop) {
             Write-Host "  -> 일반 브랜치: 서비스 제거"
@@ -200,15 +228,66 @@ try {
     Write-Host "===========================================`n"
     
 } catch {
-    Write-Error "웹서비스 백엔드 배포 실패: $($_.Exception.Message)"
+    $errorMessage = $_.Exception.Message
+    $errorLine = $_.InvocationInfo.ScriptLineNumber
+    
+    Write-Error """
+    ❌ 웹서비스 백엔드 배포 실패
+    ===========================================
+    에러 메시지: $errorMessage
+    발생 위치: 라인 $errorLine
+    BID: $Bid
+    BackPort: $BackPort
+    
+    📋 문제 해결 가이드:
+    1. Permission Denied 에러:
+       - NSSM 서비스 수동 중지: nssm stop cm-web-$Bid
+       - 프로세스 강제 종료: taskkill /f /im python.exe
+       - 가상환경 폴더 접근 권한 확인
+    
+    2. 포트 관련 에러:
+       - 포트 $BackPort 사용 여부 확인: netstat -ano | findstr $BackPort
+       - 다른 프로세스가 포트를 사용 중인지 확인
+    
+    3. 서비스 등록 실패:
+       - 기존 서비스 확인: sc query cm-web-$Bid
+       - 서비스 수동 삭제: sc delete cm-web-$Bid
+    
+    4. 가상환경 문제:
+       - 가상환경 재생성: rmdir /s $WebBackDst\.venv
+       - Python 경로 확인: $PythonPath
+    ===========================================
+    """
     
     # 실패 시 정리
     Write-Host "실패 후 정리 시도 중..."
     
-    $cleanupWebSvc = Get-Service -Name "cm-web-$Bid" -ErrorAction SilentlyContinue
-    if ($cleanupWebSvc) {
-        & $Nssm stop "cm-web-$Bid" 2>$null
-        & $Nssm remove "cm-web-$Bid" confirm 2>$null
+    try {
+        $cleanupWebSvc = Get-Service -Name "cm-web-$Bid" -ErrorAction SilentlyContinue
+        if ($cleanupWebSvc) {
+            Write-Host "  -> 서비스 중지 시도: cm-web-$Bid"
+            & $Nssm stop "cm-web-$Bid" 2>$null
+            Start-Sleep -Seconds 5
+            
+            Write-Host "  -> 서비스 제거 시도: cm-web-$Bid"
+            & $Nssm remove "cm-web-$Bid" confirm 2>$null
+        }
+        
+        # 남아있는 프로세스 강제 종료
+        $remainingProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object { 
+            $_.CommandLine -like "*cm-web-$Bid*" -or 
+            ($_.CommandLine -like "*uvicorn*" -and $_.CommandLine -like "*$BackPort*")
+        }
+        if ($remainingProcess) {
+            Write-Host "  -> 남아있는 프로세스 강제 종료"
+            $remainingProcess | ForEach-Object { 
+                Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+        
+        Write-Host "정리 완료"
+    } catch {
+        Write-Warning "정리 중 오류 발생: $($_.Exception.Message)"
     }
     
     throw $_.Exception
