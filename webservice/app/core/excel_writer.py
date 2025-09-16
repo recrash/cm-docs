@@ -184,8 +184,7 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
     Returns:
         생성된 엑셀 파일 경로 또는 None (실패 시)
     """
-    print("
-" + "="*50)
+    print("\n" + "="*50)
     print("최종 단계: 생성된 시나리오를 엑셀 파일에 저장합니다.")
     print("="*50)
     
