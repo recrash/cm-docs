@@ -239,7 +239,8 @@ function Register-Service-WithLock {
         if ($service -and $service.Status -eq "Running") {
             Write-Host "✓ NSSM 서비스 등록 및 시작 완료: $ServiceName (상태: $($service.Status))"
         } else {
-            Write-Warning "NSSM 서비스 등록은 완료되었으나 상태가 비정상입니다: $ServiceName (상태: $($service.Status if $service else 'N/A'))"
+            $statusText = if ($service) { $service.Status } else { 'N/A' }
+            Write-Warning "NSSM 서비스 등록은 완료되었으나 상태가 비정상입니다: $ServiceName (상태: $statusText)"
         }
 
     } catch {
