@@ -332,13 +332,13 @@ export default function ScenarioGenerationTab() {
       
       window.location.href = customUrl
       
-      // 7. 30초 타임아웃 설정
+      // 7. 5분 타임아웃 설정 (LLM 처리 시간 고려)
       const timeout = setTimeout(() => {
         console.log('⏰ CLI 타임아웃')
         setError('CLI가 응답하지 않습니다. 프로그램이 설치되어 있는지 확인해주세요.')
         setWorkflowState('error')
         ws.disconnect()
-      }, 30000)
+      }, 300000)  // 30초 → 300초 (5분)로 증가
       
       setCliTimeout(timeout as unknown as number)
       
