@@ -238,27 +238,25 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
         old_pythonioencoding = os.environ.get('PYTHONIOENCODING')
         os.environ['PYTHONIOENCODING'] = 'utf-8'
         
-        try:
-            # UTF-8 인코딩을 명시하여 엑셀 파일 열기 및 수정
-            workbook = openpyxl.load_workbook(final_filename)
+        # UTF-8 인코딩을 명시하여 엑셀 파일 열기 및 수정
+        workbook = openpyxl.load_workbook(final_filename)
         sheet = workbook.active
-        
+
         # 헤더 정보 채우기
         _fill_header_info(sheet, result_json)
-        
+
         # 테스트 케이스 채우기
         test_cases = result_json.get("Test Cases", [])
         _fill_test_cases(sheet, test_cases)
-        
+
         # UTF-8 인코딩으로 파일 저장 (Windows 호환성)
-            workbook.save(final_filename)
-            
-        finally:
-            # 환경 변수 복원
-            if old_pythonioencoding is None:
-                os.environ.pop('PYTHONIOENCODING', None)
-            else:
-                os.environ['PYTHONIOENCODING'] = old_pythonioencoding
+        workbook.save(final_filename)
+
+        # 환경 변수 복원
+        if old_pythonioencoding is None:
+            os.environ.pop('PYTHONIOENCODING', None)
+        else:
+            os.environ['PYTHONIOENCODING'] = old_pythonioencoding
         
     except Exception as e:
         print(f"오류: Excel 파일 생성 중 오류가 발생했습니다: {e}")
