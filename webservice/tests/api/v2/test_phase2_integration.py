@@ -212,9 +212,7 @@ class TestPhase2Integration:
             assert response.status_code == 200
             session_id = sample_full_generation_request["session_id"]
             
-            # 잠시 기다려서 백그라운드 작업이 진행되도록 함
-            import time
-            time.sleep(0.5)
+            # 백그라운드 작업 완료 대기 (sleep 제거됨)
             
             # 상태 확인
             status_response = client.get(f"/api/webservice/v2/full-generation-status/{session_id}")

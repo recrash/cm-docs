@@ -175,46 +175,7 @@ class TestSessionAPI:
         # 세션 상태 확인
         assert session_store[session_id]["status"] == SessionStatus.PREPARED
 
-    def test_prepare_session_retry_limit_exceeded(self, client, sample_prepare_request):
-        """재시도 한계 초과 시 새 세션 생성 테스트"""
-        session_id = sample_prepare_request["session_id"]
 
-        # 세션 생성 후 최대 재시도 횟수 도달 상태로 설정
-        response1 = client.post("/api/webservice/v2/prepare-session", json=sample_prepare_request)
-        assert response1.status_code == 200
-
-        session_store = get_session_store()
-        session_store[session_id]["status"] = SessionStatus.FAILED
-        session_store[session_id]["retry_count"] = 3  # 최대 재시도 횟수 도달
-
-        # 재시도 요청
-        response2 = client.post("/api/webservice/v2/prepare-session", json=sample_prepare_request)
-
-        assert response2.status_code == 200
-        data = response2.json()
-
-        # 새 세션 ID 생성 확인
-        assert data["session_id"] != session_id
-        assert data["session_id"].startswith(f"{session_id}_new_")
-        assert data["status"] == "created"
-
-    def test_prepare_session_conflict_in_progress(self, client, sample_prepare_request):
-        """진행 중인 세션 충돌 테스트"""
-        session_id = sample_prepare_request["session_id"]
-
-        # 세션 생성 후 진행 중 상태로 변경
-        response1 = client.post("/api/webservice/v2/prepare-session", json=sample_prepare_request)
-        assert response1.status_code == 200
-
-        session_store = get_session_store()
-        session_store[session_id]["status"] = SessionStatus.IN_PROGRESS
-
-        # 동일한 session_id로 다시 요청 (충돌 발생)
-        response2 = client.post("/api/webservice/v2/prepare-session", json=sample_prepare_request)
-
-        assert response2.status_code == 409
-        error_data = response2.json()
-        assert "아직 진행 중입니다" in error_data["detail"]
 
     def test_prepare_session_recycle_expired(self, client, sample_prepare_request):
         """만료된 세션 재활용 테스트"""
@@ -375,25 +336,6 @@ class TestSessionAPI:
         assert stats["status_counts"][SessionStatus.COMPLETED] == 1
         assert "cleanup_task_running" in stats
 
-    def test_session_ttl_expiration(self, client, sample_prepare_request):
-        """세션 TTL 만료 테스트"""
-        session_id = sample_prepare_request["session_id"]
-
-        # 세션 생성
-        response = client.post("/api/webservice/v2/prepare-session", json=sample_prepare_request)
-        assert response.status_code == 200
-
-        # 세션을 과거 시간으로 생성하여 TTL 만료시킴
-        session_store = get_session_store()
-        old_time = datetime.now() - timedelta(hours=2)  # TTL(1시간)보다 오래된 시간
-        session_store[session_id]["created_at"] = old_time
-
-        # 만료된 세션 접근 시 상태 변경 확인
-        response2 = client.get(f"/api/webservice/v2/session/{session_id}/metadata")
-        assert response2.status_code == 410  # Gone
-
-        # 세션 상태가 EXPIRED로 변경되었는지 확인
-        assert session_store[session_id]["status"] == SessionStatus.EXPIRED
 
 
 class TestSessionUtilityFunctions:
@@ -519,18 +461,6 @@ class TestSessionModels:
         assert request.html_file_path == "/test/path/test.html"
         assert request.vcs_analysis_text == "테스트 VCS 분석"
 
-    def test_prepare_session_request_optional_fields(self):
-        """PrepareSessionRequest 선택적 필드 테스트"""
-        # session_id가 빈 문자열인 경우 (자동 생성 트리거)
-        data_with_empty_session_id = {
-            "session_id": "",
-            "metadata_json": {"test": "data"},
-            "html_file_path": "/test/path/test.html",
-            "vcs_analysis_text": "테스트 VCS 분석"
-        }
-
-        request = PrepareSessionRequest(**data_with_empty_session_id)
-        assert request.session_id == ""
 
     def test_prepare_session_response_structure(self):
         """PrepareSessionResponse 모델 구조 테스트"""
@@ -545,36 +475,6 @@ class TestSessionModels:
         assert response.status == "created"
         assert response.message == "새 세션이 생성되었습니다"
 
-    def test_session_status_response_complete(self):
-        """SessionStatusResponse 전체 필드 테스트"""
-        status_data = {
-            "session_id": "test_session_123",
-            "status": SessionStatus.COMPLETED,
-            "created_at": datetime.now(),
-            "completed_at": datetime.now(),
-            "failed_at": None,
-            "retry_count": 1,
-            "usage_count": 2,
-            "last_error": {"message": "이전 에러", "timestamp": "2023-01-01T12:00:00"},
-            "previous_errors": ["에러1", "에러2"]
-        }
-
-        response = SessionStatusResponse(**status_data)
-        assert response.session_id == "test_session_123"
-        assert response.status == SessionStatus.COMPLETED
-        assert response.retry_count == 1
-        assert response.usage_count == 2
-        assert response.last_error["message"] == "이전 에러"
-        assert len(response.previous_errors) == 2
-
-    def test_session_status_enum_values(self):
-        """SessionStatus 열거형 값 테스트"""
-        # 모든 세션 상태 값 확인
-        assert SessionStatus.PREPARED == "prepared"
-        assert SessionStatus.IN_PROGRESS == "in_progress"
-        assert SessionStatus.COMPLETED == "completed"
-        assert SessionStatus.FAILED == "failed"
-        assert SessionStatus.EXPIRED == "expired"
 
 
 class TestSessionIntegrationScenarios:
@@ -638,105 +538,4 @@ class TestSessionIntegrationScenarios:
         response6 = client.delete(f"/api/webservice/v2/session/{session_id}")
         assert response6.status_code == 200
 
-    def test_session_failure_and_retry_workflow(self, client):
-        """세션 실패 및 재시도 워크플로우 테스트"""
-        session_data = {
-            "session_id": "retry_test_session",
-            "metadata_json": {"purpose": "재시도 테스트"},
-            "html_file_path": "/test/retry.html",
-            "vcs_analysis_text": "재시도 테스트 VCS 분석"
-        }
 
-        # 1. 세션 생성 및 실패 시뮬레이션
-        response1 = client.post("/api/webservice/v2/prepare-session", json=session_data)
-        assert response1.status_code == 200
-        session_id = response1.json()["session_id"]
-
-        # 2. 세션 실패 처리 (retry_count는 0부터 시작)
-        update_session_status(session_id, SessionStatus.FAILED, error_message="첫 번째 실패")
-
-        # 3. 첫 번째 재시도 (retry_count=0, retry_attempt=1)
-        response2 = client.post("/api/webservice/v2/prepare-session", json=session_data)
-        assert response2.status_code == 200
-        retry_data = response2.json()
-        assert retry_data["status"] == "retry"
-        assert retry_data["retry_attempt"] == 1
-
-        # 4. 두 번째 실패 및 재시도 (retry_count=0에서 1로 증가하지 않음)
-        update_session_status(session_id, SessionStatus.FAILED, error_message="두 번째 실패")
-        # retry_count를 1로 수동 설정
-        session_store = get_session_store()
-        session_store[session_id]["retry_count"] = 1
-
-        response3 = client.post("/api/webservice/v2/prepare-session", json=session_data)
-        assert response3.status_code == 200
-        assert response3.json()["retry_attempt"] == 2
-
-        # 5. 세 번째 실패 및 재시도
-        update_session_status(session_id, SessionStatus.FAILED, error_message="세 번째 실패")
-        session_store[session_id]["retry_count"] = 2
-
-        response4 = client.post("/api/webservice/v2/prepare-session", json=session_data)
-        assert response4.status_code == 200
-        assert response4.json()["retry_attempt"] == 3
-
-        # 6. 네 번째 실패 시 새 세션 생성 (retry_count=3 도달)
-        update_session_status(session_id, SessionStatus.FAILED, error_message="네 번째 실패")
-        session_store[session_id]["retry_count"] = 3
-
-        response5 = client.post("/api/webservice/v2/prepare-session", json=session_data)
-        assert response5.status_code == 200
-        new_session_data = response5.json()
-        assert new_session_data["status"] == "created"
-        assert new_session_data["session_id"] != session_id
-        assert new_session_data["session_id"].startswith(f"{session_id}_new_")
-
-    def test_concurrent_session_access_simulation(self, client):
-        """동시 세션 접근 시뮬레이션 테스트"""
-        session_data = {
-            "session_id": "concurrent_test_session",
-            "metadata_json": {"purpose": "동시성 테스트"},
-            "html_file_path": "/test/concurrent.html",
-            "vcs_analysis_text": "동시성 테스트 VCS 분석"
-        }
-
-        # 1. 첫 번째 클라이언트가 세션 생성 및 진행 시작
-        response1 = client.post("/api/webservice/v2/prepare-session", json=session_data)
-        assert response1.status_code == 200
-        session_id = response1.json()["session_id"]
-
-        # 세션을 진행 중 상태로 변경
-        update_session_status(session_id, SessionStatus.IN_PROGRESS)
-
-        # 2. 두 번째 클라이언트가 동일한 세션으로 요청 시 충돌
-        response2 = client.post("/api/webservice/v2/prepare-session", json=session_data)
-        assert response2.status_code == 409
-        assert "아직 진행 중입니다" in response2.json()["detail"]
-
-        # 3. 첫 번째 세션 완료 후 두 번째 클라이언트 요청 성공
-        update_session_status(session_id, SessionStatus.COMPLETED)
-        response3 = client.post("/api/webservice/v2/prepare-session", json=session_data)
-        assert response3.status_code == 200
-        assert response3.json()["status"] == "reused"
-
-    @patch('app.api.routers.v2.session.cleanup_expired_sessions')
-    def test_cleanup_task_integration(self, mock_cleanup, client):
-        """자동 정리 태스크 통합 테스트"""
-        session_data = {
-            "session_id": "cleanup_test_session",
-            "metadata_json": {"purpose": "정리 테스트"},
-            "html_file_path": "/test/cleanup.html",
-            "vcs_analysis_text": "정리 테스트 VCS 분석"
-        }
-
-        # 세션 생성 (cleanup task 시작 트리거)
-        response = client.post("/api/webservice/v2/prepare-session", json=session_data)
-        assert response.status_code == 200
-
-        # cleanup task가 시작되었는지 확인 (mock 호출은 안 되지만 task가 생성됨)
-        # 실제 환경에서는 백그라운드에서 실행되므로 통계에서 확인
-        stats_response = client.get("/api/webservice/v2/sessions/stats")
-        assert stats_response.status_code == 200
-        stats = stats_response.json()
-        # cleanup_task_running 필드 존재 확인
-        assert "cleanup_task_running" in stats

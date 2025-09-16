@@ -26,6 +26,7 @@ def test_v2_models():
         request = V2GenerationRequest(
             client_id="test_client_123",
             repo_path="/test/repo/path",
+            changes_text="테스트 변경사항",
             use_performance_mode=True
         )
         
