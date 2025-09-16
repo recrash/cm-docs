@@ -24,6 +24,14 @@ from .api.routers.v2.router import v2_router
 setup_logging()
 logger = logging.getLogger(__name__)
 
+# RAG 시스템 초기화 상태 추적
+_rag_initialization_status = {
+    "status": "not_started",  # not_started, initializing, completed, failed
+    "start_time": None,
+    "end_time": None,
+    "error": None
+}
+
 # 로깅 설정 완료
 logger.info("메인 애플리케이션 로딩 완료")
 
@@ -31,7 +39,13 @@ logger.info("메인 애플리케이션 로딩 완료")
 root_router = APIRouter(prefix="/api/webservice")
 
 async def startup_rag_system():
-    """백엔드 시작 시 RAG 시스템 자동 초기화"""
+    """백엔드 시작 시 RAG 시스템 자동 초기화 (비동기)"""
+    global _rag_initialization_status
+    
+    _rag_initialization_status["status"] = "initializing"
+    _rag_initialization_status["start_time"] = time.time()
+    _rag_initialization_status["error"] = None
+    
     logger.info("RAG 시스템 자동 초기화 시작...")
     
     try:
@@ -42,18 +56,27 @@ async def startup_rag_system():
         
         if not config:
             logger.warning("RAG가 설정에서 비활성화되어 있습니다.")
+            _rag_initialization_status["status"] = "failed"
+            _rag_initialization_status["error"] = "Config not found"
             return
         
         rag_enabled = config.get('rag', {}).get('enabled', False)
         if not rag_enabled:
             logger.warning("RAG가 설정에서 비활성화되어 있습니다.")
+            _rag_initialization_status["status"] = "failed"
+            _rag_initialization_status["error"] = "RAG disabled in config"
             return
         
         logger.info("RAG 설정 확인 완료")
         
-        # RAG 매니저 초기화 (지연 로딩 비활성화)
+        # RAG 매니저 초기화를 executor에서 비동기 실행
         from .core.prompt_loader import get_rag_manager
-        rag_manager = get_rag_manager(lazy_load=False)
+        
+        def init_rag_manager():
+            return get_rag_manager(lazy_load=False)
+        
+        # CPU 집약적인 임베딩 모델 로딩을 별도 스레드에서 실행
+        rag_manager = await asyncio.get_event_loop().run_in_executor(None, init_rag_manager)
         
         if rag_manager:
             logger.info("RAG 매니저 초기화 완료")
@@ -72,13 +95,23 @@ async def startup_rag_system():
             else:
                 logger.info(f"문서 폴더가 없습니다: {documents_folder}")
                 logger.info("문서를 추가하면 자동으로 인덱싱됩니다.")
+                
+            _rag_initialization_status["status"] = "completed"
+            _rag_initialization_status["end_time"] = time.time()
+            elapsed = _rag_initialization_status["end_time"] - _rag_initialization_status["start_time"]
+            logger.info(f"RAG 시스템 초기화 완료 ({elapsed:.1f}초 소요)")
 
         else:
             logger.error("RAG 매니저 초기화 실패")
+            _rag_initialization_status["status"] = "failed"
+            _rag_initialization_status["error"] = "RAG manager initialization failed"
             
     except Exception as e:
         logger.error(f"RAG 시스템 자동 초기화 중 치명적인 오류 발생: {str(e)}")
         logger.exception("예외 상세 정보:")
+        _rag_initialization_status["status"] = "failed"
+        _rag_initialization_status["error"] = str(e)
+        _rag_initialization_status["end_time"] = time.time()
         logger.warning("RAG가 설정에서 비활성화되어 있습니다.")  # 기존 메시지와 동일하게 출력
         logger.info("수동으로 /api/rag/index 엔드포인트를 사용하여 초기화할 수 있습니다.")
 
@@ -132,16 +165,11 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("=== LIFESPAN MANAGER START ===")
         logger.info("애플리케이션 시작...")
-        logger.info("startup_rag_system 호출 시작")
-        try:
-            await startup_rag_system()
-            logger.info("startup_rag_system 호출 완료")
-        except ImportError as ie:
-            logger.error(f"startup_rag_system 임포트 오류: {str(ie)}")
-            logger.exception("임포트 오류 상세:")
-        except Exception as e:
-            logger.error(f"startup_rag_system 호출 중 일반 예외 발생: {str(e)}")
-            logger.exception("라이프사이클 매니저 예외 상세:")
+        
+        # RAG 초기화를 백그라운드 태스크로 실행 (앱 시작 차단하지 않음)
+        logger.info("RAG 시스템 백그라운드 초기화 시작")
+        asyncio.create_task(startup_rag_system())
+        
         logger.info("=== LIFESPAN MANAGER START COMPLETE ===")
         logger.info("=== FastAPI 애플리케이션 시작 완료 ===")
     except Exception as fatal_error:
@@ -204,6 +232,8 @@ async def root():
 @root_router.get("/health")
 async def health_check():
     """헬스 체크 엔드포인트 - RAG 시스템 초기화 상태 포함"""
+    global _rag_initialization_status
+    
     try:
         # 기본 서비스 상태
         health_status = {
@@ -212,20 +242,40 @@ async def health_check():
             "timestamp": time.time()
         }
         
-        # RAG 시스템 초기화 상태 확인
+        # RAG 시스템 초기화 상태 정보 추가
+        rag_status = _rag_initialization_status["status"]
+        health_status["rag_status"] = rag_status
+        
+        if rag_status == "initializing":
+            start_time = _rag_initialization_status["start_time"]
+            if start_time:
+                elapsed = time.time() - start_time
+                health_status["rag_initialization_time"] = f"{elapsed:.1f}s"
+            health_status["message"] = "RAG system initialization in progress"
+            
+        elif rag_status == "completed":
+            start_time = _rag_initialization_status["start_time"]
+            end_time = _rag_initialization_status["end_time"]
+            if start_time and end_time:
+                total_time = end_time - start_time
+                health_status["rag_initialization_time"] = f"{total_time:.1f}s"
+            health_status["message"] = "RAG system initialized successfully"
+            
+        elif rag_status == "failed":
+            error = _rag_initialization_status["error"]
+            health_status["message"] = f"RAG system initialization failed: {error}"
+            health_status["status"] = "degraded"
+            
+        elif rag_status == "not_started":
+            health_status["message"] = "RAG system initialization not started"
+        
+        # 추가적으로 실제 RAG 매니저 상태도 확인
         try:
             from .core.prompt_loader import get_rag_manager
             rag_manager = get_rag_manager(lazy_load=True)
-            
-            if rag_manager:
-                health_status["rag_status"] = "initialized"
-            else:
-                health_status["rag_status"] = "not_initialized"
-                health_status["message"] = "RAG system initialization in progress"
-                
-        except Exception as rag_e:
-            health_status["rag_status"] = "initializing"
-            health_status["message"] = "RAG system startup in progress"
+            health_status["rag_manager_available"] = rag_manager is not None
+        except Exception:
+            health_status["rag_manager_available"] = False
             
         return health_status
         
