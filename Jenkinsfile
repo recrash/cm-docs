@@ -878,15 +878,13 @@ pipeline {
                             
                             if (deployBackend && env.BACK_PORT) {
                                 healthCheckCmd += " -BackPort ${env.BACK_PORT}"
-                            } else {
-                                healthCheckCmd += " -BackPort `$null"
                             }
-                            
+                            // BackPort가 없으면 파라미터 자체를 전달하지 않음
+
                             if (deployAutodoc && env.AUTO_PORT) {
                                 healthCheckCmd += " -AutoPort ${env.AUTO_PORT}"
-                            } else {
-                                healthCheckCmd += " -AutoPort `$null"
                             }
+                            // AutoPort가 없으면 파라미터 자체를 전달하지 않음
                             
                             healthCheckCmd += " -Bid '%BID%' -Nssm '%NSSM_PATH%'"
                             
