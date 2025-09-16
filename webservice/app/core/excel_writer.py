@@ -2,12 +2,37 @@
 import shutil
 import openpyxl
 import json
+import locale
+import sys
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 # 환경 변수 기반 경로 관리 임포트
 from .paths import get_templates_dir, get_outputs_dir
+
+# Windows 인코딩 문제 해결을 위한 초기화
+def _ensure_utf8_encoding():
+    """Windows 환경에서 UTF-8 인코딩을 보장합니다."""
+    try:
+        # Python 3.7+ 에서 Windows UTF-8 모드 지원
+        if sys.platform.startswith('win'):
+            # UTF-8 로케일 설정 시도
+            try:
+                locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+            except locale.Error:
+                try:
+                    locale.setlocale(locale.LC_ALL, 'C.UTF-8')
+                except locale.Error:
+                    # 로케일 설정 실패 시 환경변수로 처리
+                    import os
+                    os.environ['PYTHONIOENCODING'] = 'utf-8'
+    except Exception:
+        # 인코딩 설정 실패해도 진행
+        pass
+
+# 모듈 로드 시 UTF-8 인코딩 보장
+_ensure_utf8_encoding()
 
 # 상수 정의
 # 환경 변수 기반 경로 사용
@@ -102,8 +127,10 @@ def _format_test_data(test_data: Any) -> str:
         형식화된 텍스트
     """
     if isinstance(test_data, (dict, list)):
+        # UTF-8 인코딩 명시 및 한글 문자 보존
         return json.dumps(test_data, indent=DATA_JSON_INDENT, ensure_ascii=False)
     else:
+        # 한글 문자가 포함된 문자열 처리
         return _convert_newlines(str(test_data))
 
 
@@ -157,7 +184,8 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
     Returns:
         생성된 엑셀 파일 경로 또는 None (실패 시)
     """
-    print("\n" + "="*50)
+    print("
+" + "="*50)
     print("최종 단계: 생성된 시나리오를 엑셀 파일에 저장합니다.")
     print("="*50)
     
@@ -174,19 +202,29 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
     if not _copy_template(template_path, final_filename):
         return None
     
-    # 엑셀 파일 열기 및 수정
-    workbook = openpyxl.load_workbook(final_filename)
-    sheet = workbook.active
-    
-    # 헤더 정보 채우기
-    _fill_header_info(sheet, result_json)
-    
-    # 테스트 케이스 채우기
-    test_cases = result_json.get("Test Cases", [])
-    _fill_test_cases(sheet, test_cases)
-    
-    # 파일 저장
-    workbook.save(final_filename)
+    try:
+        # UTF-8 인코딩을 명시하여 엑셀 파일 열기 및 수정
+        workbook = openpyxl.load_workbook(final_filename)
+        sheet = workbook.active
+        
+        # 헤더 정보 채우기
+        _fill_header_info(sheet, result_json)
+        
+        # 테스트 케이스 채우기
+        test_cases = result_json.get("Test Cases", [])
+        _fill_test_cases(sheet, test_cases)
+        
+        # UTF-8 인코딩으로 파일 저장 (Windows 호환성)
+        workbook.save(final_filename)
+        
+    except Exception as e:
+        print(f"오류: Excel 파일 생성 중 오류가 발생했습니다: {e}")
+        # 실패한 파일 정리
+        try:
+            Path(final_filename).unlink(missing_ok=True)
+        except:
+            pass
+        return None
     print(f"\n✅ 성공! '{final_filename}' 파일에 {len(test_cases)}개의 테스트 시나리오를 저장했습니다.")
     
     return final_filename
