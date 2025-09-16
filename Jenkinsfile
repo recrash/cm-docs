@@ -806,29 +806,11 @@ pipeline {
                         try {
                             // 병렬 실행
                             parallel parallelDeployments
-                            
-                            // 통합 Nginx 설정 업데이트 (병렬 배포 후)
-                            echo "🔧 통합 Nginx 설정 업데이트 중..."
-                            
-                            // PowerShell 파라미터 구성 (null 대신 $null 사용)
-                            def nginxUpdateCmd = ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Update-NginxConfig -Bid '%BID%'"
-                            
-                            if (deployBackend && env.BACK_PORT) {
-                                nginxUpdateCmd += " -BackPort ${env.BACK_PORT}"
-                            }
-                            // BackPort가 없으면 파라미터 자체를 전달하지 않음
 
-                            if (deployAutodoc && env.AUTO_PORT) {
-                                nginxUpdateCmd += " -AutoPort ${env.AUTO_PORT}"
-                            }
-                            // AutoPort가 없으면 파라미터 자체를 전달하지 않음
-                            
-                            nginxUpdateCmd += " -Nginx '%NGINX_PATH%'"
-                            
-                            bat """
-                            chcp 65001 >NUL
-                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {${nginxUpdateCmd}}"
-                            """
+                            // Nginx 설정은 각 서비스 배포 스크립트에서 개별적으로 처리됨
+                            // deploy_webservice_only.ps1과 deploy_autodoc_only.ps1이 각각
+                            // 서비스별 분리된 nginx 설정 파일을 생성하므로 충돌 없음
+                            echo "✅ 병렬 배포 완료 - 각 서비스별 nginx 설정 적용됨"
                             
                             // 배포 후 포트 상태 검증도 제거 - 서비스 헬스체크로 충분함
                             // Test-ServiceHealth가 이미 포트 상태를 확인하므로 중복 검사 불필요

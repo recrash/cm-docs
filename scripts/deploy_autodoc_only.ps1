@@ -180,8 +180,8 @@ try {
         Write-Host "AutoDoc 서비스 등록 및 시작 완료 (Port: $AutoPort)"
     }
     
-    # 7. Nginx 설정 업데이트 (AutoDoc 포트만)
-    Update-NginxConfig -Bid $Bid -BackPort $null -AutoPort $AutoPort -Nginx $Nginx
+    # 7. Nginx 설정 업데이트 (서비스별 분리 설정)
+    Update-NginxConfig -Bid $Bid -ServiceType "autodoc" -Port $AutoPort -Nginx $Nginx
     
     # 8. 서비스 상태 확인
     Test-ServiceHealth -BackPort $null -AutoPort $AutoPort -Bid $Bid -Nssm $Nssm

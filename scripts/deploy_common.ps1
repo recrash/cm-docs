@@ -890,6 +890,13 @@ function Update-NginxConfig {
         [string]$Bid,
 
         [Parameter(Mandatory=$false)]
+        [string]$ServiceType = $null,  # "web" 또는 "autodoc" - 서비스별 분리된 설정
+
+        [Parameter(Mandatory=$false)]
+        $Port = $null,  # 해당 서비스의 포트
+
+        # 기존 파라미터 (하위 호환성)
+        [Parameter(Mandatory=$false)]
         $BackPort = $null,
 
         [Parameter(Mandatory=$false)]
@@ -899,13 +906,33 @@ function Update-NginxConfig {
         [string]$Nginx
     )
 
-    # Nginx 설정 락 획득 (병렬 배포 충돌 방지)
-    $lockFile = $null
-    try {
-        $lockFile = Acquire-DeploymentLock -LockType "nginx-config" -TimeoutSeconds 120 -LockReason "Nginx 설정 업데이트 (Branch: $Bid)"
+    # 서비스 타입 결정 (새 방식 또는 기존 방식)
+    if ($ServiceType) {
+        # 새 방식: ServiceType과 Port 사용
+        Write-Host "서비스별 분리 설정 모드: $ServiceType"
+        if ($ServiceType -eq "web") {
+            $BackPort = $Port
+            $AutoPort = $null
+        } elseif ($ServiceType -eq "autodoc") {
+            $BackPort = $null
+            $AutoPort = $Port
+        } else {
+            throw "잘못된 ServiceType: $ServiceType (web 또는 autodoc만 허용)"
+        }
+    } else {
+        # 기존 방식: BackPort와 AutoPort 사용 (하위 호환성)
+        Write-Host "레거시 통합 설정 모드"
+    }
 
-        Write-Host "Nginx 설정 적용 중... (락 보호됨)"
-    
+    # 서비스별 락 타입 결정
+    $lockType = if ($ServiceType) { "nginx-config-$ServiceType" } else { "nginx-config" }
+    $lockFile = $null
+
+    try {
+        $lockFile = Acquire-DeploymentLock -LockType $lockType -TimeoutSeconds 120 -LockReason "Nginx 설정 업데이트 (Branch: $Bid, Service: $($ServiceType -or 'all'))"
+
+        Write-Host "Nginx 설정 적용 중... (락 보호됨: $lockType)"
+
     # 템플릿 파일 경로
     $upstreamTemplatePath = "$PSScriptRoot\..\infra\nginx\tests.upstream.template.conf"
     $locationTemplatePath = "$PSScriptRoot\..\infra\nginx\tests.template.conf"
@@ -1000,8 +1027,20 @@ function Update-NginxConfig {
     Write-Host "DEBUG: 처리된 BackPortStr: [$BackPortStr]"
     Write-Host "DEBUG: 처리된 AutoPortStr: [$AutoPortStr]"
     
+    # 서비스별 파일명 결정
+    if ($ServiceType) {
+        # 새 방식: 서비스별 분리 파일
+        $upstreamOut = Join-Path $includeDir "tests-$Bid-$ServiceType.upstream.conf"
+        $locationOut = Join-Path $includeDir "tests-$Bid-$ServiceType.location.conf"
+        Write-Host "서비스별 설정 파일 생성: $ServiceType"
+    } else {
+        # 기존 방식: 통합 파일
+        $upstreamOut = Join-Path $includeDir "tests-$Bid.upstream.conf"
+        $locationOut = Join-Path $includeDir "tests-$Bid.location.conf"
+        Write-Host "레거시 통합 설정 파일 생성"
+    }
+
     # 기존 upstream 설정 보존을 위한 로직
-    $upstreamOut = Join-Path $includeDir "tests-$Bid.upstream.conf"
     $existingUpstream = ""
     $existingWebUpstream = ""
     $existingAutoUpstream = ""
@@ -1024,40 +1063,64 @@ function Update-NginxConfig {
         }
     }
     
-    # 새로운 upstream 설정 생성
-    $upstreamParts = @()
-    $upstreamParts += "# tests-$Bid.upstream.conf"
-    $upstreamParts += "# Upstream configuration for test branch: $Bid"
-    $upstreamParts += ""
-    
-    # BackPort 처리 (새로 지정되거나 기존 것 보존)
-    if ($BackPortStr) {
-        $upstreamParts += "upstream test-$Bid-web {"
-        $upstreamParts += "    server 127.0.0.1:$BackPortStr;"
-        $upstreamParts += "}"
-        Write-Host "webservice upstream 업데이트: 포트 $BackPortStr"
-    } elseif ($existingWebUpstream) {
-        $upstreamParts += $existingWebUpstream
-        Write-Host "webservice upstream 기존 설정 보존"
-    }
-    
-    # AutoPort 처리 (새로 지정되거나 기존 것 보존)
-    if ($AutoPortStr) {
-        if ($upstreamParts.Count -gt 3) { $upstreamParts += "" }  # 구분을 위한 빈 줄
-        $upstreamParts += "upstream test-$Bid-autodoc {"
-        $upstreamParts += "    server 127.0.0.1:$AutoPortStr;"
-        $upstreamParts += "}"
-        Write-Host "autodoc upstream 업데이트: 포트 $AutoPortStr"
-    } elseif ($existingAutoUpstream) {
-        if ($upstreamParts.Count -gt 3) { $upstreamParts += "" }  # 구분을 위한 빈 줄
-        $upstreamParts += $existingAutoUpstream
-        Write-Host "autodoc upstream 기존 설정 보존"
+    # 서비스별 설정 생성
+    if ($ServiceType) {
+        # 서비스별 분리 모드 - 해당 서비스만 생성
+        $upstreamParts = @()
+        $upstreamParts += "# tests-$Bid-$ServiceType.upstream.conf"
+        $upstreamParts += "# Upstream configuration for $ServiceType service (branch: $Bid)"
+        $upstreamParts += ""
+
+        if ($ServiceType -eq "web" -and $BackPortStr) {
+            $upstreamParts += "upstream test-$Bid-web {"
+            $upstreamParts += "    server 127.0.0.1:$BackPortStr;"
+            $upstreamParts += "}"
+            Write-Host "$ServiceType upstream 생성: 포트 $BackPortStr"
+        } elseif ($ServiceType -eq "autodoc" -and $AutoPortStr) {
+            $upstreamParts += "upstream test-$Bid-autodoc {"
+            $upstreamParts += "    server 127.0.0.1:$AutoPortStr;"
+            $upstreamParts += "}"
+            Write-Host "$ServiceType upstream 생성: 포트 $AutoPortStr"
+        }
+    } else {
+        # 레거시 통합 모드 - 기존 로직 유지
+        $upstreamParts = @()
+        $upstreamParts += "# tests-$Bid.upstream.conf"
+        $upstreamParts += "# Upstream configuration for test branch: $Bid"
+        $upstreamParts += ""
+
+        # BackPort 처리 (새로 지정되거나 기존 것 보존)
+        if ($BackPortStr) {
+            $upstreamParts += "upstream test-$Bid-web {"
+            $upstreamParts += "    server 127.0.0.1:$BackPortStr;"
+            $upstreamParts += "}"
+            Write-Host "webservice upstream 업데이트: 포트 $BackPortStr"
+        } elseif ($existingWebUpstream) {
+            $upstreamParts += $existingWebUpstream
+            Write-Host "webservice upstream 기존 설정 보존"
+        }
+
+        # AutoPort 처리 (새로 지정되거나 기존 것 보존)
+        if ($AutoPortStr) {
+            if ($upstreamParts.Count -gt 3) { $upstreamParts += "" }  # 구분을 위한 빈 줄
+            $upstreamParts += "upstream test-$Bid-autodoc {"
+            $upstreamParts += "    server 127.0.0.1:$AutoPortStr;"
+            $upstreamParts += "}"
+            Write-Host "autodoc upstream 업데이트: 포트 $AutoPortStr"
+        } elseif ($existingAutoUpstream) {
+            if ($upstreamParts.Count -gt 3) { $upstreamParts += "" }  # 구분을 위한 빈 줄
+            $upstreamParts += $existingAutoUpstream
+            Write-Host "autodoc upstream 기존 설정 보존"
+        }
     }
     
     $upstreamConf = $upstreamParts -join "`n"
     
     # Location 설정 파일 생성 (기존 설정 보존)
-    $locationOut = Join-Path $includeDir "tests-$Bid.location.conf"
+    # ServiceType이 지정된 경우 locationOut은 이미 위에서 설정됨
+    if (-not $ServiceType) {
+        $locationOut = Join-Path $includeDir "tests-$Bid.location.conf"
+    }
     $existingLocation = ""
     $existingWebLocation = ""
     $existingAutoLocation = ""
@@ -1087,84 +1150,142 @@ function Update-NginxConfig {
         }
     }
     
-    # 새로운 location 설정 생성
-    $locationParts = @()
-    $locationParts += "# tests-$Bid.location.conf"
-    $locationParts += "# Location blocks for test branch: $Bid"
-    $locationParts += "# Windows Nginx: forward slash (/) recommended for path separators"
-    $locationParts += ""
-    
-    # BackPort 처리 (새로 지정되거나 기존 것 보존)
-    if ($BackPortStr) {
-        $locationParts += "# Webservice backend API proxy (using upstream) - MUST come first!"
-        $locationParts += "location /tests/$Bid/api/webservice/ {"
-        $locationParts += "    proxy_pass http://test-$Bid-web/api/webservice/;"
-        $locationParts += "    proxy_set_header Host `$host;"
-        $locationParts += "    proxy_set_header X-Real-IP `$remote_addr;"
-        $locationParts += "    proxy_set_header X-Forwarded-For `$proxy_add_x_forwarded_for;"
-        $locationParts += "    proxy_set_header X-Forwarded-Proto `$scheme;"
-        $locationParts += "    "
-        $locationParts += "    # WebSocket support"
-        $locationParts += "    proxy_http_version 1.1;"
-        $locationParts += "    proxy_set_header Upgrade `$http_upgrade;"
-        $locationParts += "    proxy_set_header Connection `"upgrade`";"
-        $locationParts += "    "
-        $locationParts += "    # Timeout configuration"
-        $locationParts += "    proxy_connect_timeout 60s;"
-        $locationParts += "    proxy_send_timeout 60s;"
-        $locationParts += "    proxy_read_timeout 60s;"
-        $locationParts += "}"
-        Write-Host "webservice location 업데이트"
-    } elseif ($existingWebLocation) {
-        $locationParts += $existingWebLocation
-        Write-Host "webservice location 기존 설정 보존"
-    }
-    
-    # AutoPort 처리 (새로 지정되거나 기존 것 보존)
-    if ($AutoPortStr) {
-        if ($locationParts.Count -gt 4) { $locationParts += "" }  # 구분을 위한 빈 줄
-        $locationParts += "# AutoDoc Service backend API proxy (using upstream)"
-        $locationParts += "location /tests/$Bid/api/autodoc/ {"
-        $locationParts += "    proxy_pass http://test-$Bid-autodoc/api/autodoc/;"
-        $locationParts += "    proxy_set_header Host `$host;"
-        $locationParts += "    proxy_set_header X-Real-IP `$remote_addr;"
-        $locationParts += "    proxy_set_header X-Forwarded-For `$proxy_add_x_forwarded_for;"
-        $locationParts += "    proxy_set_header X-Forwarded-Proto `$scheme;"
-        $locationParts += "    "
-        $locationParts += "    # File upload configuration"
-        $locationParts += "    client_max_body_size 50M;"
-        $locationParts += "    "
-        $locationParts += "    # Timeout configuration"
-        $locationParts += "    proxy_connect_timeout 30s;"
-        $locationParts += "    proxy_send_timeout 30s;"
-        $locationParts += "    proxy_read_timeout 30s;"
-        $locationParts += "}"
-        Write-Host "autodoc location 업데이트"
-    } elseif ($existingAutoLocation) {
-        if ($locationParts.Count -gt 4) { $locationParts += "" }  # 구분을 위한 빈 줄
-        $locationParts += $existingAutoLocation
-        Write-Host "autodoc location 기존 설정 보존"
-    }
-    
-    # Frontend location (항상 포함 - 새로 생성하거나 기존 것 보존)
-    if ($locationParts.Count -gt 4) { $locationParts += "" }  # 구분을 위한 빈 줄
-    if ($existingFrontendLocation) {
-        $locationParts += $existingFrontendLocation
-        Write-Host "frontend location 기존 설정 보존"
+    # 서비스별 location 설정 생성
+    if ($ServiceType) {
+        # 서비스별 분리 모드 - 해당 서비스만 생성
+        $locationParts = @()
+        $locationParts += "# tests-$Bid-$ServiceType.location.conf"
+        $locationParts += "# Location blocks for $ServiceType service (branch: $Bid)"
+        $locationParts += "# Windows Nginx: forward slash (/) recommended for path separators"
+        $locationParts += ""
     } else {
-        $locationParts += "# Frontend static file serving (comes after API routes)"
-        $locationParts += "location /tests/$Bid/ {"
-        $locationParts += "    sendfile off;"
-        $locationParts += "    alias C:/nginx/html/tests/$Bid/;"
-        $locationParts += "    try_files `$uri `$uri/ /tests/$Bid/index.html;"
-        $locationParts += "    "
-        $locationParts += "    # Static file caching configuration"
-        $locationParts += "    # location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {"
-        $locationParts += "    #     expires 1h;"
-        $locationParts += "    #     add_header Cache-Control `"public, immutable`";"
-        $locationParts += "    # }"
-        $locationParts += "}"
-        Write-Host "frontend location 새로 생성"
+        # 레거시 통합 모드
+        $locationParts = @()
+        $locationParts += "# tests-$Bid.location.conf"
+        $locationParts += "# Location blocks for test branch: $Bid"
+        $locationParts += "# Windows Nginx: forward slash (/) recommended for path separators"
+        $locationParts += ""
+    }
+    
+    # 서비스별 location 설정
+    if ($ServiceType -eq "web") {
+        # Web 서비스만 설정
+        if ($BackPortStr) {
+            $locationParts += "# Webservice backend API proxy (using upstream)"
+            $locationParts += "location /tests/$Bid/api/webservice/ {"
+            $locationParts += "    proxy_pass http://test-$Bid-web/api/webservice/;"
+            $locationParts += "    proxy_set_header Host `$host;"
+            $locationParts += "    proxy_set_header X-Real-IP `$remote_addr;"
+            $locationParts += "    proxy_set_header X-Forwarded-For `$proxy_add_x_forwarded_for;"
+            $locationParts += "    proxy_set_header X-Forwarded-Proto `$scheme;"
+            $locationParts += "    "
+            $locationParts += "    # WebSocket support"
+            $locationParts += "    proxy_http_version 1.1;"
+            $locationParts += "    proxy_set_header Upgrade `$http_upgrade;"
+            $locationParts += "    proxy_set_header Connection `"upgrade`";"
+            $locationParts += "    "
+            $locationParts += "    # Timeout configuration"
+            $locationParts += "    proxy_connect_timeout 60s;"
+            $locationParts += "    proxy_send_timeout 60s;"
+            $locationParts += "    proxy_read_timeout 60s;"
+            $locationParts += "}"
+            Write-Host "webservice location 생성: 포트 $BackPortStr"
+        }
+    } elseif ($ServiceType -eq "autodoc") {
+        # AutoDoc 서비스만 설정
+        if ($AutoPortStr) {
+            $locationParts += "# AutoDoc Service backend API proxy (using upstream)"
+            $locationParts += "location /tests/$Bid/api/autodoc/ {"
+            $locationParts += "    proxy_pass http://test-$Bid-autodoc/api/autodoc/;"
+            $locationParts += "    proxy_set_header Host `$host;"
+            $locationParts += "    proxy_set_header X-Real-IP `$remote_addr;"
+            $locationParts += "    proxy_set_header X-Forwarded-For `$proxy_add_x_forwarded_for;"
+            $locationParts += "    proxy_set_header X-Forwarded-Proto `$scheme;"
+            $locationParts += "    "
+            $locationParts += "    # File upload configuration"
+            $locationParts += "    client_max_body_size 50M;"
+            $locationParts += "    "
+            $locationParts += "    # Timeout configuration"
+            $locationParts += "    proxy_connect_timeout 30s;"
+            $locationParts += "    proxy_send_timeout 30s;"
+            $locationParts += "    proxy_read_timeout 30s;"
+            $locationParts += "}"
+            Write-Host "autodoc location 생성: 포트 $AutoPortStr"
+        }
+    } else {
+        # 레거시 통합 모드 - 기존 로직 유지
+        # BackPort 처리 (새로 지정되거나 기존 것 보존)
+        if ($BackPortStr) {
+            $locationParts += "# Webservice backend API proxy (using upstream) - MUST come first!"
+            $locationParts += "location /tests/$Bid/api/webservice/ {"
+            $locationParts += "    proxy_pass http://test-$Bid-web/api/webservice/;"
+            $locationParts += "    proxy_set_header Host `$host;"
+            $locationParts += "    proxy_set_header X-Real-IP `$remote_addr;"
+            $locationParts += "    proxy_set_header X-Forwarded-For `$proxy_add_x_forwarded_for;"
+            $locationParts += "    proxy_set_header X-Forwarded-Proto `$scheme;"
+            $locationParts += "    "
+            $locationParts += "    # WebSocket support"
+            $locationParts += "    proxy_http_version 1.1;"
+            $locationParts += "    proxy_set_header Upgrade `$http_upgrade;"
+            $locationParts += "    proxy_set_header Connection `"upgrade`";"
+            $locationParts += "    "
+            $locationParts += "    # Timeout configuration"
+            $locationParts += "    proxy_connect_timeout 60s;"
+            $locationParts += "    proxy_send_timeout 60s;"
+            $locationParts += "    proxy_read_timeout 60s;"
+            $locationParts += "}"
+            Write-Host "webservice location 업데이트"
+        } elseif ($existingWebLocation) {
+            $locationParts += $existingWebLocation
+            Write-Host "webservice location 기존 설정 보존"
+        }
+
+        # AutoPort 처리 (새로 지정되거나 기존 것 보존)
+        if ($AutoPortStr) {
+            if ($locationParts.Count -gt 4) { $locationParts += "" }  # 구분을 위한 빈 줄
+            $locationParts += "# AutoDoc Service backend API proxy (using upstream)"
+            $locationParts += "location /tests/$Bid/api/autodoc/ {"
+            $locationParts += "    proxy_pass http://test-$Bid-autodoc/api/autodoc/;"
+            $locationParts += "    proxy_set_header Host `$host;"
+            $locationParts += "    proxy_set_header X-Real-IP `$remote_addr;"
+            $locationParts += "    proxy_set_header X-Forwarded-For `$proxy_add_x_forwarded_for;"
+            $locationParts += "    proxy_set_header X-Forwarded-Proto `$scheme;"
+            $locationParts += "    "
+            $locationParts += "    # File upload configuration"
+            $locationParts += "    client_max_body_size 50M;"
+            $locationParts += "    "
+            $locationParts += "    # Timeout configuration"
+            $locationParts += "    proxy_connect_timeout 30s;"
+            $locationParts += "    proxy_send_timeout 30s;"
+            $locationParts += "    proxy_read_timeout 30s;"
+            $locationParts += "}"
+            Write-Host "autodoc location 업데이트"
+        } elseif ($existingAutoLocation) {
+            if ($locationParts.Count -gt 4) { $locationParts += "" }  # 구분을 위한 빈 줄
+            $locationParts += $existingAutoLocation
+            Write-Host "autodoc location 기존 설정 보존"
+        }
+
+        # Frontend location (항상 포함 - 새로 생성하거나 기존 것 보존)
+        if ($locationParts.Count -gt 4) { $locationParts += "" }  # 구분을 위한 빈 줄
+        if ($existingFrontendLocation) {
+            $locationParts += $existingFrontendLocation
+            Write-Host "frontend location 기존 설정 보존"
+        } else {
+            $locationParts += "# Frontend static file serving (comes after API routes)"
+            $locationParts += "location /tests/$Bid/ {"
+            $locationParts += "    sendfile off;"
+            $locationParts += "    alias C:/nginx/html/tests/$Bid/;"
+            $locationParts += "    try_files `$uri `$uri/ /tests/$Bid/index.html;"
+            $locationParts += "    "
+            $locationParts += "    # Static file caching configuration"
+            $locationParts += "    # location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {"
+            $locationParts += "    #     expires 1h;"
+            $locationParts += "    #     add_header Cache-Control `"public, immutable`";"
+            $locationParts += "    # }"
+            $locationParts += "}"
+            Write-Host "frontend location 새로 생성"
+        }
     }
     
     $locationConf = $locationParts -join "`n"

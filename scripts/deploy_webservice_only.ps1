@@ -217,8 +217,8 @@ try {
         Write-Host "웹서비스 서비스 등록 및 시작 완료 (Port: $BackPort)"
     }
     
-    # 7. Nginx 설정 업데이트 (백엔드 포트만)
-    Update-NginxConfig -Bid $Bid -BackPort $BackPort -AutoPort $null -Nginx $Nginx
+    # 7. Nginx 설정 업데이트 (서비스별 분리 설정)
+    Update-NginxConfig -Bid $Bid -ServiceType "web" -Port $BackPort -Nginx $Nginx
     
     # 8. 서비스 상태 확인
     Test-ServiceHealth -BackPort $BackPort -AutoPort $null -Bid $Bid -Nssm $Nssm
