@@ -35,15 +35,9 @@ try {
     $TestAutoDataPath = "$($commonDirs.TestDataRoot)\autodoc_service"
     $TestLogsPath = $commonDirs.TestLogsPath
     
-    # 1.5. 포트 유효성 검사 및 충돌 해결
-    Write-Host "`n단계 1.5: 배포 포트 유효성 검사 중..."
-    try {
-        Validate-DeploymentPorts -AutoPort $AutoPort -Bid $Bid -NssmPath $Nssm -ForceResolve
-        Write-Host "포트 유효성 검사 완료"
-    } catch {
-        Write-Error "포트 유효성 검사 실패: $($_.Exception.Message)"
-        throw
-    }
+    # 1.5. 포트 유효성 검사 제거 - 아래 서비스 관리 섹션에서 기존 서비스를 정리하므로 불필요
+    # Write-Host "`n단계 1.5: 배포 포트 유효성 검사 중..."
+    # Validate-DeploymentPorts는 서비스 정리 전에 실행되어 충돌을 일으키므로 제거
     
     # 2. AutoDoc 디렉토리 생성
     Write-Host "`n단계 2: AutoDoc 디렉토리 생성 중..."

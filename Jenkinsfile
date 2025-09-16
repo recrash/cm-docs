@@ -642,27 +642,9 @@ pipeline {
                         }
                     }
                     
-                    // 배포 전 포트 유효성 검사 (병렬 배포 안전성 확보)
-                    echo "🔍 배포 포트 유효성 사전 검사 중..."
-                    try {
-                        def portValidationCmd = ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; "
-                        
-                        if (deployBackend && env.BACK_PORT) {
-                            portValidationCmd += "Validate-DeploymentPorts -BackPort ${env.BACK_PORT} -Bid '%BID%' -NssmPath '%NSSM_PATH%'; "
-                        }
-                        
-                        if (deployAutodoc && env.AUTO_PORT) {
-                            portValidationCmd += "Validate-DeploymentPorts -AutoPort ${env.AUTO_PORT} -Bid '%BID%' -NssmPath '%NSSM_PATH%'; "
-                        }
-                        
-                        bat """
-                        chcp 65001 >NUL
-                        powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {${portValidationCmd}}"
-                        """
-                        echo "✓ 포트 유효성 검사 완료 - 병렬 배포 안전"
-                    } catch (Exception portError) {
-                        error("포트 유효성 검사 실패: ${portError.getMessage()}")
-                    }
+                    // 포트 유효성 검사 제거 - 각 배포 스크립트에서 서비스 정리를 이미 수행함
+                    // deploy_webservice_only.ps1과 deploy_autodoc_only.ps1이 기존 서비스를 자동으로 정리하므로
+                    // 사전 포트 검사는 불필요하며 오히려 충돌을 일으킴
                     
                     // 공통 초기화 수행 (병렬 배포 전)
                     echo "📋 공통 초기화 작업 수행 중..."
@@ -848,27 +830,8 @@ pipeline {
                             powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {${nginxUpdateCmd}}"
                             """
                             
-                            // 배포 후 포트 상태 검증
-                            echo "🔍 배포 후 포트 상태 검증 중..."
-                            try {
-                                def portVerificationCmd = ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; "
-                                
-                                if (deployBackend && env.BACK_PORT) {
-                                    portVerificationCmd += "Test-PortAvailable -Port ${env.BACK_PORT} -ProcessName python; "
-                                }
-                                
-                                if (deployAutodoc && env.AUTO_PORT) {
-                                    portVerificationCmd += "Test-PortAvailable -Port ${env.AUTO_PORT} -ProcessName python; "
-                                }
-                                
-                                bat """
-                                chcp 65001 >NUL
-                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {${portVerificationCmd}}"
-                                """
-                                echo "✓ 포트 상태 검증 완료 - 병렬 배포 성공"
-                            } catch (Exception portVerifyError) {
-                                echo "⚠️ 포트 상태 검증 중 경고: ${portVerifyError.getMessage()}"
-                            }
+                            // 배포 후 포트 상태 검증도 제거 - 서비스 헬스체크로 충분함
+                            // Test-ServiceHealth가 이미 포트 상태를 확인하므로 중복 검사 불필요
                             
                             // 최종 서비스 상태 확인
                             echo "🔍 최종 서비스 상태 확인 중..."
