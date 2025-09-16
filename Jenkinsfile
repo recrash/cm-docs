@@ -1146,7 +1146,7 @@ def analyzeDeploymentError(String errorMessage, Map deployResults) {
         - 'null' 문자열이 실제 null 대신 전달되어 발생한 문제입니다
         """
         solution = """
-        1. PowerShell 파라미터에서 $null 사용을 확인하세요
+        1. PowerShell 파라미터에서 \$null 사용을 확인하세요
         2. Jenkins 환경변수가 올바르게 설정되었는지 확인하세요
         3. Port 할당 로직을 점검하세요 (pickPort 함수)
         """
