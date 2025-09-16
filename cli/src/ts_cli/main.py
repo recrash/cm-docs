@@ -40,6 +40,7 @@ try:
     from .cli_handler import CLIHandler
     from .utils.logger import setup_logger, set_log_level
     from .utils.config_loader import load_config
+    from .core.process_manager import handle_duplicate_session
 except ImportError:
     # PyInstaller 환경에서는 절대 import 사용
     import ts_cli
@@ -47,6 +48,7 @@ except ImportError:
     from ts_cli.cli_handler import CLIHandler
     from ts_cli.utils.logger import setup_logger, set_log_level
     from ts_cli.utils.config_loader import load_config
+    from ts_cli.core.process_manager import handle_duplicate_session
 
 # Rich traceback 설치 (더 예쁜 에러 메시지)
 install(show_locals=True)
@@ -745,13 +747,24 @@ def handle_url_protocol() -> None:
         
         # 경로 유효성 검증
         validate_repository_path(repository_path)
-        
+
         # 서버 설정: URL 파라미터 우선, 없으면 config에서 로드
         if url_server:
             server_url = url_server
             console.print(f"[green]Server URL from protocol: {server_url}[/green]")
         else:
             server_url = load_server_config()
+
+        # 중복 세션 체크 및 관리 (Phase 1 & 2 적용)
+        effective_session_id = session_id or client_id or "default_session"
+        console.print(f"[cyan]Session management: {effective_session_id}[/cyan]")
+
+        if not handle_duplicate_session(effective_session_id, str(repository_path.resolve())):
+            console.print("[red]프로세스 관리 실패 또는 중복 세션 감지로 인해 종료합니다.[/red]")
+            console.print("[yellow]기존 프로세스를 종료하려면 '--force' 옵션을 사용하세요.[/yellow]")
+            sys.exit(1)
+
+        console.print("[green]✓ 세션 등록 완료[/green]")
         
         console.print(f"[bold blue]TestscenarioMaker CLI v{__version__}[/bold blue]")
         console.print(f"Repository analysis started: [green]{repository_path.resolve()}[/green]")

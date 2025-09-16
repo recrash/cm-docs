@@ -136,10 +136,10 @@ Section "Register URL Protocol" SEC05
   WriteRegStr HKCR "testscenariomaker\shell" "" ""
   WriteRegStr HKCR "testscenariomaker\shell\open" "" ""
   
-  ; Register command for background execution (no console window)
-  ; Using PowerShell for more reliable path handling and working directory control
+  ; Register command for background execution with process management
+  ; Enhanced PowerShell script for duplicate process prevention and proper session management
   ; Set working directory to C:\deploys\apps\cli for proper service deployment
-  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'powershell -Command "Set-Location C:\\deploys\\apps\\cli; Start-Process \"$INSTDIR\\ts-cli.exe\" -ArgumentList \"%1\" -WindowStyle Hidden"'
+  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'powershell -ExecutionPolicy Bypass -Command "$url=\"%1\"; $workDir=\"C:\\deploys\\apps\\cli\"; $exePath=\"$INSTDIR\\ts-cli.exe\"; try { Write-Host \"TestscenarioMaker URL Protocol Handler Starting...\"; Write-Host \"URL: $url\"; Write-Host \"WorkDir: $workDir\"; Write-Host \"ExePath: $exePath\"; if ($url -match \"sessionId=([^&]+)\") { $sessionId = $matches[1]; Write-Host \"Session ID: $sessionId\"; Get-Process | Where-Object { $_.ProcessName -like \"*ts-cli*\" -or $_.CommandLine -like \"*$sessionId*\" } | ForEach-Object { Write-Host \"Terminating existing process: $($_.Id)\"; Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 2 } else { Write-Host \"No session ID found, cleaning all ts-cli processes\"; Get-Process | Where-Object { $_.ProcessName -like \"*ts-cli*\" } | ForEach-Object { Write-Host \"Terminating existing process: $($_.Id)\"; Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 1 }; if (Test-Path $workDir) { Set-Location $workDir } else { Write-Host \"Working directory not found, using current\" }; Write-Host \"Starting new CLI process...\"; Start-Process -FilePath $exePath -ArgumentList $url -WindowStyle Hidden -WorkingDirectory $workDir } catch { Write-Host \"Error: $($_.Exception.Message)\" }"'
   
 SectionEnd
 

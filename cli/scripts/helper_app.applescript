@@ -16,12 +16,24 @@ on open location this_URL
 	try
 		-- 디버깅을 위한 로그 함수
 		my log_debug("URL 프로토콜 처리 시작: " & this_URL)
-		
+
 		-- URL 유효성 검증
 		if not (this_URL starts with "testscenariomaker://") then
 			my log_error("올바르지 않은 URL 형식: " & this_URL)
 			display dialog "올바르지 않은 URL 형식입니다." & return & "예상 형식: testscenariomaker://path" buttons {"확인"} default button 1 with icon stop
 			return
+		end if
+
+		-- 중복 프로세스 체크 및 정리 (macOS 특화 로직)
+		my log_debug("기존 TestscenarioMaker 프로세스 체크 중...")
+		my cleanup_existing_processes()
+
+		-- 세션 ID 추출 (URL에서)
+		set session_id to my extract_session_id(this_URL)
+		if session_id is not "" then
+			my log_debug("감지된 세션 ID: " & session_id)
+			-- 세션별 프로세스 정리
+			my cleanup_session_processes(session_id)
 		end if
 		
 		-- 헬퍼 앱 자신의 경로 획득
@@ -111,6 +123,102 @@ on write_log(level, message)
 		-- 로그 작성 실패는 무시 (무한 루프 방지)
 	end try
 end write_log
+
+-- 기존 TestscenarioMaker 프로세스 정리 함수
+on cleanup_existing_processes()
+	try
+		my log_debug("모든 TestscenarioMaker 관련 프로세스 정리 시작")
+
+		-- TestscenarioMaker-CLI 프로세스 찾기 및 정리
+		set cli_processes to do shell script "pgrep -f 'TestscenarioMaker-CLI' || true"
+		if cli_processes is not "" then
+			my log_debug("발견된 CLI 프로세스: " & cli_processes)
+			do shell script "pkill -f 'TestscenarioMaker-CLI' || true"
+			my log_debug("기존 CLI 프로세스들을 정리했습니다")
+		else
+			my log_debug("실행 중인 CLI 프로세스가 없습니다")
+		end if
+
+		-- ts-cli 프로세스 찾기 및 정리 (Python으로 실행된 경우)
+		set python_processes to do shell script "pgrep -f 'ts-cli' || true"
+		if python_processes is not "" then
+			my log_debug("발견된 Python CLI 프로세스: " & python_processes)
+			do shell script "pkill -f 'ts-cli' || true"
+			my log_debug("기존 Python CLI 프로세스들을 정리했습니다")
+		else
+			my log_debug("실행 중인 Python CLI 프로세스가 없습니다")
+		end if
+
+	on error error_message
+		my log_error("프로세스 정리 중 오류: " & error_message)
+	end try
+end cleanup_existing_processes
+
+-- URL에서 세션 ID 추출 함수
+on extract_session_id(url_string)
+	try
+		my log_debug("세션 ID 추출 시도: " & url_string)
+
+		-- sessionId= 파라미터 찾기
+		set session_pattern to "sessionId="
+		set session_start to offset of session_pattern in url_string
+
+		if session_start > 0 then
+			-- sessionId= 다음부터 추출
+			set session_value_start to session_start + (length of session_pattern)
+			set remaining_url to text session_value_start thru -1 of url_string
+
+			-- & 문자로 구분되는 다음 파라미터까지 또는 끝까지
+			set ampersand_pos to offset of "&" in remaining_url
+			if ampersand_pos > 0 then
+				set session_id to text 1 thru (ampersand_pos - 1) of remaining_url
+			else
+				set session_id to remaining_url
+			end if
+
+			my log_debug("추출된 세션 ID: " & session_id)
+			return session_id
+		else
+			my log_debug("URL에서 sessionId 파라미터를 찾을 수 없습니다")
+			return ""
+		end if
+
+	on error error_message
+		my log_error("세션 ID 추출 중 오류: " & error_message)
+		return ""
+	end try
+end extract_session_id
+
+-- 특정 세션 ID와 관련된 프로세스 정리 함수
+on cleanup_session_processes(session_id)
+	try
+		my log_debug("세션 " & session_id & "와 관련된 프로세스 정리 시작")
+
+		-- 세션 ID가 포함된 프로세스 찾기 (명령줄 인자에서)
+		set session_processes to do shell script "pgrep -f '" & session_id & "' || true"
+		if session_processes is not "" then
+			my log_debug("발견된 세션 관련 프로세스: " & session_processes)
+
+			-- 해당 프로세스들에게 SIGTERM 신호 전송 (우아한 종료)
+			do shell script "pkill -TERM -f '" & session_id & "' || true"
+			my log_debug("세션 관련 프로세스들에게 종료 신호를 전송했습니다")
+
+			-- 3초 대기 후 강제 종료 확인
+			delay 3
+			set remaining_processes to do shell script "pgrep -f '" & session_id & "' || true"
+			if remaining_processes is not "" then
+				my log_debug("일부 프로세스가 여전히 실행 중입니다. 강제 종료를 시도합니다.")
+				do shell script "pkill -KILL -f '" & session_id & "' || true"
+				my log_debug("세션 관련 프로세스들을 강제 종료했습니다")
+			end if
+		else
+			my log_debug("해당 세션과 관련된 실행 중인 프로세스가 없습니다")
+		end if
+
+	on error error_message
+		my log_error("세션 프로세스 정리 중 오류: " & error_message)
+	end try
+end cleanup_session_processes
 
 -- 앱이 일반적인 방법으로 실행되었을 때의 처리
 on run
