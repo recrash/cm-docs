@@ -574,22 +574,47 @@ def parse_url_parameters(url: str) -> tuple[Path, Optional[str], Optional[str], 
             try:
                 import base64
                 import json
+                import re
                 
-                # Base64 패딩 보정 (= 문자가 부족한 경우 추가)
+                console.print(f"[cyan]메타데이터 디코딩 시도 중...[/cyan]")
+                console.print(f"[dim]원본 길이: {len(metadata_param)} 글자[/dim]")
+                console.print(f"[dim]첫 50글자: {metadata_param[:50]}...[/dim]")
+                console.print(f"[dim]마지막 50글자: ...{metadata_param[-50:]}[/dim]")
+                
+                # 1. Base64 문자 정규화 (유효하지 않은 문자 제거)
+                # Base64는 A-Z, a-z, 0-9, +, /, = 만 포함
+                cleaned_metadata = re.sub(r'[^A-Za-z0-9+/=]', '', metadata_param)
+                if len(cleaned_metadata) != len(metadata_param):
+                    console.print(f"[yellow]Base64 문자 정규화: {len(metadata_param)} → {len(cleaned_metadata)} 글자[/yellow]")
+                
+                # 2. Base64 패딩 보정 (= 문자가 부족한 경우 추가)
                 # Base64는 4의 배수여야 함
-                missing_padding = len(metadata_param) % 4
+                missing_padding = len(cleaned_metadata) % 4
                 if missing_padding:
-                    metadata_param += '=' * (4 - missing_padding)
+                    cleaned_metadata += '=' * (4 - missing_padding)
                     console.print(f"[yellow]Base64 패딩 보정 적용 (추가된 '=' 개수: {4 - missing_padding})[/yellow]")
                 
-                # Base64 디코딩 후 JSON 파싱
-                decoded_metadata = base64.b64decode(metadata_param).decode('utf-8')
+                # 3. Base64 디코딩 시도 (일반 + URL-safe)
+                try:
+                    # 일반 Base64 디코딩 시도
+                    decoded_metadata = base64.b64decode(cleaned_metadata).decode('utf-8')
+                    console.print(f"[green]일반 Base64 디코딩 성공[/green]")
+                except Exception:
+                    # URL-safe Base64 디코딩 시도
+                    decoded_metadata = base64.urlsafe_b64decode(cleaned_metadata).decode('utf-8')
+                    console.print(f"[green]URL-safe Base64 디코딩 성공[/green]")
+                
+                # 4. JSON 파싱
                 metadata_json = json.loads(decoded_metadata)
-                console.print(f"[green]Metadata 디코딩 성공[/green]")
+                console.print(f"[green]메타데이터 JSON 파싱 성공[/green]")
+                
             except Exception as e:
-                console.print(f"[red]Metadata 디코딩 실패: {e}[/red]")
-                console.print(f"[dim]Raw metadata param length: {len(metadata_param) if metadata_param else 0}[/dim]")
-                raise ValueError(f"metadata 파라미터 디코딩 실패: {e}")
+                console.print(f"[yellow]메타데이터 디코딩 실패: {e}[/yellow]")
+                console.print(f"[yellow]세션 ID로 서버에서 메타데이터를 조회합니다[/yellow]")
+                console.print(f"[dim]원본 길이: {len(metadata_param) if metadata_param else 0} 글자[/dim]")
+                if metadata_param:
+                    console.print(f"[dim]첫 100글자: {metadata_param[:100]}...[/dim]")
+                # 에러를 발생시키지 않고 None으로 설정 (세션 조회 fallback 사용)
         
         # 경로 추출: 쿼리 파라미터에서 repoPath를 우선 확인
         repo_path_param = query_params.get('repoPath', [None])[0]
