@@ -645,7 +645,7 @@ pipeline {
                     // 배포 전 포트 유효성 검사 (병렬 배포 안전성 확보)
                     echo "🔍 배포 포트 유효성 사전 검사 중..."
                     try {
-                        def portValidationCmd = ". '.\scripts\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\deploys\tests\%BID%\packages'; "
+                        def portValidationCmd = ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; "
                         
                         if (deployBackend && env.BACK_PORT) {
                             portValidationCmd += "Validate-DeploymentPorts -BackPort ${env.BACK_PORT} -Bid '%BID%' -NssmPath '%NSSM_PATH%'; "
@@ -851,7 +851,7 @@ pipeline {
                             // 배포 후 포트 상태 검증
                             echo "🔍 배포 후 포트 상태 검증 중..."
                             try {
-                                def portVerificationCmd = ". '.\scripts\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\deploys\tests\%BID%\packages'; "
+                                def portVerificationCmd = ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; "
                                 
                                 if (deployBackend && env.BACK_PORT) {
                                     portVerificationCmd += "Test-PortAvailable -Port ${env.BACK_PORT} -ProcessName python; "
