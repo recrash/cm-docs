@@ -17,6 +17,11 @@ def _ensure_utf8_encoding():
     try:
         # Python 3.7+ 에서 Windows UTF-8 모드 지원
         if sys.platform.startswith('win'):
+            # 환경변수 설정
+            import os
+            os.environ['PYTHONIOENCODING'] = 'utf-8'
+            os.environ['PYTHONLEGACYWINDOWSSTDIO'] = '0'
+            
             # UTF-8 로케일 설정 시도
             try:
                 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
@@ -24,12 +29,35 @@ def _ensure_utf8_encoding():
                 try:
                     locale.setlocale(locale.LC_ALL, 'C.UTF-8')
                 except locale.Error:
-                    # 로케일 설정 실패 시 환경변수로 처리
-                    import os
-                    os.environ['PYTHONIOENCODING'] = 'utf-8'
+                    try:
+                        # Windows 특화 UTF-8 설정
+                        locale.setlocale(locale.LC_ALL, '.UTF8')
+                    except locale.Error:
+                        # 모든 로케일 설정 실패 시에도 환경변수로 처리
+                        pass
     except Exception:
         # 인코딩 설정 실패해도 진행
         pass
+
+def _safe_str_convert(value):
+    """Windows charmap 에러를 방지하는 안전한 문자열 변환"""
+    if value is None:
+        return ""
+    
+    try:
+        # 이미 문자열인 경우
+        if isinstance(value, str):
+            return value
+        
+        # bytes인 경우 UTF-8로 디코딩
+        if isinstance(value, bytes):
+            return value.decode('utf-8', errors='replace')
+        
+        # 기타 타입은 문자열로 변환
+        return str(value)
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        # 변환 실패 시 안전한 ASCII 변환
+        return str(value).encode('ascii', errors='replace').decode('ascii')
 
 # 모듈 로드 시 UTF-8 인코딩 보장
 _ensure_utf8_encoding()
@@ -99,8 +127,11 @@ def _fill_header_info(sheet, result_json: Dict[str, Any]) -> None:
         sheet: openpyxl 워크시트 객체
         result_json: LLM 결과 JSON 데이터
     """
-    sheet[DESCRIPTION_CELL] = result_json.get("Scenario Description", DEFAULT_DESCRIPTION)
-    sheet[TITLE_CELL] = result_json.get("Test Scenario Name", DEFAULT_TITLE)
+    description = _safe_str_convert(result_json.get("Scenario Description", DEFAULT_DESCRIPTION))
+    title = _safe_str_convert(result_json.get("Test Scenario Name", DEFAULT_TITLE))
+    
+    sheet[DESCRIPTION_CELL] = description
+    sheet[TITLE_CELL] = title
 
 
 def _convert_newlines(text: str) -> str:
@@ -146,29 +177,29 @@ def _fill_test_cases(sheet, test_cases: List[Dict[str, Any]]) -> None:
     for i, scenario in enumerate(test_cases):
         current_row = START_ROW + i
         
-        # ID 설정
-        test_id = scenario.get("ID", f"CMP_MES_{i+1:03d}")
+        # ID 설정 (안전한 문자열 변환)
+        test_id = _safe_str_convert(scenario.get("ID", f"CMP_MES_{i+1:03d}"))
         sheet[f'A{current_row}'] = test_id
         
-        # 절차
-        procedure = _convert_newlines(scenario.get("절차", ""))
+        # 절차 (안전한 문자열 변환 + 개행 처리)
+        procedure = _convert_newlines(_safe_str_convert(scenario.get("절차", "")))
         sheet[f'B{current_row}'] = procedure
         
-        # 사전조건
-        precondition = _convert_newlines(scenario.get("사전조건", ""))
+        # 사전조건 (안전한 문자열 변환 + 개행 처리)
+        precondition = _convert_newlines(_safe_str_convert(scenario.get("사전조건", "")))
         sheet[f'C{current_row}'] = precondition
         
-        # 데이터
+        # 데이터 (JSON 형식 데이터도 안전하게 처리)
         test_data = _format_test_data(scenario.get("데이터", ""))
-        sheet[f'D{current_row}'] = test_data
+        sheet[f'D{current_row}'] = _safe_str_convert(test_data)
         
-        # 예상결과
-        expected_result = _convert_newlines(scenario.get("예상결과", ""))
+        # 예상결과 (안전한 문자열 변환 + 개행 처리)
+        expected_result = _convert_newlines(_safe_str_convert(scenario.get("예상결과", "")))
         sheet[f'E{current_row}'] = expected_result
         
-        # Unit/Integration 테스트 플래그 (JSON에서 직접 읽기)
-        unit_flag = scenario.get("Unit", "")
-        integration_flag = scenario.get("Integration", "")
+        # Unit/Integration 테스트 플래그 (안전한 문자열 변환)
+        unit_flag = _safe_str_convert(scenario.get("Unit", ""))
+        integration_flag = _safe_str_convert(scenario.get("Integration", ""))
         sheet[f'F{current_row}'] = unit_flag
         sheet[f'G{current_row}'] = integration_flag
 
@@ -184,7 +215,8 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
     Returns:
         생성된 엑셀 파일 경로 또는 None (실패 시)
     """
-    print("\n" + "="*50)
+    print("
+" + "="*50)
     print("최종 단계: 생성된 시나리오를 엑셀 파일에 저장합니다.")
     print("="*50)
     
@@ -202,8 +234,14 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
         return None
     
     try:
-        # UTF-8 인코딩을 명시하여 엑셀 파일 열기 및 수정
-        workbook = openpyxl.load_workbook(final_filename)
+        # Windows charmap 에러 방지를 위한 환경 변수 설정
+        import os
+        old_pythonioencoding = os.environ.get('PYTHONIOENCODING')
+        os.environ['PYTHONIOENCODING'] = 'utf-8'
+        
+        try:
+            # UTF-8 인코딩을 명시하여 엑셀 파일 열기 및 수정
+            workbook = openpyxl.load_workbook(final_filename)
         sheet = workbook.active
         
         # 헤더 정보 채우기
@@ -214,7 +252,14 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
         _fill_test_cases(sheet, test_cases)
         
         # UTF-8 인코딩으로 파일 저장 (Windows 호환성)
-        workbook.save(final_filename)
+            workbook.save(final_filename)
+            
+        finally:
+            # 환경 변수 복원
+            if old_pythonioencoding is None:
+                os.environ.pop('PYTHONIOENCODING', None)
+            else:
+                os.environ['PYTHONIOENCODING'] = old_pythonioencoding
         
     except Exception as e:
         print(f"오류: Excel 파일 생성 중 오류가 발생했습니다: {e}")
