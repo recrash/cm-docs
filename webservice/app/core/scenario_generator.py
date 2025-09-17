@@ -13,7 +13,7 @@ import re
 import sys
 import time
 import concurrent.futures
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from pathlib import Path
 
 # Windows 인코딩 문제 해결 - Full Generation 에러 수정
@@ -103,12 +103,13 @@ async def generate_scenarios_with_llm(
             try:
                 # LLMHandler는 이미 비동기이므로 직접 호출
                 raw_response = await llm_handler.generate_scenarios_async(final_prompt)
-                # LLMHandler는 이미 파싱된 결과를 반환하므로 그대로 사용
-                result_json = raw_response
                 
                 # [FULL-GEN DEBUG] 비동기 LLM 응답 후 디버깅 로그
                 raw_response_str = str(raw_response) if raw_response else "None"
                 logger.error(f"[FULL-GEN DEBUG] Async LLM Response (first 500 chars): {raw_response_str[:500]}")
+                
+                # _parse_llm_response는 이제 dictionary와 string 모두 처리 가능
+                result_json = _parse_llm_response(raw_response)
                 
             finally:
                 await llm_handler.close()
@@ -127,7 +128,8 @@ async def generate_scenarios_with_llm(
                 raise ValueError("LLM으로부터 응답을 받지 못했습니다.")
             
             # [FULL-GEN DEBUG] 동기 LLM 응답 후 디버깅 로그 (scenario_v2.py 패턴 적용)
-            logger.error(f"[FULL-GEN DEBUG] Sync LLM Raw Response (first 500 chars): {raw_response[:500]}")
+            raw_response_str = str(raw_response) if raw_response else "None"
+            logger.error(f"[FULL-GEN DEBUG] Sync LLM Raw Response (first 500 chars): {raw_response_str[:500]}")
             
             # 6. 응답 파싱 (기존 검증된 로직 사용)
             result_json = _parse_llm_response(raw_response)
@@ -156,7 +158,7 @@ async def generate_scenarios_with_llm(
         raise
 
 
-def _parse_llm_response(raw_response: str) -> Dict[str, Any]:
+def _parse_llm_response(raw_response: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
     """
     LLM 원시 응답을 파싱합니다.
     
@@ -164,7 +166,7 @@ def _parse_llm_response(raw_response: str) -> Dict[str, Any]:
     <json> 태그와 ```json 마크다운 블록을 모두 지원합니다.
     
     Args:
-        raw_response: LLM 원시 응답 텍스트
+        raw_response: LLM 원시 응답 텍스트 또는 이미 파싱된 dictionary
         
     Returns:
         파싱된 JSON 딕셔너리
@@ -172,6 +174,11 @@ def _parse_llm_response(raw_response: str) -> Dict[str, Any]:
     Raises:
         ValueError: JSON 블록을 찾을 수 없거나 파싱에 실패한 경우
     """
+    # 이미 딕셔너리인 경우 (비동기 LLM handler에서 반환된 경우)
+    if isinstance(raw_response, dict):
+        logger.debug(f"이미 파싱된 딕셔너리 반환 (키: {list(raw_response.keys())})")
+        return raw_response
+    
     logger.debug(f"LLM 응답 파싱 중... (길이: {len(raw_response)})")
     
     # <json> 태그 또는 ```json 코드 블록 모두 지원 (기존 검증된 로직)
