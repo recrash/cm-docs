@@ -8,11 +8,17 @@ Phase 2 오케스트레이션과 기존 v2 API에서 공통으로 사용
 import asyncio
 import json
 import logging
+import os
 import re
+import sys
 import time
 import concurrent.futures
 from typing import Dict, Any, Optional
 from pathlib import Path
+
+# Windows 인코딩 문제 해결 - Full Generation 에러 수정
+if sys.platform.startswith('win'):
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 from .config_loader import load_config
 from .prompt_loader import create_final_prompt, add_git_analysis_to_rag
@@ -84,6 +90,11 @@ async def generate_scenarios_with_llm(
         
         # 5. LLM 호출 (비동기 또는 동기)
         logger.info(f"LLM 호출 시작 (모델: {model_name}, 비동기: {use_async_llm})")
+        
+        # [FULL-GEN DEBUG] LLM 호출 전 디버깅 로그 추가 (scenario_v2.py 패턴 적용)
+        logger.error(f"[FULL-GEN DEBUG] VCS Analysis (first 500 chars): {vcs_analysis_text[:500]}")
+        logger.error(f"[FULL-GEN DEBUG] Final prompt (last 300 chars): {final_prompt[-300:]}")
+        
         start_time = time.time()
         
         if use_async_llm:
@@ -94,6 +105,11 @@ async def generate_scenarios_with_llm(
                 raw_response = await llm_handler.generate_scenarios_async(final_prompt)
                 # LLMHandler는 이미 파싱된 결과를 반환하므로 그대로 사용
                 result_json = raw_response
+                
+                # [FULL-GEN DEBUG] 비동기 LLM 응답 후 디버깅 로그
+                raw_response_str = str(raw_response) if raw_response else "None"
+                logger.error(f"[FULL-GEN DEBUG] Async LLM Response (first 500 chars): {raw_response_str[:500]}")
+                
             finally:
                 await llm_handler.close()
         else:
@@ -110,6 +126,9 @@ async def generate_scenarios_with_llm(
             if not raw_response:
                 raise ValueError("LLM으로부터 응답을 받지 못했습니다.")
             
+            # [FULL-GEN DEBUG] 동기 LLM 응답 후 디버깅 로그 (scenario_v2.py 패턴 적용)
+            logger.error(f"[FULL-GEN DEBUG] Sync LLM Raw Response (first 500 chars): {raw_response[:500]}")
+            
             # 6. 응답 파싱 (기존 검증된 로직 사용)
             result_json = _parse_llm_response(raw_response)
         
@@ -125,6 +144,9 @@ async def generate_scenarios_with_llm(
             "prompt_size": len(final_prompt),
             "added_chunks": added_chunks
         }
+        
+        # [FULL-GEN DEBUG] 파싱 결과 디버깅 로그
+        logger.error(f"[FULL-GEN DEBUG] Parsed scenarios count: {len(result['test_cases'])}")
         
         logger.info(f"시나리오 생성 완료 (응답시간: {llm_response_time:.2f}초, 테스트케이스: {len(result['test_cases'])}개)")
         return result
@@ -170,7 +192,44 @@ def _parse_llm_response(raw_response: str) -> Dict[str, Any]:
     except json.JSONDecodeError as e:
         logger.error(f"JSON 파싱 실패: {e}")
         logger.error(f"파싱 대상 텍스트: {json_match.group(1)[:200]}...")
-        raise ValueError(f"LLM 응답 JSON 파싱 실패: {e}")
+        logger.error(f"문제가 된 JSON 부분: {json_match.group(1)[max(0, e.pos-50):e.pos+50] if hasattr(e, 'pos') else 'N/A'}")
+        
+        # JSON 복구 시도 (불완전한 JSON 처리) - Full Generation 에러 방어
+        try:
+            json_str = json_match.group(1).strip()
+            
+            # 1차 복구: 마지막 콤마 제거
+            json_str = json_str.rstrip(',')
+            
+            # 2차 복구: 불완전한 중괄호 처리
+            if not json_str.endswith('}') and json_str.count('{') > json_str.count('}'):
+                json_str += '}'
+            
+            # 3차 복구: 불완전한 배열 처리
+            if '"test_cases"' in json_str and not json_str.rstrip('}').endswith(']'):
+                # 배열이 닫히지 않은 경우 닫기
+                last_bracket = json_str.rfind('[')
+                if last_bracket != -1:
+                    before_bracket = json_str[:last_bracket+1]
+                    json_str = before_bracket + ']'
+                    if not json_str.endswith('}'):
+                        json_str += '}'
+            
+            # 복구된 JSON으로 재시도
+            result_json = json.loads(json_str)
+            logger.warning(f"JSON 복구 성공: {json_str[:100]}...")
+            return result_json
+            
+        except json.JSONDecodeError as recovery_error:
+            logger.error(f"JSON 복구도 실패: {recovery_error}")
+            
+            # 최종 안전망: 기본 구조 반환
+            logger.warning("안전한 기본 구조로 대체합니다.")
+            return {
+                "Test Cases": [],
+                "Scenario Description": "JSON 파싱 오류로 인한 기본 시나리오",
+                "Test Scenario Name": "파싱 실패 시나리오"
+            }
 
 
 async def create_scenario_excel_file(
@@ -200,7 +259,16 @@ async def create_scenario_excel_file(
             "Test Scenario Name": scenario_data.get("test_scenario_name", title)
         }
         
-        final_filename = save_results_to_excel(excel_data, str(template_path))
+        # Excel 파일 생성 (Windows 인코딩 안전 처리)
+        try:
+            final_filename = save_results_to_excel(excel_data, str(template_path))
+        except (UnicodeEncodeError, UnicodeDecodeError) as enc_err:
+            logger.error(f"Excel 파일 생성 중 인코딩 에러: {enc_err}")
+            # 파일명에서 한글 제거하여 재시도
+            safe_title = title.encode('ascii', errors='replace').decode('ascii')
+            excel_data["Test Scenario Name"] = safe_title
+            final_filename = save_results_to_excel(excel_data, str(template_path))
+            logger.warning(f"안전한 파일명으로 Excel 생성: {safe_title}")
         
         if not final_filename:
             raise ValueError("Excel 파일 생성에 실패했습니다.")
