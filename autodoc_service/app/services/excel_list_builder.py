@@ -4,9 +4,15 @@ Excel 변경관리 문서 목록 생성 서비스
 openpyxl을 사용하여 템플릿 기반 Excel 목록 생성
 테이블 append 방식으로 데이터 추가
 """
+import sys
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Union, Dict, Any
+
+# Windows 인코딩 문제 해결
+if sys.platform.startswith('win'):
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 from openpyxl import load_workbook
 from openpyxl.styles import Font
@@ -138,8 +144,18 @@ def build_change_list_xlsx(
     # 중복 방지 경로 생성
     output_path = unique_path(out_dir, filename)
     
-    # 파일 저장
-    wb.save(str(output_path))
-    wb.close()
+    # 파일 저장 (Windows 인코딩 안전 모드)
+    try:
+        # UTF-8 인코딩으로 저장
+        wb.save(str(output_path))
+    except (UnicodeEncodeError, UnicodeDecodeError) as e:
+        # 인코딩 에러 발생 시 안전한 경로로 재시도
+        safe_filename = output_path.name.encode('ascii', errors='replace').decode('ascii')
+        safe_path = output_path.parent / safe_filename
+        wb.save(str(safe_path))
+        output_path = safe_path
+        print(f"Warning: 파일명 인코딩 문제로 안전한 이름으로 저장: {safe_filename}")
+    finally:
+        wb.close()
     
     return output_path

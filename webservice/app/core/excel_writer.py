@@ -250,7 +250,17 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
         _fill_test_cases(sheet, test_cases)
 
         # UTF-8 인코딩으로 파일 저장 (Windows 호환성)
-        workbook.save(final_filename)
+        try:
+            workbook.save(final_filename)
+        except (UnicodeEncodeError, UnicodeDecodeError) as enc_err:
+            # 인코딩 에러 발생 시 안전한 처리
+            print(f"Warning: 엑셀 저장 중 인코딩 에러 발생: {enc_err}")
+            # 임시 파일로 저장 후 복사
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
+                tmp_path = tmp.name
+            workbook.save(tmp_path)
+            shutil.move(tmp_path, final_filename)
 
         # 환경 변수 복원
         if old_pythonioencoding is None:
