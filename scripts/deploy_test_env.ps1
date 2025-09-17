@@ -11,11 +11,11 @@ param(
     [Parameter(Mandatory=$true)][string]$NginxConfDir,
     [Parameter(Mandatory=$true)][string]$WebSrc,      # repo/webservice
     [Parameter(Mandatory=$true)][string]$AutoSrc,     # repo/autodoc_service
-    [Parameter(Mandatory=$true)][string]$WebBackDst,  # C:\deploys\test\{BID}\apps\webservice
+    [Parameter(Mandatory=$true)][string]$WebBackDst,  # C:\deploys\tests\{BID}\apps\webservice
     [Parameter(Mandatory=$true)][string]$WebFrontDst, # C:\nginx\html\tests\{BID}
-    [Parameter(Mandatory=$true)][string]$AutoDst,     # C:\deploys\test\{BID}\apps\autodoc_service
+    [Parameter(Mandatory=$true)][string]$AutoDst,     # C:\deploys\tests\{BID}\apps\autodoc_service
     [Parameter(Mandatory=$true)][string]$UrlPrefix,   # "/tests/{BID}/"
-    [Parameter(Mandatory=$true)][string]$PackagesRoot # "C:\deploys\test\{BID}\packages"
+    [Parameter(Mandatory=$true)][string]$PackagesRoot # "C:\deploys\tests\{BID}\packages"
 )
 
 $ErrorActionPreference = "Stop"
@@ -375,8 +375,7 @@ try {
         & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
-        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
-        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "+PYTHONIOENCODING=utf-8"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8"
         & $Nssm start "cm-web-$Bid"
         Write-Host "웹서비스 서비스 시작 완료 (Port: $BackPort)"
     }
@@ -392,8 +391,7 @@ try {
         & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
         & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
         & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
-        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
-        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "+PYTHONIOENCODING=utf-8"
+        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath" "PYTHONIOENCODING=utf-8"
         & $Nssm start "cm-autodoc-$Bid"
         Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
     }

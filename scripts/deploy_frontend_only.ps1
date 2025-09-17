@@ -6,7 +6,7 @@ param(
     [Parameter(Mandatory=$true)][string]$WebSrc,      # repo/webservice
     [Parameter(Mandatory=$true)][string]$WebFrontDst, # C:\nginx\html\tests\{BID}
     [Parameter(Mandatory=$true)][string]$UrlPrefix,   # "/tests/{BID}/"
-    [Parameter(Mandatory=$true)][string]$PackagesRoot # "C:\deploys\test\{BID}\packages"
+    [Parameter(Mandatory=$true)][string]$PackagesRoot # "C:\deploys\tests\{BID}\packages"
 )
 
 $ErrorActionPreference = "Stop"

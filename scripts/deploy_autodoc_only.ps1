@@ -8,8 +8,8 @@ param(
     [Parameter(Mandatory=$true)][string]$Nssm,
     [Parameter(Mandatory=$true)][string]$Nginx,
     [Parameter(Mandatory=$true)][string]$AutoSrc,     # repo/autodoc_service
-    [Parameter(Mandatory=$true)][string]$AutoDst,     # C:\deploys\test\{BID}\apps\autodoc_service
-    [Parameter(Mandatory=$true)][string]$PackagesRoot, # "C:\deploys\test\{BID}\packages"
+    [Parameter(Mandatory=$true)][string]$AutoDst,     # C:\deploys\tests\{BID}\apps\autodoc_service
+    [Parameter(Mandatory=$true)][string]$PackagesRoot, # "C:\deploys\tests\{BID}\packages"
     [Parameter(Mandatory=$false)][switch]$ForceUpdateDeps = $false  # 의존성 강제 업데이트
 )
 
@@ -176,8 +176,7 @@ try {
         & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
         & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
         & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
-        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
-        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "+PYTHONIOENCODING=utf-8"
+        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath" "PYTHONIOENCODING=utf-8"
         Write-Host "AutoDoc 서비스 등록 및 시작 완료 (Port: $AutoPort)"
     }
     
