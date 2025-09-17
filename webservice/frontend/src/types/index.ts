@@ -135,15 +135,15 @@ export interface V2ResultData {
 export type WorkflowState = 'idle' | 'parsing' | 'waiting_cli' | 'processing' | 'completed' | 'error'
 
 export enum FullGenerationStatus {
-  STARTED = 'STARTED',
-  PARSING_HTML = 'PARSING_HTML',
-  ANALYZING_GIT = 'ANALYZING_GIT',
-  GENERATING_WORD = 'GENERATING_WORD',
-  GENERATING_EXCEL_LIST = 'GENERATING_EXCEL_LIST',
-  GENERATING_BASE_SCENARIO = 'GENERATING_BASE_SCENARIO',
-  MERGING_EXCEL = 'MERGING_EXCEL',
-  COMPLETED = 'COMPLETED',
-  ERROR = 'ERROR'
+  RECEIVED = 'received',
+  ANALYZING_VCS = 'analyzing_vcs',
+  GENERATING_SCENARIOS = 'generating_scenarios',
+  GENERATING_WORD_DOC = 'generating_word_doc',
+  GENERATING_EXCEL_LIST = 'generating_excel_list',
+  GENERATING_BASE_SCENARIOS = 'generating_base_scenarios',
+  MERGING_EXCEL = 'merging_excel',
+  COMPLETED = 'completed',
+  ERROR = 'error'
 }
 
 export interface FullGenerationProgressMessage {
@@ -169,8 +169,15 @@ export interface FullGenerationResultData {
     excel_list?: string
     base_scenario?: string
     merged_excel?: string
+    integrated_scenario?: string  // 새로운 통합 시나리오
+    scenario?: string
     all?: string  // 일괄 다운로드 URL
   }
+  generation_time?: number  // 생성 시간 (초)
+  steps_completed?: number  // 완료된 단계 수
+  total_steps?: number      // 전체 단계 수
+  errors?: string[]         // 발생한 오류 목록
+  warnings?: string[]       // 경고 메시지 목록
 }
 
 export interface ParseHtmlResponse {

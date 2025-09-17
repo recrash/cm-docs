@@ -21,6 +21,7 @@ from .models import (
     SessionStatus
 )
 from .session import get_session_store, update_session_status as session_update_status
+from .full_generation_websocket import full_generation_connection_manager, get_status_message, generate_download_urls
 from app.services.autodoc_client import AutoDocClient, AutoDocServiceError
 from app.services.excel_merger import ExcelMerger, ExcelMergerError
 from app.core.llm_handler import LLMHandler
@@ -89,6 +90,22 @@ async def start_full_generation(
             request.vcs_analysis_text,
             request.metadata_json
         )
+
+        # 초기 WebSocket 메시지 전송 (연결된 클라이언트가 있다면)
+        if full_generation_connection_manager.is_connected(request.session_id):
+            from .models import FullGenerationProgressMessage
+            initial_msg = FullGenerationProgressMessage(
+                session_id=request.session_id,
+                status="received",
+                message="전체 문서 생성 작업이 시작되었습니다.",
+                progress=5,
+                current_step="요청 수신",
+                steps_completed=0,
+                total_steps=4,
+                details={},
+                result=None
+            )
+            await full_generation_connection_manager.send_progress(request.session_id, initial_msg)
         
         return FullGenerationResponse(
             session_id=request.session_id,
@@ -183,27 +200,68 @@ async def get_full_generation_status(session_id: str):
 async def execute_full_generation(session_id: str, vcs_analysis_text: str, metadata_json: Dict[str, Any]):
     """
     전체 문서 생성 실행 (백그라운드 작업)
-    
+    웹소켓을 통한 실시간 진행상황 전송 포함
+
     Args:
         session_id: 세션 ID
         vcs_analysis_text: VCS 분석 텍스트
         metadata_json: 메타데이터
     """
     session = generation_sessions[session_id]
-    
+
+    # 진행 상황 전송 헬퍼 함수 (V2 패턴 복사)
+    async def send_progress(status: FullGenerationStatus, message: str, progress: float,
+                          current_step: str, steps_completed: int, details: Optional[dict] = None,
+                          result: Optional[dict] = None):
+        """웹소켓으로 진행 상황 전송"""
+        from .models import FullGenerationProgressMessage, FullGenerationResultData
+
+        progress_msg = FullGenerationProgressMessage(
+            session_id=session_id,
+            status=status,
+            message=message,
+            progress=progress,
+            current_step=current_step,
+            steps_completed=steps_completed,
+            total_steps=session["total_steps"],
+            details=details or {},
+            result=None  # 완료 시에만 설정
+        )
+
+        # 완료 시 결과 데이터 포함
+        if status == FullGenerationStatus.COMPLETED and result:
+            progress_msg.result = FullGenerationResultData(
+                session_id=session_id,
+                word_filename=result.get("word_filename"),
+                excel_list_filename=result.get("excel_list_filename"),
+                base_scenario_filename=result.get("base_scenario_filename"),
+                merged_excel_filename=result.get("merged_excel_filename"),
+                download_urls=generate_download_urls(result),
+                generation_time=result.get("generation_time", 0.0),
+                steps_completed=steps_completed,
+                total_steps=session["total_steps"],
+                errors=session.get("errors", []),
+                warnings=session.get("warnings", [])
+            )
+
+        await full_generation_connection_manager.send_progress(session_id, progress_msg)
+
     try:
         logger.info(f"전체 문서 생성 실행 시작: {session_id}")
-        
+
         # Step 1: VCS 분석 처리
+        await send_progress(FullGenerationStatus.ANALYZING_VCS, "VCS 변경사항을 분석하고 있습니다...", 25, "VCS 분석 중", 1)
         await update_session_status(session_id, FullGenerationStatus.ANALYZING_VCS, "VCS 분석 중", 1)
         await asyncio.sleep(1)  # 시뮬레이션
-        
+
         # Step 2: 시나리오 생성
+        await send_progress(FullGenerationStatus.GENERATING_SCENARIOS, "테스트 시나리오를 생성하고 있습니다...", 50, "시나리오 생성 중", 2)
         await update_session_status(session_id, FullGenerationStatus.GENERATING_SCENARIOS, "시나리오 생성 중", 2)
         scenario_result = await generate_scenario_excel(vcs_analysis_text, metadata_json)
         session["results"]["scenario_filename"] = scenario_result.get("filename")
         
         # Step 3: autodoc_service 문서 2종 + 통합 시나리오 동시 생성 (성능 최적화)
+        await send_progress(FullGenerationStatus.GENERATING_WORD_DOC, "Word, Excel 목록, 통합 시나리오를 동시 생성하고 있습니다...", 75, "문서 생성 중", 3)
         await update_session_status(session_id, FullGenerationStatus.GENERATING_WORD_DOC, "Word, Excel 목록, 통합 시나리오 동시 생성 중", 3)
         
         # asyncio.gather를 사용해 3개의 작업을 동시에 실행 (새로운 통합 API 사용)
@@ -260,16 +318,47 @@ async def execute_full_generation(session_id: str, vcs_analysis_text: str, metad
             session["results"]["merged_excel_filename"] = integrated_scenario_result.get("filename")
         
         # Step 4: 완료
-        await update_session_status(session_id, FullGenerationStatus.COMPLETED, "생성 완료", 4)
         session["completed_at"] = datetime.now()
-        
+        generation_time = (session["completed_at"] - session.get("started_at")).total_seconds() if session.get("started_at") else 0.0
+
+        # 완료 결과 데이터 준비
+        completion_result = {
+            "word_filename": session["results"].get("word_filename"),
+            "excel_list_filename": session["results"].get("excel_list_filename"),
+            "base_scenario_filename": session["results"].get("base_scenario_filename"),
+            "merged_excel_filename": session["results"].get("merged_excel_filename"),
+            "integrated_scenario_filename": session["results"].get("integrated_scenario_filename"),
+            "scenario_filename": session["results"].get("scenario_filename"),
+            "generation_time": generation_time
+        }
+
+        # 완료 메시지 전송
+        await send_progress(
+            FullGenerationStatus.COMPLETED,
+            "모든 문서 생성이 완료되었습니다!",
+            100,
+            "생성 완료",
+            4,
+            result=completion_result
+        )
+
+        await update_session_status(session_id, FullGenerationStatus.COMPLETED, "생성 완료", 4)
         logger.info(f"전체 문서 생성 완료: {session_id}")
-        
+
     except Exception as e:
         logger.error(f"전체 문서 생성 실패: {session_id}, {e}")
         session["status"] = FullGenerationStatus.ERROR
         session["current_step"] = "생성 실패"
         session["errors"].append(str(e))
+
+        # 오류 메시지 전송
+        await send_progress(
+            FullGenerationStatus.ERROR,
+            f"문서 생성 중 오류가 발생했습니다: {str(e)}",
+            50,  # 오류 발생 시 중간 진행률로 설정
+            "생성 실패",
+            session.get("steps_completed", 0)
+        )
 
 
 async def update_session_status(session_id: str, status: FullGenerationStatus, step: str, completed_steps: int):
