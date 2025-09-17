@@ -213,7 +213,8 @@ try {
         & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
-        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath;PYTHONIOENCODING=utf-8"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "+PYTHONIOENCODING=utf-8"
         Write-Host "웹서비스 서비스 등록 및 시작 완료 (Port: $BackPort)"
     }
     

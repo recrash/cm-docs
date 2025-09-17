@@ -176,7 +176,8 @@ try {
         & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
         & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
         & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
-        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath;PYTHONIOENCODING=utf-8"
+        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
+        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "+PYTHONIOENCODING=utf-8"
         Write-Host "AutoDoc 서비스 등록 및 시작 완료 (Port: $AutoPort)"
     }
     
