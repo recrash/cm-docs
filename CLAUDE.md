@@ -795,6 +795,8 @@ curl http://localhost:8001/api/autodoc/list-templates
 - 로깅에서 Unicode/Emoji 금지 (Windows 호환성)
 - ChromaDB constraints 파일 필수 사용
 - API 응답 표준 형식 준수
+- Python 코드 작성시 print문을 쓰는 것을 지양하되, 꼭 써야 할 경우 영어로 작성할 것
+- 코드 계획을 세울 때 반드시 Context7 MCP를 이용하여 사례를 먼저 찾아보는 과정을 거칠 것. 
 
 **5. 테스트 및 검증**
 - E2E 테스트 필수 (webservice)
