@@ -108,14 +108,14 @@ def _copy_template(template_path: str, destination: str) -> bool:
         # 템플릿 파일 존재 여부 확인
         template_file = Path(template_path)
         if not template_file.exists():
-            print(f"오류: 원본 템플릿 파일('{template_path}')을 찾을 수 없습니다.")
-            print(f"현재 확인한 경로: {template_file.absolute()}")
+            print(f"Error: Template file not found: '{template_path}'")
+            print(f"Current path checked: {template_file.absolute()}")
             return False
             
         shutil.copy(template_path, destination)
         return True
     except Exception as e:
-        print(f"오류: 템플릿 파일 복사 중 오류가 발생했습니다: {e}")
+        print(f"Error: Template file copy failed: {e}")
         return False
 
 
@@ -250,7 +250,7 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
             workbook.save(final_filename)
         except (UnicodeEncodeError, UnicodeDecodeError) as enc_err:
             # 인코딩 에러 발생 시 안전한 처리
-            print(f"Warning: 엑셀 저장 중 인코딩 에러 발생: {enc_err}")
+            print(f"Warning: Encoding error during Excel save: {enc_err}")
             # 임시 파일로 저장 후 복사
             import tempfile
             with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
@@ -265,14 +265,14 @@ def save_results_to_excel(result_json: Dict[str, Any], template_path: str = None
             os.environ['PYTHONIOENCODING'] = old_pythonioencoding
         
     except Exception as e:
-        print(f"오류: Excel 파일 생성 중 오류가 발생했습니다: {e}")
+        print(f"Error: Excel file creation failed: {e}")
         # 실패한 파일 정리
         try:
             Path(final_filename).unlink(missing_ok=True)
         except:
             pass
         return None
-    print(f"\n✅ 성공! '{final_filename}' 파일에 {len(test_cases)}개의 테스트 시나리오를 저장했습니다.")
+    print(f"Success: Saved {len(test_cases)} test scenarios to '{final_filename}'")
     
     return final_filename
 
