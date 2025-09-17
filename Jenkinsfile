@@ -415,6 +415,7 @@ pipeline {
                                         try {
                                             def response = powershell(
                                                 script: """
+                                                    \$env:PYTHONIOENCODING='utf-8'
                                                     try {
                                                         \$result = Invoke-WebRequest -Uri '${url}' -UseBasicParsing -TimeoutSec 10
                                                         Write-Output \$result.StatusCode
@@ -651,7 +652,7 @@ pipeline {
                     try {
                         bat """
                         chcp 65001 >NUL
-                        powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Cleanup-OldBranchFolders -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Cleanup-OldBranchFolders -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
                         """
                         echo "✓ 공통 초기화 완료"
                     } catch (Exception initError) {
@@ -709,15 +710,7 @@ pipeline {
                             try {
                                 bat """
                                 chcp 65001 >NUL
-                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_webservice_only.ps1" ^
-                                    -Bid "%BID%" ^
-                                    -BackPort %BACK_PORT% ^
-                                    -Py "%PY_PATH%" ^
-                                    -Nssm "%NSSM_PATH%" ^
-                                    -Nginx "%NGINX_PATH%" ^
-                                    -WebSrc "%WORKSPACE%\\webservice" ^
-                                    -WebBackDst "%WEB_BACK_DST%" ^
-                                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_webservice_only.ps1' -Bid '%BID%' -BackPort %BACK_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -WebSrc '%WORKSPACE%\\webservice' -WebBackDst '%WEB_BACK_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'"
                                 """
                                 deployResults['Backend'] = 'SUCCESS'
                                 echo "✅ Backend 배포 성공"
@@ -759,15 +752,7 @@ pipeline {
                             try {
                                 bat """
                                 chcp 65001 >NUL
-                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_autodoc_only.ps1" ^
-                                    -Bid "%BID%" ^
-                                    -AutoPort %AUTO_PORT% ^
-                                    -Py "%PY_PATH%" ^
-                                    -Nssm "%NSSM_PATH%" ^
-                                    -Nginx "%NGINX_PATH%" ^
-                                    -AutoSrc "%WORKSPACE%\\autodoc_service" ^
-                                    -AutoDst "%AUTO_DST%" ^
-                                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_autodoc_only.ps1' -Bid '%BID%' -AutoPort %AUTO_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -AutoSrc '%WORKSPACE%\\autodoc_service' -AutoDst '%AUTO_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'"
                                 """
                                 deployResults['AutoDoc'] = 'SUCCESS'
                                 echo "✅ AutoDoc 배포 성공"
@@ -835,7 +820,7 @@ pipeline {
                             
                             bat """
                             chcp 65001 >NUL
-                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {${healthCheckCmd}}"
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & {${healthCheckCmd}}"
                             """
                             
                             // 성공한 서비스들 로그

@@ -137,7 +137,7 @@ try {
     $needsDependencies = $false
     if (-not (Test-Path "$WebBackDst\.venv")) {
         Write-Host "가상환경 생성 중..."
-        & $PythonPath -m venv "$WebBackDst\.venv"
+        $env:PYTHONIOENCODING='utf-8'; & $PythonPath -m venv "$WebBackDst\.venv"
         $needsDependencies = $true
         Write-Host "새 가상환경 생성 완료"
     } else {
@@ -213,7 +213,7 @@ try {
         & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
-        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath;PYTHONIOENCODING=utf-8"
         Write-Host "웹서비스 서비스 등록 및 시작 완료 (Port: $BackPort)"
     }
     

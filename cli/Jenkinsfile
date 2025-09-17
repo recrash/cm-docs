@@ -68,27 +68,19 @@ pipeline {
                             
                             if (wheelHouseExists) {
                                 echo '휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)'
-                                bat '''
-                                    .venv\\Scripts\\python.exe -m pip install --upgrade pip
-                                '''
-                                bat """
-                                    .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r requirements-dev.txt
-                                    .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -e .
-                                """
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements-dev.txt\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -e .\""
                             } else {
                                 echo '휠하우스 없음 - 온라인 설치'
-                                bat '''
-                                    .venv\\Scripts\\python.exe -m pip install --upgrade pip
-                                    .venv\\Scripts\\pip.exe install -r requirements-dev.txt
-                                    .venv\\Scripts\\pip.exe install -e .
-                                '''
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install -r requirements-dev.txt\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install -e .\""
                             }
                         }
                         
                         // 주요 패키지 검증 (시간 단축)
-                        bat '''
-                            .venv\\Scripts\\python.exe -c "import click; import rich; print('Test environment ready - CLI dependencies loaded')"
-                        '''
+                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -c \\\"import click; import rich; print('Test environment ready - CLI dependencies loaded')\\\"\""
                         
                         echo '테스트 환경 구축 완료 (최적화됨)'
                     }
@@ -155,10 +147,7 @@ pipeline {
                         // Run build script
                         script {
                             def baseUrl = params.BASE_URL ?: 'https://cm-docs.cloud'
-                            bat """
-                                set PYTHONPATH=src
-                                .venv\\Scripts\\python.exe scripts\\build.py --base-url "${baseUrl}"
-                            """
+                            bat "powershell -Command \"\$env:PYTHONPATH='src'; \$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' scripts\\build.py --base-url '${baseUrl}'\""
                         }
                         
                         // Verify executable was created

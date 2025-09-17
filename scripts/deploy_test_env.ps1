@@ -131,7 +131,7 @@ try {
     
     # 웹서비스 설치
     Write-Host "웹서비스 설치 중..."
-    & $PythonPath -m venv "$WebBackDst\.venv"
+    $env:PYTHONIOENCODING='utf-8'; & $PythonPath -m venv "$WebBackDst\.venv"
     
     # Wheel 경로 결정 (브랜치 → 글로벌 폴백)
     $WebWheelSource = ""
@@ -162,7 +162,7 @@ try {
     
     # AutoDoc 설치
     Write-Host "AutoDoc 설치 중..."
-    & $PythonPath -m venv "$AutoDst\.venv312"
+    $env:PYTHONIOENCODING='utf-8'; & $PythonPath -m venv "$AutoDst\.venv312"
     
     # AutoDoc Wheel 경로 결정
     $AutoWheelSource = ""
@@ -375,7 +375,7 @@ try {
         & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
-        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath;PYTHONIOENCODING=utf-8"
         & $Nssm start "cm-web-$Bid"
         Write-Host "웹서비스 서비스 시작 완료 (Port: $BackPort)"
     }
@@ -391,7 +391,7 @@ try {
         & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
         & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
         & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
-        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath"
+        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath;PYTHONIOENCODING=utf-8"
         & $Nssm start "cm-autodoc-$Bid"
         Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
     }

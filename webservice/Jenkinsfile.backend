@@ -72,17 +72,17 @@ pipeline {
                             
                             if (wheelHouseExists) {
                                 echo "휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)"
-                                bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements.txt -c pip.constraints.txt\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements.txt -c pip.constraints.txt\""
                             } else {
                                 echo "휠하우스 없음 - 온라인 설치 (PyTorch CUDA 포함)"
-                                bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements.txt -c pip.constraints.txt --prefer-binary\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements.txt -c pip.constraints.txt --prefer-binary\""
                             }
                         }
                         
                         // CUDA 및 주요 패키지 검증 (시간 단축)
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import fastapi; import torch; print(f'Test environment ready - PyTorch {torch.__version__} CUDA: {torch.cuda.is_available()}')\\\"\""
+                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import fastapi; import torch; print(f'Test environment ready - PyTorch {torch.__version__} CUDA: {torch.cuda.is_available()}')\\\"\""
                         
                         echo "테스트 환경 구축 완료 (최적화됨)"
                     }
@@ -169,7 +169,7 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/webservice") {
                     // Jenkins Workspace에서 wheel 빌드
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m build\""
+                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m build\""
                     
                     // 빌드 결과 검증
                     script {
