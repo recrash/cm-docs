@@ -1,500 +1,911 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Claude Code 작업 환경 및 프로젝트 가이드 문서
 
-## Monorepo Architecture
+## 🏗️ 프로젝트 개요
 
-Git subtree-based monorepo combining three independent projects:
-- **webservice/**: TestscenarioMaker web service (React + FastAPI + Pseudo-MSA)
-- **cli/**: TestscenarioMaker-CLI tool (Python CLI with cross-platform builds)
-- **autodoc_service/**: Document automation service for HTML parsing and template generation
+TestscenarioMaker 통합 플랫폼 - Git Subtree 기반 모노레포 아키텍처
 
-### Python Environment Management
-**MSA-based Independent Environment Structure**:
-```
-cm-docs/
-├── webservice/.venv/          # Python 3.12 + AI/ML dependencies
-├── cli/.venv/                 # Python 3.13 + CLI tool dependencies
-└── autodoc_service/.venv312/  # Python 3.12 + document processing (stability)
-```
+### 서비스 구성
+- **webservice/**: React + FastAPI 웹서비스 (AI/ML 기반 시나리오 생성)
+- **cli/**: Python CLI 도구 (크로스 플랫폼 실행파일)
+- **autodoc_service/**: 문서 자동화 서비스 (HTML → Word/Excel)
 
-**Service Environment Activation**:
+### 핵심 기술 스택
+- **Frontend**: React 18 + TypeScript + Material-UI + Vite
+- **Backend**: FastAPI + Python 3.12 + ChromaDB (RAG)
+- **AI/LLM**: Ollama (qwen3:8b 모델)
+- **CLI**: Python 3.13 + Click + Rich + PyInstaller
+- **Deployment**: NSSM + nginx + Jenkins
+
+## 🛠️ 개발 환경 설정
+
+### 1. Python 가상환경 설정 (서비스별 독립 환경)
+
 ```bash
-# Webservice
-cd webservice && source .venv/bin/activate
-export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for app/ modules
+# Webservice 환경 (Python 3.12 + AI/ML)
+cd webservice
+python3.12 -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate   # Windows
+pip install -r requirements.txt -c pip.constraints.txt
 
-# CLI
-cd cli && source .venv/bin/activate
+# CLI 환경 (Python 3.13)
+cd cli
+python3.13 -m venv .venv
+source .venv/bin/activate
+pip install -e .
 
-# AutoDoc Service
-cd autodoc_service && source .venv312/bin/activate
+# AutoDoc 환경 (Python 3.12, 안정성 우선)
+cd autodoc_service
+python3.12 -m venv .venv312
+source .venv312/bin/activate
+pip install -r requirements.txt
 ```
 
-### Cross-Platform Path Management
-**ALWAYS use `pathlib.Path` for cross-platform compatibility**:
-```python
-from pathlib import Path
-project_root = Path(__file__).parent.parent
-# CRITICAL: Convert Path to string for subprocess cwd
-subprocess.run(['git', 'status'], cwd=str(repo_path), capture_output=True)
-```
+### 2. 환경변수 설정
 
-### Environment Variable-Based Path System
-**Production Deployment Architecture**:
 ```bash
-# Production environment variables
+# Webservice용 (app/ 모듈 임포트 필수)
+export PYTHONPATH=$(pwd):$PYTHONPATH
+
+# 프로덕션 데이터 경로 (선택사항)
 export WEBSERVICE_DATA_PATH="C:/deploys/data/webservice"     # Windows
 export AUTODOC_DATA_PATH="C:/deploys/data/autodoc_service"   # Windows
 
-# Production deployment structure
-C:\deploys\
-├── apps\                    # Application execution space (virtual environments & code)
-│   ├── webservice\         
-│   └── autodoc_service\    
-├── data\                   # Persistent data storage (survives updates)
-│   ├── webservice\
-│   └── autodoc_service\
-└── packages\               # Build artifacts (.whl files)
-
-# Development fallback (automatically used if environment variables are not set)
-# webservice/data/    - webservice development default
-# autodoc_service/data/  - autodoc_service development default
+# 개발 환경에서는 자동으로 data/ 서브디렉토리 사용
 ```
 
-**Data Directory Structure**:
-```
-data/
-├── logs/         # Log files (environment variable based)
-├── models/       # AI embedding models (webservice only)
-├── documents/    # Generated document output
-├── templates/    # Template files (environment variable based)
-├── outputs/      # Excel output (webservice only)
-└── db/           # Vector DB (webservice only)
-```
+### 3. Node.js 환경 설정
 
-## Webservice Development
-
-### Technology Stack
-- **Frontend**: React 18 + TypeScript + Material-UI + Vite
-- **Backend**: FastAPI + Python with Pseudo-MSA architecture
-- **AI/LLM**: Ollama integration (qwen3:8b model)
-- **Vector DB**: ChromaDB for RAG system
-- **Testing**: Vitest + Playwright (E2E) + pytest
-
-### ChromaDB Dependency Management
-**Constraint file is mandatory**:
 ```bash
-pip install -r requirements.txt -c pip.constraints.txt  # ✅ Correct method
+cd webservice/frontend
+npm install
+npm run dev  # 개발 서버 시작 (포트 3000)
 ```
 
-### Development Commands
+## 🚀 로컬 실행 방법
+
+### Webservice 실행
+
 ```bash
-# Environment setup
-cd webservice && source .venv/bin/activate
-export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for app.core modules
+# 1. Backend 서버 시작
+cd webservice
+source .venv/bin/activate
+export PYTHONPATH=$(pwd):$PYTHONPATH
+python -m uvicorn app.main:app --reload --port 8000
 
-# Server management  
-cd webservice && python -m uvicorn app.main:app --reload --port 8000
-cd webservice/frontend && npm run dev
+# 2. Frontend 개발 서버 시작 (별도 터미널)
+cd webservice/frontend
+npm run dev
 
-# Testing (hierarchical structure)
-cd webservice && pytest tests/unit/                    # Unit tests
-cd webservice && pytest tests/api/                     # API tests  
-cd webservice && pytest tests/integration/             # Integration tests
-cd webservice/frontend && npm run test                 # Frontend unit tests
-cd webservice/frontend && npm run test:e2e             # E2E tests (MANDATORY)
-cd webservice/frontend && npm run test:all             # All tests
-
-# Single test file
-cd webservice && pytest tests/unit/test_config_loader.py
-cd webservice && pytest tests/api/v2/test_scenario_v2.py -v
-
-# Development workflow
-cd webservice/frontend && npm run lint                 # ESLint check
-cd webservice/frontend && npm run build               # Production build
+# 접속: http://localhost:3000 (Frontend) → http://localhost:8000 (Backend API)
 ```
 
-### Architecture Details
-**Unified app structure** (`app/`):
-- **Main Application** (`app/main.py`): FastAPI application entry point with lifespan manager
-- **Core modules** (`app/core/`): Refactored analysis logic (config_loader, git_analyzer, excel_writer, llm_handler)
-- **API Layer** (`app/api/`): 
-  - **Routers** (`app/api/routers/`): Domain-based API endpoints
-  - **Models** (`app/api/models/`): Pydantic data models
-- **Service Layer** (`app/services/`): Business logic layer
+### AutoDoc Service 실행
 
-**API Endpoints** (prefix: `/api/webservice`):
-- `/scenario` - v1 scenario generation (legacy)
-- `/v2/scenario` - v2 scenario generation (CLI integration)  
-- `/v2/ws/progress/{client_id}` - WebSocket progress updates
-- `/rag` - RAG system management
-- `/feedback` - User feedback collection
-- `/files` - File management operations
-- `/health` - Health check with RAG status
-
-**Frontend Architecture**:
-- **React SPA** (`frontend/`): Material-UI components with real-time WebSocket updates
-- **RAG System**: ChromaDB + ko-sroberta-multitask embedding model
-- **V2 API Architecture**: CLI-focused endpoints with WebSocket-based progress tracking
-
-### Critical WebSocket Integration
-- **V1 WebSocket**: `/api/webservice/scenario/generate-ws` (legacy web interface)
-- **V2 WebSocket**: `/api/webservice/v2/ws/progress/{client_id}` (CLI integration)
-- Progress: 10% → 20% → 30% → 80% → 90% → 100%
-- Test requires ~60 second wait time
-- V2 uses structured message format with status enums (analyzing_git, generating_scenarios, etc.)
-
-### JSON Parsing & Error Handling
-**LLM Response Format Support**:
-- Primary: `<json>...</json>` XML-style tags (as specified in prompt)
-- Fallback: ````json ... ``` markdown code blocks (actual LLM behavior)
-- Both formats supported via dual regex patterns in `scenario_v2.py`
-
-**Frontend Safety Patterns**:
-- All text processing functions handle null/undefined values
-- `formatText()` function includes defensive null checks
-- Test case field rendering protected against missing data
-
-### Phase 2 Document Generation Pipeline
-**AutoDoc Service Integration**:
-- `AutoDocClient` in `app/services/autodoc_client.py` handles document generation
-- `transform_metadata_to_enhanced_request()` function converts webservice metadata to autodoc_service format
-- Supports API response structure detection: `{'success': true, 'data': {...}}` format
-- Enhanced request format includes both `raw_data` and `change_request` fields
-
-**Pipeline Flow**:
-```
-HTML parsing → webservice metadata → AutoDocClient transformation → autodoc_service → document generation
-```
-
-### Webservice-Specific Guidelines
-- **Do not delete existing functionality unless explicitly instructed**
-- When modifying frontend code, check ESLint definitions and verify TypeScript compilation after changes
-- **E2E testing mandatory** for functionality verification
-- **Korean Language**: All user-facing content in Korean
-- Use `pathlib.Path` and relative paths for cross-platform compatibility
-
-### Configuration
 ```bash
-webservice/config.json  # Main config (based on config.example.json)
-export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for app/ imports
+cd autodoc_service
+source .venv312/bin/activate
+python run_autodoc_service.py
 
-# Production environment variables (optional, fallback to data/ subdirectories)
-export WEBSERVICE_DATA_PATH="/path/to/webservice/data"  # Production only
-export AUTODOC_DATA_PATH="/path/to/autodoc/data"        # Production only
+# 접속: http://localhost:8001
 ```
 
-### Nginx-based Frontend Deployment
-- Production environment: nginx serving on port 80
-- Development environment: Vite dev server (port 3000)
-- Jenkins pipeline deploys `dist/` artifacts to `C:\nginx\html`
+### CLI 실행
 
-## CLI Development
-
-### Technology Stack
-- **Core**: Python 3.8+ + Click + Rich + httpx + tenacity
-- **Build**: PyInstaller for cross-platform executables
-- **Testing**: pytest with unit/integration/e2e markers
-
-### Development Commands
 ```bash
-# Setup
-cd cli && source .venv/bin/activate
-pip install -e .  # Editable install
+cd cli
+source .venv/bin/activate
 
-# Testing (with coverage)
-pytest --cov=ts_cli --cov-report=html         # All tests with coverage
-pytest tests/unit/ -v                         # Unit tests only
-pytest tests/integration/ -v                  # Integration tests only  
-pytest tests/e2e/ -v                         # E2E tests only
-pytest -m "not e2e"                          # Skip E2E tests
-
-# Code quality
-black ts_cli/ tests/                          # Format code
-isort ts_cli/ tests/                          # Sort imports
-flake8 ts_cli/ tests/                         # Lint code
-mypy ts_cli/                                  # Type checking
-
-# Building  
-python scripts/build.py                      # Cross-platform executables
-python scripts/build_helper_app.py           # macOS Helper App (sandbox bypass)
-
-# CLI commands
-ts-cli --help                                # Show help
-ts-cli analyze /path/to/repo                 # Analyze repository
-ts-cli info /path/to/repo                    # Repository information
-ts-cli config-show                           # Show configuration
-ts-cli version                               # Version information
+# 명령어 예시
+ts-cli --help
+ts-cli analyze /path/to/repository
+ts-cli info /path/to/repository
+ts-cli config-show
 ```
 
-### Architecture Details
-- **Strategy Pattern**: VCS support via `RepositoryAnalyzer` interface
-- **URL Protocol**: `testscenariomaker://` handler
-- **macOS Helper**: AppleScript-based helper bypasses sandbox
+## 🧪 테스트 실행
 
-### CLI Commands & VCS Support
-- `ts-cli analyze`: Main analysis with branch comparison
-- `ts-cli info <path>`: Show repository information
-- `ts-cli config-show`: Display configuration
-- `ts-cli version`: Version information
+### Webservice 테스트
 
-**VCS Support**:
-- **Git repositories**: Full support with branch comparison and commit analysis
-- **SVN repositories**: Full support with revision analysis and change detection
-- **Auto-detection**: CLI automatically detects repository type (Git vs SVN)
-- **Cross-platform paths**: Uses `pathlib.Path` for Windows/macOS/Linux compatibility
-
-## AutoDoc Service Development
-
-### Technology Stack
-- **Core**: FastAPI + Python 3.12 + Pydantic
-- **Documents**: python-docx (Word), openpyxl (Excel)
-- **HTML Parsing**: BeautifulSoup4 + lxml
-
-### Development Commands  
 ```bash
-# Setup & Run
-cd autodoc_service && source .venv312/bin/activate
-python run_autodoc_service.py                # Development server
+cd webservice
+source .venv/bin/activate
+export PYTHONPATH=$(pwd):$PYTHONPATH
 
-# Testing
-pytest app/tests/ -v                         # All tests
-pytest app/tests/test_html_parser.py -v      # Specific test file
+# 백엔드 테스트
+pytest tests/unit/                    # 단위 테스트
+pytest tests/api/                     # API 테스트
+pytest tests/integration/             # 통합 테스트
 
-# Code quality (follows root pyproject.toml)
-black app/ --line-length 88                  # Format code
-isort app/                                    # Sort imports
+# 프론트엔드 테스트
+cd frontend
+npm run test                          # 단위 테스트
+npm run test:e2e                      # E2E 테스트 (필수!)
+npm run test:all                      # 전체 테스트
 ```
 
-### Architecture Details
-- **Label-Based Template Mapping**: Maps data by finding label text
-- **Enhanced Payload System**: Transforms HTML data to Word-compatible format
-- **Font Styling**: Applies 맑은 고딕 to all documents
+### CLI 테스트
 
-### API Endpoints
-- `/parse-html`: HTML file parsing
-- `/create-cm-word-enhanced`: Enhanced Word generation (12-field mapping)
-- `/create-test-excel`: Excel test scenario generation
-- `/download/{filename}`: Secure file download
-
-### API Usage Example
 ```bash
-# Parse HTML
-curl -X POST "http://localhost:8000/parse-html" -F "file=@test.html"
+cd cli
+source .venv/bin/activate
 
-# Generate Word with complete field mapping
-curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
-     -H "Content-Type: application/json" \
-     -d '{"raw_data": {...}, "change_request": {...}}'
+pytest --cov=ts_cli --cov-report=html  # 커버리지 포함
+pytest tests/unit/ -v                  # 단위 테스트만
+pytest tests/integration/ -v           # 통합 테스트만
+pytest -m "not e2e"                    # E2E 제외
 ```
 
-## CI/CD Pipeline (Jenkins)
+### AutoDoc Service 테스트
 
-### NSSM Service Integration
-Windows services managed through NSSM:
-- **webservice**: Port 8000
-- **autodoc_service**: Port 8001
-- **Frontend**: nginx on port 80
-
-### Pipeline Architecture
-**Unified multi-branch pipeline** (`Jenkinsfile`):
-- Change detection via Git diff
-- Parallel service deployment
-- Automatic rollback on failure
-
-**Service Pipelines**:
-- `webservice/Jenkinsfile.backend`: API testing → NSSM deployment (main/develop only)
-- `webservice/Jenkinsfile.frontend`: Branch-specific build strategy (main/develop → production deployment, feature/hotfix → testing only)
-- `autodoc_service/Jenkinsfile`: Template validation → NSSM deployment
-- `cli/Jenkinsfile`: Windows environment optimized pipeline
-  - UTF-8 encoding environment setup (`PYTHONIOENCODING`, `LANG`)
-  - Test failure tolerance (`returnStatus: true`)
-  - Automatic coverage report generation (htmlcov)
-  - NSIS installer build and automatic path detection
-  - Wheelhouse-based offline dependency installation support
-
-**Branch-specific deployment strategy**:
-- **main/develop**: `/` root path build → `C:\nginx\html` production deployment
-- **feature/hotfix**: `/tests/${BRANCH_NAME}/` sub-path build → deployment skip (testing only)
-
-### Closed Network Dependency Management System
-**Complete offline build support**:
-- **Python**: .whl files collected in `wheelhouse/` folder (`download-all-dependencies.sh/ps1`)
-- **Node.js**: npm packages collected in `npm-cache/` folder (newly added)
-- **deploy_test_env.ps1**: npm cache priority usage (`--prefer-offline`)
-
-**Dependency collection scripts**:
 ```bash
-# Linux/macOS
-./download-all-dependencies.sh  # Python + npm dependency collection
+cd autodoc_service
+source .venv312/bin/activate
 
-# Windows  
-.\Download-All-Dependencies.ps1  # Python + npm dependency collection
+pytest app/tests/ -v
+pytest app/tests/test_html_parser.py -v
 ```
 
-### Development Server
-- **Server**: `34.64.173.97` (GCP VM)
-- **Ports**: 8000 (Backend), 8001 (AutoDoc), 80 (Frontend)
+## 🔧 빌드 및 배포
 
-## Quality Standards
+### 프로덕션 빌드 전체 프로세스
 
-### Logging System Guidelines
-**No Unicode and Emoji usage** (Windows compatibility):
+#### 1. 전체 시스템 빌드 (순차 실행)
+
+```bash
+# 1단계: CLI 빌드 (실행파일 생성)
+cd cli
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate  # Windows
+python scripts/build.py
+# 결과: cli/dist/ts-cli.exe (Windows) 또는 cli/dist/ts-cli (Unix)
+
+# 2단계: Webservice Frontend 빌드
+cd ../webservice/frontend
+npm install
+npm run build
+npm run lint
+npm run type-check
+# 결과: webservice/frontend/dist/ (정적 파일)
+
+# 3단계: Webservice Backend 빌드 확인
+cd ../
+source .venv/bin/activate
+export PYTHONPATH=$(pwd):$PYTHONPATH
+python -c "import app.main; print('Backend import 성공')"
+
+# 4단계: AutoDoc Service 빌드 확인
+cd ../autodoc_service
+source .venv312/bin/activate
+python -c "import app.main; print('AutoDoc import 성공')"
+```
+
+#### 2. Windows 프로덕션 배포용 빌드
+
+```powershell
+# PowerShell 스크립트 시작 부분 (UTF-8 인코딩 설정)
+chcp 65001 >NUL
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$PSDefaultParameterValues['*:Encoding'] = 'utf8'
+
+# 1. CLI 빌드 (Windows 실행파일)
+Set-Location cli
+.\.venv\Scripts\Activate.ps1
+python scripts\build.py
+if ($LASTEXITCODE -ne 0) { throw "CLI 빌드 실패" }
+
+# 2. Frontend 빌드
+Set-Location ..\webservice\frontend
+npm install
+npm run build
+npm run lint
+npm run type-check
+if ($LASTEXITCODE -ne 0) { throw "Frontend 빌드 실패" }
+
+# 3. 빌드 결과물 복사 (배포용)
+# Frontend 정적 파일을 nginx 경로로 복사
+Copy-Item "dist\*" "C:\nginx\html\" -Recurse -Force
+
+# CLI 실행파일을 배포 경로로 복사
+Copy-Item "..\cli\dist\ts-cli.exe" "C:\deploys\bin\" -Force
+```
+
+### CLI 빌드 (크로스 플랫폼)
+
+#### 개발 환경 빌드
+
+```bash
+cd cli
+source .venv/bin/activate
+
+# 기본 빌드 (현재 플랫폼용)
+python scripts/build.py
+
+# 상세 빌드 옵션
+python scripts/build.py --clean    # 이전 빌드 삭제 후 빌드
+python scripts/build.py --debug    # 디버그 정보 포함
+python scripts/build.py --onefile  # 단일 실행파일 생성
+
+# macOS Helper App (샌드박스 우회용)
+python scripts/build_helper_app.py
+
+# 빌드 결과 확인
+ls -la dist/
+# Windows: ts-cli.exe
+# macOS: ts-cli, TestscenarioMaker Helper.app
+# Linux: ts-cli
+```
+
+#### Jenkins 자동화 빌드 (Windows)
+
+```groovy
+// Jenkinsfile에서 CLI 빌드
+stage('CLI Build') {
+    steps {
+        bat """
+        chcp 65001 >NUL
+        cd cli
+        .venv\\Scripts\\activate.bat
+        python scripts\\build.py --clean
+        if not exist "dist\\ts-cli.exe" (
+            echo "CLI 빌드 실패: 실행파일이 생성되지 않음"
+            exit /b 1
+        )
+        """
+    }
+}
+```
+
+### Webservice 빌드
+
+#### Frontend 빌드 (React + Vite)
+
+```bash
+cd webservice/frontend
+
+# 개발 환경 빌드
+npm install
+npm run build
+
+# 코드 품질 검사 (필수)
+npm run lint          # ESLint 검사
+npm run type-check    # TypeScript 타입 검사
+npm run test          # 단위 테스트
+npm run test:e2e      # E2E 테스트 (중요!)
+
+# 빌드 결과 확인
+ls -la dist/
+# index.html, assets/, favicon.ico 등
+```
+
+#### Frontend Jenkins 빌드 (Windows)
+
+```groovy
+// Jenkinsfile에서 Frontend 빌드
+stage('Frontend Build') {
+    steps {
+        bat """
+        chcp 65001 >NUL
+        cd webservice\\frontend
+        npm ci
+        npm run build
+        npm run lint
+        npm run type-check
+        
+        REM 빌드 결과물 nginx로 복사
+        xcopy /E /I /Y "dist\\*" "C:\\nginx\\html\\"
+        
+        REM 빌드 성공 확인
+        if not exist "dist\\index.html" (
+            echo "Frontend 빌드 실패: index.html이 생성되지 않음"
+            exit /b 1
+        )
+        """
+    }
+}
+```
+
+#### Backend 빌드 확인
+
+```bash
+cd webservice
+source .venv/bin/activate
+export PYTHONPATH=$(pwd):$PYTHONPATH
+
+# 의존성 설치 확인
+pip install -r requirements.txt -c pip.constraints.txt
+
+# 애플리케이션 임포트 테스트
+python -c "
+import app.main
+from app.core import llm_manager, excel_writer
+print('✅ Backend 모듈 임포트 성공')
+"
+
+# 데이터베이스 마이그레이션 (필요시)
+# python -m alembic upgrade head
+```
+
+### AutoDoc Service 빌드
+
+```bash
+cd autodoc_service
+source .venv312/bin/activate
+
+# 의존성 설치 확인
+pip install -r requirements.txt
+
+# 애플리케이션 임포트 테스트
+python -c "
+import app.main
+from app.services import html_parser, excel_test_builder
+print('✅ AutoDoc 모듈 임포트 성공')
+"
+
+# 템플릿 파일 존재 확인
+ls -la data/templates/
+# cm_word_template.docx, test_excel_template.xlsx 등
+```
+
+### 배포 전 빌드 검증
+
+#### 통합 테스트 (모든 서비스)
+
+```bash
+# 1. CLI 실행 테스트
+cd cli
+dist/ts-cli --version
+dist/ts-cli --help
+
+# 2. Backend 헬스체크 (백그라운드 실행)
+cd ../webservice
+source .venv/bin/activate
+export PYTHONPATH=$(pwd):$PYTHONPATH
+python -m uvicorn app.main:app --port 8000 &
+sleep 5
+curl http://localhost:8000/api/webservice/health
+pkill -f uvicorn
+
+# 3. AutoDoc 헬스체크
+cd ../autodoc_service
+source .venv312/bin/activate
+python run_autodoc_service.py &
+sleep 5
+curl http://localhost:8001/api/autodoc/health
+pkill -f run_autodoc_service
+
+# 4. Frontend 빌드 결과 확인
+cd ../webservice/frontend
+python -m http.server 3000 --directory dist &
+sleep 2
+curl http://localhost:3000
+pkill -f "http.server"
+```
+
+#### Windows 서버 배포 스크립트
+
+```powershell
+# deploy_windows.ps1
+chcp 65001 >NUL
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# 서비스 중지
+Write-Host "서비스 중지 중..."
+nssm stop WebserviceAPI
+nssm stop AutoDocService
+net stop nginx
+
+# 백업 생성
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+Copy-Item "C:\nginx\html" "C:\backups\frontend_$timestamp" -Recurse -Force
+
+# 새 빌드 배포
+Write-Host "새 빌드 배포 중..."
+Copy-Item "webservice\frontend\dist\*" "C:\nginx\html\" -Recurse -Force
+Copy-Item "cli\dist\ts-cli.exe" "C:\deploys\bin\" -Force
+
+# Python 가상환경 업데이트
+& "C:\deploys\webservice\.venv\Scripts\Activate.ps1"
+pip install -r "webservice\requirements.txt" -c "webservice\pip.constraints.txt"
+
+& "C:\deploys\autodoc_service\.venv312\Scripts\Activate.ps1"
+pip install -r "autodoc_service\requirements.txt"
+
+# 서비스 재시작
+Write-Host "서비스 재시작 중..."
+net start nginx
+nssm start WebserviceAPI
+nssm start AutoDocService
+
+# 헬스체크
+Start-Sleep 10
+$health1 = Invoke-WebRequest "http://localhost:8000/api/webservice/health" -UseBasicParsing
+$health2 = Invoke-WebRequest "http://localhost:8001/api/autodoc/health" -UseBasicParsing
+$health3 = Invoke-WebRequest "http://localhost:80" -UseBasicParsing
+
+if ($health1.StatusCode -eq 200 -and $health2.StatusCode -eq 200 -and $health3.StatusCode -eq 200) {
+    Write-Host "✅ 배포 성공! 모든 서비스가 정상 작동 중"
+} else {
+    Write-Host "❌ 배포 실패! 헬스체크 확인 필요"
+    exit 1
+}
+```
+
+### 빌드 최적화 팁
+
+#### 빌드 속도 향상
+
+```bash
+# 1. npm 캐시 활용
+cd webservice/frontend
+npm ci  # package-lock.json 기반 빠른 설치
+
+# 2. Python 패키지 캐시
+pip install --cache-dir .pip-cache -r requirements.txt
+
+# 3. Docker 레이어 캐싱 (선택사항)
+# Docker build context 최적화
+```
+
+#### 빌드 크기 최적화
+
+```bash
+# Frontend 번들 크기 분석
+cd webservice/frontend
+npm run build
+npx vite-bundle-analyzer dist/
+
+# Python 실행파일 크기 최적화
+cd cli
+python scripts/build.py --optimize-size
+```
+
+### 주요 빌드 에러 해결
+
+#### 1. CLI 빌드 실패
+
+```bash
+# PyInstaller 캐시 삭제
+cd cli
+rm -rf build/ dist/ __pycache__/
+python scripts/build.py --clean
+
+# 의존성 문제
+pip install --upgrade pyinstaller
+pip install -r requirements.txt
+```
+
+#### 2. Frontend 빌드 실패
+
+```bash
+# Node 모듈 재설치
+cd webservice/frontend
+rm -rf node_modules/ package-lock.json
+npm install
+npm run build
+
+# TypeScript 오류
+npm run type-check
+# 오류 수정 후 재빌드
+```
+
+#### 3. Windows PowerShell 인코딩 오류
+
+```powershell
+# 스크립트 최상단에 반드시 추가
+chcp 65001 >NUL
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$PSDefaultParameterValues['*:Encoding'] = 'utf8'
+```
+
+## 📋 API 엔드포인트
+
+### Webservice API (프리픽스: `/api/webservice`)
+
+```
+POST   /scenario                           # V1 시나리오 생성 (레거시)
+POST   /v2/scenario                        # V2 시나리오 생성 (CLI 통합)
+WS     /v2/ws/progress/{client_id}         # V2 WebSocket 진행상황
+POST   /rag/add-documents                  # RAG 문서 추가
+GET    /rag/status                         # RAG 시스템 상태
+POST   /feedback                           # 사용자 피드백
+GET    /files                              # 파일 목록
+GET    /health                             # 헬스체크
+```
+
+### AutoDoc Service API (프리픽스: `/api/autodoc`)
+
+```
+POST   /parse-html                         # HTML 파일 파싱
+POST   /parse-html-only                    # HTML 파일 파싱(JSON으로 리턴)
+POST   /create-cm-word-enhanced            # 향상된 Word 문서 생성
+POST   /create-test-excel                  # Excel 테스트 시나리오
+GET    /download/{filename}                # 파일 다운로드
+GET    /list-templates                     # 템플릿 목록
+GET    /health                             # 헬스체크
+```
+
+## 🗂️ 프로젝트 구조
+
+```
+cm-docs/
+├── webservice/                    # 웹서비스 (React + FastAPI)
+│   ├── app/                      # FastAPI 애플리케이션
+│   │   ├── main.py              # 애플리케이션 진입점
+│   │   ├── core/                # 핵심 모듈 (분석, LLM, Excel)
+│   │   ├── api/routers/         # API 엔드포인트
+│   │   └── services/            # 비즈니스 로직
+│   ├── frontend/                # React 애플리케이션
+│   │   ├── src/components/      # UI 컴포넌트
+│   │   ├── src/services/        # API 클라이언트
+│   │   └── src/utils/           # 유틸리티
+│   ├── tests/                   # 테스트 파일
+│   ├── data/                    # 개발용 데이터 (환경변수 미설정시)
+│   └── .venv/                   # Python 3.12 가상환경
+├── cli/                          # CLI 도구
+│   ├── src/ts_cli/              # CLI 소스코드
+│   │   ├── main.py              # CLI 진입점
+│   │   ├── vcs/                 # VCS 분석기 (Git, SVN)
+│   │   └── utils/               # 유틸리티
+│   ├── tests/                   # 테스트 파일
+│   ├── scripts/                 # 빌드 스크립트
+│   └── .venv/                   # Python 3.13 가상환경
+├── autodoc_service/              # 문서 자동화 서비스
+│   ├── app/                     # FastAPI 애플리케이션
+│   │   ├── main.py              # 애플리케이션 진입점
+│   │   ├── services/            # 문서 생성 서비스
+│   │   └── parsers/             # HTML 파서
+│   ├── data/                    # 개발용 데이터
+│   │   ├── templates/           # Word/Excel 템플릿
+│   │   └── documents/           # 생성된 문서
+│   └── .venv312/                # Python 3.12 가상환경
+├── scripts/                     # 배포 스크립트
+├── infra/                       # 인프라 설정
+└── Jenkinsfile                  # 통합 CI/CD 파이프라인
+```
+
+## 🔄 CI/CD 파이프라인
+
+### 파이프라인 구조
+
+- **통합 파이프라인**: `Jenkinsfile` (변경 감지 기반 스마트 배포)
+- **서비스별 파이프라인**:
+  - `webservice/Jenkinsfile.backend` (API 서비스)
+  - `webservice/Jenkinsfile.frontend` (React 앱)
+  - `autodoc_service/Jenkinsfile` (문서 서비스)
+  - `cli/Jenkinsfile` (CLI 도구)
+
+### 변경 감지 시스템
+
+```bash
+# 파이프라인이 자동으로 감지하는 변경사항
+webservice/          → 웹서비스 빌드/배포
+autodoc_service/     → 문서 서비스 빌드/배포
+cli/                 → CLI 도구 빌드
+infra/              → 전체 재배포
+scripts/            → 전체 재배포
+*.md                → 빌드 스킵 (문서 변경만)
+```
+
+### 브랜치별 배포 전략
+
+- **main/develop**: 프로덕션 배포
+- **feature/hotfix**: 테스트 인스턴스 배포 (`/tests/{브랜치명}/`)
+
+### 배포 환경
+
+```bash
+# 프로덕션 서버 (Windows Server + NSSM)
+Backend:   http://localhost:8000    (NSSM 서비스)
+Frontend:  http://localhost:80      (nginx)
+AutoDoc:   http://localhost:8001    (NSSM 서비스)
+
+# 테스트 인스턴스 (동적 포트)
+Backend:   http://localhost:8100-8300  (브랜치별 포트)
+Frontend:  /tests/{브랜치명}/          (nginx 서브패스)
+AutoDoc:   http://localhost:8500-8700  (브랜치별 포트)
+```
+
+## 🛠️ Jenkins PowerShell 실행 가이드
+
+### 인코딩 문제 해결
+
+```powershell
+# 모든 PowerShell 스크립트 시작 부분에 추가
+chcp 65001 >NUL
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$PSDefaultParameterValues['*:Encoding'] = 'utf8'
+```
+
+### 백슬래시 문제 해결
+
+```groovy
+// Jenkinsfile에서 PowerShell 실행 시
+bat """
+chcp 65001 >NUL
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass ^
+    -File "scripts\\deploy_script.ps1" ^
+    -Param1 "%VALUE1%" ^
+    -Param2 "%VALUE2%"
+"""
+```
+
+### 멀티라인 명령어
+
+```groovy
+// 잘못된 예 (Windows에서 오류)
+bat '''
+powershell -Command "
+    Write-Host 'Line 1'
+    Write-Host 'Line 2'
+"
+'''
+
+// 올바른 예 (Windows 호환)
+bat """
+chcp 65001 >NUL
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& { ^
+    Write-Host 'Line 1'; ^
+    Write-Host 'Line 2' ^
+}"
+"""
+```
+
+### 환경변수 처리
+
+```groovy
+// Jenkins 환경변수를 PowerShell로 안전하게 전달
+bat """
+set "PARAM1=%VALUE1%"
+set "PARAM2=%VALUE2%"
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "& { ^
+    \$param1 = \$env:PARAM1; ^
+    \$param2 = \$env:PARAM2; ^
+    Write-Host \"Param1: \$param1\"; ^
+    Write-Host \"Param2: \$param2\" ^
+}"
+"""
+```
+
+## 🔍 문제 해결 가이드
+
+### 자주 발생하는 오류
+
+#### 1. ChromaDB 잠금 오류
+```bash
+# 해결: 벡터 DB 초기화
+rm -rf webservice/data/db/
+rm -rf webservice/vector_db_data/
+```
+
+#### 2. Module Import 오류 (webservice)
+```bash
+# 해결: PYTHONPATH 설정 확인
+cd webservice
+export PYTHONPATH=$(pwd):$PYTHONPATH
+```
+
+#### 3. E2E 테스트 타임아웃
+```bash
+# 해결: WebSocket 대기 시간 조정 (~60초)
+cd webservice/frontend
+npm run test:e2e -- --timeout 120000
+```
+
+#### 4. PowerShell 실행 정책 오류
+```powershell
+# 해결: 실행 정책 설정
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+#### 5. UTF-8 인코딩 오류
+```powershell
+# 스크립트 시작 부분에 추가
+chcp 65001 >NUL
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+```
+
+### 서비스 디버깅
+
+#### Webservice 디버깅
+```bash
+# 헬스체크
+curl http://localhost:8000/api/webservice/health
+
+# 로그 확인
+tail -f webservice/data/logs/webservice.log
+
+# RAG 시스템 상태
+curl http://localhost:8000/api/webservice/rag/status
+```
+
+#### AutoDoc Service 디버깅
+```bash
+# 헬스체크
+curl http://localhost:8001/api/autodoc/health
+
+# 템플릿 목록 확인
+curl http://localhost:8001/api/autodoc/list-templates
+```
+
+**상호작용 중심 설계:**
+- 포괄적이고 인터랙티브한 컴포넌트 생성
+- 마이크로 인터랙션 및 애니메이션 고려
+- 사용자 경험 중심의 디자인 패턴
+
+**견고한 범용 솔루션:**
+- 하드코딩 방지, 재사용 가능한 컴포넌트
+- 특정 테스트 케이스가 아닌 일반적 해결책
+- Material-UI 디자인 시스템 일관성 유지
+
+#### 6. 코드 품질 및 구조화
+
+**XML 태그 활용:**
+```xml
+<analysis>
+현재 상황 분석
+</analysis>
+
+<solution>
+제안하는 해결책
+</solution>
+
+<implementation>
+구체적 구현 방법
+</implementation>
+
+<validation>
+검증 및 테스트 방법
+</validation>
+```
+
+**출력 스타일 일치:**
+- 요청한 스타일에 맞는 응답 형식
+- 일관된 코드 스타일 유지
+- 명확한 예시와 설명 제공
+
+### 프로젝트별 특화 지침
+
+#### TestscenarioMaker 프로젝트 전용
+
+**1. 모노레포 구조 인식**
+- 각 서비스의 독립적 가상환경 관리
+- 서비스 간 의존성 최소화
+- Git Subtree 기반 구조 이해
+
+**2. 크로스 플랫폼 호환성**
+- Windows Server 프로덕션 환경 고려
+- PowerShell 스크립트 UTF-8 인코딩 필수
+- pathlib.Path 사용으로 경로 처리
+
+**3. 성능 최적화 우선순위**
+```
+1. Webservice API: <200ms 응답시간
+2. CLI: <30초 저장소 분석  
+3. AutoDoc Service: <1초 HTML 파싱, <3초 문서 생성
+4. Test Coverage: ≥80% (모든 서비스)
+```
+
+**4. 보안 및 안정성**
+- 로깅에서 Unicode/Emoji 금지 (Windows 호환성)
+- ChromaDB constraints 파일 필수 사용
+- API 응답 표준 형식 준수
+
+**5. 테스트 및 검증**
+- E2E 테스트 필수 (webservice)
+- WebSocket 타임아웃 ~60초 고려
+- Jenkins PowerShell 실행 환경 대응
+
+## 📝 코딩 규칙
+
+### Python 코드 스타일
+
+```bash
+# 코드 포매팅 (프로젝트 루트에서 실행)
+black webservice/ cli/ autodoc_service/ --line-length 88
+isort webservice/ cli/ autodoc_service/
+flake8 webservice/ cli/ autodoc_service/
+mypy webservice/app/ cli/src/
+```
+
+### 필수 규칙
+
+1. **경로 처리**: 항상 `pathlib.Path` 사용 (크로스 플랫폼)
+2. **로깅**: Unicode/Emoji 금지 (Windows 호환성)
+3. **테스트**: E2E 테스트 필수 (webservice)
+4. **커밋**: 서비스별 접두사 사용 (`[webservice]`, `[cli]`, `[autodoc_service]`)
+5. **의존성**: ChromaDB는 반드시 constraints 파일과 함께 설치
+
+### API 응답 형식
+
 ```python
-# ❌ Wrong example
-logger.info("🚀 Service starting...")
+# 표준 응답 형식
+{
+    "success": true,
+    "data": {...},
+    "message": "성공",
+    "timestamp": "2025-01-17T10:30:00Z"
+}
 
-# ✅ Correct example
-logger.info("Service starting...")
+# 오류 응답 형식
+{
+    "success": false,
+    "error": "오류 메시지",
+    "code": "ERROR_CODE",
+    "timestamp": "2025-01-17T10:30:00Z"
+}
 ```
 
-### Pseudo MSA Development Principles
-- **Mandatory logging**: Log recording required for all API endpoints
-- **Mandatory testing**: Test code required when adding/changing functionality
-- **Stability priority**: Ensuring maintainability through logging and testing
+## 🔧 개발 도구 설정
 
-### Performance Requirements
-- **Webservice API**: <200ms response time
-- **CLI**: <30s repository analysis
-- **AutoDoc Service**: <1s HTML parsing, <3s document generation
-- **Test Coverage**: ≥80% for all services
+### VS Code 설정 (.vscode/settings.json)
 
-## Development Workflow
+```json
+{
+    "python.defaultInterpreterPath": "./webservice/.venv/bin/python",
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": ["tests"],
+    "python.linting.enabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.formatting.provider": "black",
+    "typescript.preferences.importModuleSpecifier": "relative",
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true,
+        "source.fixAll.eslint": true
+    }
+}
+```
 
-1. **Environment Setup**: Activate service-specific venv (`webservice/.venv`, `cli/.venv`, `autodoc_service/.venv312`)
-2. **Development**: Work within subproject directories, maintain independent dependencies
-3. **Testing**: Run service-specific test suites before commits
-   - Webservice: `pytest tests/` + `npm run test:e2e` (mandatory)
-   - CLI: `pytest --cov=ts_cli` 
-   - AutoDoc: `pytest app/tests/`
-4. **Quality Check**: Black, isort, flake8, mypy (configured in root `pyproject.toml`)
-5. **Commit Convention**: Use `[webservice]`, `[cli]`, or `[autodoc_service]` prefixes
+### Git Hooks (optional)
 
-### Test Organization
-- **Unit tests**: Fast, isolated component tests (`tests/unit/`)
-- **API tests**: HTTP endpoint validation (`tests/api/`)
-- **Integration tests**: Multi-component workflows (`tests/integration/`)  
-- **E2E tests**: Full user journey validation (Playwright in `tests/e2e/`)
+```bash
+# .git/hooks/pre-commit
+#!/bin/bash
+# 커밋 전 코드 품질 검사
+black --check webservice/ cli/ autodoc_service/
+flake8 webservice/ cli/ autodoc_service/
+cd webservice/frontend && npm run lint
+```
 
-### Jenkins Integration
-- Main `Jenkinsfile` detects service changes via git diff
-- Parallel pipeline execution for modified services only
-- Automatic rollback on deployment failures
-- Service health checks post-deployment
+## 📊 성능 목표
 
-## Critical Configuration Files
+- **Webservice API**: <200ms 응답시간
+- **CLI**: <30초 저장소 분석
+- **AutoDoc Service**: <1초 HTML 파싱, <3초 문서 생성
+- **Test Coverage**: ≥80% (모든 서비스)
 
-- **Webservice**: `webservice/config.json` (Ollama, RAG settings)
-- **CLI**: Hierarchical config loading
-- **AutoDoc**: Template files in environment-variable based path (production: `$AUTODOC_DATA_PATH/templates/`, development: `autodoc_service/data/templates/`)
-- **Monorepo**: Root `pyproject.toml` for unified tools
+## 🌐 VCS 지원
 
-## Environment Variable System
+### 지원하는 버전 관리 시스템
 
-### Path Management
-**Production Environment Variables**:
-- `WEBSERVICE_DATA_PATH`: webservice data root path
-- `AUTODOC_DATA_PATH`: autodoc_service data root path
+- **Git**: 브랜치 비교, 커밋 히스토리 분석, diff 생성
+- **SVN**: 리비전 분석, 변경사항 감지, 경로 처리
+- **자동 감지**: `.git` 또는 `.svn` 디렉토리로 자동 감지
 
-**Development Fallback** (when environment variables are not set):
-- webservice: `webservice/data/`
-- autodoc_service: `autodoc_service/data/`
+### VCS 사용 예시
 
-**Path Functions** (automatic directory creation):
-- `get_data_root()`: Environment variable-based data root
-- `get_logs_dir()`, `get_templates_dir()`, `get_documents_dir()`
-- `get_models_dir()`, `get_outputs_dir()`, `get_vector_db_dir()` (webservice only)
+```bash
+# Git 저장소 분석
+ts-cli analyze /path/to/git/repo
 
-## Template System Architecture
+# SVN 작업 복사본 분석
+ts-cli analyze /path/to/svn/working/copy
 
-- **Webservice**: Coordinate-based Excel mapping
-- **AutoDoc**: Label-based Word mapping (more resilient)
-- **Font Consistency**: 맑은 고딕 enforced across all documents
+# 저장소 정보 확인
+ts-cli info /path/to/repository
+```
 
-## Key Debugging Patterns
+- **개발 서버**: 34.64.173.97 (GCP VM)
+- **서비스 포트**: 8000 (Backend), 8001 (AutoDoc), 80 (Frontend)
+- **이슈 트래킹**: GitHub Issues
+- **문서 업데이트**: 이 파일을 직접 수정하여 PR 제출
 
-### Webservice Startup Issues
-- **RAG System Failures**: Check `startup_rag_system()` in app/main.py:31
-- **Module Import Errors**: Verify `PYTHONPATH=$(pwd):$PYTHONPATH` for app.core modules
-- **WebSocket Connection Issues**: Check v2 progress endpoints vs legacy endpoints
-- **Config Loading**: Use `test_config_paths.py` to debug environment variable paths
 
-### Service Communication
-- **Port Conflicts**: Webservice (8000), AutoDoc (8001), Frontend (80)
-- **NSSM Service Status**: `nssm status webservice`, `nssm status autodoc_service`
-- **Health Endpoints**: `/api/webservice/health` (webservice), `/health` (autodoc_service)
-- **CORS Issues**: Check FastAPI middleware settings for React dev server
 
-### Testing Patterns
-- **E2E Test Failures**: Often indicate WebSocket timing issues (~60s scenarios)
-- **ChromaDB Lock Issues**: Clear vector database: `rm -rf webservice/vector_db_data/`  
-- **Dependency Conflicts**: Always use `pip install -r requirements.txt -c pip.constraints.txt`
+---
 
-### CLI Integration Issues
-- **V2 API Mismatch**: Check client_id parameter consistency between CLI and WebSocket
-- **URL Protocol Handler**: macOS requires helper app for `testscenariomaker://` URLs
-- **Cross-platform Paths**: Always use `pathlib.Path`, convert to string for subprocess
-- **Jenkins Build Failures**: 
-  - Check UTF-8 encoding settings in Jenkinsfile
-  - Verify NSIS installer path (scripts/ vs dist/)
-  - Ensure Lightweight checkout is disabled for branch switching
-  - Check Python version compatibility (3.13 required)
-
-### SVN-Specific Debugging Patterns
-- **JSON Parsing Issues**: LLM responses may use ````json` blocks instead of `<json>` tags
-- **Repository Detection**: SVN repositories detected via `.svn` directory presence
-- **Path Handling**: SVN working copies require absolute paths for analysis
-- **Revision Analysis**: SVN uses revision numbers instead of commit hashes
-- **Frontend Error Recovery**: Null/undefined values in test case fields cause JavaScript errors
-
-### Phase 2 Pipeline Debugging
-- **Data Transformation Issues**: Check `transform_metadata_to_enhanced_request()` function in AutoDocClient
-- **API Response Structure**: Verify `raw_data` contains `{'success': true, 'data': {...}}` format
-- **Document Generation**: Check autodoc_service logs for template mapping errors
-- **File Naming**: Ensure actual HTML parsing data (e.g., "이대경") is used instead of fallback metadata (e.g., "테스터")
-
-## VCS Repository Support
-
-### Supported Version Control Systems
-- **Git**: Full support with branch comparison, commit history analysis, and diff generation
-- **SVN**: Full support with revision analysis, change detection, and path handling
-- **Auto-Detection**: Repository type automatically detected via `.git` or `.svn` directories
-
-### VCS-Specific Implementation Details
-**Git Integration** (`git_analyzer.py`):
-- Uses GitPython library for repository operations
-- Supports branch comparison (default: `origin/develop` → `HEAD`)
-- Extracts commit messages and code diffs between commits
-- Handles merge base detection for accurate comparisons
-
-**SVN Integration** (`cli/src/ts_cli/vcs/svn_analyzer.py`):
-- Uses subprocess calls to `svn` command-line client
-- Analyzes working copy changes and committed revisions
-- Supports path-based change detection and diff generation
-- Handles SVN-specific revision numbering system
-
-### Cross-Platform Path Considerations
-- Always use `pathlib.Path` for cross-platform compatibility
-- Convert `Path` objects to strings when passing to subprocess calls
-- SVN working copies require absolute paths for reliable analysis
-- Git repositories work with both relative and absolute paths
-
-## Notes
-
-- **Python Versions**: 3.13 default, 3.12 for AutoDoc (document stability)
-- **VCS Support**: Both Git and SVN repositories fully supported with auto-detection
-- **Path Management**: Always use pathlib.Path, convert to string for subprocess
-- **Korean Content**: All user-facing text in Korean
-- **E2E Testing**: Mandatory for webservice functionality verification
-- **NSSM Services**: Windows service management for production deployment
-- **Unicode Logging**: No emojis in logs for Windows compatibility
-- **JSON Parsing**: Dual format support for LLM responses (XML tags + markdown blocks)
-- **MCP Server Usage**: Use Context7 MCP for official documentation and latest documentation when developing
-- After receiving tool results, carefully reflect on their quality and decide on the optimal next steps before proceeding. Use thinking to plan and iterate based on this new information, then take the best next action.
-- For maximum efficiency, whenever you need to perform multiple independent tasks, call all relevant tools simultaneously rather than sequentially.
-- When creating temporary new files, scripts, or helper files for iteration, clean up by removing these files at the end of your work.
-- Write high-quality, general-purpose solutions. Implement solutions that work correctly for all valid inputs, not just test cases. 
-  Do not hardcode values or create solutions that only work for specific test inputs. Instead, implement real logic that solves the problem generally.
-  Focus on understanding the problem requirements and implementing the correct algorithm. Tests are meant to verify correctness, not define the solution. Provide principled implementations that follow best practices and software design principles.
-- If a task is unreasonable, infeasible, or some tests are incorrect, let me know. Solutions should be robust, maintainable, and scalable.
