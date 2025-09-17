@@ -192,9 +192,36 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         if not json_match:
             # SVN 디버깅: 전체 응답 로깅
             logger.error(f"[SVN DEBUG] Full LLM Response: {raw_response}")
-            raise ValueError("LLM 응답에서 JSON 블록을 찾을 수 없습니다.")
-
-        result_json = json.loads(json_match.group(1).strip())
+            logger.error("[SVN DEBUG] JSON 블록을 찾을 수 없어 기본 시나리오를 반환합니다.")
+            result_json = {
+                "Test Cases": [],
+                "Scenario Description": "JSON 파싱 오류로 인한 기본 시나리오"
+            }
+        else:
+            # JSON 파싱 및 복구 로직
+            try:
+                json_str = json_match.group(1).strip()
+                # 후행 콤마 제거
+                json_str = json_str.rstrip(',')
+                
+                # 중괄호 불일치 보정
+                if not json_str.endswith('}') and json_str.count('{') > json_str.count('}'):
+                    json_str += '}'
+                
+                # 불완전한 배열 보정
+                if '"Test Cases": [' in json_str and not json_str.count('[') == json_str.count(']'):
+                    json_str += ']'
+                
+                result_json = json.loads(json_str)
+                logger.error(f"[SVN DEBUG] JSON 파싱 성공: {len(result_json.get('Test Cases', []))}개 테스트 케이스")
+                
+            except json.JSONDecodeError as recovery_error:
+                logger.error(f"[SVN DEBUG] JSON 파싱 복구 실패: {str(recovery_error)}")
+                logger.error(f"[SVN DEBUG] 파싱 시도된 JSON: {json_str[:200]}...")
+                result_json = {
+                    "Test Cases": [],
+                    "Scenario Description": "JSON 파싱 오류로 인한 기본 시나리오"
+                }
 
         # 8. Excel 파일 생성
         await send_progress(V2GenerationStatus.GENERATING_EXCEL, "Excel 파일을 생성 중입니다...", 90)
