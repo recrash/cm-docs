@@ -24,7 +24,7 @@ import os
 import platform
 import urllib.parse
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import click
 import requests
@@ -332,8 +332,8 @@ async def handle_full_generation(server_url: str, repository_path: Path, session
                 metadata_json = {}
         
         # 비동기 API 클라이언트를 사용하여 전체 문서 생성 요청
-        console.print(f"[cyan]Sending full generation request to server...[/cyan]")
-        
+        console.print(f"[cyan]Starting full generation workflow...[/cyan]")
+
         # APIClient에 올바른 설정 딕셔너리 전달
         api_config = {
             'base_url': server_url,
@@ -342,17 +342,50 @@ async def handle_full_generation(server_url: str, repository_path: Path, session
             'retry_delay': 1.0
         }
         async with APIClient(api_config) as client:
+            # 1단계: 세션 초기화 API 호출
+            console.print(f"[cyan]Step 1: Initializing Full Generation session...[/cyan]")
+            init_result = await client.init_full_generation_session(session_id)
+            websocket_url = init_result.get('websocket_url')
+
+            if not websocket_url:
+                console.print(f"[red]WebSocket URL을 받지 못했습니다.[/red]")
+                return False
+
+            console.print(f"[green]Session initialized successfully[/green]")
+            console.print(f"[cyan]WebSocket URL: {websocket_url}[/cyan]")
+
+            # 2단계: 전체 문서 생성 API 호출
+            console.print(f"[cyan]Step 2: Starting full document generation...[/cyan]")
             result = await client.start_full_generation(
                 session_id=session_id,
                 vcs_analysis_text=changes_data,  # VCS 분석 결과 (Git/SVN 모두 동일 필드명)
                 metadata_json=metadata_json
             )
-            
-            console.print(f"[green]Full generation request completed successfully[/green]")
+
+            console.print(f"[green]Full generation request sent successfully[/green]")
             console.print(f"[cyan]Session ID: {result.get('session_id', session_id)}[/cyan]")
-            console.print(f"[yellow]문서 생성이 백그라운드에서 진행됩니다.[/yellow]")
-            console.print(f"[yellow]웹 UI에서 진행 상황을 확인하세요: {server_url}[/yellow]")
-            
+
+            # 3단계: WebSocket으로 진행상황 실시간 모니터링
+            console.print(f"[cyan]Step 3: Monitoring progress via WebSocket...[/cyan]")
+            console.print(f"[yellow]Full document generation in progress - this may take several minutes...[/yellow]")
+
+            def progress_callback(status: str, message: str, progress_value: int, result: Optional[dict]):
+                """진행상황 콜백 함수"""
+                console.print(f"[cyan][{status}][/cyan] {message} ({progress_value}%)")
+
+            # WebSocket 연결 및 진행상황 수신 (최대 30분 대기)
+            final_result = await client.listen_to_full_generation_progress(
+                websocket_url=websocket_url,
+                progress_callback=progress_callback,
+                timeout=1800  # 30분
+            )
+
+            console.print(f"[green]✓ Full document generation completed successfully![/green]")
+            if final_result:
+                console.print(f"[cyan]Result details: {len(str(final_result))} characters[/cyan]")
+
+            console.print(f"[yellow]You can also check the progress on the web UI: {server_url}[/yellow]")
+
             return True
             
     except Exception as e:

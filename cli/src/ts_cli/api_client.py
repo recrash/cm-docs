@@ -579,6 +579,149 @@ class APIClient:
             self.logger.error(f"세션 메타데이터 조회 중 오류: session_id={session_id}, error={str(e)}")
             raise APIError(f"세션 메타데이터 조회 요청 중 오류: {str(e)}")
 
+    async def init_full_generation_session(self, session_id: str) -> Dict[str, Any]:
+        """
+        Full Generation 세션 초기화 API 호출
+
+        Args:
+            session_id: 세션 ID
+
+        Returns:
+            API 응답 JSON (session_id, websocket_url 포함)
+
+        Raises:
+            APIError: API 요청 실패 시
+        """
+        try:
+            self.logger.info(f"Full Generation 세션 초기화 시작: session_id={session_id}")
+
+            # 세션 초기화 API 호출
+            endpoint = f"/api/webservice/v2/full-generation/init-session/{session_id}"
+            response = await self.client.post(endpoint, timeout=60.0)
+
+            # 응답 처리
+            await self._handle_response(response)
+            result = response.json()
+
+            self.logger.info(f"Full Generation 세션 초기화 성공: session_id={session_id}, websocket_url={result.get('websocket_url')}")
+            return result
+
+        except Exception as e:
+            self.logger.error(f"Full Generation 세션 초기화 실패: session_id={session_id}, error={str(e)}")
+            if isinstance(e, APIError):
+                raise
+            raise APIError(f"Full Generation 세션 초기화 중 오류: {str(e)}")
+
+    async def listen_to_full_generation_progress(
+        self,
+        websocket_url: str,
+        progress_callback: Optional[Callable[[str, str, int, Optional[Dict[str, Any]]], None]] = None,
+        timeout: int = 1800,
+    ) -> Dict[str, Any]:
+        """
+        Full Generation WebSocket으로부터 진행 상황을 수신
+
+        Args:
+            websocket_url: WebSocket URL
+            progress_callback: 진행 상황 콜백 함수 (status, message, progress, result)
+            timeout: 타임아웃 (초) - Full Generation은 더 오래 걸릴 수 있어 기본 30분
+
+        Returns:
+            최종 결과 데이터
+
+        Raises:
+            APIError: WebSocket 연결 실패시
+        """
+        try:
+            self.logger.info(f"Full Generation WebSocket 연결 시작: {websocket_url}")
+
+            # Context7 FastAPI WebSocket RPC 패턴: 안정적인 연결 설정
+            async with websockets.connect(
+                websocket_url,
+                open_timeout=30,     # 연결 대기 시간
+                close_timeout=10,    # 종료 대기 시간
+                ping_timeout=30,     # ping 대기 시간 증가
+                ping_interval=15     # Context7 패턴: 15초 간격 ping
+            ) as websocket:
+                self.logger.info("Full Generation WebSocket 연결 완료")
+
+                while True:
+                    try:
+                        # Context7 FastAPI WebSocket RPC 패턴: 장기간 대기 가능하도록 timeout 증가
+                        message = await asyncio.wait_for(websocket.recv(), timeout=120)  # Full Generation은 더 긴 대기
+
+                        # JSON 파싱
+                        try:
+                            progress_data = json.loads(message)
+                        except json.JSONDecodeError:
+                            self.logger.error(f"JSON 파싱 실패: {message}")
+                            continue
+
+                        if not progress_data:
+                            self.logger.warning("빈 진행 상황 데이터 수신")
+                            continue
+
+                        # Context7 패턴: 시스템 메시지 필터링
+                        details = progress_data.get("details", {})
+                        is_system_message = (
+                            progress_data.get("status") == "keepalive" or
+                            progress_data.get("progress") == -1 or
+                            (isinstance(details, dict) and details.get("type") in ["ping", "keepalive"])
+                        )
+
+                        if is_system_message:
+                            self.logger.debug("시스템 메시지 필터링됨")
+                            continue
+
+                        status = progress_data.get("status", "")
+                        message_text = progress_data.get("message", "")
+                        progress_value = progress_data.get("progress", 0)
+
+                        # details가 dict인지 확인하고 result 추출
+                        details = progress_data.get("details", {})
+                        result = None
+                        if isinstance(details, dict):
+                            result = details.get("result")
+
+                        self.logger.debug(f"Full Generation 진행 상황 수신: {status} - {message_text} ({progress_value}%)")
+
+                        # 콜백 함수 호출
+                        if progress_callback:
+                            progress_callback(status, message_text, progress_value, result)
+
+                        # 완료 상태 확인
+                        if status == "COMPLETED":
+                            self.logger.info("Full Generation 완료")
+                            if result:
+                                return result
+                            # details에서 result를 찾거나 전체 details 반환
+                            details = progress_data.get("details", {})
+                            if isinstance(details, dict) and "result" in details:
+                                return details["result"]
+                            return details
+
+                        # 오류 상태 확인
+                        if status == "ERROR":
+                            error_message = message_text or "Full Generation 중 오류가 발생했습니다."
+                            raise APIError(error_message)
+
+                    except asyncio.TimeoutError:
+                        self.logger.debug("Full Generation WebSocket 메시지 수신 대기 중...")
+                        # 타임아웃이 발생해도 계속 대기
+                        continue
+
+                    except json.JSONDecodeError as e:
+                        self.logger.error(f"Full Generation WebSocket 메시지 파싱 오류: {e}")
+                        continue
+
+        except websockets.exceptions.WebSocketException as e:
+            self.logger.error(f"Full Generation WebSocket 연결 오류: {e}")
+            raise APIError(f"Full Generation WebSocket 연결 실패: {str(e)}") from e
+
+        except Exception as e:
+            self.logger.error(f"Full Generation WebSocket 통신 중 오류: {e}")
+            raise APIError(f"Full Generation WebSocket 통신 실패: {str(e)}") from e
+
     async def close(self) -> None:
         """클라이언트 종료"""
         await self.client.aclose()

@@ -128,24 +128,55 @@ full_generation_connection_manager = FullGenerationConnectionManager()
 
 async def handle_full_generation_websocket(websocket: WebSocket, session_id: str):
     """
-    Full Generation WebSocket 연결 핸들러 (V2 패턴 복사)
+    Full Generation WebSocket 연결 핸들러 (안정성 개선)
 
     Args:
         websocket: WebSocket 연결 객체
         session_id: 세션 식별자
     """
     logger.info(f"Full Generation WebSocket 연결 시도: {session_id}")
+    keepalive_task = None
 
     try:
         # 연결 설정
         await full_generation_connection_manager.connect(session_id, websocket)
 
+        # Keep-alive 태스크 시작 (30초 간격으로 ping 전송)
+        async def send_keepalive():
+            while True:
+                try:
+                    await asyncio.sleep(30)
+                    if full_generation_connection_manager.is_connected(session_id):
+                        keepalive_msg = {
+                            "type": "keepalive",
+                            "timestamp": time.time(),
+                            "session_id": session_id
+                        }
+                        await websocket.send_text(json.dumps(keepalive_msg))
+                        logger.debug(f"Keep-alive 전송: {session_id}")
+                except Exception as e:
+                    logger.debug(f"Keep-alive 전송 실패: {session_id}, {e}")
+                    break
+
+        # Keep-alive 태스크 시작
+        keepalive_task = asyncio.create_task(send_keepalive())
+
         # FastAPI WebSocket 표준 패턴: 단순 루프로 연결 유지
         while True:
             try:
-                # 클라이언트 메시지 대기 (타임아웃 없이)
-                data = await websocket.receive_text()
-                logger.debug(f"Full Generation 클라이언트 메시지 수신 {session_id}: {data}")
+                # 클라이언트 메시지 대기 (60초 타임아웃)
+                try:
+                    data = await asyncio.wait_for(websocket.receive_text(), timeout=60.0)
+                    logger.debug(f"Full Generation 클라이언트 메시지 수신 {session_id}: {data}")
+                except asyncio.TimeoutError:
+                    # 타임아웃 발생 시 연결 상태 확인용 ping 전송
+                    try:
+                        await websocket.ping()
+                        logger.debug(f"WebSocket ping 전송: {session_id}")
+                        continue
+                    except Exception:
+                        logger.warning(f"WebSocket ping 실패, 연결 종료: {session_id}")
+                        break
 
                 # ping 메시지에 대한 JSON 응답 (프론트엔드 호환)
                 if data.strip().lower() == 'ping':
@@ -165,6 +196,14 @@ async def handle_full_generation_websocket(websocket: WebSocket, session_id: str
         logger.error(f"Full Generation WebSocket 연결 처리 중 오류 {session_id}: {e}")
 
     finally:
+        # Keep-alive 태스크 정리
+        if keepalive_task and not keepalive_task.done():
+            keepalive_task.cancel()
+            try:
+                await keepalive_task
+            except asyncio.CancelledError:
+                pass
+
         # 연결 정리
         await full_generation_connection_manager.disconnect(session_id)
         logger.info(f"Full Generation WebSocket 연결 종료: {session_id}")
