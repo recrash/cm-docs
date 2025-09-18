@@ -111,7 +111,9 @@ async def generate_scenarios_with_llm(
                 logger.info(f"[FULL-GEN DEBUG] Async LLM Response (first 500 chars): {raw_response_str[:500]}")
                 
                 # _parse_llm_response는 이제 dictionary와 string 모두 처리 가능
+                logger.info(f"[FULL-GEN DEBUG] _parse_llm_response 호출 시작")
                 result_json = _parse_llm_response(raw_response)
+                logger.info(f"[FULL-GEN DEBUG] _parse_llm_response 결과: {result_json}")
                 
             finally:
                 await llm_handler.close()
@@ -134,7 +136,9 @@ async def generate_scenarios_with_llm(
             logger.error(f"[FULL-GEN DEBUG] Sync LLM Raw Response (first 500 chars): {raw_response_str[:500]}")
             
             # 6. 응답 파싱 (기존 검증된 로직 사용)
+            logger.info(f"[FULL-GEN DEBUG] _parse_llm_response 호출 시작")
             result_json = _parse_llm_response(raw_response)
+            logger.info(f"[FULL-GEN DEBUG] _parse_llm_response 결과: {result_json}")
         
         end_time = time.time()
         llm_response_time = end_time - start_time
@@ -180,15 +184,19 @@ def _parse_llm_response(raw_response: Union[str, Dict[str, Any]]) -> Dict[str, A
     if isinstance(raw_response, dict):
         logger.debug(f"이미 파싱된 딕셔너리 반환 (키: {list(raw_response.keys())})")
 
-        # LLMHandler에서 반환된 오류 응답인지 확인
-        if "error" in raw_response and raw_response.get("test_cases") == []:
+        # LLMHandler에서 반환된 명시적 오류 응답인지 확인
+        # 오류 응답 조건: "error" 키가 있고 "code"가 ERROR_로 시작하는 경우만
+        if ("error" in raw_response and 
+            "code" in raw_response and 
+            str(raw_response.get("code", "")).startswith("ERROR_")):
             logger.error(f"LLMHandler에서 오류 응답 받음: {raw_response}")
             raise ValueError(f"LLM 처리 실패: {raw_response.get('error', 'Unknown error')}")
 
         # 정상적인 딕셔너리 응답이면 그대로 반환
         return raw_response
     
-    logger.debug(f"LLM 응답 파싱 중... (길이: {len(raw_response)})")
+    logger.info(f"[FULL-GEN DEBUG] LLM 응답 파싱 중... (길이: {len(raw_response)})")
+    logger.info(f"[FULL-GEN DEBUG] 응답 전문: {raw_response}")
     
     # <json> 태그 또는 ```json 코드 블록 모두 지원 (기존 검증된 로직)
     json_match = re.search(r'<json>(.*?)</json>', raw_response, re.DOTALL)
@@ -198,12 +206,17 @@ def _parse_llm_response(raw_response: Union[str, Dict[str, Any]]) -> Dict[str, A
     
     if not json_match:
         # 디버깅을 위한 상세 로깅
-        logger.error(f"JSON 블록을 찾을 수 없습니다. 응답 샘플: {raw_response[:500]}...")
+        logger.error(f"[FULL-GEN DEBUG] JSON 블록을 찾을 수 없습니다.")
+        logger.error(f"[FULL-GEN DEBUG] <json> 태그 검색 결과: None")
+        logger.error(f"[FULL-GEN DEBUG] ```json 블록 검색 결과: None")
+        logger.error(f"[FULL-GEN DEBUG] 전체 응답: {raw_response}")
         raise ValueError("LLM 응답에서 JSON 블록을 찾을 수 없습니다.")
 
     try:
-        result_json = json.loads(json_match.group(1).strip())
-        logger.debug(f"JSON 파싱 성공 (키: {list(result_json.keys())})")
+        json_content = json_match.group(1).strip()
+        logger.info(f"[FULL-GEN DEBUG] 추출된 JSON 내용: {json_content}")
+        result_json = json.loads(json_content)
+        logger.info(f"[FULL-GEN DEBUG] JSON 파싱 성공 (키: {list(result_json.keys())})")
         return result_json
     except json.JSONDecodeError as e:
         logger.error(f"JSON 파싱 실패: {e}")
