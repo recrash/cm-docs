@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 
 from .models import (
@@ -119,7 +119,7 @@ async def start_full_generation(
 
 
 @router.post("/init-session/{session_id}")
-async def init_full_generation_session(session_id: str):
+async def init_full_generation_session(session_id: str, request: Request):
     """
     전체 문서 생성 세션 초기화 (WebSocket 연결 전 사전 등록)
     
@@ -135,10 +135,17 @@ async def init_full_generation_session(session_id: str):
         # 세션이 이미 존재하면 기존 세션 반환
         if session_id in generation_sessions:
             logger.info(f"기존 세션 발견: {session_id}")
+
+            # WebSocket URL 생성 (기존 세션도 동일하게)
+            protocol = "wss" if request.url.scheme == "https" else "ws"
+            host = request.headers.get("host", "localhost:8000")
+            websocket_url = f"{protocol}://{host}/api/webservice/v2/ws/full-generation/{session_id}"
+
             return JSONResponse({
                 "session_id": session_id,
                 "status": "existing",
-                "message": "기존 세션이 존재합니다."
+                "message": "기존 세션이 존재합니다.",
+                "websocket_url": websocket_url
             })
         
         # 새 세션 초기화
@@ -156,11 +163,17 @@ async def init_full_generation_session(session_id: str):
         }
         
         logger.info(f"새 세션 생성 완료: {session_id}")
-        
+
+        # WebSocket URL 생성 (scenario_v2.py 패턴 참조)
+        protocol = "wss" if request.url.scheme == "https" else "ws"
+        host = request.headers.get("host", "localhost:8000")
+        websocket_url = f"{protocol}://{host}/api/webservice/v2/ws/full-generation/{session_id}"
+
         return JSONResponse({
             "session_id": session_id,
             "status": "initialized",
-            "message": "새 세션이 생성되었습니다."
+            "message": "새 세션이 생성되었습니다.",
+            "websocket_url": websocket_url
         })
         
     except Exception as e:

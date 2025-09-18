@@ -596,7 +596,7 @@ class APIClient:
             self.logger.info(f"Full Generation 세션 초기화 시작: session_id={session_id}")
 
             # 세션 초기화 API 호출
-            endpoint = f"/api/webservice/v2/full-generation/init-session/{session_id}"
+            endpoint = f"/api/webservice/v2/init-session/{session_id}"
             response = await self.client.post(endpoint, timeout=60.0)
 
             # 응답 처리
