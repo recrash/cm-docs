@@ -316,6 +316,17 @@ export const v2Api = {
     const host = import.meta.env.DEV ? 'localhost:8000' : window.location.host;
     const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
     return `${protocol}//${host}${basePath}/api/webservice/v2/ws/full-generation/${sessionId}`;
+  },
+
+  /**
+   * 세션에 메타데이터 저장 (HTML 파싱 결과)
+   */
+  prepareSession: async (sessionId: string, metadata: any) => {
+    const response = await api.post('/v2/prepare-session', {
+      session_id: sessionId,
+      metadata_json: metadata
+    });
+    return response.data;
   }
 };
 

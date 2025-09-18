@@ -92,23 +92,23 @@ async def generate_scenarios_with_llm(
         logger.info(f"LLM 호출 시작 (모델: {model_name}, 비동기: {use_async_llm})")
         
         # [FULL-GEN DEBUG] LLM 호출 전 디버깅 로그 추가 (scenario_v2.py 패턴 적용)
-        logger.debug(f"[FULL-GEN DEBUG] VCS Analysis (first 500 chars): {vcs_analysis_text[:500]}")
-        logger.debug(f"[FULL-GEN DEBUG] Final prompt (last 300 chars): {final_prompt[-300:]}")
+        logger.info(f"[FULL-GEN DEBUG] VCS Analysis (first 500 chars): {vcs_analysis_text}")
+        logger.info(f"[FULL-GEN DEBUG] Final prompt (last 300 chars): {final_prompt}")
         
         start_time = time.time()
         
         if use_async_llm:
             # 비동기 LLM 사용 (Phase 2에서 사용)
-            logger.debug(f"LLMHandler 인스턴스 생성")
+            logger.info(f"LLMHandler 인스턴스 생성")
             llm_handler = LLMHandler()
             try:
                 # LLMHandler는 이미 비동기이므로 직접 호출
-                logger.debug(f"LLMHandler 비동기 호출")
+                logger.info(f"LLMHandler 비동기 호출")
                 raw_response = await llm_handler.generate_scenarios_async(final_prompt)
                 
                 # [FULL-GEN DEBUG] 비동기 LLM 응답 후 디버깅 로그
                 raw_response_str = str(raw_response) if raw_response else "None"
-                logger.debug(f"[FULL-GEN DEBUG] Async LLM Response (first 500 chars): {raw_response_str[:500]}")
+                logger.info(f"[FULL-GEN DEBUG] Async LLM Response (first 500 chars): {raw_response_str[:500]}")
                 
                 # _parse_llm_response는 이제 dictionary와 string 모두 처리 가능
                 result_json = _parse_llm_response(raw_response)

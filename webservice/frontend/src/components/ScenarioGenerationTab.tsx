@@ -320,14 +320,22 @@ export default function ScenarioGenerationTab() {
       }
       
       console.log('✅ HTML 파싱 완료:', parseResult)
-      
-      // 5. 메타데이터 Base64 인코딩
-      const metadataJson = JSON.stringify(parseResult.data)
-      const metadataBase64 = btoa(unescape(encodeURIComponent(metadataJson)))
-      
-      // 6. CLI 호출
+
+      // 5. 세션에 메타데이터 저장
+      console.log('💾 세션에 메타데이터 저장 중...')
+      try {
+        await v2Api.prepareSession(sessionId, parseResult.data)
+        console.log('✅ 세션 메타데이터 저장 완료')
+      } catch (sessionError) {
+        console.error('❌ 세션 메타데이터 저장 실패:', sessionError)
+        setError('세션 메타데이터 저장에 실패했습니다. 다시 시도해주세요.')
+        setWorkflowState('error')
+        return
+      }
+
+      // 6. CLI 호출 (메타데이터 없이 sessionId만)
       setWorkflowState('waiting_cli')
-      const customUrl = `testscenariomaker://full-generate?sessionId=${sessionId}&repoPath=${encodeURIComponent(repoPath)}&metadata=${metadataBase64}`
+      const customUrl = `testscenariomaker://full-generate?sessionId=${sessionId}&repoPath=${encodeURIComponent(repoPath)}`
       console.log('🔗 Full Generation CLI URL:', customUrl)
       
       window.location.href = customUrl

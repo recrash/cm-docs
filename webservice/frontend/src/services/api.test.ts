@@ -33,7 +33,7 @@ vi.mock('axios', () => {
 
 // Now import everything after mocking
 import axios from 'axios'
-import { scenarioApi, feedbackApi, ragApi, filesApi } from './api'
+import { scenarioApi, feedbackApi, ragApi, filesApi, v2Api } from './api'
 
 // Get the mock instance for tests
 const mockAxiosInstance = (axios as any).create()
@@ -318,6 +318,113 @@ describe('API Services', () => {
       await feedbackApi.deleteBackupFile(filenameWithSpecialChars)
       
       expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/feedback/backup-files/feedback_backup_2024-01-01_12%3A00%3A00.json')
+    })
+  })
+
+  describe('v2Api', () => {
+    it('should prepare session with metadata', async () => {
+      const mockResponse = {
+        data: {
+          success: true,
+          message: '세션이 성공적으로 준비되었습니다.'
+        }
+      }
+      mockAxiosInstance.post.mockResolvedValue(mockResponse)
+
+      const sessionId = 'test-session-123'
+      const metadata = {
+        title: 'Test Document',
+        content: 'Test content',
+        parsed_data: {}
+      }
+
+      const result = await v2Api.prepareSession(sessionId, metadata)
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/v2/prepare-session', {
+        session_id: sessionId,
+        metadata_json: metadata
+      })
+      expect(result).toEqual(mockResponse.data)
+    })
+
+    it('should generate v2 scenario', async () => {
+      const mockResponse = {
+        data: {
+          success: true,
+          client_id: 'test-client-123'
+        }
+      }
+      mockAxiosInstance.post.mockResolvedValue(mockResponse)
+
+      const clientId = 'test-client-123'
+      const repoPath = '/test/repo'
+      const usePerformanceMode = true
+
+      const result = await v2Api.generateScenario(clientId, repoPath, usePerformanceMode)
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/v2/scenario/generate', {
+        client_id: clientId,
+        repo_path: repoPath,
+        use_performance_mode: usePerformanceMode
+      })
+      expect(result).toEqual(mockResponse.data)
+    })
+
+    it('should get generation status', async () => {
+      const mockStatus = {
+        data: {
+          status: 'completed',
+          progress: 100,
+          message: '생성 완료'
+        }
+      }
+      mockAxiosInstance.get.mockResolvedValue(mockStatus)
+
+      const clientId = 'test-client-123'
+      const result = await v2Api.getGenerationStatus(clientId)
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(`/v2/scenario/status/${clientId}`)
+      expect(result).toEqual(mockStatus.data)
+    })
+
+    it('should init full generation session', async () => {
+      const mockResponse = {
+        data: {
+          success: true,
+          session_id: 'test-session-123'
+        }
+      }
+      mockAxiosInstance.post.mockResolvedValue(mockResponse)
+
+      const sessionId = 'test-session-123'
+      const result = await v2Api.initFullGenerationSession(sessionId)
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(`/v2/init-session/${sessionId}`)
+      expect(result).toEqual(mockResponse.data)
+    })
+
+    it('should generate WebSocket URLs correctly', () => {
+      // Mock window.location for development mode
+      Object.defineProperty(window, 'location', {
+        value: {
+          protocol: 'http:',
+          hostname: 'localhost',
+          host: 'localhost:3000'
+        },
+        writable: true
+      })
+
+      // Mock import.meta.env.DEV for development mode
+      vi.stubEnv('DEV', true)
+
+      const clientId = 'test-client-123'
+      const sessionId = 'test-session-123'
+
+      const v2Url = v2Api.getWebSocketUrl(clientId)
+      const fullGenUrl = v2Api.getFullGenerationWebSocketUrl(sessionId)
+
+      expect(v2Url).toBe('ws://localhost:8000/api/webservice/v2/ws/progress/test-client-123')
+      expect(fullGenUrl).toBe('ws://localhost:8000/api/webservice/v2/ws/full-generation/test-session-123')
     })
   })
 })

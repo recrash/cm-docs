@@ -802,6 +802,7 @@ curl http://localhost:8001/api/autodoc/list-templates
 - E2E 테스트 필수 (webservice)
 - WebSocket 타임아웃 ~60초 고려
 - Jenkins PowerShell 실행 환경 대응
+- 그 순간의 테스트 성공을 위해서 하드코딩을 하거나 테스트 데이터를 바꾸는 회피행동은 절대로 하지 말 것.
 
 ## 📝 코딩 규칙
 
@@ -822,6 +823,7 @@ mypy webservice/app/ cli/src/
 3. **테스트**: E2E 테스트 필수 (webservice)
 4. **커밋**: 서비스별 접두사 사용 (`[webservice]`, `[cli]`, `[autodoc_service]`)
 5. **의존성**: ChromaDB는 반드시 constraints 파일과 함께 설치
+6. **서비스 실행시**: 로컬에서 서비스 실행시 각 모노레포별 가상환경을 반드시 먼저 실행한 뒤에 작업을 진행할것
 
 ### API 응답 형식
 
