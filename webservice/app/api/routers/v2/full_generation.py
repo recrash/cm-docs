@@ -186,15 +186,19 @@ async def init_full_generation_session(session_id: str, request: Request):
         if base_url.startswith("https://"):
             protocol = "wss"
             host = base_url.replace("https://", "")
+            logger.info(f"HTTPS 감지 -> WSS 프로토콜 사용: protocol={protocol}, host={host}")
         elif base_url.startswith("http://"):
             protocol = "ws"
             host = base_url.replace("http://", "")
+            logger.info(f"HTTP 감지 -> WS 프로토콜 사용: protocol={protocol}, host={host}")
         else:
             # 프로토콜이 없으면 기본값 사용 (폐쇄망의 경우 http 가능성 높음)
             protocol = "ws"
             host = base_url
+            logger.info(f"프로토콜 없음 -> 기본 WS 사용: protocol={protocol}, host={host}")
             
         websocket_url = f"{protocol}://{host}/api/webservice/v2/ws/full-generation/{session_id}"
+        logger.info(f"최종 WebSocket URL 생성: {websocket_url}")
 
         return JSONResponse({
             "session_id": session_id,
