@@ -200,21 +200,54 @@ try {
     # 5. 마스터 데이터 복사
     Copy-MasterData -TestWebDataPath $TestWebDataPath -TestAutoDataPath $null
     
-    # 6. 웹서비스 서비스 등록 또는 재시작
+    # 6. 웹서비스 서비스 등록 (서비스 설정 먼저, 시작은 나중에)
     if ($isDevelop -and $webServiceExists) {
-        Write-Host "웹서비스 재시작 중 (develop 브랜치)..."
-        & $Nssm start "cm-web-$Bid"
-        Write-Host "웹서비스 재시작 완료 (Port: $BackPort)"
-    } else {
-        # 락 보호된 NSSM 서비스 등록 사용
-        Register-Service-WithLock -ServiceName "cm-web-$Bid" -ExecutablePath "$WebBackDst\.venv\Scripts\python.exe" -Arguments "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort" -NssmPath $Nssm
-
-        # 추가 NSSM 설정
+        Write-Host "웹서비스 develop 브랜치 처리 중..."
+        # develop 브랜치인 경우 환경변수 설정 후 재시작
         & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
         & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8"
-        Write-Host "웹서비스 서비스 등록 및 시작 완료 (Port: $BackPort)"
+        Write-Host "환경변수 설정 완료, 웹서비스 재시작 중..."
+        & $Nssm start "cm-web-$Bid"
+        Write-Host "웹서비스 재시작 완료 (Port: $BackPort)"
+    } else {
+        # 새 서비스 등록 - 서비스만 등록하고 시작하지 않음
+        Write-Host "웹서비스 서비스 등록 중... (시작하지 않음)"
+
+        # 기존 서비스 확인 및 제거
+        $existingService = Get-Service -Name "cm-web-$Bid" -ErrorAction SilentlyContinue
+        if ($existingService) {
+            Write-Host "  -> 기존 서비스 제거 중..."
+            & $Nssm stop "cm-web-$Bid" 2>$null
+            Start-Sleep -Seconds 3
+            & $Nssm remove "cm-web-$Bid" confirm 2>$null
+            Start-Sleep -Seconds 2
+        }
+
+        # 새 서비스 설치 (시작하지 않음)
+        Write-Host "  -> 서비스 설치 중..."
+        & $Nssm install "cm-web-$Bid" "$WebBackDst\.venv\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $BackPort"
+
+        # 환경변수 및 설정 먼저 적용
+        Write-Host "  -> 환경변수 및 설정 적용 중..."
+        & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
+        & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
+        & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8"
+
+        # 모든 설정 완료 후 서비스 시작
+        Write-Host "  -> 모든 설정 완료, 서비스 시작 중..."
+        & $Nssm start "cm-web-$Bid"
+
+        # 서비스 상태 확인
+        Start-Sleep -Seconds 3
+        $service = Get-Service -Name "cm-web-$Bid" -ErrorAction SilentlyContinue
+        if ($service -and $service.Status -eq "Running") {
+            Write-Host "✓ 웹서비스 서비스 등록 및 시작 완료 (Port: $BackPort)"
+        } else {
+            Write-Warning "웹서비스 시작 상태 확인 필요: $($service.Status if $service else 'N/A')"
+        }
     }
     
     # 7. Nginx 설정 업데이트 (서비스별 분리 설정)
