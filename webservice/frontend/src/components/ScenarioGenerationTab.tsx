@@ -88,7 +88,8 @@ export default function ScenarioGenerationTab() {
         clearTimeout(cliTimeout)
       }
     }
-  }, []) // dependency 제거 - 컴포넌트 언마운트 시에만 실행
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // 의도적으로 dependency 제거 - 컴포넌트 언마운트 시에만 실행
 
   const loadRagStatus = async () => {
     try {
