@@ -137,10 +137,12 @@ async def init_full_generation_session(session_id: str, request: Request):
         if session_id in generation_sessions:
             logger.info(f"기존 세션 발견: {session_id}")
 
-            # WebSocket URL 생성 (기존 세션도 동일하게)
+            # WebSocket URL 생성 (scenario_v2.py와 정확히 동일한 패턴)
             protocol = "wss" if request.url.scheme == "https" else "ws"
             host = request.headers.get("host", "localhost:8000")
             websocket_url = f"{protocol}://{host}/api/webservice/v2/ws/full-generation/{session_id}"
+
+            logger.info(f"🔗 기존 세션 WebSocket URL: {websocket_url}")
 
             return JSONResponse({
                 "session_id": session_id,
@@ -165,40 +167,12 @@ async def init_full_generation_session(session_id: str, request: Request):
         
         logger.info(f"새 세션 생성 완료: {session_id}")
 
-        # WebSocket URL 생성 (config.json의 base_url 사용)
-        config = load_config()
-        if not config:
-            raise HTTPException(
-                status_code=500,
-                detail="서버 설정을 로드할 수 없습니다. 관리자에게 문의하세요."
-            )
-        
-        base_url = config.get("base_url")
-        if not base_url:
-            raise HTTPException(
-                status_code=500, 
-                detail="서버 설정에서 base_url을 찾을 수 없습니다. 관리자에게 문의하세요."
-            )
-        
-        logger.info(f"설정에서 base_url 로드됨: {base_url}")
-        
-        # 프로토콜 결정: http면 ws, https면 wss 사용
-        if base_url.startswith("https://"):
-            protocol = "wss"
-            host = base_url.replace("https://", "")
-            logger.info(f"HTTPS 감지 -> WSS 프로토콜 사용: protocol={protocol}, host={host}")
-        elif base_url.startswith("http://"):
-            protocol = "ws"
-            host = base_url.replace("http://", "")
-            logger.info(f"HTTP 감지 -> WS 프로토콜 사용: protocol={protocol}, host={host}")
-        else:
-            # 프로토콜이 없으면 기본값 사용 (폐쇄망의 경우 http 가능성 높음)
-            protocol = "ws"
-            host = base_url
-            logger.info(f"프로토콜 없음 -> 기본 WS 사용: protocol={protocol}, host={host}")
-            
+        # WebSocket URL 생성 (scenario_v2.py와 정확히 동일한 패턴)
+        protocol = "wss" if request.url.scheme == "https" else "ws"
+        host = request.headers.get("host", "localhost:8000")
         websocket_url = f"{protocol}://{host}/api/webservice/v2/ws/full-generation/{session_id}"
-        logger.info(f"최종 WebSocket URL 생성: {websocket_url}")
+
+        logger.info(f"🔗 최종 WebSocket URL: {websocket_url}")
 
         return JSONResponse({
             "session_id": session_id,

@@ -221,10 +221,10 @@ class APIClient:
             # timeout을 connect_timeout으로 변경 (websockets 라이브러리 호환성)
             import websockets.client
             timeout_config = websockets.client.WebSocketClientProtocol
-            
+
             # Context7 FastAPI WebSocket RPC 패턴: 안정적인 연결 설정
             async with websockets.connect(
-                websocket_url,
+                self._convert_websocket_protocol(websocket_url),
                 open_timeout=30,     # 연결 대기 시간
                 close_timeout=10,    # 종료 대기 시간
                 ping_timeout=30,     # ping 대기 시간 증가
@@ -420,6 +420,42 @@ class APIClient:
         except Exception as e:
             self.logger.error(f"결과 파일 다운로드 중 오류: {e}")
             raise APIError(f"결과 파일 다운로드 실패: {str(e)}") from e
+
+    def _convert_websocket_protocol(self, websocket_url: str) -> str:
+        """
+        CLI의 base_url 설정에 따라 WebSocket URL 프로토콜을 자동 변환
+
+        폐쇄망 환경(HTTP)과 외부 환경(HTTPS)에서 모두 동작하도록
+        base_url의 프로토콜에 따라 WebSocket 프로토콜을 자동 변환합니다.
+
+        Args:
+            websocket_url: 백엔드에서 받은 WebSocket URL
+
+        Returns:
+            환경에 맞게 변환된 WebSocket URL
+        """
+        base_url = self.config.get('base_url', '')
+
+        # CLI가 HTTPS로 설정된 경우 WSS 사용
+        if base_url.startswith('https://'):
+            if websocket_url.startswith('ws://'):
+                converted_url = websocket_url.replace('ws://', 'wss://', 1)
+                self.logger.info(f"🔄 WebSocket 프로토콜 변환: ws:// → wss:// (HTTPS 환경)")
+                self.logger.debug(f"변환 전: {websocket_url}")
+                self.logger.debug(f"변환 후: {converted_url}")
+                return converted_url
+
+        # CLI가 HTTP로 설정된 경우 WS 사용
+        elif base_url.startswith('http://'):
+            if websocket_url.startswith('wss://'):
+                converted_url = websocket_url.replace('wss://', 'ws://', 1)
+                self.logger.info(f"🔄 WebSocket 프로토콜 변환: wss:// → ws:// (HTTP 환경)")
+                self.logger.debug(f"변환 전: {websocket_url}")
+                self.logger.debug(f"변환 후: {converted_url}")
+                return converted_url
+
+        self.logger.info(f"✅ WebSocket 프로토콜 변환 불필요: {websocket_url}")
+        return websocket_url
 
     async def _handle_response(self, response: httpx.Response) -> None:
         """
@@ -637,7 +673,7 @@ class APIClient:
 
             # Context7 FastAPI WebSocket RPC 패턴: 안정적인 연결 설정
             async with websockets.connect(
-                websocket_url,
+                self._convert_websocket_protocol(websocket_url),
                 open_timeout=30,     # 연결 대기 시간
                 close_timeout=10,    # 종료 대기 시간
                 ping_timeout=30,     # ping 대기 시간 증가
