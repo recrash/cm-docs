@@ -19,34 +19,30 @@ logger = logging.getLogger(__name__)
 
 
 class FullGenerationConnectionManager:
-    """Full Generation WebSocket 연결 관리자 (V2ConnectionManager 패턴 복사)"""
+    """Full Generation WebSocket 연결 관리자 (멀티 클라이언트 지원)"""
 
     def __init__(self):
-        # 세션별 WebSocket 연결 저장
-        self.connections: Dict[str, WebSocket] = {}
+        # 세션별 WebSocket 연결 목록 저장 (멀티 클라이언트 지원)
+        self.connections: Dict[str, list[WebSocket]] = {}
         # 연결 정리를 위한 락
         self._lock = asyncio.Lock()
 
     async def connect(self, session_id: str, websocket: WebSocket):
-        """새로운 WebSocket 연결 등록"""
+        """새로운 WebSocket 연결 등록 (멀티 클라이언트 지원)"""
         try:
             await websocket.accept()
 
             async with self._lock:
-                # 기존 연결이 있다면 정리
-                if session_id in self.connections:
-                    old_ws = self.connections[session_id]
-                    try:
-                        await old_ws.close()
-                        logger.info(f"기존 연결을 정리했습니다: {session_id}")
-                    except:
-                        pass
+                # 세션별 연결 목록 초기화
+                if session_id not in self.connections:
+                    self.connections[session_id] = []
 
-                # 새 연결 등록
-                self.connections[session_id] = websocket
-                logger.info(f"Full Generation WebSocket 연결 등록: {session_id}")
+                # 새 연결 추가 (기존 연결 유지)
+                self.connections[session_id].append(websocket)
+                client_count = len(self.connections[session_id])
+                logger.info(f"Full Generation WebSocket 연결 등록: {session_id} (클라이언트 {client_count}개)")
 
-                # 연결 확인 메시지 전송
+                # 연결 확인 메시지 전송 (새 연결에만)
                 welcome_msg = FullGenerationProgressMessage(
                     session_id=session_id,
                     status="received",
@@ -58,55 +54,92 @@ class FullGenerationConnectionManager:
                     details={},
                     result=None
                 )
-                await self.send_progress(session_id, welcome_msg)
+                # 개별 연결에 직접 전송
+                await self._send_to_websocket(websocket, welcome_msg)
 
         except Exception as e:
             logger.error(f"Full Generation WebSocket 연결 설정 실패 {session_id}: {e}")
             raise
 
-    async def disconnect(self, session_id: str):
-        """WebSocket 연결 정리"""
+    async def disconnect(self, session_id: str, websocket: WebSocket = None):
+        """WebSocket 연결 정리 (특정 연결 또는 모든 연결)"""
         async with self._lock:
             if session_id in self.connections:
                 try:
-                    websocket = self.connections[session_id]
-                    await websocket.close()
-                except:
-                    pass
-                finally:
-                    del self.connections[session_id]
-                    logger.info(f"Full Generation WebSocket 연결 정리: {session_id}")
+                    if websocket is not None:
+                        # 특정 연결만 제거
+                        if websocket in self.connections[session_id]:
+                            self.connections[session_id].remove(websocket)
+                            await websocket.close()
+                            remaining_count = len(self.connections[session_id])
+                            logger.info(f"Full Generation WebSocket 개별 연결 정리: {session_id} (남은 클라이언트 {remaining_count}개)")
+
+                            # 모든 연결이 제거되면 세션 삭제
+                            if remaining_count == 0:
+                                del self.connections[session_id]
+                                logger.info(f"Full Generation WebSocket 세션 완전 정리: {session_id}")
+                    else:
+                        # 모든 연결 제거
+                        for ws in self.connections[session_id]:
+                            try:
+                                await ws.close()
+                            except:
+                                pass
+                        del self.connections[session_id]
+                        logger.info(f"Full Generation WebSocket 모든 연결 정리: {session_id}")
+                except Exception as e:
+                    logger.error(f"Full Generation WebSocket 연결 정리 중 오류 {session_id}: {e}")
 
     def is_connected(self, session_id: str) -> bool:
         """특정 세션의 연결 상태 확인"""
-        return session_id in self.connections
+        return session_id in self.connections and len(self.connections[session_id]) > 0
 
     async def send_progress(self, session_id: str, progress: FullGenerationProgressMessage):
-        """특정 세션에게 진행 상황 메시지 전송"""
+        """특정 세션의 모든 클라이언트에게 진행 상황 메시지 전송"""
         if session_id not in self.connections:
             logger.warning(f"연결되지 않은 세션에게 메시지 전송 시도: {session_id}")
             return False
 
-        websocket = self.connections[session_id]
+        websockets = self.connections[session_id]
+        if not websockets:
+            logger.warning(f"세션 {session_id}에 활성 연결이 없음")
+            return False
 
-        try:
-            # Pydantic 모델을 JSON으로 직렬화
-            message_dict = progress.model_dump()
-            message_json = json.dumps(message_dict, ensure_ascii=False)
+        # Pydantic 모델을 JSON으로 직렬화
+        message_dict = progress.model_dump()
+        message_json = json.dumps(message_dict, ensure_ascii=False)
 
-            await websocket.send_text(message_json)
-            logger.debug(f"Full Generation 진행 상황 전송 완료 {session_id}: {progress.status} ({progress.progress}%)")
+        success_count = 0
+        failed_websockets = []
+
+        # 모든 연결된 클라이언트에게 전송
+        for websocket in websockets[:]:  # 복사본으로 순회 (수정 중 안전성)
+            try:
+                await self._send_to_websocket(websocket, progress)
+                success_count += 1
+            except WebSocketDisconnect:
+                logger.info(f"Full Generation 클라이언트 연결 끊김 감지: {session_id}")
+                failed_websockets.append(websocket)
+            except Exception as e:
+                logger.error(f"Full Generation 진행 상황 전송 실패 {session_id}: {e}")
+                failed_websockets.append(websocket)
+
+        # 실패한 연결들 정리
+        for failed_ws in failed_websockets:
+            await self.disconnect(session_id, failed_ws)
+
+        if success_count > 0:
+            logger.debug(f"Full Generation 진행 상황 전송 완료 {session_id}: {progress.status} ({progress.progress}%) - {success_count}개 클라이언트")
             return True
-
-        except WebSocketDisconnect:
-            logger.info(f"Full Generation 클라이언트 연결 끊김 감지: {session_id}")
-            await self.disconnect(session_id)
+        else:
+            logger.warning(f"Full Generation 모든 클라이언트 전송 실패: {session_id}")
             return False
 
-        except Exception as e:
-            logger.error(f"Full Generation 진행 상황 전송 실패 {session_id}: {e}")
-            await self.disconnect(session_id)
-            return False
+    async def _send_to_websocket(self, websocket: WebSocket, progress: FullGenerationProgressMessage):
+        """개별 WebSocket에 메시지 전송 (내부 유틸리티)"""
+        message_dict = progress.model_dump()
+        message_json = json.dumps(message_dict, ensure_ascii=False)
+        await websocket.send_text(message_json)
 
     def get_connected_sessions(self) -> list:
         """현재 연결된 모든 세션 ID 반환"""
@@ -204,8 +237,8 @@ async def handle_full_generation_websocket(websocket: WebSocket, session_id: str
             except asyncio.CancelledError:
                 pass
 
-        # 연결 정리
-        await full_generation_connection_manager.disconnect(session_id)
+        # 연결 정리 (특정 WebSocket만)
+        await full_generation_connection_manager.disconnect(session_id, websocket)
         logger.info(f"Full Generation WebSocket 연결 종료: {session_id}")
 
 
