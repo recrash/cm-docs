@@ -345,11 +345,15 @@ async def handle_full_generation(server_url: str, repository_path: Path, session
             # 1단계: 세션 초기화 API 호출
             console.print(f"[cyan]Step 1: Initializing Full Generation session...[/cyan]")
             init_result = await client.init_full_generation_session(session_id)
-            websocket_url = init_result.get('websocket_url')
 
-            if not websocket_url:
-                console.print(f"[red]WebSocket URL을 받지 못했습니다.[/red]")
-                return False
+            # WebSocket URL을 클라이언트에서 직접 생성 (프론트엔드와 동일한 방식)
+            base_url = client.config.get('base_url', '')
+            if base_url.startswith('https://'):
+                websocket_url = base_url.replace('https://', 'wss://') + f'/api/webservice/v2/ws/full-generation/{session_id}'
+            elif base_url.startswith('http://'):
+                websocket_url = base_url.replace('http://', 'ws://') + f'/api/webservice/v2/ws/full-generation/{session_id}'
+            else:
+                websocket_url = f'ws://{base_url}/api/webservice/v2/ws/full-generation/{session_id}'
 
             console.print(f"[green]Session initialized successfully[/green]")
             console.print(f"[cyan]WebSocket URL: {websocket_url}[/cyan]")

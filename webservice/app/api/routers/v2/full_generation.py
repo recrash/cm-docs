@@ -137,18 +137,13 @@ async def init_full_generation_session(session_id: str, request: Request):
         if session_id in generation_sessions:
             logger.info(f"기존 세션 발견: {session_id}")
 
-            # WebSocket URL 생성 (scenario_v2.py와 정확히 동일한 패턴)
-            protocol = "wss" if request.url.scheme == "https" else "ws"
-            host = request.headers.get("host", "localhost:8000")
-            websocket_url = f"{protocol}://{host}/api/webservice/v2/ws/full-generation/{session_id}"
-
-            logger.info(f"🔗 기존 세션 WebSocket URL: {websocket_url}")
+            # WebSocket URL은 프론트엔드에서 생성 (시나리오 생성과 동일한 방식)
+            logger.info(f"🔗 기존 세션 발견, WebSocket URL은 프론트엔드에서 생성")
 
             return JSONResponse({
                 "session_id": session_id,
                 "status": "existing",
-                "message": "기존 세션이 존재합니다.",
-                "websocket_url": websocket_url
+                "message": "기존 세션이 존재합니다."
             })
         
         # 새 세션 초기화
@@ -167,18 +162,13 @@ async def init_full_generation_session(session_id: str, request: Request):
         
         logger.info(f"새 세션 생성 완료: {session_id}")
 
-        # WebSocket URL 생성 (scenario_v2.py와 정확히 동일한 패턴)
-        protocol = "wss" if request.url.scheme == "https" else "ws"
-        host = request.headers.get("host", "localhost:8000")
-        websocket_url = f"{protocol}://{host}/api/webservice/v2/ws/full-generation/{session_id}"
-
-        logger.info(f"🔗 최종 WebSocket URL: {websocket_url}")
+        # WebSocket URL은 프론트엔드에서 생성 (시나리오 생성과 동일한 방식)
+        logger.info(f"🔗 새 세션 생성 완료, WebSocket URL은 프론트엔드에서 생성")
 
         return JSONResponse({
             "session_id": session_id,
             "status": "initialized",
-            "message": "새 세션이 생성되었습니다.",
-            "websocket_url": websocket_url
+            "message": "새 세션이 생성되었습니다."
         })
         
     except Exception as e:
