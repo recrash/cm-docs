@@ -12,9 +12,35 @@ import { test, expect } from '@playwright/test'
 import * as fs from 'fs'
 import * as path from 'path'
 
+// 타입 정의
+interface CustomUrlResult {
+  called: boolean
+  url: string
+  sessionId: string
+}
+
+interface WSMessage {
+  type?: string
+  status?: string
+  message?: string
+  [key: string]: unknown
+}
+
+interface WSTestResult {
+  connected: boolean
+  messages: WSMessage[]
+  error: string | null
+  totalMessages: number
+}
+
+interface WSAccessResult {
+  fullGenerationEndpoint: boolean
+  progressEndpoint: boolean
+  errors: string[]
+}
+
 // 테스트 설정
 const TEST_HTML_FILE = '/Users/recrash/Downloads/0_FW_ Hub HTML_250813/Drum 재고 관리.html'
-const TEST_REPO_PATH = '/Users/recrash/Documents/Workspace/cm-docs'
 const FRONTEND_URL = 'http://localhost:3000'
 const BACKEND_URL = 'http://localhost:8000'
 
@@ -70,8 +96,6 @@ test.describe('Full Generation WebSocket 연결 테스트', () => {
     console.log('✅ 7. Full Generation 버튼 확인')
 
     // 8. Custom URL Protocol 호출 모니터링 준비
-    let customUrlCalled = false
-    let lastCustomUrl = ''
     let sessionId = ''
 
     // 브라우저에서 Custom URL 호출 감지를 위한 스크립트 주입
@@ -97,14 +121,14 @@ test.describe('Full Generation WebSocket 연결 테스트', () => {
 
       window.location.assign = function(url: string) {
         if (url.startsWith('testscenariomaker://')) {
-          (window as any).customUrlCalled = true
-          ;(window as any).lastCustomUrl = url
+          (window as unknown as Record<string, unknown>).customUrlCalled = true
+          ;(window as unknown as Record<string, unknown>).lastCustomUrl = url
 
           // sessionId 추출
           try {
             const urlObj = new URL(url)
             const params = new URLSearchParams(urlObj.search)
-            ;(window as any).sessionId = params.get('sessionId') || ''
+            ;(window as unknown as Record<string, unknown>).sessionId = params.get('sessionId') || ''
           } catch (e) {
             console.error('URL 파싱 오류:', e)
           }
@@ -121,14 +145,14 @@ test.describe('Full Generation WebSocket 연결 테스트', () => {
         get: () => originalHref,
         set: (url: string) => {
           if (url.startsWith('testscenariomaker://')) {
-            (window as any).customUrlCalled = true
-            ;(window as any).lastCustomUrl = url
+            (window as unknown as Record<string, unknown>).customUrlCalled = true
+            ;(window as unknown as Record<string, unknown>).lastCustomUrl = url
 
             // sessionId 추출
             try {
               const urlObj = new URL(url)
               const params = new URLSearchParams(urlObj.search)
-              ;(window as any).sessionId = params.get('sessionId') || ''
+              ;(window as unknown as Record<string, unknown>).sessionId = params.get('sessionId') || ''
             } catch (e) {
               console.error('URL 파싱 오류:', e)
             }
@@ -153,11 +177,12 @@ test.describe('Full Generation WebSocket 연결 테스트', () => {
     // 11. Custom URL 호출 확인
     await page.waitForTimeout(3000) // Custom URL 호출 시간 대기
 
-    const customUrlResult = await page.evaluate(() => {
+    const customUrlResult: CustomUrlResult = await page.evaluate(() => {
+      const w = window as unknown as Record<string, unknown>
       return {
-        called: (window as any).customUrlCalled,
-        url: (window as any).lastCustomUrl,
-        sessionId: (window as any).sessionId
+        called: w.customUrlCalled as boolean,
+        url: w.lastCustomUrl as string,
+        sessionId: w.sessionId as string
       }
     })
 
@@ -174,7 +199,7 @@ test.describe('Full Generation WebSocket 연결 테스트', () => {
     console.log('🎉 HTML 업로드 및 Full Generation 기본 흐름 테스트 완료!')
   })
 
-  test('WebSocket 연결 및 진행상황 수신 테스트', async ({ page, browser }) => {
+  test('WebSocket 연결 및 진행상황 수신 테스트', async ({ browser }) => {
     console.log('🧪 WebSocket 연결 및 진행상황 수신 테스트 시작')
 
     // 테스트를 위한 가상의 세션 ID 생성
@@ -184,18 +209,14 @@ test.describe('Full Generation WebSocket 연결 테스트', () => {
     // WebSocket 연결 및 메시지 수신을 위한 새 페이지 생성
     const wsPage = await browser.newPage()
 
-    let wsMessages: any[] = []
-    let wsConnected = false
-    let wsError = null
-
     // WebSocket 연결 스크립트 주입
     await wsPage.goto(FRONTEND_URL)
 
-    const wsTestResult = await wsPage.evaluate(async (sessionId) => {
-      return new Promise((resolve) => {
-        const messages: any[] = []
+    const wsTestResult: WSTestResult = await wsPage.evaluate(async (sessionId) => {
+      return new Promise<WSTestResult>((resolve) => {
+        const messages: WSMessage[] = []
         let connected = false
-        let error = null
+        let error: string | null = null
 
         try {
           // WebSocket 연결 설정
@@ -404,12 +425,12 @@ test.describe('Full Generation WebSocket 연결 테스트', () => {
 
     const testSessionId = 'test_ws_access_' + Date.now()
 
-    const wsAccessTest = await page.evaluate(async (sessionId) => {
-      return new Promise((resolve) => {
-        const results = {
+    const wsAccessTest: WSAccessResult = await page.evaluate(async (sessionId) => {
+      return new Promise<WSAccessResult>((resolve) => {
+        const results: WSAccessResult = {
           fullGenerationEndpoint: false,
           progressEndpoint: false,
-          errors: [] as string[]
+          errors: []
         }
 
         let testsCompleted = 0
