@@ -806,6 +806,53 @@ curl http://localhost:8001/api/autodoc/list-templates
 
 ## 📝 코딩 규칙
 
+### Frontend 코드 스타일
+
+**TypeScript/React 필수 규칙:**
+
+1. **ESLint & TypeScript 검증**: 코드 수정 후 반드시 검증 실행
+   ```bash
+   cd webservice/frontend && npm run lint
+   cd webservice/frontend && npm run type-check
+   cd webservice/frontend && npm run build
+   ```
+
+2. **타입 안전성**: `any` 타입 사용 금지
+   ```typescript
+   // ❌ 잘못된 예시
+   const data: any = response.data;
+   
+   // ✅ 올바른 예시
+   interface ApiResponse {
+     success: boolean;
+     data: ParsedData;
+   }
+   const data: ApiResponse = response.data;
+   ```
+
+4. **Error Handling**: 타입 안전한 에러 처리
+   ```typescript
+   try {
+     const result = await api.call();
+   } catch (error) {
+     const apiError = error as ApiError;
+     logger.error('API 호출 실패:', apiError);
+   }
+   ```
+
+5. **코드 수정 워크플로우**:
+   ```bash
+   # 1. 코드 수정
+   # 2. 린트 검사
+   npm run lint
+   # 3. 타입 체크
+   npm run type-check  
+   # 4. 빌드 검증
+   npm run build
+   ```
+
+
+
 ### Python 코드 스타일
 
 ```bash

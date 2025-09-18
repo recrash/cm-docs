@@ -8,6 +8,7 @@ import type {
   RAGStatus,
   IndexingResult,
   ParseHtmlResponse,
+  SessionMetadata,
 } from '../types';
 import logger from '../utils/logger';
 
@@ -321,7 +322,7 @@ export const v2Api = {
   /**
    * 세션에 메타데이터 저장 (HTML 파싱 결과)
    */
-  prepareSession: async (sessionId: string, metadata: any) => {
+  prepareSession: async (sessionId: string, metadata: SessionMetadata) => {
     const response = await api.post('/v2/prepare-session', {
       session_id: sessionId,
       metadata_json: metadata

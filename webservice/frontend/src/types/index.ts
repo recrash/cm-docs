@@ -185,3 +185,11 @@ export interface ParseHtmlResponse {
   data: Record<string, unknown>
   error: string | null
 }
+
+export interface SessionMetadata {
+  title?: string
+  content?: string
+  parsed_data?: Record<string, unknown>
+  user_name?: string
+  [key: string]: unknown
+}
