@@ -76,7 +76,7 @@ export default function ScenarioGenerationTab() {
   }, [])
 
   useEffect(() => {
-    // 컴포넌트 언마운트 시 WebSocket 정리
+    // 컴포넌트 언마운트 시에만 WebSocket 정리
     return () => {
       if (v2WebSocket) {
         v2WebSocket.disconnect()
@@ -88,7 +88,7 @@ export default function ScenarioGenerationTab() {
         clearTimeout(cliTimeout)
       }
     }
-  }, [v2WebSocket, fullGenWebSocket, cliTimeout])
+  }, []) // dependency 제거 - 컴포넌트 언마운트 시에만 실행
 
   const loadRagStatus = async () => {
     try {
