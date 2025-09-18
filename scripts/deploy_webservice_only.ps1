@@ -246,7 +246,7 @@ try {
         if ($service -and $service.Status -eq "Running") {
             Write-Host "✓ 웹서비스 서비스 등록 및 시작 완료 (Port: $BackPort)"
         } else {
-            Write-Warning "웹서비스 시작 상태 확인 필요: $($service.Status if $service else 'N/A')"
+            Write-Warning "웹서비스 시작 상태 확인 필요: $(if ($service) { $service.Status } else { 'N/A' })"
         }
     }
     
