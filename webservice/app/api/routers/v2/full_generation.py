@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from .models import (
@@ -41,16 +41,14 @@ generation_sessions: Dict[str, Dict[str, Any]] = {}
 
 @router.post("/start-full-generation", response_model=FullGenerationResponse)
 async def start_full_generation(
-    request: FullGenerationRequest,
-    background_tasks: BackgroundTasks
+    request: FullGenerationRequest
 ):
     """
     전체 문서 생성 시작 (Phase 2)
-    
+
     Args:
         request: 전체 문서 생성 요청
-        background_tasks: 백그라운드 작업 관리자
-        
+
     Returns:
         생성 시작 응답
     """
@@ -84,13 +82,21 @@ async def start_full_generation(
             "warnings": []
         }
         
-        # 백그라운드에서 전체 문서 생성 실행
-        background_tasks.add_task(
-            execute_full_generation,
-            request.session_id,
-            request.vcs_analysis_text,
-            request.metadata_json
-        )
+        # 백그라운드에서 전체 문서 생성 실행 (asyncio.create_task 사용)
+        try:
+            task = asyncio.create_task(
+                execute_full_generation(
+                    request.session_id,
+                    request.vcs_analysis_text,
+                    request.metadata_json
+                )
+            )
+            # 세션에 task 추가하여 관리
+            generation_sessions[request.session_id]["task"] = task
+            logger.info(f"전체 문서 생성 Task 생성 완료: {request.session_id}")
+        except Exception as e:
+            logger.error(f"전체 문서 생성 Task 생성 실패: {request.session_id}, {e}")
+            raise HTTPException(status_code=500, detail=f"작업 시작 실패: {e}")
 
         # 초기 WebSocket 메시지 전송 (연결된 클라이언트가 있다면)
         if full_generation_connection_manager.is_connected(request.session_id):
