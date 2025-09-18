@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 DEFAULT_MODEL = "qwen3:8b"
-DEFAULT_TIMEOUT = 600
+DEFAULT_TIMEOUT = 300  # 5분으로 증가 (기존 600초에서 300초로 조정)
 OLLAMA_BASE_URL = "http://localhost:11434"
 JSON_FORMAT = "json"
 
@@ -91,62 +91,95 @@ class LLMHandler:
         self.model = model
         self.timeout = timeout
         # 비동기 클라이언트를 클래스 속성으로 관리
+        # 더 세밀한 timeout 설정 (연결, 읽기, 쓰기, 풀링 각각 설정)
+        timeout_config = httpx.Timeout(
+            connect=60.0,    # 연결 타임아웃 1분
+            read=self.timeout,    # 읽기 타임아웃 (응답 대기시간)
+            write=30.0,      # 쓰기 타임아웃 30초
+            pool=10.0        # 풀링 타임아웃 10초
+        )
         self.client = httpx.AsyncClient(
-            base_url=OLLAMA_BASE_URL, 
-            timeout=float(self.timeout)
+            base_url=OLLAMA_BASE_URL,
+            timeout=timeout_config
         )
         
     async def generate_scenarios_async(self, prompt: str) -> Dict[str, Any]:
         """
         비동기 시나리오 생성 (완전 비동기)
-        
+
         Args:
             prompt: 시나리오 생성 프롬프트
-            
+
         Returns:
             생성된 시나리오 정보
         """
         logger.info("Generating scenarios using LLM (async)...")
-        
+
         payload = {
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "format": "json"  # JSON 포맷 요청
+            "format": "json",  # JSON 포맷 요청
+            "options": {
+                "temperature": 0.7,      # 창의성 조절
+                "top_p": 0.9,           # 다양성 조절
+                "repeat_penalty": 1.1,   # 반복 방지
+                "num_ctx": 4096,        # 컨텍스트 윈도우 크기
+                "num_predict": 2048     # 최대 생성 토큰 수
+            }
         }
+
+        # DEBUG: 요청 페이로드 전체 로깅
+        logger.debug(f"[LLM DEBUG] Request payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
+        logger.debug(f"[LLM DEBUG] Prompt length: {len(prompt)} characters")
+        logger.debug(f"[LLM DEBUG] Full prompt:\n{prompt}")
 
         try:
             # httpx.AsyncClient를 사용한 비동기 POST 요청
             response_data = await _send_request_async(self.client, payload)
-            
+
+            # DEBUG: 원시 응답 데이터 전체 로깅
+            logger.debug(f"[LLM DEBUG] Raw response data: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
+
             # Ollama는 'response' 필드에 JSON 문자열을 담아주므로 한 번 더 파싱
             response_text = response_data.get('response', '{}').strip()
-            
+
+            # DEBUG: 응답 텍스트 상세 로깅
+            logger.debug(f"[LLM DEBUG] Response text length: {len(response_text)} characters")
+            logger.debug(f"[LLM DEBUG] Response text preview (first 1000 chars): {response_text[:1000]}...")
+            if len(response_text) > 1000:
+                logger.debug(f"[LLM DEBUG] Response text end (last 500 chars): ...{response_text[-500:]}")
+
             if not response_text:
                 logger.warning("Ollama API returned an empty response.")
                 return {
                     "test_cases": [],
                     "description": "LLM 응답을 받을 수 없어 시나리오를 생성하지 못했습니다."
                 }
-            
+
             # JSON 파싱 시도
             try:
                 result = json.loads(response_text)
-                
+
+                # DEBUG: 파싱된 결과 로깅
+                logger.debug(f"[LLM DEBUG] Parsed JSON result: {json.dumps(result, ensure_ascii=False, indent=2)}")
+
                 # 기본 구조 확인 및 생성
                 if not isinstance(result, dict):
                     result = {"test_cases": [], "description": response_text}
-                
+
                 if "test_cases" not in result:
                     result["test_cases"] = []
-                
+
                 if "description" not in result:
                     result["description"] = "LLM에서 생성된 시나리오입니다."
-                
+
                 logger.info(f"Successfully generated {len(result.get('test_cases', []))} test scenarios")
                 return result
-                
-            except json.JSONDecodeError:
+
+            except json.JSONDecodeError as e:
+                logger.error(f"[LLM DEBUG] JSON parsing failed: {e}")
+                logger.error(f"[LLM DEBUG] Failed to parse this text: {response_text}")
                 logger.warning("Failed to parse LLM JSON response, using raw text")
                 return {
                     "test_cases": [{"case": response_text}],

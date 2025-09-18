@@ -161,22 +161,29 @@ async def generate_scenarios_with_llm(
 def _parse_llm_response(raw_response: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
     """
     LLM 원시 응답을 파싱합니다.
-    
+
     scenario_v2.py의 검증된 파싱 로직을 재사용합니다.
     <json> 태그와 ```json 마크다운 블록을 모두 지원합니다.
-    
+
     Args:
         raw_response: LLM 원시 응답 텍스트 또는 이미 파싱된 dictionary
-        
+
     Returns:
         파싱된 JSON 딕셔너리
-        
+
     Raises:
         ValueError: JSON 블록을 찾을 수 없거나 파싱에 실패한 경우
     """
     # 이미 딕셔너리인 경우 (비동기 LLM handler에서 반환된 경우)
     if isinstance(raw_response, dict):
         logger.debug(f"이미 파싱된 딕셔너리 반환 (키: {list(raw_response.keys())})")
+
+        # LLMHandler에서 반환된 오류 응답인지 확인
+        if "error" in raw_response and raw_response.get("test_cases") == []:
+            logger.error(f"LLMHandler에서 오류 응답 받음: {raw_response}")
+            raise ValueError(f"LLM 처리 실패: {raw_response.get('error', 'Unknown error')}")
+
+        # 정상적인 딕셔너리 응답이면 그대로 반환
         return raw_response
     
     logger.debug(f"LLM 응답 파싱 중... (길이: {len(raw_response)})")
