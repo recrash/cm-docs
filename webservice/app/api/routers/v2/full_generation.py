@@ -27,6 +27,7 @@ from app.services.excel_merger import ExcelMerger, ExcelMergerError
 from app.core.llm_handler import LLMHandler
 from app.core.excel_writer import create_excel_file
 from app.core.paths import get_outputs_dir
+from ....core.config_loader import load_config
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -164,9 +165,35 @@ async def init_full_generation_session(session_id: str, request: Request):
         
         logger.info(f"새 세션 생성 완료: {session_id}")
 
-        # WebSocket URL 생성 (scenario_v2.py 패턴 참조)
-        protocol = "wss" if request.url.scheme == "https" else "ws"
-        host = request.headers.get("host", "localhost:8000")
+        # WebSocket URL 생성 (config.json의 base_url 사용)
+        config = load_config()
+        if not config:
+            raise HTTPException(
+                status_code=500,
+                detail="서버 설정을 로드할 수 없습니다. 관리자에게 문의하세요."
+            )
+        
+        base_url = config.get("base_url")
+        if not base_url:
+            raise HTTPException(
+                status_code=500, 
+                detail="서버 설정에서 base_url을 찾을 수 없습니다. 관리자에게 문의하세요."
+            )
+        
+        logger.info(f"설정에서 base_url 로드됨: {base_url}")
+        
+        # 프로토콜 결정: http면 ws, https면 wss 사용
+        if base_url.startswith("https://"):
+            protocol = "wss"
+            host = base_url.replace("https://", "")
+        elif base_url.startswith("http://"):
+            protocol = "ws"
+            host = base_url.replace("http://", "")
+        else:
+            # 프로토콜이 없으면 기본값 사용 (폐쇄망의 경우 http 가능성 높음)
+            protocol = "ws"
+            host = base_url
+            
         websocket_url = f"{protocol}://{host}/api/webservice/v2/ws/full-generation/{session_id}"
 
         return JSONResponse({
