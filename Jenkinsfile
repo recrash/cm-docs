@@ -188,6 +188,14 @@ pipeline {
                     env.AUTO_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\autodoc"
                     env.URL_PREFIX = "/tests/${env.BID}/"
                     
+                    // AUTODOC_SERVICE_URL 환경변수 설정 (모든 브랜치 통합)
+                    if (env.BRANCH_NAME == 'main') {
+                        env.AUTODOC_SERVICE_URL = "http://localhost:8001"
+                    } else {
+                        // develop 및 test 브랜치는 동적 포트 사용
+                        env.AUTODOC_SERVICE_URL = "http://localhost:${env.AUTO_PORT}"
+                    }
+                    
                     echo """
                     ===========================================
                     🔧 브랜치 설정
@@ -197,6 +205,7 @@ pipeline {
                     • BID: ${env.BID}
                     • Backend Port: ${env.BACK_PORT}
                     • AutoDoc Port: ${env.AUTO_PORT}
+                    • AutoDoc Service URL: ${env.AUTODOC_SERVICE_URL}
                     • URL Prefix: ${env.URL_PREFIX}
                     ===========================================
                     """
@@ -239,7 +248,10 @@ pipeline {
                             try {
                                 echo "Webservice Backend 빌드/배포 시작"
                                 build job: 'webservice-backend-pipeline',
-                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                                      parameters: [
+                                          string(name: 'BRANCH', value: env.BRANCH_NAME),
+                                          string(name: 'AUTODOC_SERVICE_URL', value: env.AUTODOC_SERVICE_URL)
+                                      ]
                                 
                                 env.WEBSERVICE_BACKEND_STATUS = 'SUCCESS'
                                 echo "Webservice Backend 배포 성공"
@@ -710,7 +722,7 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                             try {
                                 bat """
                                 chcp 65001 >NUL
-powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_webservice_only.ps1' -Bid '%BID%' -BackPort %BACK_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -WebSrc '%WORKSPACE%\\webservice' -WebBackDst '%WEB_BACK_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'"
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_webservice_only.ps1' -Bid '%BID%' -BackPort %BACK_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -WebSrc '%WORKSPACE%\\webservice' -WebBackDst '%WEB_BACK_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages' -AutoDocServiceUrl '%AUTODOC_SERVICE_URL%'"
                                 """
                                 deployResults['Backend'] = 'SUCCESS'
                                 echo "✅ Backend 배포 성공"

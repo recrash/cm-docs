@@ -6,6 +6,7 @@ Phase 2: Webservice에서 autodoc_service로 문서 생성 요청을 보내는 �
 
 import asyncio
 import httpx
+import os
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 import logging
@@ -79,12 +80,17 @@ def transform_metadata_to_enhanced_request(metadata_json: Dict[str, Any]) -> Dic
 class AutoDocClient:
     """AutoDoc Service HTTP 클라이언트"""
     
-    def __init__(self, base_url: str = "http://localhost:8001", timeout: float = 30.0):
+    def __init__(self, base_url: Optional[str] = None, timeout: float = 30.0):
         """
         Args:
-            base_url: autodoc_service 서버 URL
+            base_url: autodoc_service 서버 URL (None이면 환경변수에서 자동 설정)
             timeout: HTTP 요청 타임아웃 (초)
         """
+        # 환경변수에서 AutoDoc Service URL 동적 해결
+        if base_url is None:
+            base_url = os.getenv('AUTODOC_SERVICE_URL', 'http://localhost:8001')
+            logger.info(f"AutoDoc Service URL 환경변수에서 설정: {base_url}")
+        
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
         self.client: Optional[httpx.AsyncClient] = None

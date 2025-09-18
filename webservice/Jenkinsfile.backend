@@ -4,6 +4,7 @@ pipeline {
     
     parameters {
         string(name: 'BRANCH', defaultValue: 'main', description: 'Branch name')
+        string(name: 'AUTODOC_SERVICE_URL', defaultValue: 'http://localhost:8001', description: 'AutoDoc Service URL')
     }
 
     environment {
@@ -24,6 +25,9 @@ pipeline {
         WEBSERVICE_DATA_PATH = 'C:\\deploys\\data\\webservice'
         // RAG(ChromaDB)의 불필요한 네트워크 통신을 막기 위해 이 부분을 추가
         ANONYMIZED_TELEMETRY = 'False'
+        
+        // AutoDoc Service URL (브랜치별 동적 설정)
+        AUTODOC_SERVICE_URL = "${params.AUTODOC_SERVICE_URL}"
         
         
         // 기타 설정
