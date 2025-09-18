@@ -1,151 +1,173 @@
-# CLAUDE.md
+# TestscenarioMaker Claude Code Instructions
 
-Claude Code 작업 환경 및 프로젝트 가이드 문서
+**Entry Point & Core Directives**
 
-## 🏗️ 프로젝트 개요
+@DEV_ENVIRONMENT.md
+@MONOREPO_STRUCTURE.md
+@BUILD_DEPLOY.md
+@PROJECT_RULES.md
 
-TestscenarioMaker 통합 플랫폼 - Git Subtree 기반 모노레포 아키텍처
+## 🎯 프로젝트 핵심 원칙
 
-### 서비스 구성
-- **webservice/**: React + FastAPI 웹서비스 (AI/ML 기반 시나리오 생성)
-- **cli/**: Python CLI 도구 (크로스 플랫폼 실행파일)
-- **autodoc_service/**: 문서 자동화 서비스 (HTML → Word/Excel)
+**Development First**: 각 모노레포별 가상환경 → Context7 패턴 조회 → 구현 → 검증
+**Evidence-Based**: 모든 최적화는 측정 기반, 하드코딩 회피 금지
+**Cross-Platform**: Windows Server 프로덕션 환경 우선 고려
 
-### 핵심 기술 스택
-- **Frontend**: React 18 + TypeScript + Material-UI + Vite
-- **Backend**: FastAPI + Python 3.12 + ChromaDB (RAG)
-- **AI/LLM**: Ollama (qwen3:8b 모델)
-- **CLI**: Python 3.13 + Click + Rich + PyInstaller
-- **Deployment**: NSSM + nginx + Jenkins
+# ═══════════════════════════════════════════════════
+# TestscenarioMaker Project Architecture
+# ═══════════════════════════════════════════════════
 
-## 🛠️ 개발 환경 설정
+## Monorepo Structure & Services
 
-### 1. Python 가상환경 설정 (서비스별 독립 환경)
+**Architecture**: Git Subtree 기반 통합 플랫폼
+
+```yaml
+services:
+  webservice:
+    stack: "React 18 + TypeScript + Material-UI + Vite | FastAPI + Python 3.12 + ChromaDB"
+    venv: ".venv (Python 3.12)"
+    ports: "3000 (dev), 8000 (api)"
+
+  cli:
+    stack: "Python 3.13 + Click + Rich + PyInstaller"
+    venv: ".venv (Python 3.13)"
+    output: "크로스 플랫폼 실행파일"
+
+  autodoc_service:
+    stack: "FastAPI + Python 3.12"
+    venv: ".venv312 (Python 3.12)"
+    ports: "8001"
+    function: "HTML → Word/Excel 문서 자동화"
+
+deployment:
+  production: "Windows Server + NSSM + nginx + Jenkins"
+  ai_backend: "Ollama (qwen3:8b 모델)"
+```
+
+# ═══════════════════════════════════════════════════
+# Development Environment Setup
+# ═══════════════════════════════════════════════════
+
+## Environment Prerequisites & Activation
+
+**Critical Rule**: 각 서비스 작업시 반드시 해당 가상환경 먼저 활성화
+
+### Service-Specific Virtual Environments
 
 ```bash
-# Webservice 환경 (Python 3.12 + AI/ML)
+# 🔹 Webservice (Python 3.12 + AI/ML Stack)
 cd webservice
 python3.12 -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows
+source .venv/bin/activate  # Linux/macOS | .venv\Scripts\activate (Windows)
+export PYTHONPATH=$(pwd):$PYTHONPATH
 pip install -r requirements.txt -c pip.constraints.txt
 
-# CLI 환경 (Python 3.13)
+# 🔹 CLI (Python 3.13 + Cross-Platform)
 cd cli
 python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 
-# AutoDoc 환경 (Python 3.12, 안정성 우선)
+# 🔹 AutoDoc Service (Python 3.12 + Document Processing)
 cd autodoc_service
 python3.12 -m venv .venv312
 source .venv312/bin/activate
 pip install -r requirements.txt
-```
 
-### 2. 환경변수 설정
-
-```bash
-# Webservice용 (app/ 모듈 임포트 필수)
-export PYTHONPATH=$(pwd):$PYTHONPATH
-
-# 프로덕션 데이터 경로 (선택사항)
-export WEBSERVICE_DATA_PATH="C:/deploys/data/webservice"     # Windows
-export AUTODOC_DATA_PATH="C:/deploys/data/autodoc_service"   # Windows
-
-# 개발 환경에서는 자동으로 data/ 서브디렉토리 사용
-```
-
-### 3. Node.js 환경 설정
-
-```bash
+# 🔹 Frontend (Node.js + React 18)
 cd webservice/frontend
 npm install
-npm run dev  # 개발 서버 시작 (포트 3000)
 ```
 
-## 🚀 로컬 실행 방법
+### Environment Variables Matrix
 
-### Webservice 실행
+```yaml
+webservice_env:
+  required: "PYTHONPATH=$(pwd):$PYTHONPATH"
+  optional_production:
+    - "WEBSERVICE_DATA_PATH=C:/deploys/data/webservice"
+    - "AUTODOC_DATA_PATH=C:/deploys/data/autodoc_service"
+  development: "자동으로 data/ 서브디렉토리 사용"
+```
+
+## Service Execution Patterns
+
+### Service Startup Commands
 
 ```bash
-# 1. Backend 서버 시작
-cd webservice
-source .venv/bin/activate
+# 🚀 Webservice (Full Stack)
+# Terminal 1: Backend API Server
+cd webservice && source .venv/bin/activate
 export PYTHONPATH=$(pwd):$PYTHONPATH
 python -m uvicorn app.main:app --reload --port 8000
 
-# 2. Frontend 개발 서버 시작 (별도 터미널)
-cd webservice/frontend
-npm run dev
+# Terminal 2: Frontend Dev Server
+cd webservice/frontend && npm run dev
+# → Access: http://localhost:3000 (Frontend) → http://localhost:8000 (Backend API)
 
-# 접속: http://localhost:3000 (Frontend) → http://localhost:8000 (Backend API)
-```
-
-### AutoDoc Service 실행
-
-```bash
+# 🚀 AutoDoc Service
 cd autodoc_service
 source .venv312/bin/activate
-python run_autodoc_service.py
+python -m uvicorn app.main:app --reload --port 8001
+# → Access: http://localhost:8001
 
-# 접속: http://localhost:8001
-```
-
-### CLI 실행
-
-```bash
-cd cli
-source .venv/bin/activate
-
-# 명령어 예시
+# 🚀 CLI Operations
+cd cli && source .venv/bin/activate
 ts-cli --help
 ts-cli analyze /path/to/repository
 ts-cli info /path/to/repository
 ts-cli config-show
 ```
 
-## 🧪 테스트 실행
+# ═══════════════════════════════════════════════════
+# Testing & Quality Assurance
+# ═══════════════════════════════════════════════════
 
-### Webservice 테스트
+## Test Execution Matrix
+
+**Critical**: E2E 테스트 필수 (webservice), WebSocket 타임아웃 ~60초 고려
+
+### Service-by-Service Testing
 
 ```bash
-cd webservice
-source .venv/bin/activate
+# 🧪 Webservice Testing Suite
+cd webservice && source .venv/bin/activate
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
-# 백엔드 테스트
-pytest tests/unit/                    # 단위 테스트
-pytest tests/api/                     # API 테스트
-pytest tests/integration/             # 통합 테스트
+# Backend Test Layers
+pytest tests/unit/                    # Unit Tests
+pytest tests/api/                     # API Integration
+pytest tests/integration/             # System Integration
 
-# 프론트엔드 테스트
+# Frontend Test Layers (Critical Path)
 cd frontend
-npm run test                          # 단위 테스트
-npm run test:e2e                      # E2E 테스트 (필수!)
-npm run test:all                      # 전체 테스트
-```
+npm run test                          # Unit Tests
+npm run test:e2e                      # E2E Tests (MANDATORY!)
+npm run test:all                      # Complete Suite
 
-### CLI 테스트
+# 🧪 CLI Testing
+cd cli && source .venv/bin/activate
+pytest --cov=ts_cli --cov-report=html  # Coverage Analysis
+pytest tests/unit/ -v                  # Unit Tests
+pytest tests/integration/ -v           # Integration Tests
+pytest -m "not e2e"                    # Non-E2E Only
 
-```bash
-cd cli
-source .venv/bin/activate
-
-pytest --cov=ts_cli --cov-report=html  # 커버리지 포함
-pytest tests/unit/ -v                  # 단위 테스트만
-pytest tests/integration/ -v           # 통합 테스트만
-pytest -m "not e2e"                    # E2E 제외
-```
-
-### AutoDoc Service 테스트
-
-```bash
-cd autodoc_service
-source .venv312/bin/activate
-
+# 🧪 AutoDoc Service Testing
+cd autodoc_service && source .venv312/bin/activate
 pytest app/tests/ -v
 pytest app/tests/test_html_parser.py -v
+```
+
+### Quality Standards & Coverage
+
+```yaml
+quality_targets:
+  test_coverage: "≥80% (모든 서비스)"
+  performance_limits:
+    webservice_api: "<200ms 응답시간"
+    cli_analysis: "<30초 저장소 분석"
+    autodoc_service: "<1초 HTML 파싱, <3초 문서 생성"
+  e2e_requirements: "WebSocket 대기시간 ~60초"
 ```
 
 ## 🔧 빌드 및 배포
@@ -769,141 +791,166 @@ curl http://localhost:8001/api/autodoc/list-templates
 - 일관된 코드 스타일 유지
 - 명확한 예시와 설명 제공
 
-### 프로젝트별 특화 지침
+# ═══════════════════════════════════════════════════
+# TestscenarioMaker Project-Specific Rules
+# ═══════════════════════════════════════════════════
 
-#### TestscenarioMaker 프로젝트 전용
+## Core Development Principles
 
-**1. 모노레포 구조 인식**
-- 각 서비스의 독립적 가상환경 관리
-- 서비스 간 의존성 최소화
-- Git Subtree 기반 구조 이해
+**Evidence-Based Development**: Context7 패턴 조회 → 구현 → 검증 (하드코딩 회피 절대 금지)
+**Environment Isolation**: 각 모노레포별 독립 가상환경 활성화 필수
+**Cross-Platform First**: Windows Server 프로덕션 환경 우선 고려
 
-**2. 크로스 플랫폼 호환성**
-- Windows Server 프로덕션 환경 고려
-- PowerShell 스크립트 UTF-8 인코딩 필수
-- pathlib.Path 사용으로 경로 처리
+### Architecture-Specific Rules
 
-**3. 성능 최적화 우선순위**
+```yaml
+monorepo_management:
+  structure: "Git Subtree 기반 독립적 서비스 관리"
+  environments: "서비스별 독립 가상환경 (.venv, .venv312)"
+  dependencies: "서비스 간 의존성 최소화"
+
+platform_compatibility:
+  primary_target: "Windows Server + NSSM + nginx + Jenkins"
+  scripting: "PowerShell UTF-8 인코딩 전처리 필수"
+  path_handling: "pathlib.Path 사용 (크로스 플랫폼)"
+  encoding: "Unicode/Emoji 로깅 금지 (Windows 호환성)"
 ```
-1. Webservice API: <200ms 응답시간
-2. CLI: <30초 저장소 분석  
-3. AutoDoc Service: <1초 HTML 파싱, <3초 문서 생성
-4. Test Coverage: ≥80% (모든 서비스)
+
+### Performance & Quality Standards
+
+```yaml
+performance_budgets:
+  webservice_api: "<200ms 응답시간"
+  cli_analysis: "<30초 저장소 분석"
+  autodoc_html_parsing: "<1초"
+  autodoc_document_generation: "<3초"
+  test_coverage_minimum: "≥80% (모든 서비스)"
+
+quality_gates:
+  testing: "E2E 테스트 필수 (webservice)"
+  websocket_timeout: "~60초 대기시간 고려"
+  jenkins_compatibility: "PowerShell 실행 환경 대응"
+  no_shortcuts: "하드코딩/테스트 데이터 조작 절대 금지"
 ```
 
-**4. 보안 및 안정성**
-- 로깅에서 Unicode/Emoji 금지 (Windows 호환성)
-- ChromaDB constraints 파일 필수 사용
-- API 응답 표준 형식 준수
-- Python 코드 작성시 print문을 쓰는 것을 지양하되, 꼭 써야 할 경우 영어로 작성할 것
-- 코드 계획을 세울 때 반드시 Context7 MCP를 이용하여 사례를 먼저 찾아보는 과정을 거칠 것. 
+### Development Workflow Rules
 
-**5. 테스트 및 검증**
-- E2E 테스트 필수 (webservice)
-- WebSocket 타임아웃 ~60초 고려
-- Jenkins PowerShell 실행 환경 대응
-- 그 순간의 테스트 성공을 위해서 하드코딩을 하거나 테스트 데이터를 바꾸는 회피행동은 절대로 하지 말 것.
+```yaml
+pre_development:
+  pattern_research: "Context7 MCP 패턴 조회 필수"
+  environment_check: "가상환경 활성화 상태 확인"
+  dependency_validation: "ChromaDB constraints 파일 사용"
 
-## 📝 코딩 규칙
+coding_standards:
+  python_print: "영어 only, 가능하면 logger 사용"
+  commit_format: "서비스 접두사 ([webservice], [cli], [autodoc_service])"
+  api_response: "표준 JSON 형식 (success, data, message, timestamp)"
+```
 
-### Frontend 코드 스타일
+## Code Quality & Style Guidelines
 
-**TypeScript/React 필수 규칙:**
+### Frontend Code Standards (TypeScript/React)
 
-1. **ESLint & TypeScript 검증**: 코드 수정 후 반드시 검증 실행
-   ```bash
-   cd webservice/frontend && npm run lint
-   cd webservice/frontend && npm run type-check
-   cd webservice/frontend && npm run build
-   ```
-
-2. **타입 안전성**: `any` 타입 사용 금지
-   ```typescript
-   // ❌ 잘못된 예시
-   const data: any = response.data;
-   
-   // ✅ 올바른 예시
-   interface ApiResponse {
-     success: boolean;
-     data: ParsedData;
-   }
-   const data: ApiResponse = response.data;
-   ```
-
-4. **Error Handling**: 타입 안전한 에러 처리
-   ```typescript
-   try {
-     const result = await api.call();
-   } catch (error) {
-     const apiError = error as ApiError;
-     logger.error('API 호출 실패:', apiError);
-   }
-   ```
-
-5. **코드 수정 워크플로우**:
-   ```bash
-   # 1. 코드 수정
-   # 2. 린트 검사
-   npm run lint
-   # 3. 타입 체크
-   npm run type-check  
-   # 4. 빌드 검증
-   npm run build
-   ```
-
-
-
-### Python 코드 스타일
-
+**Mandatory Quality Pipeline**:
 ```bash
-# 코드 포매팅 (프로젝트 루트에서 실행)
+# Post-Development Validation (Required)
+cd webservice/frontend
+npm run lint          # ESLint 검증
+npm run type-check     # TypeScript 타입 검증
+npm run build          # 빌드 검증
+```
+
+**Type Safety Requirements**:
+```typescript
+// 🚫 Prohibited: any 타입 사용 금지
+const data: any = response.data;
+
+// ✅ Required: 명시적 타입 정의
+interface ApiResponse {
+  success: boolean;
+  data: ParsedData;
+}
+const data: ApiResponse = response.data;
+
+// ✅ Error Handling Pattern
+try {
+  const result = await api.call();
+} catch (error) {
+  const apiError = error as ApiError;
+  logger.error('API call failed:', apiError);
+}
+```
+
+### Backend Code Standards (Python)
+
+**Code Quality Pipeline**:
+```bash
+# 프로젝트 루트에서 실행 (Required)
 black webservice/ cli/ autodoc_service/ --line-length 88
 isort webservice/ cli/ autodoc_service/
 flake8 webservice/ cli/ autodoc_service/
 mypy webservice/app/ cli/src/
 ```
 
-### 필수 규칙
+**Mandatory Rules**:
+```yaml
+path_handling: "pathlib.Path 사용 (크로스 플랫폼 호환성)"
+logging_standards: "Unicode/Emoji 금지, 영어 사용 (Windows 호환성)"
+dependency_management: "ChromaDB constraints 파일 필수"
+virtual_environment: "서비스별 가상환경 사전 활성화 필수"
+commit_format: "[webservice], [cli], [autodoc_service] 접두사 사용"
+```
 
-1. **경로 처리**: 항상 `pathlib.Path` 사용 (크로스 플랫폼)
-2. **로깅**: Unicode/Emoji 금지 (Windows 호환성)
-3. **테스트**: E2E 테스트 필수 (webservice)
-4. **커밋**: 서비스별 접두사 사용 (`[webservice]`, `[cli]`, `[autodoc_service]`)
-5. **의존성**: ChromaDB는 반드시 constraints 파일과 함께 설치
-6. **서비스 실행시**: 로컬에서 서비스 실행시 각 모노레포별 가상환경을 반드시 먼저 실행한 뒤에 작업을 진행할것
-
-### API 응답 형식
+### API Response Standards
 
 ```python
-# 표준 응답 형식
+# ✅ Standard Response Format
 {
     "success": true,
     "data": {...},
-    "message": "성공",
+    "message": "Success message",
     "timestamp": "2025-01-17T10:30:00Z"
 }
 
-# 오류 응답 형식
+# ✅ Error Response Format
 {
     "success": false,
-    "error": "오류 메시지",
+    "error": "Error message",
     "code": "ERROR_CODE",
     "timestamp": "2025-01-17T10:30:00Z"
 }
 ```
 
-## 🔧 개발 도구 설정
+# ═══════════════════════════════════════════════════
+# Infrastructure & Deployment Reference
+# ═══════════════════════════════════════════════════
 
-### VS Code 설정 (.vscode/settings.json)
+## Production Environment
 
+```yaml
+deployment_stack:
+  server: "Windows Server + NSSM + nginx + Jenkins"
+  frontend: "nginx (port 80) → React SPA"
+  backend_api: "NSSM service (port 8000) → FastAPI"
+  autodoc_api: "NSSM service (port 8001) → FastAPI"
+
+development_server:
+  location: "34.64.173.97 (GCP VM T4인스턴스 vCPU:4 RAM:15GB)"
+  open_ports: [8000, 8001, 3000, 80]
+
+version_control_support:
+  git: "브랜치 비교, 커밋 히스토리 분석, diff 생성"
+  svn: "리비전 분석, 변경사항 감지, 경로 처리"
+  auto_detection: ".git/.svn 디렉토리 자동 감지"
+```
+
+## Development Tools Configuration
+
+**VS Code Settings** (.vscode/settings.json):
 ```json
 {
     "python.defaultInterpreterPath": "./webservice/.venv/bin/python",
     "python.testing.pytestEnabled": true,
-    "python.testing.pytestArgs": ["tests"],
-    "python.linting.enabled": true,
-    "python.linting.flake8Enabled": true,
-    "python.formatting.provider": "black",
     "typescript.preferences.importModuleSpecifier": "relative",
     "editor.codeActionsOnSave": {
         "source.organizeImports": true,
@@ -912,51 +959,11 @@ mypy webservice/app/ cli/src/
 }
 ```
 
-### Git Hooks (optional)
-
+**CLI Usage Examples**:
 ```bash
-# .git/hooks/pre-commit
-#!/bin/bash
-# 커밋 전 코드 품질 검사
-black --check webservice/ cli/ autodoc_service/
-flake8 webservice/ cli/ autodoc_service/
-cd webservice/frontend && npm run lint
+ts-cli analyze /path/to/repository    # Git/SVN 저장소 분석
+ts-cli info /path/to/repository       # VCS 정보 확인
+ts-cli config-show                    # 설정 확인
 ```
-
-## 📊 성능 목표
-
-- **Webservice API**: <200ms 응답시간
-- **CLI**: <30초 저장소 분석
-- **AutoDoc Service**: <1초 HTML 파싱, <3초 문서 생성
-- **Test Coverage**: ≥80% (모든 서비스)
-
-## 🌐 VCS 지원
-
-### 지원하는 버전 관리 시스템
-
-- **Git**: 브랜치 비교, 커밋 히스토리 분석, diff 생성
-- **SVN**: 리비전 분석, 변경사항 감지, 경로 처리
-- **자동 감지**: `.git` 또는 `.svn` 디렉토리로 자동 감지
-
-### VCS 사용 예시
-
-```bash
-# Git 저장소 분석
-ts-cli analyze /path/to/git/repo
-
-# SVN 작업 복사본 분석
-ts-cli analyze /path/to/svn/working/copy
-
-# 저장소 정보 확인
-ts-cli info /path/to/repository
-```
-
-- **개발 서버**: 34.64.173.97 (GCP VM)
-- **서비스 포트**: 8000 (Backend), 8001 (AutoDoc), 80 (Frontend)
-- **이슈 트래킹**: GitHub Issues
-- **문서 업데이트**: 이 파일을 직접 수정하여 PR 제출
-
-
 
 ---
-
