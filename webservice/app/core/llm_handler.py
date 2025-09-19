@@ -118,15 +118,9 @@ class LLMHandler:
         payload = {
             "model": self.model,
             "prompt": prompt,
-            "stream": False,
-            "format": "json",  # JSON 포맷 요청
-            "options": {
-                "temperature": 0.7,      # 창의성 조절
-                "top_p": 0.9,           # 다양성 조절
-                "repeat_penalty": 1.1,   # 반복 방지
-                "num_ctx": 4096,        # 컨텍스트 윈도우 크기
-                "num_predict": 2048     # 최대 생성 토큰 수
-            }
+            "stream": False
+            # format 필드 제거: scenario_v2.py와 동일한 자유 형식으로 변경
+            # options 제거: 기본 설정 사용으로 scenario_v2.py와 통일
         }
 
         # DEBUG: 요청 페이로드 전체 로깅
