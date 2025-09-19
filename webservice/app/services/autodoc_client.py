@@ -40,9 +40,14 @@ def transform_metadata_to_enhanced_request(metadata_json: Dict[str, Any]) -> Dic
         logger.info("API 응답 구조 감지: raw_data['data']에서 실제 데이터 추출")
         actual_data = raw_data.get('data', {})
         logger.info(f"실제 데이터 keys: {list(actual_data.keys()) if actual_data else 'None'}")
-    else:
+    elif raw_data:
         actual_data = raw_data
         logger.info("직접 데이터 구조 사용")
+    else:
+        # raw_data가 없는 경우 metadata_json 자체를 사용
+        logger.info("raw_data가 없음: metadata_json 자체를 실제 데이터로 사용")
+        actual_data = metadata_json
+        logger.info(f"metadata_json을 actual_data로 사용, keys: {list(actual_data.keys())}")
     
     if actual_data:
         logger.info(f"actual_data 샘플: 처리자_약칭={actual_data.get('처리자_약칭')}, 요청자={actual_data.get('요청자')}, 변경관리번호={actual_data.get('변경관리번호')}")
