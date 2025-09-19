@@ -12,6 +12,7 @@
 **Development First**: 각 모노레포별 가상환경 → Context7 패턴 조회 → 구현 → 검증
 **Evidence-Based**: 모든 최적화는 측정 기반, 하드코딩 회피 금지
 **Cross-Platform**: Windows Server 프로덕션 환경 우선 고려
+**Air-gapped Environment**: 폐쇄망 환경에서 인터넷 연결 없이 완전 독립 운영 가능
 
 # ═══════════════════════════════════════════════════
 # TestscenarioMaker Project Architecture
@@ -42,6 +43,84 @@ services:
 deployment:
   production: "Windows Server + NSSM + nginx + Jenkins"
   ai_backend: "Ollama (qwen3:8b 모델)"
+  environment: "Air-gapped (폐쇄망) - 인터넷 연결 없음"
+```
+
+# ═══════════════════════════════════════════════════
+# Air-gapped Environment Requirements
+# ═══════════════════════════════════════════════════
+
+## 🚨 폐쇄망 환경 운영 지침
+
+**CRITICAL**: 본 시스템은 폐쇄망(Air-gapped) 환경에서 운영되므로 인터넷 연결이 없습니다.
+모든 의존성, 아티팩트, 코드는 폐쇄망 환경에서 완전히 독립적으로 작동해야 합니다.
+
+### 폐쇄망 환경 제약사항
+
+```yaml
+network_restrictions:
+  internet_access: "금지 - 인터넷 연결 불가"
+  external_api: "금지 - 외부 API 호출 불가"
+  package_registry: "금지 - npm, PyPI 등 외부 레지스트리 접근 불가"
+  ai_services: "금지 - 외부 AI API (OpenAI, Anthropic 등) 사용 불가"
+
+mandatory_requirements:
+  offline_operation: "모든 기능이 인터넷 없이 작동해야 함"
+  local_dependencies: "모든 의존성은 사전에 다운로드하여 로컬에 저장"
+  bundled_assets: "모든 리소스는 빌드 시 번들에 포함"
+  local_ai: "AI 기능은 로컬 Ollama 서버 사용 필수"
+```
+
+### 의존성 관리 전략
+
+```bash
+# ✅ Python 패키지 사전 다운로드 (개발 환경에서)
+pip download -r requirements.txt -d offline_packages/
+pip install --no-index --find-links offline_packages/ -r requirements.txt
+
+# ✅ Node.js 패키지 사전 다운로드
+npm pack --pack-destination offline_packages/
+npm ci --offline
+
+# ✅ AI 모델 로컬 설치
+ollama pull qwen3:8b  # 개발 환경에서 사전 다운로드
+```
+
+### 코드 구현 제약사항
+
+```python
+# 🚫 금지: 외부 API 호출
+import requests
+response = requests.get("https://api.external-service.com")
+
+# ✅ 허용: 로컬 서비스만 사용
+response = requests.post("http://localhost:11434/api/generate")
+
+# 🚫 금지: 외부 CDN 참조
+<script src="https://cdn.jsdelivr.net/npm/axios"></script>
+
+# ✅ 허용: 번들에 포함된 라이브러리
+import axios from './node_modules/axios'
+```
+
+### 아티팩트 관리
+
+```yaml
+build_artifacts:
+  frontend: "모든 asset을 dist/에 번들링"
+  python_wheel: "의존성 포함된 wheel 파일 생성"
+  cli_binary: "독립 실행 가능한 바이너리"
+  templates: "모든 템플릿 파일을 로컬에 저장"
+
+deployment_package:
+  structure: |
+    deployment_package/
+    ├── offline_packages/          # Python/Node 패키지
+    ├── binaries/                  # 컴파일된 실행파일
+    ├── templates/                 # Word/Excel 템플릿
+    ├── ai_models/                 # Ollama 모델 파일
+    ├── config/                    # 환경 설정 파일
+    └── scripts/                   # 설치/배포 스크립트
 ```
 
 # ═══════════════════════════════════════════════════
@@ -51,32 +130,37 @@ deployment:
 ## Environment Prerequisites & Activation
 
 **Critical Rule**: 각 서비스 작업시 반드시 해당 가상환경 먼저 활성화
+**Air-gapped Rule**: 모든 의존성은 사전에 다운로드하여 오프라인으로 설치
 
 ### Service-Specific Virtual Environments
 
 ```bash
-# 🔹 Webservice (Python 3.12 + AI/ML Stack)
+# 🔹 Webservice (Python 3.12 + AI/ML Stack) - 폐쇄망 설치
 cd webservice
 python3.12 -m venv .venv
 source .venv/bin/activate  # Linux/macOS | .venv\Scripts\activate (Windows)
 export PYTHONPATH=$(pwd):$PYTHONPATH
-pip install -r requirements.txt -c pip.constraints.txt
+# 폐쇄망 환경: 오프라인 패키지 설치
+pip install --no-index --find-links ../offline_packages/ -r requirements.txt -c pip.constraints.txt
 
-# 🔹 CLI (Python 3.13 + Cross-Platform)
+# 🔹 CLI (Python 3.13 + Cross-Platform) - 폐쇄망 설치
 cd cli
 python3.13 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+# 폐쇄망 환경: 오프라인 패키지 설치
+pip install --no-index --find-links ../offline_packages/ -e .
 
-# 🔹 AutoDoc Service (Python 3.12 + Document Processing)
+# 🔹 AutoDoc Service (Python 3.12 + Document Processing) - 폐쇄망 설치
 cd autodoc_service
 python3.12 -m venv .venv312
 source .venv312/bin/activate
-pip install -r requirements.txt
+# 폐쇄망 환경: 오프라인 패키지 설치
+pip install --no-index --find-links ../offline_packages/ -r requirements.txt
 
-# 🔹 Frontend (Node.js + React 18)
+# 🔹 Frontend (Node.js + React 18) - 폐쇄망 설치
 cd webservice/frontend
-npm install
+# 폐쇄망 환경: 오프라인 설치
+npm ci --offline
 ```
 
 ### Environment Variables Matrix
@@ -800,6 +884,7 @@ curl http://localhost:8001/api/autodoc/list-templates
 **Evidence-Based Development**: Context7 패턴 조회 → 구현 → 검증 (하드코딩 회피 절대 금지)
 **Environment Isolation**: 각 모노레포별 독립 가상환경 활성화 필수
 **Cross-Platform First**: Windows Server 프로덕션 환경 우선 고려
+**Air-gapped First**: 폐쇄망 환경에서 완전 독립 운영 필수, 인터넷 의존성 절대 금지
 
 ### Architecture-Specific Rules
 
@@ -814,6 +899,7 @@ platform_compatibility:
   scripting: "PowerShell UTF-8 인코딩 전처리 필수"
   path_handling: "pathlib.Path 사용 (크로스 플랫폼)"
   encoding: "Unicode/Emoji 로깅 금지 (Windows 호환성)"
+  network: "폐쇄망 환경 - 인터넷 연결 불가, 로컬 서비스만 사용"
 ```
 
 ### Performance & Quality Standards
@@ -845,6 +931,8 @@ coding_standards:
   python_print: "영어 only, 가능하면 logger 사용"
   commit_format: "서비스 접두사 ([webservice], [cli], [autodoc_service])"
   api_response: "표준 JSON 형식 (success, data, message, timestamp)"
+  network_calls: "로컬 서비스만 허용 (localhost, 127.0.0.1), 외부 URL 절대 금지"
+  ai_integration: "Ollama 로컬 서버만 사용, 외부 AI API 절대 금지"
 ```
 
 ## Code Quality & Style Guidelines
@@ -896,9 +984,11 @@ mypy webservice/app/ cli/src/
 ```yaml
 path_handling: "pathlib.Path 사용 (크로스 플랫폼 호환성)"
 logging_standards: "Unicode/Emoji 금지, 영어 사용 (Windows 호환성)"
-dependency_management: "ChromaDB constraints 파일 필수"
+dependency_management: "ChromaDB constraints 파일 필수, 오프라인 패키지 설치"
 virtual_environment: "서비스별 가상환경 사전 활성화 필수"
 commit_format: "[webservice], [cli], [autodoc_service] 접두사 사용"
+network_restrictions: "폐쇄망 환경 - 인터넷 호출 코드 작성 절대 금지"
+ai_services: "로컬 Ollama만 사용, 외부 AI API 사용 절대 금지"
 ```
 
 ### API Response Standards
