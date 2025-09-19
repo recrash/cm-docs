@@ -130,25 +130,25 @@ class LLMHandler:
         }
 
         # DEBUG: 요청 페이로드 전체 로깅
-        logger.debug(f"[LLM DEBUG] Request payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
-        logger.debug(f"[LLM DEBUG] Prompt length: {len(prompt)} characters")
-        logger.debug(f"[LLM DEBUG] Full prompt:\n{prompt}")
+        logger.info(f"[LLM DEBUG] Request payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
+        logger.info(f"[LLM DEBUG] Prompt length: {len(prompt)} characters")
+        logger.info(f"[LLM DEBUG] Full prompt:\n{prompt}")
 
         try:
             # httpx.AsyncClient를 사용한 비동기 POST 요청
             response_data = await _send_request_async(self.client, payload)
 
             # DEBUG: 원시 응답 데이터 전체 로깅
-            logger.debug(f"[LLM DEBUG] Raw response data: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
+            logger.info(f"[LLM DEBUG] Raw response data: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
 
             # Ollama는 'response' 필드에 JSON 문자열을 담아주므로 한 번 더 파싱
             response_text = response_data.get('response', '{}').strip()
 
             # DEBUG: 응답 텍스트 상세 로깅
-            logger.debug(f"[LLM DEBUG] Response text length: {len(response_text)} characters")
-            logger.debug(f"[LLM DEBUG] Response text preview (first 1000 chars): {response_text[:1000]}...")
+            logger.info(f"[LLM DEBUG] Response text length: {len(response_text)} characters")
+            logger.info(f"[LLM DEBUG] Response text preview (first 1000 chars): {response_text[:1000]}...")
             if len(response_text) > 1000:
-                logger.debug(f"[LLM DEBUG] Response text end (last 500 chars): ...{response_text[-500:]}")
+                logger.info(f"[LLM DEBUG] Response text end (last 500 chars): ...{response_text[-500:]}")
 
             if not response_text:
                 logger.warning("Ollama API returned an empty response.")
