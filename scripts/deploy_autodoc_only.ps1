@@ -180,16 +180,6 @@ try {
         # 새 서비스 등록 - webservice 스크립트와 동일한 방식 사용
         Write-Host "AutoDoc 서비스 등록 중... (시작하지 않음)"
 
-        # 기존 서비스 확인 및 제거
-        $existingService = Get-Service -Name "cm-autodoc-$Bid" -ErrorAction SilentlyContinue
-        if ($existingService) {
-            Write-Host "  -> 기존 서비스 제거 중..."
-            & $Nssm stop "cm-autodoc-$Bid" 2>$null
-            Start-Sleep -Seconds 3
-            & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
-            Start-Sleep -Seconds 2
-        }
-
         # 새 서비스 설치 (시작하지 않음)
         Write-Host "  -> 서비스 설치 중..."
         & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
