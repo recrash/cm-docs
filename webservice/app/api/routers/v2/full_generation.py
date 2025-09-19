@@ -359,6 +359,13 @@ async def execute_full_generation(session_id: str, vcs_analysis_text: str, metad
         await update_session_status(session_id, FullGenerationStatus.COMPLETED, "생성 완료", 4)
         logger.info(f"전체 문서 생성 완료: {session_id}")
 
+        # 클라이언트가 메시지를 수신할 시간 확보
+        await asyncio.sleep(1)
+
+        # 세션의 모든 WebSocket 연결 정상 종료
+        await full_generation_connection_manager.disconnect(session_id)
+        logger.info(f"WebSocket 연결 정상 종료 완료: {session_id}")
+
     except Exception as e:
         logger.error(f"전체 문서 생성 실패: {session_id}, {e}")
         session["status"] = FullGenerationStatus.ERROR

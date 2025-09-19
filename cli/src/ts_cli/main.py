@@ -342,53 +342,18 @@ async def handle_full_generation(server_url: str, repository_path: Path, session
             'retry_delay': 1.0
         }
         async with APIClient(api_config) as client:
-            # 1단계: 세션 초기화 API 호출
-            console.print(f"[cyan]Step 1: Initializing Full Generation session...[/cyan]")
-            init_result = await client.init_full_generation_session(session_id)
-
-            # WebSocket URL을 클라이언트에서 직접 생성 (프론트엔드와 동일한 방식)
-            base_url = client.config.get('base_url', '')
-            if base_url.startswith('https://'):
-                websocket_url = base_url.replace('https://', 'wss://') + f'/api/webservice/v2/ws/full-generation/{session_id}'
-            elif base_url.startswith('http://'):
-                websocket_url = base_url.replace('http://', 'ws://') + f'/api/webservice/v2/ws/full-generation/{session_id}'
-            else:
-                websocket_url = f'ws://{base_url}/api/webservice/v2/ws/full-generation/{session_id}'
-
-            console.print(f"[green]Session initialized successfully[/green]")
-            console.print(f"[cyan]WebSocket URL: {websocket_url}[/cyan]")
-
-            # 2단계: 전체 문서 생성 API 호출
-            console.print(f"[cyan]Step 2: Starting full document generation...[/cyan]")
+            # VCS 분석 결과를 백엔드에 전송하여 전체 문서 생성 시작
+            console.print(f"[cyan]Sending VCS analysis data to backend for full document generation...[/cyan]")
             result = await client.start_full_generation(
                 session_id=session_id,
                 vcs_analysis_text=changes_data,  # VCS 분석 결과 (Git/SVN 모두 동일 필드명)
                 metadata_json=metadata_json
             )
 
-            console.print(f"[green]Full generation request sent successfully[/green]")
+            console.print(f"[green]✓ Full generation request sent successfully![/green]")
             console.print(f"[cyan]Session ID: {result.get('session_id', session_id)}[/cyan]")
-
-            # 3단계: WebSocket으로 진행상황 실시간 모니터링
-            console.print(f"[cyan]Step 3: Monitoring progress via WebSocket...[/cyan]")
-            console.print(f"[yellow]Full document generation in progress - this may take several minutes...[/yellow]")
-
-            def progress_callback(status: str, message: str, progress_value: int, result: Optional[dict]):
-                """진행상황 콜백 함수"""
-                console.print(f"[cyan][{status}][/cyan] {message} ({progress_value}%)")
-
-            # WebSocket 연결 및 진행상황 수신 (최대 30분 대기)
-            final_result = await client.listen_to_full_generation_progress(
-                websocket_url=websocket_url,
-                progress_callback=progress_callback,
-                timeout=1800  # 30분
-            )
-
-            console.print(f"[green]✓ Full document generation completed successfully![/green]")
-            if final_result:
-                console.print(f"[cyan]Result details: {len(str(final_result))} characters[/cyan]")
-
-            console.print(f"[yellow]You can also check the progress on the web UI: {server_url}[/yellow]")
+            console.print(f"[yellow]Backend processing started. You can monitor progress on the web UI: {server_url}[/yellow]")
+            console.print(f"[green]CLI task completed - backend will continue processing in the background.[/green]")
 
             return True
             

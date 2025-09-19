@@ -254,20 +254,8 @@ export default function ScenarioGenerationTab() {
       const sessionId = generateSessionId()
       setFullGenSessionId(sessionId)
       console.log('📋 Full Generation 시작:', { sessionId, repoPath, htmlFile: htmlFile.name })
-      
-      // 2. 백엔드에 세션 사전 등록
-      try {
-        console.log('🔧 세션 초기화 중...')
-        await v2Api.initFullGenerationSession(sessionId)
-        console.log('✅ 세션 초기화 완료')
-      } catch (sessionError) {
-        console.error('❌ 세션 초기화 실패:', sessionError)
-        setError('세션 초기화에 실패했습니다. 다시 시도해주세요.')
-        setWorkflowState('error')
-        return
-      }
-      
-      // 3. WebSocket 연결
+
+      // 2. WebSocket 연결 먼저 수립
       const ws = new FullGenerationWebSocket(sessionId, {
         onProgress: (progress) => {
           console.log('📊 Full Generation 진행:', progress)
@@ -311,8 +299,9 @@ export default function ScenarioGenerationTab() {
       
       setFullGenWebSocket(ws)
       ws.connect()
-      
-      // 4. HTML 파일 파싱
+      console.log('🔌 WebSocket 연결 시작')
+
+      // 3. HTML 파일 파싱
       console.log('📄 HTML 파일 파싱 중...')
       const parseResult = await autodocApi.parseHtmlOnly(htmlFile)
       
@@ -322,7 +311,7 @@ export default function ScenarioGenerationTab() {
       
       console.log('✅ HTML 파싱 완료:', parseResult)
 
-      // 5. 세션에 메타데이터 저장
+      // 4. 세션에 메타데이터 저장
       console.log('💾 세션에 메타데이터 저장 중...')
       try {
         await v2Api.prepareSession(sessionId, parseResult.data)
@@ -334,20 +323,20 @@ export default function ScenarioGenerationTab() {
         return
       }
 
-      // 6. CLI 호출 (메타데이터 없이 sessionId만)
+      // 5. CLI 호출 (Fire-and-Forget)
       setWorkflowState('waiting_cli')
       const customUrl = `testscenariomaker://full-generate?sessionId=${sessionId}&repoPath=${encodeURIComponent(repoPath)}`
       console.log('🔗 Full Generation CLI URL:', customUrl)
       
       window.location.href = customUrl
       
-      // 7. 5분 타임아웃 설정 (LLM 처리 시간 고려)
+      // 6. CLI 타임아웃 설정 (30초)
       const timeout = setTimeout(() => {
         console.log('⏰ CLI 타임아웃')
         setError('CLI가 응답하지 않습니다. 프로그램이 설치되어 있는지 확인해주세요.')
         setWorkflowState('error')
         ws.disconnect()
-      }, 300000)  // 30초 → 300초 (5분)로 증가
+      }, 30000)  // 30초
       
       setCliTimeout(timeout as unknown as number)
       

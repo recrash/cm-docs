@@ -99,6 +99,8 @@ export class FullGenerationWebSocket {
           // 완료 상태 처리
           if (message.status === FullGenerationStatus.COMPLETED && message.result) {
             this.config.onComplete?.(message.result)
+            // 완료 시 클라이언트도 연결 종료
+            this.disconnect()
           }
 
           // 에러 상태 처리
