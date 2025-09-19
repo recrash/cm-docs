@@ -497,12 +497,22 @@ async def download_file(request: Request, filename: str):
         elif filename.lower().endswith('.xlsx'):
             content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         
+        # UTF-8 파일명 인코딩 처리
+        import urllib.parse
+        filename_utf8 = urllib.parse.quote(filename, safe='')
+        
         logger.info(f"파일 다운로드 시작: filename={filename}, size={file_size} bytes, content_type={content_type}")
         
         return FileResponse(
             path=str(file_path),
             media_type=content_type,
-            filename=filename
+            filename=filename,
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_utf8}",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
         )
         
     except HTTPException:
