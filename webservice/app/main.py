@@ -212,23 +212,7 @@ root_router.include_router(files.router, prefix="/files", tags=["Files"])
 root_router.include_router(logging_router.router, prefix="", tags=["Logging"])
 root_router.include_router(v2_router, prefix="")  # v2는 자체 prefix(/v2)를 가짐
 
-# 최종적으로 root_router를 앱에 포함
-app.include_router(root_router)
-
-# 정적 파일 서빙 (프로덕션용)
-static_dir = Path(__file__).parent.parent / "frontend/dist"
-if static_dir.exists():
-    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
-
-@app.get("/")
-async def root():
-    """루트 엔드포인트"""
-    return {
-        "message": "TestscenarioMaker API v2.0.0",
-        "docs": "/docs",
-        "redoc": "/redoc"
-    }
-
+# health 엔드포인트 정의 (root_router 포함 이전에 먼저 정의)
 @root_router.get("/health")
 async def health_check():
     """헬스 체크 엔드포인트 - RAG 시스템 초기화 상태 포함"""
@@ -286,6 +270,23 @@ async def health_check():
             "error": str(e),
             "timestamp": time.time()
         }
+
+# 최종적으로 root_router를 앱에 포함
+app.include_router(root_router)
+
+# 정적 파일 서빙 (프로덕션용)
+static_dir = Path(__file__).parent.parent / "frontend/dist"
+if static_dir.exists():
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+
+@app.get("/")
+async def root():
+    """루트 엔드포인트"""
+    return {
+        "message": "TestscenarioMaker API v2.0.0",
+        "docs": "/docs",
+        "redoc": "/redoc"
+    }
 
 if __name__ == "__main__":
     # This is for development purposes only. 
