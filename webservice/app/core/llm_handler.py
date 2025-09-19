@@ -133,7 +133,7 @@ class LLMHandler:
             response_data = await _send_request_async(self.client, payload)
 
             # DEBUG: 원시 응답 데이터 전체 로깅
-            logger.info(f"[LLM DEBUG] Raw response data: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
+            # logger.info(f"[LLM DEBUG] Raw response data: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
 
             # Ollama는 'response' 필드에 JSON 문자열을 담아주므로 한 번 더 파싱
             response_text = response_data.get('response', '{}').strip()
