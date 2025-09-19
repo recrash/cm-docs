@@ -37,9 +37,7 @@ pipeline {
         AUTODOC_PIP = "${AUTODOC_DEPLOY_PATH}\\.venv312\\Scripts\\pip.exe"
         
         // 서비스 URL
-        WEBSERVICE_BACKEND_URL = 'http://localhost:8000'
-        WEBSERVICE_FRONTEND_URL = 'http://localhost'
-        AUTODOC_SERVICE_URL = 'http://localhost:8001'
+        WEBSERVICE_FRONTEND_URL = 'http://localhost'    
         
         // 헬스체크 URL
         WEBSERVICE_HEALTH_URL = 'http://localhost:8000/api/webservice/health'
@@ -189,10 +187,10 @@ pipeline {
                     env.URL_PREFIX = "/tests/${env.BID}/"
                     
                     // AUTODOC_SERVICE_URL 환경변수 설정 (모든 브랜치 통합)
-                    if (env.BRANCH_NAME == 'main') {
+                    if (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master') {
                         env.AUTODOC_SERVICE_URL = "http://localhost:8001"
                     } else {
-                        // develop 및 test 브랜치는 동적 포트 사용
+                        // develop, feature/*, hotfix/* 등은 동적 포트 사용
                         env.AUTODOC_SERVICE_URL = "http://localhost:${env.AUTO_PORT}"
                     }
                     
