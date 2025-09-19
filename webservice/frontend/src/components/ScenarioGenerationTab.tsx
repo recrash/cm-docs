@@ -330,15 +330,6 @@ export default function ScenarioGenerationTab() {
       
       window.location.href = customUrl
       
-      // // 6. CLI 타임아웃 설정 (30초)
-      // const timeout = setTimeout(() => {
-      //   console.log('⏰ CLI 타임아웃')
-      //   setError('CLI가 응답하지 않습니다. 프로그램이 설치되어 있는지 확인해주세요.')
-      //   setWorkflowState('error')
-      //   ws.disconnect()
-      // }, 30000)  // 30초
-      
-      // setCliTimeout(timeout as unknown as number)
       
     } catch (error) {
       console.error('❌ Full Generation 오류:', error)

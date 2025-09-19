@@ -471,42 +471,53 @@ async def download_file(request: Request, filename: str):
     logger.info(f"파일 다운로드 요청: client_ip={client_ip}, filename={filename}")
     
     try:
-        # 파일 경로 생성
-        documents_dir = get_documents_dir()
-        file_path = documents_dir / filename
-        
+        import urllib.parse
+        import os
+
+        # webservice와 동일한 방식으로 변경: os.path 사용
+        documents_dir = str(get_documents_dir())
+
+        # URL 디코딩 처리
+        decoded_filename = urllib.parse.unquote(filename)
+
+        # 파일 경로 생성 (os.path 사용)
+        file_path = os.path.join(documents_dir, decoded_filename)
+
         # 파일 존재 여부 확인
-        if not file_path.exists():
-            logger.warning(f"파일 다운로드 실패: 파일 없음 - filename={filename}")
+        if not os.path.exists(file_path):
+            logger.warning(f"파일 다운로드 실패: 파일 없음 - filename={decoded_filename}")
             raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
-        
+
         # 파일이 documents 디렉터리 내부에 있는지 확인 (보안)
         try:
-            file_path.resolve().relative_to(documents_dir.resolve())
-        except ValueError:
-            logger.error(f"파일 다운로드 보안 위반: path_traversal 시도 - filename={filename}, client_ip={client_ip}")
+            # pathlib 방식에서 os.path 방식으로 변경
+            abs_file_path = os.path.abspath(file_path)
+            abs_documents_dir = os.path.abspath(documents_dir)
+            if not abs_file_path.startswith(abs_documents_dir):
+                raise ValueError("Path traversal detected")
+        except (ValueError, OSError):
+            logger.error(f"파일 다운로드 보안 위반: path_traversal 시도 - filename={decoded_filename}, client_ip={client_ip}")
             raise HTTPException(status_code=403, detail="접근 권한이 없습니다")
-        
-        # 파일 정보 수집
-        file_size = file_path.stat().st_size
-        
+
+        # 파일 정보 수집 (os.path 사용)
+        file_size = os.path.getsize(file_path)
+
         # MIME 타입 결정
         content_type = "application/octet-stream"
-        if filename.lower().endswith('.docx'):
+        if decoded_filename.lower().endswith('.docx'):
             content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        elif filename.lower().endswith('.xlsx'):
+        elif decoded_filename.lower().endswith('.xlsx'):
             content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        
+
         # UTF-8 파일명 인코딩 처리
-        import urllib.parse
-        filename_utf8 = urllib.parse.quote(filename, safe='')
-        
-        logger.info(f"파일 다운로드 시작: filename={filename}, size={file_size} bytes, content_type={content_type}")
-        
+        filename_utf8 = urllib.parse.quote(os.path.basename(file_path), safe='')
+
+        logger.info(f"파일 다운로드 시작: filename={decoded_filename}, size={file_size} bytes, content_type={content_type}")
+
         return FileResponse(
-            path=str(file_path),
+            path=file_path,  # str로 이미 처리됨
             media_type=content_type,
-            filename=filename,
+            filename=os.path.basename(file_path),  # webservice와 동일하게 basename 사용
             headers={
                 "Content-Disposition": f"attachment; filename*=UTF-8''{filename_utf8}",
                 "Cache-Control": "no-cache, no-store, must-revalidate",
