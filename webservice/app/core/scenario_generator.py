@@ -92,8 +92,8 @@ async def generate_scenarios_with_llm(
         logger.info(f"LLM 호출 시작 (모델: {model_name}, 비동기: {use_async_llm})")
         
         # [FULL-GEN DEBUG] LLM 호출 전 디버깅 로그 추가 (scenario_v2.py 패턴 적용)
-        logger.info(f"[FULL-GEN DEBUG] VCS Analysis (first 500 chars): {vcs_analysis_text}")
-        logger.info(f"[FULL-GEN DEBUG] Final prompt (last 300 chars): {final_prompt}")
+        logger.info(f"[FULL-GEN DEBUG] VCS Analysis (first 500 chars): {vcs_analysis_text[:500]}")
+        logger.info(f"[FULL-GEN DEBUG] Final prompt (last 300 chars): {final_prompt[-300:]}")
         
         start_time = time.time()
         

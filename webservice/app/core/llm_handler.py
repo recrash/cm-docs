@@ -126,7 +126,7 @@ class LLMHandler:
         # DEBUG: 요청 페이로드 전체 로깅
         logger.info(f"[LLM DEBUG] Request payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
         logger.info(f"[LLM DEBUG] Prompt length: {len(prompt)} characters")
-        logger.info(f"[LLM DEBUG] Full prompt:\n{prompt}")
+        logger.info(f"[LLM DEBUG] Full prompt:\n{prompt[-300:]}")
 
         try:
             # httpx.AsyncClient를 사용한 비동기 POST 요청
