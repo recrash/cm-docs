@@ -80,8 +80,36 @@ try {
         
         Write-Host "  -> 서비스 중지 중..."
         & $Nssm stop $autodocServiceName
-        Start-Sleep -Seconds 3  # 서비스 완전 중지 대기
-        
+
+        # 프로세스 완전 종료 확인 및 강제 종료
+        Write-Host "  -> 프로세스 완전 종료 확인 중..."
+        $maxWait = 15  # 최대 15초 대기
+        $waited = 0
+        do {
+            Start-Sleep -Seconds 1
+            $waited++
+            $remainingProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object {
+                $_.CommandLine -like "*$autodocServiceName*" -or
+                ($_.CommandLine -like "*uvicorn*" -and $_.CommandLine -like "*$AutoPort*")
+            }
+            if (-not $remainingProcess) { break }
+            Write-Host "    프로세스 종료 대기 중... ($waited/$maxWait)"
+        } while ($waited -lt $maxWait)
+
+        # 강제 종료가 필요한 경우
+        if ($remainingProcess) {
+            Write-Warning "  -> 프로세스가 완전히 종료되지 않았습니다. 강제 종료를 시도합니다."
+            $remainingProcess | ForEach-Object {
+                try {
+                    Stop-Process -Id $_.Id -Force -ErrorAction Stop
+                    Write-Host "    강제 종료: PID $($_.Id)"
+                } catch {
+                    Write-Warning "    강제 종료 실패: PID $($_.Id) - $($_.Exception.Message)"
+                }
+            }
+            Start-Sleep -Seconds 3
+        }
+
         if (-not $isDevelop) {
             Write-Host "  -> 일반 브랜치: 서비스 제거"
             & $Nssm remove $autodocServiceName confirm
