@@ -151,33 +151,52 @@ class LLMHandler:
                     "description": "LLM 응답을 받을 수 없어 시나리오를 생성하지 못했습니다."
                 }
 
-            # JSON 파싱 시도
-            try:
-                result = json.loads(response_text)
+            # scenario_v2.py와 동일한 JSON 블록 추출 로직 적용
+            import re
 
-                # DEBUG: 파싱된 결과 로깅
-                logger.debug(f"[LLM DEBUG] Parsed JSON result: {json.dumps(result, ensure_ascii=False, indent=2)}")
+            # <json> 태그 또는 ```json 코드 블록 모두 지원
+            json_match = re.search(r'<json>(.*?)</json>', response_text, re.DOTALL)
+            if not json_match:
+                # markdown 스타일 ```json 블록도 시도
+                json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
 
-                # 기본 구조 확인 및 생성
-                if not isinstance(result, dict):
-                    result = {"test_cases": [], "description": response_text}
-
-                if "test_cases" not in result:
-                    result["test_cases"] = []
-
-                if "description" not in result:
-                    result["description"] = "LLM에서 생성된 시나리오입니다."
-
-                logger.info(f"Successfully generated {len(result.get('test_cases', []))} test scenarios")
-                return result
-
-            except json.JSONDecodeError as e:
-                logger.error(f"[LLM DEBUG] JSON parsing failed: {e}")
-                logger.error(f"[LLM DEBUG] Failed to parse this text: {response_text}")
-                logger.warning("Failed to parse LLM JSON response, using raw text")
+            if not json_match:
+                logger.error(f"[LLM DEBUG] JSON 블록을 찾을 수 없음. Full LLM Response: {response_text}")
+                logger.error("[LLM DEBUG] JSON 블록을 찾을 수 없어 기본 시나리오를 반환합니다.")
                 return {
-                    "test_cases": [{"case": response_text}],
-                    "description": f"LLM 응답 파싱 실패: {response_text}"
+                    "test_cases": [],
+                    "description": "JSON 파싱 오류로 인한 기본 시나리오"
+                }
+
+            # JSON 파싱 및 복구 로직 (scenario_v2.py와 동일)
+            try:
+                json_str = json_match.group(1).strip()
+                # 후행 콤마 제거
+                json_str = json_str.rstrip(',')
+
+                # 중괄호 불일치 보정
+                if not json_str.endswith('}') and json_str.count('{') > json_str.count('}'):
+                    json_str += '}'
+
+                # 불완전한 배열 보정
+                if '"Test Cases": [' in json_str and not json_str.count('[') == json_str.count(']'):
+                    json_str += ']'
+
+                result_json = json.loads(json_str)
+                logger.info(f"[LLM DEBUG] JSON 파싱 성공: {len(result_json.get('Test Cases', []))}개 테스트 케이스")
+
+                # scenario_v2.py 형식에서 generate_scenarios_async 형식으로 변환
+                return {
+                    "test_cases": result_json.get("Test Cases", []),
+                    "description": result_json.get("Scenario Description", "LLM에서 생성된 시나리오입니다.")
+                }
+
+            except json.JSONDecodeError as recovery_error:
+                logger.error(f"[LLM DEBUG] JSON 파싱 복구 실패: {str(recovery_error)}")
+                logger.error(f"[LLM DEBUG] 파싱 시도된 JSON: {json_str[:200]}...")
+                return {
+                    "test_cases": [],
+                    "description": "JSON 파싱 오류로 인한 기본 시나리오"
                 }
 
         except OllamaAPIError as e:
