@@ -165,18 +165,46 @@ try {
     
     # 6. AutoDoc 서비스 등록 또는 재시작
     if ($isDevelop -and $autodocServiceExists) {
-        Write-Host "AutoDoc 서비스 재시작 중 (develop 브랜치)..."
-        & $Nssm start "cm-autodoc-$Bid"
-        Write-Host "AutoDoc 서비스 재시작 완료 (Port: $AutoPort)"
-    } else {
-        # 락 보호된 NSSM 서비스 등록 사용
-        Register-Service-WithLock -ServiceName "cm-autodoc-$Bid" -ExecutablePath "$AutoDst\.venv312\Scripts\python.exe" -Arguments "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort" -NssmPath $Nssm
-
-        # 추가 NSSM 설정
+        Write-Host "AutoDoc develop 브랜치 처리 중..."
+        # develop 브랜치인 경우 환경변수 설정 후 재시작
         & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
         & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
         & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
         & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath" "PYTHONIOENCODING=utf-8"
+        
+        # 환경변수 설정 후 서비스 시작
+        Write-Host "환경변수 설정 완료, AutoDoc 서비스 재시작 중..."
+        & $Nssm start "cm-autodoc-$Bid"
+        Write-Host "AutoDoc 서비스 재시작 완료 (Port: $AutoPort)"
+    } else {
+        # 새 서비스 등록 - webservice 스크립트와 동일한 방식 사용
+        Write-Host "AutoDoc 서비스 등록 중... (시작하지 않음)"
+
+        # 기존 서비스 확인 및 제거
+        $existingService = Get-Service -Name "cm-autodoc-$Bid" -ErrorAction SilentlyContinue
+        if ($existingService) {
+            Write-Host "  -> 기존 서비스 제거 중..."
+            & $Nssm stop "cm-autodoc-$Bid" 2>$null
+            Start-Sleep -Seconds 3
+            & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+            Start-Sleep -Seconds 2
+        }
+
+        # 새 서비스 설치 (시작하지 않음)
+        Write-Host "  -> 서비스 설치 중..."
+        & $Nssm install "cm-autodoc-$Bid" "$AutoDst\.venv312\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port $AutoPort"
+
+        # 환경변수 및 설정 먼저 적용
+        Write-Host "  -> 환경변수 및 설정 적용 중..."
+        & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
+        & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
+        & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
+        # 환경변수 설정
+        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath" "PYTHONIOENCODING=utf-8"
+
+        # 모든 설정 완료 후 서비스 시작
+        Write-Host "  -> 모든 설정 완료, 서비스 시작 중..."
+        & $Nssm start "cm-autodoc-$Bid"
         Write-Host "AutoDoc 서비스 등록 및 시작 완료 (Port: $AutoPort)"
     }
     

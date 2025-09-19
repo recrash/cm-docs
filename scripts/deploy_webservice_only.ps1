@@ -209,12 +209,8 @@ try {
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
         # 환경변수 설정
-        if (![string]::IsNullOrEmpty($AutoDocServiceUrl)) {
-            & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8" "AUTODOC_SERVICE_URL=$AutoDocServiceUrl"
-            Write-Host "AUTODOC_SERVICE_URL 환경변수 설정: $AutoDocServiceUrl"
-        } else {
-            & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8"
-        }
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8" "AUTODOC_SERVICE_URL=$AutoDocServiceUrl"
+            
         Write-Host "환경변수 설정 완료, 웹서비스 재시작 중..."
         & $Nssm start "cm-web-$Bid"
         Write-Host "웹서비스 재시작 완료 (Port: $BackPort)"
@@ -242,12 +238,7 @@ try {
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
         # 환경변수 설정
-        if (![string]::IsNullOrEmpty($AutoDocServiceUrl)) {
-            & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8" "AUTODOC_SERVICE_URL=$AutoDocServiceUrl"
-            Write-Host "AUTODOC_SERVICE_URL 환경변수 설정: $AutoDocServiceUrl"
-        } else {
-            & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8"
-        }
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8" "AUTODOC_SERVICE_URL=$AutoDocServiceUrl"
 
         # 모든 설정 완료 후 서비스 시작
         Write-Host "  -> 모든 설정 완료, 서비스 시작 중..."
