@@ -397,7 +397,7 @@ export default function ScenarioGenerationTab() {
             {title}
           </Typography>
           <Chip
-            label={`${progress.toFixed(0)}%`}
+            label={`${(progress ?? 0).toFixed(0)}%`}
             color="primary"
             sx={{ ml: 'auto' }}
           />
@@ -405,7 +405,7 @@ export default function ScenarioGenerationTab() {
 
         <LinearProgress
           variant="determinate"
-          value={progress}
+          value={progress ?? 0}
           color={getProgressColor()}
           sx={{ height: 10, borderRadius: 5, mb: 2 }}
         />
@@ -655,11 +655,11 @@ export default function ScenarioGenerationTab() {
       {/* Phase 3 진행 상황 표시 */}
       {workflowState !== 'idle' && fullGenProgress &&
         renderProgressCard(
-          fullGenProgress.progress,
-          fullGenProgress.message,
+          fullGenProgress.progress ?? 0,
+          fullGenProgress.message ?? '처리 중...',
           '전체 문서 생성 진행 상황',
           fullGenProgress.current_step ? `현재 단계: ${fullGenProgress.current_step}` : undefined,
-          { completed: fullGenProgress.steps_completed, total: fullGenProgress.total_steps }
+          { completed: fullGenProgress.steps_completed ?? 0, total: fullGenProgress.total_steps ?? 1 }
         )
       }
 
@@ -749,7 +749,7 @@ export default function ScenarioGenerationTab() {
       {v2Progress &&
         renderProgressCard(
           v2Progress.progress ?? 0,
-          v2Progress.message,
+          v2Progress.message ?? '처리 중...',
           '테스트 시나리오 생성 진행 상황'
         )
       }
