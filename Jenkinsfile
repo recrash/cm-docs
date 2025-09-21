@@ -231,7 +231,8 @@ pipeline {
                                 env.AUTODOC_DEPLOY_STATUS = 'FAILED'
                                 env.FAILED_SERVICES += 'AutoDoc '
                                 echo "AutoDoc Service 배포 실패: ${e.getMessage()}"
-                                // Non-Critical 서비스이므로 다른 서비스는 계속 진행
+                                // AutoDoc 빌드 실패 시 파이프라인 실패
+                                error("AutoDoc Service 빌드/배포 실패: ${e.getMessage()}")
                             }
                         }
                     }
@@ -259,6 +260,8 @@ pipeline {
                                 env.FAILED_SERVICES += 'WebBackend '
                                 env.CRITICAL_FAILURE = 'true'  // Critical 서비스 실패
                                 echo "Webservice Backend 배포 실패: ${e.getMessage()}"
+                                // Webservice Backend 빌드 실패 시 파이프라인 실패
+                                error("Webservice Backend 빌드/배포 실패: ${e.getMessage()}")
                             }
                         }
                     }
@@ -308,6 +311,8 @@ pipeline {
                                 env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
                                 env.FAILED_SERVICES += 'WebFrontend '
                                 echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
+                                // Webservice Frontend 빌드 실패 시 파이프라인 실패
+                                error("Webservice Frontend 빌드/배포 실패: ${e.getMessage()}")
                             }
                         }
                     }

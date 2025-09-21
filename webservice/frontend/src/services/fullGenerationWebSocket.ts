@@ -73,16 +73,16 @@ export class FullGenerationWebSocket {
           return // pong 메시지는 여기서 처리 완료
         }
         
-        const message: any = JSON.parse(rawMessage)
+        const message: FullGenerationProgressMessage | { type: string; timestamp: number; session_id: string } = JSON.parse(rawMessage)
 
         // keepalive 메시지 타입 체크 (FullGenerationProgressMessage가 아닌 경우)
-        if (message.type === 'keepalive') {
+        if ('type' in message && message.type === 'keepalive') {
           console.debug('🔔 FullGenWS keepalive 메시지 필터링됨:', message)
           return // keepalive 메시지는 여기서 처리 완료
         }
 
         // FullGenerationProgressMessage로 타입 변환
-        const progressMessage: FullGenerationProgressMessage = message
+        const progressMessage = message as FullGenerationProgressMessage
 
         // V2와 동일한 시스템 메시지 필터링 + welcome 메시지 추가
         const isSystemMessage = progressMessage.details?.type === 'ping' ||
