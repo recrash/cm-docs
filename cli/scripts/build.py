@@ -322,7 +322,7 @@ a = Analysis(
         'json',
         'tempfile',
         'logging',
-    ],
+    ] + (['win32api', 'win32event', 'win32process', 'pywintypes', 'pythoncom'] if sys.platform == 'win32' else []),
     hookspath=[],
     hooksconfig={{}},
     runtime_hooks=[],

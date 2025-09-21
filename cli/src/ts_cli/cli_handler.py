@@ -151,7 +151,7 @@ class CLIHandler:
             if self.verbose:
                 repo_info = analyzer.get_repository_info()
                 self.console.print(
-                    f"[green]✓[/green] {analyzer.get_vcs_type().upper()} 저장소 확인됨"
+                    f"[green]{analyzer.get_vcs_type().upper()} repository validated[/green]"
                 )
                 if repo_info.get("current_branch"):
                     self.console.print(
@@ -226,7 +226,7 @@ class CLIHandler:
             }
 
             if self.verbose:
-                self.console.print("[green]✓[/green] 저장소 분석 완료")
+                self.console.print("[green]Repository analysis completed[/green]")
                 self.console.print(f"  변경사항 크기: {len(changes_text)} 문자")
                 
                 # VCS 타입별 상세 정보 표시
@@ -356,7 +356,7 @@ class CLIHandler:
             result = asyncio.run(run_v2_generation())
 
             if self.verbose:
-                self.console.print("[green]✓[/green] v2 API 시나리오 생성 완료")
+                self.console.print("[green]v2 API scenario generation completed[/green]")
 
             return result
 

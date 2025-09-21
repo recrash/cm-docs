@@ -71,7 +71,10 @@ Section "Core Files" SEC01
   
   ; Executable file
   File "..\\dist\\ts-cli.exe"
-  
+
+  ; Debug PowerShell script
+  File "url_handler_debug.ps1"
+
   ; Configuration file
   SetOutPath $INSTDIR\\config
   File "..\\config\\config.ini"
@@ -136,10 +139,10 @@ Section "Register URL Protocol" SEC05
   WriteRegStr HKCR "testscenariomaker\shell" "" ""
   WriteRegStr HKCR "testscenariomaker\shell\open" "" ""
   
-  ; Register command for background execution with process management
-  ; Enhanced PowerShell script for duplicate process prevention and proper session management
-  ; Set working directory to C:\deploys\apps\cli for proper service deployment
-  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'powershell -ExecutionPolicy Bypass -Command "$url=\"%1\"; $workDir=\"C:\\deploys\\apps\\cli\"; $exePath=\"$INSTDIR\\ts-cli.exe\"; try { Write-Host \"TestscenarioMaker URL Protocol Handler Starting...\"; Write-Host \"URL: $url\"; Write-Host \"WorkDir: $workDir\"; Write-Host \"ExePath: $exePath\"; if ($url -match \"sessionId=([^&]+)\") { $sessionId = $matches[1]; Write-Host \"Session ID: $sessionId\"; Get-Process | Where-Object { $_.ProcessName -like \"*ts-cli*\" -or $_.CommandLine -like \"*$sessionId*\" } | ForEach-Object { Write-Host \"Terminating existing process: $($_.Id)\"; Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 2 } else { Write-Host \"No session ID found, cleaning all ts-cli processes\"; Get-Process | Where-Object { $_.ProcessName -like \"*ts-cli*\" } | ForEach-Object { Write-Host \"Terminating existing process: $($_.Id)\"; Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 1 }; if (Test-Path $workDir) { Set-Location $workDir } else { Write-Host \"Working directory not found, using current\" }; Write-Host \"Starting new CLI process...\"; Start-Process -FilePath $exePath -ArgumentList $url -WindowStyle Hidden -WorkingDirectory $workDir } catch { Write-Host \"Error: $($_.Exception.Message)\" }"'
+  ; Register command for DEBUGGING - PowerShell with proper syntax
+  ; Direct execution with console visible for debugging
+  ; URL parameters are properly quoted to handle & characters
+  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'powershell.exe -NoExit -ExecutionPolicy Bypass -File "$INSTDIR\url_handler_debug.ps1" -url "%1" -exePath "$INSTDIR\ts-cli.exe"'
   
 SectionEnd
 

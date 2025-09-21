@@ -7,6 +7,22 @@ TestscenarioMaker CLI 메인 모듈
 
 import sys
 import os
+import codecs
+
+# Windows 환경에서 Unicode 출력 문제 해결
+if sys.platform.startswith('win'):
+    try:
+        # stdout/stderr을 UTF-8로 강제 설정
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+            sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+        else:
+            # 이전 Python 버전 호환성
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach(), errors='replace')
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach(), errors='replace')
+    except Exception:
+        # 인코딩 설정 실패 시 무시하고 계속 진행
+        pass
 # ▼▼▼ 이 코드를 추가해줘! ▼▼▼
 # PyInstaller로 빌드된 실행 파일이 어디서 실행되든
 # 자기 자신의 위치를 기준으로 모듈을 찾을 수 있게 해주는 코드
@@ -54,7 +70,11 @@ except ImportError:
 install(show_locals=True)
 
 # 콘솔 인스턴스
-console = Console()
+# Windows 환경에서 Unicode 호환성을 위한 Console 설정
+console = Console(
+    force_terminal=True,
+    legacy_windows=True
+)
 
 
 def load_server_config() -> str:
@@ -350,7 +370,7 @@ async def handle_full_generation(server_url: str, repository_path: Path, session
                 metadata_json=metadata_json
             )
 
-            console.print(f"[green]✓ Full generation request sent successfully![/green]")
+            console.print(f"[green]Full generation request sent successfully![/green]")
             console.print(f"[cyan]Session ID: {result.get('session_id', session_id)}[/cyan]")
             console.print(f"[yellow]Backend processing started. You can monitor progress on the web UI: {server_url}[/yellow]")
             console.print(f"[green]CLI task completed - backend will continue processing in the background.[/green]")
@@ -701,7 +721,7 @@ def validate_repository_path(repo_path: Path) -> None:
         
     # 성공적으로 검증된 경우 VCS 타입 표시
     vcs_type = analyzer.get_vcs_type().upper()
-    console.print(f"[green]✓ {vcs_type} 저장소 확인됨: {repo_path}[/green]")
+    console.print(f"[green]{vcs_type} repository validated: {repo_path}[/green]")
 
 
 def handle_url_protocol() -> None:
@@ -766,7 +786,7 @@ def handle_url_protocol() -> None:
             console.print("[yellow]기존 프로세스를 종료하려면 '--force' 옵션을 사용하세요.[/yellow]")
             sys.exit(1)
 
-        console.print("[green]✓ 세션 등록 완료[/green]")
+        console.print("[green]Session registration completed[/green]")
         
         console.print(f"[bold blue]TestscenarioMaker CLI v{__version__}[/bold blue]")
         console.print(f"Repository analysis started: [green]{repository_path.resolve()}[/green]")
