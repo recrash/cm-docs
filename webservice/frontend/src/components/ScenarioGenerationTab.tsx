@@ -13,17 +13,14 @@ import {
   Grid,
   Chip
 } from '@mui/material'
-import { 
-  Rocket, 
-  Psychology, 
-  Speed, 
+import {
+  Rocket,
+  Psychology,
+  Speed,
   CloudUpload,
   Article,
   Download,
   FolderOpen,
-  CheckCircle,
-  Error as ErrorIcon,
-  HourglassEmpty,
   Description,
   ListAlt,
   Assignment
@@ -162,6 +159,7 @@ export default function ScenarioGenerationTab() {
       setError(null)
       setResult(null)
       setV2Progress(null)
+      setFullGenResult(null)  // 전체 문서 생성 결과도 초기화
       setIsGenerating(true)
       setIsWaitingForCLI(true)
 
@@ -246,6 +244,7 @@ export default function ScenarioGenerationTab() {
     try {
       // 상태 초기화
       setError(null)
+      setResult(null)  // 시나리오 생성 결과도 초기화
       setFullGenResult(null)
       setFullGenProgress(null)
       setWorkflowState('parsing')
@@ -382,21 +381,59 @@ export default function ScenarioGenerationTab() {
     return 'primary'
   }
 
-  const getWorkflowStateIcon = () => {
-    switch (workflowState) {
-      case 'parsing': return <HourglassEmpty />
-      case 'waiting_cli': return <HourglassEmpty />
-      case 'processing': return <Psychology />
-      case 'completed': return <CheckCircle />
-      case 'error': return <ErrorIcon />
-      default: return null
-    }
-  }
+  // 공통 프로그레스바 렌더링 함수
+  const renderProgressCard = (
+    progress: number,
+    message: string,
+    title: string = '생성 진행 상황',
+    additionalInfo?: string,
+    steps?: { completed: number; total: number }
+  ) => (
+    <Card sx={{ mb: 4 }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Psychology sx={{ mr: 2, color: 'primary.main' }} />
+          <Typography variant="h6">
+            {title}
+          </Typography>
+          <Chip
+            label={`${progress.toFixed(0)}%`}
+            color="primary"
+            sx={{ ml: 'auto' }}
+          />
+        </Box>
+
+        <LinearProgress
+          variant="determinate"
+          value={progress}
+          color={getProgressColor()}
+          sx={{ height: 10, borderRadius: 5, mb: 2 }}
+        />
+
+        <Typography variant="body2" color="text.secondary">
+          {message}
+        </Typography>
+
+        {additionalInfo && (
+          <Typography variant="caption" color="text.secondary">
+            {additionalInfo}
+          </Typography>
+        )}
+
+        {steps && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+            단계: {steps.completed}/{steps.total}
+          </Typography>
+        )}
+      </CardContent>
+    </Card>
+  )
+
 
   const getWorkflowStateMessage = () => {
     switch (workflowState) {
       case 'parsing': return 'HTML 파일 파싱 중...'
-      case 'waiting_cli': return 'CLI 실행을 기다리는 중...'
+      case 'waiting_cli': return '분석 도구 실행을 기다리는 중...'
       case 'processing': return '문서 생성 중...'
       case 'completed': return '문서 생성 완료!'
       case 'error': return '오류가 발생했습니다.'
@@ -616,36 +653,15 @@ export default function ScenarioGenerationTab() {
       </Grid>
 
       {/* Phase 3 진행 상황 표시 */}
-      {workflowState !== 'idle' && (
-        <Card sx={{ mb: 4 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              {getWorkflowStateIcon()}
-              <Typography variant="h6" sx={{ ml: 2 }}>
-                {getWorkflowStateMessage()}
-              </Typography>
-            </Box>
-            
-            {fullGenProgress && (
-              <Box>
-                <LinearProgress
-                  variant="determinate"
-                  value={fullGenProgress.progress}
-                  sx={{ mb: 2, height: 10, borderRadius: 5 }}
-                />
-                <Typography variant="body2" color="text.secondary">
-                  {fullGenProgress.message}
-                </Typography>
-                {fullGenProgress.current_step && (
-                  <Typography variant="caption" color="text.secondary">
-                    현재 단계: {fullGenProgress.current_step} ({fullGenProgress.steps_completed}/{fullGenProgress.total_steps})
-                  </Typography>
-                )}
-              </Box>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {workflowState !== 'idle' && fullGenProgress &&
+        renderProgressCard(
+          fullGenProgress.progress,
+          fullGenProgress.message,
+          '전체 문서 생성 진행 상황',
+          fullGenProgress.current_step ? `현재 단계: ${fullGenProgress.current_step}` : undefined,
+          { completed: fullGenProgress.steps_completed, total: fullGenProgress.total_steps }
+        )
+      }
 
       {/* Phase 3 결과 및 다운로드 */}
       {fullGenResult && (
@@ -716,48 +732,27 @@ export default function ScenarioGenerationTab() {
         </Card>
       )}
 
-      {/* CLI 대기 상태 표시 (기존 기능) */}
+      {/* 분석 애플리케이션 대기 상태 표시 */}
       {isWaitingForCLI && (
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body1" fontWeight={500}>
-            🔗 CLI 애플리케이션을 실행하고 있습니다...
+            🔗 저장소 분석을 위한 분석 도구를 실행하고 있습니다...
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.5 }}>
-            CLI가 설치되어 있지 않다면 먼저 설치해주세요. 
+            분석 도구가 설치되어 있지 않다면 먼저 설치해주세요.
             잠시 후 진행 상황이 업데이트됩니다.
           </Typography>
         </Alert>
       )}
 
       {/* 진행 상황 표시 (기존 기능) */}
-      {v2Progress && (
-        <Card sx={{ mb: 4 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Psychology sx={{ mr: 2, color: 'primary.main' }} />
-              <Typography variant="h6">
-                생성 진행 상황
-              </Typography>
-              <Chip
-                label={`${(v2Progress.progress ?? 0).toFixed(0)}%`}
-                color="primary"
-                sx={{ ml: 'auto' }}
-              />
-            </Box>
-            
-            <LinearProgress
-              variant="determinate"
-              value={v2Progress.progress ?? 0}
-              color={getProgressColor()}
-              sx={{ height: 10, borderRadius: 5, mb: 2 }}
-            />
-            
-            <Typography variant="body2" color="text.secondary">
-              {v2Progress.message}
-            </Typography>
-          </CardContent>
-        </Card>
-      )}
+      {v2Progress &&
+        renderProgressCard(
+          v2Progress.progress ?? 0,
+          v2Progress.message,
+          '테스트 시나리오 생성 진행 상황'
+        )
+      }
 
       {/* 오류 표시 */}
       {error && (
