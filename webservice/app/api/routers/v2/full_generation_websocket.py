@@ -8,6 +8,7 @@ sessionId 기반의 전체 문서 생성 진행 상황을 실시간으로 전송
 import asyncio
 import json
 import logging
+import os
 import time
 from typing import Dict
 from websockets.exceptions import ConnectionClosedError
@@ -273,6 +274,10 @@ def generate_download_urls(results: Dict[str, str]) -> Dict[str, str]:
     """
     생성된 파일들의 다운로드 URL 생성
 
+    브랜치별로 올바른 URL 프리픽스를 적용하여 다운로드 URL 생성:
+    - main/master: /api/autodoc/download/{파일명}
+    - 테스트브랜치: /tests/{BID}/api/autodoc/download/{파일명}
+
     Args:
         results: 생성 결과 딕셔너리
 
@@ -281,13 +286,18 @@ def generate_download_urls(results: Dict[str, str]) -> Dict[str, str]:
     """
     download_urls = {}
 
+    # URL 프리픽스 가져오기 (Jenkins가 설정)
+    # main 브랜치: "" (빈 문자열)
+    # 테스트 브랜치: "/tests/{BID}" 형태
+    url_prefix = os.getenv("URL_PREFIX", "").rstrip("/")
+
     # webservice outputs 파일들
-    webservice_base = "/api/webservice/download"
+    webservice_base = f"{url_prefix}/api/webservice/download"
     if results.get("scenario_filename"):
         download_urls["scenario"] = f"{webservice_base}/{results['scenario_filename']}"
 
     # autodoc_service documents 파일들
-    autodoc_base = "/api/autodoc/download"
+    autodoc_base = f"{url_prefix}/api/autodoc/download"
     if results.get("word_filename"):
         download_urls["word"] = f"{autodoc_base}/{results['word_filename']}"
     if results.get("excel_list_filename"):
