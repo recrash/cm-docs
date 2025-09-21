@@ -1,6 +1,6 @@
 // cm-docs/Jenkinsfile - 통합 멀티브랜치 파이프라인
 // Pseudo MSA 아키텍처에 맞춘 스마트 배포 시스템
-pipeline {
+pipeline { 
     agent any
     
     environment {
