@@ -73,39 +73,49 @@ export class FullGenerationWebSocket {
           return // pong 메시지는 여기서 처리 완료
         }
         
-        const message: FullGenerationProgressMessage = JSON.parse(rawMessage)
-        
-        // V2와 동일한 시스템 메시지 필터링
-        const isSystemMessage = message.details?.type === 'ping' || 
-                                message.details?.type === 'keepalive' ||
-                                message.progress === -1 ||  // keepalive 메시지 식별자
-                                message.message?.includes('ping') || 
-                                message.message?.includes('연결 유지') ||
-                                message.message?.includes('연결 상태') ||
-                                message.message?.includes('WebSocket 연결이 설정되었습니다')
+        const message: FullGenerationProgressMessage | { type: string; timestamp: number; session_id: string } = JSON.parse(rawMessage)
+
+        // keepalive 메시지 타입 체크 (FullGenerationProgressMessage가 아닌 경우)
+        if ('type' in message && message.type === 'keepalive') {
+          console.debug('🔔 FullGenWS keepalive 메시지 필터링됨:', message)
+          return // keepalive 메시지는 여기서 처리 완료
+        }
+
+        // FullGenerationProgressMessage로 타입 변환
+        const progressMessage = message as FullGenerationProgressMessage
+
+        // V2와 동일한 시스템 메시지 필터링 + welcome 메시지 추가
+        const isSystemMessage = progressMessage.details?.type === 'ping' ||
+                                progressMessage.details?.type === 'keepalive' ||
+                                progressMessage.progress === -1 ||  // keepalive 메시지 식별자
+                                progressMessage.message?.includes('ping') ||
+                                progressMessage.message?.includes('연결 유지') ||
+                                progressMessage.message?.includes('연결 상태') ||
+                                progressMessage.message?.includes('WebSocket 연결이 설정되었습니다') ||
+                                progressMessage.current_step === '연결 설정'  // welcome 메시지 필터링
         
         if (!isSystemMessage) {
-          console.log('[FullGenWS] Received message:', message)
+          console.log('[FullGenWS] Received message:', progressMessage)
         } else {
           // 시스템 메시지는 디버그 로그로만 출력
-          console.debug('🔔 FullGenWS 시스템 메시지 필터링됨:', message.message)
+          console.debug('🔔 FullGenWS 시스템 메시지 필터링됨:', progressMessage.message)
         }
-        
+
         // 시스템 메시지가 아닌 경우에만 상태에 따른 콜백 호출
         if (!isSystemMessage) {
           // 진행 상황 업데이트
-          this.config.onProgress?.(message)
+          this.config.onProgress?.(progressMessage)
 
           // 완료 상태 처리
-          if (message.status === FullGenerationStatus.COMPLETED && message.result) {
-            this.config.onComplete?.(message.result)
+          if (progressMessage.status === FullGenerationStatus.COMPLETED && progressMessage.result) {
+            this.config.onComplete?.(progressMessage.result)
             // 완료 시 클라이언트도 연결 종료
             this.disconnect()
           }
 
           // 에러 상태 처리
-          if (message.status === FullGenerationStatus.ERROR) {
-            this.config.onError?.(message.message || '문서 생성 중 오류가 발생했습니다.')
+          if (progressMessage.status === FullGenerationStatus.ERROR) {
+            this.config.onError?.(progressMessage.message || '문서 생성 중 오류가 발생했습니다.')
           }
         }
       } catch (error) {

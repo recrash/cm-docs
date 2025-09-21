@@ -73,9 +73,9 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         # 4. CLI에서 전달받은 분석 결과 사용 (중복 분석 방지)
         vcs_type = request.vcs_type.lower()
         if vcs_type == "git":
-            await send_progress(V2GenerationStatus.ANALYZING_GIT, "CLI에서 분석한 Git 변경 내역을 처리 중입니다...", 15)
+            await send_progress(V2GenerationStatus.ANALYZING_GIT, "저장소 변경 내역을 분석 중입니다...", 15)
         elif vcs_type == "svn":
-            await send_progress(V2GenerationStatus.ANALYZING_GIT, "CLI에서 분석한 SVN 변경 내역을 처리 중입니다...", 15)
+            await send_progress(V2GenerationStatus.ANALYZING_GIT, "저장소 변경 내역을 분석 중입니다...", 15)
         else:
             raise ValueError(f"지원되지 않는 VCS 타입입니다: {vcs_type}")
             

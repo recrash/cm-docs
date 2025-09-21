@@ -13,9 +13,9 @@ const sendLogToServer = (level: log.LogLevelDesc, message: string, meta?: Record
   const logData = JSON.stringify({ level, message, meta });
   
   if (navigator.sendBeacon) {
-    navigator.sendBeacon(`${import.meta.env.BASE_URL}api/log`, new Blob([logData], { type: 'application/json' }));
+    navigator.sendBeacon(`${import.meta.env.BASE_URL}api/webservice/log`, new Blob([logData], { type: 'application/json' }));
   } else {
-    fetch(`${import.meta.env.BASE_URL}api/log`, {
+    fetch(`${import.meta.env.BASE_URL}api/webservice/log`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: logData,
