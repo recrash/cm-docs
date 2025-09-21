@@ -11,6 +11,7 @@ param(
     [Parameter(Mandatory=$true)][string]$WebBackDst,  # C:\deploys\tests\{BID}\apps\webservice
     [Parameter(Mandatory=$true)][string]$PackagesRoot, # "C:\deploys\tests\{BID}\packages"
     [Parameter(Mandatory=$false)][string]$AutoDocServiceUrl,  # AUTODOC_SERVICE_URL 환경변수
+    [Parameter(Mandatory=$false)][string]$UrlPrefix,  # URL_PREFIX 환경변수 (테스트 브랜치용)
     [Parameter(Mandatory=$false)][switch]$ForceUpdateDeps = $false  # 의존성 강제 업데이트
 )
 
@@ -209,7 +210,7 @@ try {
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
         # 환경변수 설정
-        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8" "AUTODOC_SERVICE_URL=$AutoDocServiceUrl"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8" "AUTODOC_SERVICE_URL=$AutoDocServiceUrl" "URL_PREFIX=$UrlPrefix"
             
         Write-Host "환경변수 설정 완료, 웹서비스 재시작 중..."
         & $Nssm start "cm-web-$Bid"
@@ -228,7 +229,7 @@ try {
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
         # 환경변수 설정
-        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8" "AUTODOC_SERVICE_URL=$AutoDocServiceUrl"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8" "AUTODOC_SERVICE_URL=$AutoDocServiceUrl" "URL_PREFIX=$UrlPrefix"
 
         # 모든 설정 완료 후 서비스 시작
         Write-Host "  -> 모든 설정 완료, 서비스 시작 중..."
