@@ -4,6 +4,7 @@ pipeline {
     
     parameters {
         string(name: 'BRANCH', defaultValue: 'main', description: 'Branch name')
+        string(name: 'AUTODOC_SERVICE_URL', defaultValue: 'http://localhost:8001', description: 'AutoDoc Service URL')
     }
 
     environment {
@@ -17,10 +18,17 @@ pipeline {
         DEPLOY_PYTHON_CMD = "${DEPLOY_PATH}\\.venv\\Scripts\\python.exe"
         DEPLOY_PIP_CMD = "${DEPLOY_PATH}\\.venv\\Scripts\\pip.exe"
         
+        // 공유 캐시 폴더
+        WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'
+
         // 환경변수 기반 데이터 경로 (커밋 f57efef)
         WEBSERVICE_DATA_PATH = 'C:\\deploys\\data\\webservice'
         // RAG(ChromaDB)의 불필요한 네트워크 통신을 막기 위해 이 부분을 추가
         ANONYMIZED_TELEMETRY = 'False'
+        
+        // AutoDoc Service URL (브랜치별 동적 설정)
+        AUTODOC_SERVICE_URL = "${params.AUTODOC_SERVICE_URL}"
+        
         
         // 기타 설정
         HEALTH_CHECK_URL = 'http://localhost:8000/api/webservice/health'  // root_path 반영
@@ -31,8 +39,21 @@ pipeline {
             steps {
                 checkout scm
                 script {
-                    def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
-                    echo "소스코드 체크아웃 완료 - 브랜치: ${branchName}"
+                    // 현재 체크아웃된 브랜치 확인
+                    def currentBranch = bat(
+                        script: 'git rev-parse --abbrev-ref HEAD',
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "소스코드 체크아웃 완료 - 현재 브랜치: ${currentBranch}"
+                    
+                    // 파라미터로 받은 브랜치와 비교
+                    if (params.BRANCH) {
+                        echo "요청된 브랜치: ${params.BRANCH}"
+                        if (currentBranch != params.BRANCH && !currentBranch.endsWith("/${params.BRANCH}")) {
+                            echo "경고: 요청된 브랜치와 현재 브랜치가 다를 수 있습니다"
+                        }
+                    }
                 }
             }
         }
@@ -55,17 +76,17 @@ pipeline {
                             
                             if (wheelHouseExists) {
                                 echo "휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)"
-                                bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements.txt -c pip.constraints.txt\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements.txt -c pip.constraints.txt\""
                             } else {
                                 echo "휠하우스 없음 - 온라인 설치 (PyTorch CUDA 포함)"
-                                bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements.txt -c pip.constraints.txt --prefer-binary\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements.txt -c pip.constraints.txt --prefer-binary\""
                             }
                         }
                         
                         // CUDA 및 주요 패키지 검증 (시간 단축)
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import fastapi; import torch; print(f'Test environment ready - PyTorch {torch.__version__} CUDA: {torch.cuda.is_available()}')\\\"\""
+                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import fastapi; import torch; print(f'Test environment ready - PyTorch {torch.__version__} CUDA: {torch.cuda.is_available()}')\\\"\""
                         
                         echo "테스트 환경 구축 완료 (최적화됨)"
                     }
@@ -152,7 +173,7 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/webservice") {
                     // Jenkins Workspace에서 wheel 빌드
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m build\""
+                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m build\""
                     
                     // 빌드 결과 검증
                     script {

@@ -177,11 +177,10 @@ class TestFastAPIIntegration:
         """변경관리 목록 빈 데이터 테스트"""
         response = client.post("/api/autodoc/create-cm-list", json=[])
 
-        # 실제 구현은 내부에서 예외를 잡고 200 + ok=False를 반환함
-        assert response.status_code == 200
+        # HTTPException이 수정되어 400 에러를 정상적으로 반환함
+        assert response.status_code == 400
         data = response.json()
-        assert data.get("ok") is False
-        assert "데이터가 비어있습니다" in data.get("error", "")
+        assert "데이터가 비어있습니다" in data.get("detail", "")
     
     def test_download_file_endpoint_not_found(self, client):
         """파일 다운로드 존재하지 않는 파일 테스트"""

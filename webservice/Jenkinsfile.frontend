@@ -24,8 +24,21 @@ pipeline {
             steps {
                 checkout scm
                 script {
-                    def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
-                    echo "소스코드 체크아웃 완료 - 브랜치: ${branchName}"
+                    // 현재 체크아웃된 브랜치 확인
+                    def currentBranch = bat(
+                        script: 'git rev-parse --abbrev-ref HEAD',
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "소스코드 체크아웃 완료 - 현재 브랜치: ${currentBranch}"
+                    
+                    // 파라미터로 받은 브랜치와 비교
+                    if (params.BRANCH) {
+                        echo "요청된 브랜치: ${params.BRANCH}"
+                        if (currentBranch != params.BRANCH && !currentBranch.endsWith("/${params.BRANCH}")) {
+                            echo "경고: 요청된 브랜치와 현재 브랜치가 다를 수 있습니다"
+                        }
+                    }
                 }
             }
         }
@@ -59,23 +72,37 @@ pipeline {
                         def nodeModulesExists = bat(
                             script: 'if exist node_modules (exit 0) else (exit 1)',
                             returnStatus: true
-                        ) 
+                        ) == 0
                         
                         if (packageChanged || !nodeModulesExists) {
-                            echo "패키지 파일 변경 감지됨 - 의존성 업데이트 실행 (폐쇄망 모드)"
-                            // 캐시 디렉토리 생성
-                            bat "if not exist \"C:\\deploys\\packages\\npm-cache\" mkdir \"C:\\deploys\\packages\\npm-cache\""
-                            // 폐쇄망 환경: npm 캐시 설정 후 오프라인 우선 시도
-                            def installResult = bat(
-                                script: "npm config set cache C:\\deploys\\packages\\npm-cache && npm ci --prefer-offline",
+                            echo "패키지 파일 변경 감지됨 또는 node_modules 없음 - 의존성 설치 실행 (폐쇄망 모드)"
+                            
+                            // 캐시 디렉토리 존재 확인
+                            def npmCacheExists = bat(
+                                script: 'if exist "C:\\deploys\\packages\\npm-cache" (exit 0) else (exit 1)',
                                 returnStatus: true
-                            )
-                            if (installResult != 0) {
-                                echo "경고: 오프라인 설치 실패 - 폐쇄망 환경에서는 package-lock.json과 캐시가 필요합니다"
-                                echo "node_modules가 이미 있으면 기존 것을 사용합니다"
+                            ) == 0
+                            
+                            if (npmCacheExists) {
+                                echo "npm 캐시 발견 - 폐쇄망 오프라인 설치 시도"
+                                bat "npm config set cache C:\\deploys\\packages\\npm-cache"
+                                bat "npm ci --prefer-offline"
+                                echo "npm ci 오프라인 설치 완료"
+                            } else {
+                                error("폐쇄망 환경: npm 캐시가 없습니다. C:\\deploys\\packages\\npm-cache 디렉토리를 확인하세요.")
                             }
                         } else {
                             echo "패키지 변경 없음 - 기존 node_modules 사용 (폐쇄망 최적)"
+                        }
+                        
+                        // node_modules 설치 검증
+                        def nodeModulesVerified = bat(
+                            script: 'if exist node_modules (exit 0) else (exit 1)',
+                            returnStatus: true
+                        ) == 0
+                        
+                        if (!nodeModulesVerified) {
+                            error("의존성 설치 실패: node_modules 폴더가 생성되지 않았습니다")
                         }
                         
                         echo "의존성 설치 완료"

@@ -14,6 +14,8 @@ from pathlib import Path
 import argparse
 import json
 from typing import Dict, List, Optional, Any
+import configparser
+import tempfile
 
 
 class BuildError(Exception):
@@ -24,7 +26,7 @@ class BuildError(Exception):
 class CLIBuilder:
     """CLI Build Manager"""
     
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, base_url: Optional[str] = None):
         """
         Initialize build manager
         
@@ -36,6 +38,7 @@ class CLIBuilder:
         self.dist_dir = self.project_root / "dist"
         self.build_dir = self.project_root / "build"
         self.scripts_dir = self.project_root / "scripts"
+        self.base_url = base_url
         
         self.platform_name = platform.system().lower()
         self.arch = platform.machine().lower()
@@ -44,6 +47,7 @@ class CLIBuilder:
         self.version = self._get_version()
         
         print(f"Build environment initialized")
+        print(f"   Base URL: {self.base_url}")
         print(f"   Platform: {self.platform_name} ({self.arch})")
         print(f"   Version: {self.version}")
         print(f"   Project root: {self.project_root}")
@@ -239,14 +243,22 @@ class CLIBuilder:
         # Check required files
         if not build_info['main_script'].exists():
             raise BuildError(f"Main script not found: {build_info['main_script']}")
+
+        # 동적 config.ini 생성 로직 추가!
+        dynamic_config_file_path = self._create_dynamic_config()
+        # PyInstaller datas 형식: (source_file, destination_directory)
+        # "."는 번들의 루트 디렉토리를 의미
+        build_info['datas'].append((str(dynamic_config_file_path), "."))
+        print(f"   Including dynamic config file: {dynamic_config_file_path}")
+        print(f"   Will be bundled as: config.ini")
         
         # Check optional files
-        config_file = self.project_root / "config" / "config.ini"
-        if config_file.exists():
-            build_info['datas'].append((str(config_file), "config"))
-            print(f"   Including config file: {config_file}")
-        else:
-            print(f"   Config file not found (optional): {config_file}")
+        # config_file = self.project_root / "config" / "config.ini"
+        # if config_file.exists():
+        #     build_info['datas'].append((str(config_file), "config"))
+        #     print(f"   Including config file: {config_file}")
+        # else:
+        #     print(f"   Config file not found (optional): {config_file}")
         
         # Windows version info file
         if self.platform_name == 'windows':
@@ -284,26 +296,33 @@ class CLIBuilder:
 
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 # Set project paths
 project_root = Path(r"{str(self.project_root)}")
 src_dir = project_root / "src"
 
+# Collect all ts_cli modules and data files
+hiddenimports = collect_submodules('ts_cli')
+datas_from_packages = collect_data_files('ts_cli')
+
 # Analysis settings
 a = Analysis(
     [r"{str(build_info['main_script'])}"],
-    pathex=[str(src_dir)],
+    pathex=[str(src_dir), str(src_dir / "ts_cli")],
     binaries=[],
-    datas={datas_str},
-    hiddenimports=[
-        'ts_cli',
-        'ts_cli.vcs',
-        'ts_cli.utils',
+    datas={datas_str} + datas_from_packages,
+    hiddenimports=hiddenimports + [
         'click',
         'rich',
         'httpx',
         'tenacity',
-    ],
+        'configparser',
+        'pathlib',
+        'json',
+        'tempfile',
+        'logging',
+    ] + (['win32api', 'win32event', 'win32process', 'pywintypes', 'pythoncom'] if sys.platform == 'win32' else []),
     hookspath=[],
     hooksconfig={{}},
     runtime_hooks=[],
@@ -505,6 +524,35 @@ VSVersionInfo(
         print(f"   Executable: {build_info['executable_path']}")
         print(f"   Size: {build_info['executable_size']:,} bytes")
     
+    # 동적 config.ini 파일을 생성하는 새 메서드 추가
+    def _create_dynamic_config(self) -> str:
+        """
+        Creates a temporary config.ini file with the specified base_url.
+        Returns the path to the temporary file.
+        """
+        original_config_path = self.project_root / "config" / "config.ini"
+        if not original_config_path.exists():
+            raise BuildError(f"Original config file not found: {original_config_path}")
+
+        config = configparser.ConfigParser()
+        config.read(original_config_path, encoding='utf-8')
+
+        # base_url이 주입된 경우, config 파일 내용 수정
+        if self.base_url:
+            if not config.has_section('api'):
+                config.add_section('api')
+            config.set('api', 'base_url', self.base_url)
+            print(f"   Updated [api] base_url to: {self.base_url}")
+
+        # 임시 파일에 수정된 내용을 쓴다
+        # tempfile을 사용하면 스크립트 종료 시 자동으로 정리됨 (더 안전)
+        fd, temp_config_path = tempfile.mkstemp(suffix=".ini", text=True)
+        with os.fdopen(fd, 'w', encoding='utf-8') as temp_file:
+            config.write(temp_file)
+            
+        print(f"   Temporary config file created at: {temp_config_path}")
+        return temp_config_path
+    
     def build(self, clean: bool = True, test: bool = True) -> Path:
         """Full build process"""
         print("TestscenarioMaker CLI build started")
@@ -565,11 +613,17 @@ def main():
         default=Path(__file__).parent.parent,
         help='Project root directory'
     )
+    parser.add_argument(
+        '--base-url',
+        type=str,
+        default='https://cm-docs.cloud',
+        help='API Base URL to bake into the executable'
+    )
     
     args = parser.parse_args()
     
     try:
-        builder = CLIBuilder(args.project_root)
+        builder = CLIBuilder(args.project_root, base_url=args.base_url)
         exe_path = builder.build(
             clean=not args.no_clean,
             test=not args.no_test

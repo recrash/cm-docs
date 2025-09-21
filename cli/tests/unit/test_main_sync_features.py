@@ -92,11 +92,13 @@ class TestParseUrlParameters:
         url = "testscenariomaker://C:/Users/test/repo?clientId=123"
         
         # Act
-        repo_path, client_id = parse_url_parameters(url)
+        repo_path, client_id, session_id, metadata_json = parse_url_parameters(url)
         
         # Assert
         assert str(repo_path) == r"C:\Users\test\repo"
         assert client_id == "123"
+        assert session_id is None
+        assert metadata_json is None
     
     @patch('ts_cli.main.platform.system', return_value='Darwin')
     def test_parse_macos_path(self, mock_platform):
@@ -105,11 +107,13 @@ class TestParseUrlParameters:
         url = "testscenariomaker:///Users/test/repo?clientId=456"
         
         # Act
-        repo_path, client_id = parse_url_parameters(url)
+        repo_path, client_id, session_id, metadata_json = parse_url_parameters(url)
         
         # Assert
         assert str(repo_path) == "/Users/test/repo"
         assert client_id == "456"
+        assert session_id is None
+        assert metadata_json is None
     
     @patch('ts_cli.main.platform.system', return_value='Linux')
     def test_parse_linux_path(self, mock_platform):
@@ -118,11 +122,13 @@ class TestParseUrlParameters:
         url = "testscenariomaker:///home/test/repo"
         
         # Act
-        repo_path, client_id = parse_url_parameters(url)
+        repo_path, client_id, session_id, metadata_json = parse_url_parameters(url)
         
         # Assert
         assert str(repo_path) == "/home/test/repo"
         assert client_id is None
+        assert session_id is None
+        assert metadata_json is None
     
     def test_parse_url_encoded_path(self):
         """URL 인코딩된 경로 파싱 테스트"""
@@ -130,10 +136,12 @@ class TestParseUrlParameters:
         url = "testscenariomaker:///Users/test/repo%20with%20spaces"
         
         # Act
-        repo_path, client_id = parse_url_parameters(url)
+        repo_path, client_id, session_id, metadata_json = parse_url_parameters(url)
         
         # Assert
         assert "repo with spaces" in str(repo_path)
+        assert session_id is None
+        assert metadata_json is None
     
     def test_parse_invalid_url_raises_error(self):
         """잘못된 URL 파싱 시 오류 발생"""

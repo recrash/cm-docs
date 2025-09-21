@@ -21,8 +21,10 @@ from .models import (
     V2GenerationResponse, 
     V2ProgressMessage,
     V2GenerationStatus,
-    V2ResultData
+    V2ResultData,
+    SessionStatus
 )
+from .session import get_session_store, update_session_status
 from .progress_websocket import v2_connection_manager
 from ....core.git_analyzer import get_git_analysis_text
 from ....core.llm_handler import call_ollama_llm, OllamaAPIError
@@ -71,9 +73,9 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         # 4. CLI에서 전달받은 분석 결과 사용 (중복 분석 방지)
         vcs_type = request.vcs_type.lower()
         if vcs_type == "git":
-            await send_progress(V2GenerationStatus.ANALYZING_GIT, "CLI에서 분석한 Git 변경 내역을 처리 중입니다...", 15)
+            await send_progress(V2GenerationStatus.ANALYZING_GIT, "저장소 변경 내역을 분석 중입니다...", 15)
         elif vcs_type == "svn":
-            await send_progress(V2GenerationStatus.ANALYZING_GIT, "CLI에서 분석한 SVN 변경 내역을 처리 중입니다...", 15)
+            await send_progress(V2GenerationStatus.ANALYZING_GIT, "저장소 변경 내역을 분석 중입니다...", 15)
         else:
             raise ValueError(f"지원되지 않는 VCS 타입입니다: {vcs_type}")
             
@@ -190,9 +192,36 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
         if not json_match:
             # SVN 디버깅: 전체 응답 로깅
             logger.error(f"[SVN DEBUG] Full LLM Response: {raw_response}")
-            raise ValueError("LLM 응답에서 JSON 블록을 찾을 수 없습니다.")
-
-        result_json = json.loads(json_match.group(1).strip())
+            logger.error("[SVN DEBUG] JSON 블록을 찾을 수 없어 기본 시나리오를 반환합니다.")
+            result_json = {
+                "Test Cases": [],
+                "Scenario Description": "JSON 파싱 오류로 인한 기본 시나리오"
+            }
+        else:
+            # JSON 파싱 및 복구 로직
+            try:
+                json_str = json_match.group(1).strip()
+                # 후행 콤마 제거
+                json_str = json_str.rstrip(',')
+                
+                # 중괄호 불일치 보정
+                if not json_str.endswith('}') and json_str.count('{') > json_str.count('}'):
+                    json_str += '}'
+                
+                # 불완전한 배열 보정
+                if '"Test Cases": [' in json_str and not json_str.count('[') == json_str.count(']'):
+                    json_str += ']'
+                
+                result_json = json.loads(json_str)
+                logger.error(f"[SVN DEBUG] JSON 파싱 성공: {len(result_json.get('Test Cases', []))}개 테스트 케이스")
+                
+            except json.JSONDecodeError as recovery_error:
+                logger.error(f"[SVN DEBUG] JSON 파싱 복구 실패: {str(recovery_error)}")
+                logger.error(f"[SVN DEBUG] 파싱 시도된 JSON: {json_str[:200]}...")
+                result_json = {
+                    "Test Cases": [],
+                    "Scenario Description": "JSON 파싱 오류로 인한 기본 시나리오"
+                }
 
         # 8. Excel 파일 생성
         await send_progress(V2GenerationStatus.GENERATING_EXCEL, "Excel 파일을 생성 중입니다...", 90)
@@ -230,12 +259,18 @@ async def _handle_v2_generation(client_id: str, request: V2GenerationRequest):
             result=result_data.model_dump()
         )
 
+        # 세션 상태를 완료로 업데이트 (client_id를 session_id로 사용)
+        update_session_status(client_id, SessionStatus.COMPLETED)
+        
         logger.info(f"클라이언트 {client_id}의 시나리오 생성 완료: {filename} (VCS: {vcs_type})")
 
     except Exception as e:
         logger.exception(f"클라이언트 {client_id}의 시나리오 생성 중 오류 발생")
         logger.error(f"SVN 오류 세부사항 - VCS타입: {request.vcs_type}, 저장소경로: {request.repo_path}, 분석데이터크기: {len(request.changes_text) if request.changes_text else 0}")
         logger.error(f"오류 타입: {type(e).__name__}, 오류 메시지: {str(e)}")
+        
+        # 세션 상태를 실패로 업데이트 (client_id를 session_id로 사용)
+        update_session_status(client_id, SessionStatus.FAILED, error_message=str(e))
         
         error_msg = V2ProgressMessage(
             client_id=client_id,
@@ -265,6 +300,23 @@ async def generate_scenario_v2(request: V2GenerationRequest, background_tasks: B
     """
     try:
         logger.info(f"v2 시나리오 생성 요청 수신: client_id={request.client_id}, repo_path={request.repo_path}, vcs_type={request.vcs_type}, repo_valid={request.is_valid_repo}")
+        
+        # 세션 저장소에서 VCS 분석 데이터 조회 시도 (client_id를 session_id로 사용)
+        session_store = get_session_store()
+        if not request.changes_text or request.changes_text.strip() == "":
+            if request.client_id in session_store:
+                stored_data = session_store[request.client_id]
+                stored_vcs_text = stored_data.get("vcs_analysis_text", "")
+                if stored_vcs_text:
+                    request.changes_text = stored_vcs_text
+                    logger.info(f"세션 저장소에서 VCS 분석 데이터 복원: {request.client_id}")
+                    
+                    # 세션 상태를 진행 중으로 업데이트
+                    update_session_status(request.client_id, SessionStatus.IN_PROGRESS)
+                else:
+                    logger.warning(f"세션 저장소에 VCS 분석 데이터 없음: {request.client_id}")
+            else:
+                logger.warning(f"세션 저장소에 데이터 없음: {request.client_id}")
         
         # 이미 진행 중인 작업인지 확인
         if request.client_id in active_generations:

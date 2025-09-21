@@ -2,6 +2,7 @@
 URL 프로토콜 파싱 기능 테스트
 
 testscenariomaker:// URL 스킴의 파싱 로직을 검증합니다.
+Phase 2: sessionId와 metadata 파라미터 파싱도 포함합니다.
 """
 
 import pytest
@@ -9,11 +10,13 @@ import platform
 import tempfile
 import shutil
 import urllib.parse
+import base64
+import json
 from pathlib import Path
 from unittest.mock import Mock, patch, call
 import sys
 
-from ts_cli.main import handle_url_protocol
+from ts_cli.main import handle_url_protocol, parse_url_parameters
 
 
 class TestURLParsing:

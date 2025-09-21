@@ -18,9 +18,15 @@
 - 동일 sanitize 적용
 - ***인덱스 및 좌표 임의 변경 금지***
 """
+import sys
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+# Windows 인코딩 문제 해결
+if sys.platform.startswith('win'):
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 from openpyxl import load_workbook
 from openpyxl.styles import Font
@@ -96,11 +102,21 @@ def build_test_scenario_xlsx(data: ChangeRequest, out_dir: Optional[Path] = None
     for cell_ref, value in cell_mappings.items():
         try:
             cell = ws[cell_ref]
+            # 값 인코딩 안전 처리
+            if isinstance(value, str):
+                # Windows에서 문제가 될 수 있는 특수 문자 처리
+                value = value.encode('utf-8', errors='replace').decode('utf-8')
             cell.value = value
             # 맑은 고딕 폰트 적용
             cell.font = malgun_gothic_font
+        except (UnicodeEncodeError, UnicodeDecodeError) as enc_err:
+            # 인코딩 에러 시 안전한 문자열로 대체
+            print(f"Warning: 셀 {cell_ref} 인코딩 에러: {enc_err}")
+            cell = ws[cell_ref]
+            cell.value = str(value).encode('ascii', errors='replace').decode('ascii')
+            cell.font = malgun_gothic_font
         except Exception as e:
-            # 셀 참조 오류는 로그만 남기고 계속 진행
+            # 기타 셀 참조 오류는 로그만 남기고 계속 진행
             print(f"Warning: 셀 {cell_ref} 매핑 실패: {e}")
     
     # 파일명 생성
@@ -113,8 +129,18 @@ def build_test_scenario_xlsx(data: ChangeRequest, out_dir: Optional[Path] = None
     # 중복 방지 경로 생성
     output_path = unique_path(out_dir, filename)
     
-    # 파일 저장
-    wb.save(str(output_path))
-    wb.close()
+    # 파일 저장 (Windows 인코딩 안전 모드)
+    try:
+        # UTF-8 인코딩으로 저장
+        wb.save(str(output_path))
+    except (UnicodeEncodeError, UnicodeDecodeError) as e:
+        # 인코딩 에러 발생 시 안전한 경로로 재시도
+        safe_filename = output_path.name.encode('ascii', errors='replace').decode('ascii')
+        safe_path = output_path.parent / safe_filename
+        wb.save(str(safe_path))
+        output_path = safe_path
+        print(f"Warning: 파일명 인코딩 문제로 안전한 이름으로 저장: {safe_filename}")
+    finally:
+        wb.close()
     
     return output_path

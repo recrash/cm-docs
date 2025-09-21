@@ -16,31 +16,67 @@ logger = logging.getLogger(__name__)
 
 
 def get_bundled_config_path() -> Optional[Path]:
-    """
-    PyInstaller로 번들된 config.ini 파일 경로를 반환합니다.
-    macOS와 Windows 모두에서 작동합니다.
-    
-    Returns:
-        번들된 config.ini 경로 또는 None (번들되지 않았거나 파일이 없는 경우)
-    """
+    """PyInstaller 번들에서 config 파일 경로 반환"""
     try:
-        if getattr(sys, 'frozen', False):
-            # PyInstaller로 번들된 실행 파일인 경우
-            if hasattr(sys, '_MEIPASS'):
-                # 임시 디렉토리에서 번들된 파일에 접근 (macOS/Windows 공통)
-                bundled_config = Path(sys._MEIPASS) / "config" / "config.ini"
-                if bundled_config.exists():
-                    return bundled_config
+        if hasattr(sys, '_MEIPASS'):
+            bundle_dir = Path(sys._MEIPASS)
+            print(f"[DEBUG] PyInstaller bundle detected: {bundle_dir}")
             
-            # 실행 파일과 같은 디렉토리에서 config 폴더 찾기 (추가 fallback)
-            exe_dir = Path(sys.executable).parent
-            config_near_exe = exe_dir / "config" / "config.ini"
-            if config_near_exe.exists():
-                return config_near_exe
-                
+            # 디렉터리 구조 상세 확인
+            logger.info(f"=== PyInstaller 번들 디렉터리 구조 분석 ===")
+            logger.info(f"Bundle directory: {bundle_dir}")
+            
+            if bundle_dir.exists():
+                logger.info("Bundle directory contents:")
+                for item in bundle_dir.iterdir():
+                    logger.info(f"  {item.name} ({'DIR' if item.is_dir() else 'FILE'})")
+                    if item.name == 'config' and item.is_dir():
+                        logger.info(f"  Config directory contents:")
+                        for subitem in item.iterdir():
+                            logger.info(f"    {subitem.name} ({'DIR' if subitem.is_dir() else 'FILE'}) - Size: {subitem.stat().st_size if subitem.is_file() else 'N/A'}")
+                            
+                            # config.ini 파일의 내용까지 확인
+                            if subitem.name == 'config.ini' and subitem.is_file():
+                                try:
+                                    content = subitem.read_text(encoding='utf-8')
+                                    logger.info(f"    config.ini content preview:")
+                                    for line_num, line in enumerate(content.split('\n')[:10], 1):
+                                        logger.info(f"      {line_num:2d}: {line}")
+                                except Exception as e:
+                                    logger.error(f"    Failed to read config.ini content: {e}")
+            
+            # 기존 경로들 확인
+            possible_paths = [
+                bundle_dir / "config" / "config.ini",
+                bundle_dir / "config.ini",
+                bundle_dir / "config"
+            ]
+            
+            # 루트 디렉토리의 모든 .ini 파일도 확인
+            for ini_file in bundle_dir.glob("*.ini"):
+                if ini_file.is_file() and ini_file.name.endswith('.ini'):
+                    print(f"[DEBUG] Found .ini file in bundle root: {ini_file.name}")
+                    possible_paths.insert(0, ini_file)  # 우선순위 높게 설정
+            
+            for path in possible_paths:
+                logger.info(f"Checking path: {path}")
+                print(f"[DEBUG] Checking bundled config path: {path}")
+                if path.exists():
+                    logger.info(f"  EXISTS - Type: {'DIR' if path.is_dir() else 'FILE'}")
+                    print(f"[DEBUG]   Path exists! Is file: {path.is_file()}")
+                    if path.is_file():
+                        logger.info(f"  File size: {path.stat().st_size} bytes")
+                        print(f"[DEBUG]   Returning bundled config: {path}")
+                        return path
+                    else:
+                        logger.info(f"  Is directory, not file")
+                else:
+                    logger.info(f"  Does not exist")
+                    
         return None
     except Exception as e:
         logger.debug(f"번들된 설정 파일 검색 중 오류: {e}")
+        print(f"[DEBUG] 번들된 설정 파일 검색 중 오류: {e}")
         return None
 
 
@@ -188,10 +224,13 @@ class ConfigLoader:
 
     def _load_default_values(self) -> None:
         """기본 설정 값 로드"""
-        # 환경 기반 API URL 결정
-        # 개발환경(로컬): localhost 감지 시 로컬 서버 사용
-        # 운영환경: 기본값으로 운영 서버 사용
-        default_base_url = self._get_default_api_url()
+        # PyInstaller로 빌드된 환경에서는 동적 URL 감지 비활성화
+        if getattr(sys, 'frozen', False):
+            # 빌드된 환경에서는 고정된 fallback URL 사용
+            default_base_url = "https://cm-docs.cloud"
+        else:
+            # 개발 환경에서만 동적 URL 감지 사용
+            default_base_url = self._get_default_api_url()
         
         # API 설정
         self.config["api"] = {
@@ -247,7 +286,11 @@ class ConfigLoader:
             if not self.config.has_option(section, key):
                 return default
 
-            value = self.config.get(section, key)
+            # logging.format은 raw로 읽기 (문자열 보간 방지)
+            if section == "logging" and key == "format":
+                value = self.config.get(section, key, raw=True)
+            else:
+                value = self.config.get(section, key)
 
             # 타입 변환
             if value_type == bool:

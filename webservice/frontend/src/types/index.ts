@@ -130,3 +130,66 @@ export interface V2ResultData {
   prompt_size?: number
   added_chunks?: number
 }
+
+// Phase 3: Full Generation 관련 타입들
+export type WorkflowState = 'idle' | 'parsing' | 'waiting_cli' | 'processing' | 'completed' | 'error'
+
+export enum FullGenerationStatus {
+  RECEIVED = 'received',
+  ANALYZING_VCS = 'analyzing_vcs',
+  GENERATING_SCENARIOS = 'generating_scenarios',
+  GENERATING_WORD_DOC = 'generating_word_doc',
+  GENERATING_EXCEL_LIST = 'generating_excel_list',
+  GENERATING_BASE_SCENARIOS = 'generating_base_scenarios',
+  MERGING_EXCEL = 'merging_excel',
+  COMPLETED = 'completed',
+  ERROR = 'error'
+}
+
+export interface FullGenerationProgressMessage {
+  session_id: string
+  status: FullGenerationStatus
+  message: string
+  progress: number
+  current_step: string
+  steps_completed: number
+  total_steps: number
+  details?: Record<string, unknown>
+  result?: FullGenerationResultData
+}
+
+export interface FullGenerationResultData {
+  session_id: string
+  word_filename?: string
+  excel_list_filename?: string
+  base_scenario_filename?: string
+  merged_excel_filename?: string
+  download_urls: {
+    word?: string
+    excel_list?: string
+    base_scenario?: string
+    merged_excel?: string
+    integrated_scenario?: string  // 새로운 통합 시나리오
+    scenario?: string
+    all?: string  // 일괄 다운로드 URL
+  }
+  generation_time?: number  // 생성 시간 (초)
+  steps_completed?: number  // 완료된 단계 수
+  total_steps?: number      // 전체 단계 수
+  errors?: string[]         // 발생한 오류 목록
+  warnings?: string[]       // 경고 메시지 목록
+}
+
+export interface ParseHtmlResponse {
+  success: boolean
+  data: Record<string, unknown>
+  error: string | null
+}
+
+export interface SessionMetadata {
+  title?: string
+  content?: string
+  parsed_data?: Record<string, unknown>
+  user_name?: string
+  [key: string]: unknown
+}

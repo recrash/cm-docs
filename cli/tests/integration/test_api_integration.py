@@ -155,6 +155,142 @@ class TestAPIIntegration:
             mock_get.assert_called_once_with(f"/api/v1/analysis/{analysis_id}/status")
 
     @pytest.mark.asyncio
+    async def test_session_metadata_retrieval(self, api_client):
+        """세션 메타데이터 조회 테스트"""
+        # 테스트 데이터
+        session_id = "test_session_metadata_123"
+        expected_metadata = {
+            "repository_path": "/test/repo",
+            "vcs_type": "git",
+            "user_name": "테스트사용자",
+            "purpose": "통합 테스트"
+        }
+
+        # get_session_metadata API 호출 모킹
+        with patch.object(api_client.client, "get") as mock_get:
+            mock_response = Mock()
+            mock_response.is_success = True
+            mock_response.json.return_value = expected_metadata
+            mock_get.return_value = mock_response
+
+            # get_session_metadata 호출
+            result = await api_client.get_session_metadata(session_id)
+
+            # 응답 검증
+            assert result == expected_metadata
+
+            # API 호출 검증
+            mock_get.assert_called_once()
+            call_args = mock_get.call_args
+            assert call_args[0][0] == f"/api/webservice/v2/session/{session_id}/metadata"
+            assert call_args[1]["timeout"] == 30.0
+
+    @pytest.mark.asyncio
+    async def test_start_full_generation_workflow(self, api_client):
+        """전체 문서 생성 워크플로우 테스트"""
+        # 테스트 데이터
+        session_id = "test_full_generation_123"
+        metadata = {"change_id": "CM-TEST-001", "system": "테스트시스템"}
+        vcs_analysis = "테스트 VCS 분석"
+
+        # start_full_generation API 호출 모킹
+        with patch.object(api_client.client, "post") as mock_post:
+            mock_response = Mock()
+            mock_response.is_success = True
+            mock_response.json.return_value = {
+                "session_id": session_id,
+                "status": "accepted",
+                "message": "전체 문서 생성 작업이 시작되었습니다"
+            }
+            mock_post.return_value = mock_response
+
+            # start_full_generation 호출
+            result = await api_client.start_full_generation(
+                session_id=session_id,
+                vcs_analysis_text=vcs_analysis,
+                metadata_json=metadata
+            )
+
+            # 응답 검증
+            assert result["session_id"] == session_id
+            assert result["status"] == "accepted"
+            assert "전체 문서 생성 작업이 시작되었습니다" in result["message"]
+
+            # API 호출 검증
+            mock_post.assert_called_once()
+            call_args = mock_post.call_args
+            assert call_args[0][0] == "/api/webservice/v2/start-full-generation"
+            request_json = call_args[1]["json"]
+            assert request_json["session_id"] == session_id
+            assert request_json["metadata_json"] == metadata
+            assert request_json["vcs_analysis_text"] == vcs_analysis
+
+    @pytest.mark.asyncio
+    async def test_complete_session_workflow(self, api_client):
+        """완전한 세션 워크플로우 테스트 (metadata retrieval → start generation)"""
+        session_id = "test_complete_workflow_123"
+        metadata = {
+            "change_id": "CM-WORKFLOW-001",
+            "system": "워크플로우테스트",
+            "title": "완전한 세션 워크플로우 테스트"
+        }
+        vcs_analysis = "완전한 워크플로우 테스트 VCS 분석"
+
+        # 1단계: 세션 메타데이터 조회
+        with patch.object(api_client.client, "get") as mock_get:
+            # get_session_metadata 응답 모킹
+            mock_response = Mock()
+            mock_response.is_success = True
+            mock_response.json.return_value = metadata
+            mock_get.return_value = mock_response
+
+            metadata_result = await api_client.get_session_metadata(session_id)
+            assert metadata_result == metadata
+
+        # 2단계: 전체 생성 시작
+        with patch.object(api_client.client, "post") as mock_post:
+            # start_full_generation 응답 모킹
+            mock_response = Mock()
+            mock_response.is_success = True
+            mock_response.json.return_value = {
+                "session_id": session_id,
+                "status": "accepted",
+                "message": "전체 문서 생성 작업이 시작되었습니다"
+            }
+            mock_post.return_value = mock_response
+
+            generation_result = await api_client.start_full_generation(
+                session_id=session_id,
+                vcs_analysis_text=vcs_analysis,
+                metadata_json=metadata
+            )
+
+            assert generation_result["status"] == "accepted"
+            assert generation_result["session_id"] == session_id
+
+    @pytest.mark.asyncio
+    async def test_session_error_handling(self, api_client):
+        """세션 관련 오류 처리 테스트"""
+        session_id = "test_error_session_123"
+
+        # 세션 메타데이터 조회 실패 시나리오
+        with patch.object(api_client.client, "get") as mock_get:
+            mock_response = Mock()
+            mock_response.is_success = False
+            mock_response.status_code = 404
+            mock_response.json.return_value = {
+                "detail": "세션을 찾을 수 없습니다"
+            }
+            mock_get.return_value = mock_response
+
+            # 404 오류 시 None 반환 확인 (get_session_metadata 메서드 동작)
+            result = await api_client.get_session_metadata(session_id)
+            assert result is None
+
+            # API 호출 검증 (timeout 파라미터 포함)
+            mock_get.assert_called_once_with(f"/api/webservice/v2/session/{session_id}/metadata", timeout=30.0)
+
+    @pytest.mark.asyncio
     async def test_download_result_workflow(self, api_client, tmp_path):
         """결과 다운로드 워크플로우 테스트"""
         result_url = "https://test.com/results/test-analysis-123.zip"
