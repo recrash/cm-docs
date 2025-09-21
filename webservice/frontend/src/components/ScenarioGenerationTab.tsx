@@ -160,6 +160,7 @@ export default function ScenarioGenerationTab() {
       setResult(null)
       setV2Progress(null)
       setFullGenResult(null)  // 전체 문서 생성 결과도 초기화
+      setFullGenProgress(null)  // 이전 전체 문서 생성 진행상태 초기화
       setIsGenerating(true)
       setIsWaitingForCLI(true)
 
@@ -247,6 +248,7 @@ export default function ScenarioGenerationTab() {
       setResult(null)  // 시나리오 생성 결과도 초기화
       setFullGenResult(null)
       setFullGenProgress(null)
+      setV2Progress(null)  // 이전 시나리오 생성 진행상태 초기화
       setWorkflowState('parsing')
       
       // 1. sessionId 생성 (Full Generation용)
@@ -368,14 +370,16 @@ export default function ScenarioGenerationTab() {
   }
 
   const getProgressColor = () => {
-    if (v2Progress) {
-      if (v2Progress.status === V2GenerationStatus.ERROR) return 'error'
-      if (v2Progress.status === V2GenerationStatus.COMPLETED) return 'success'
-      return 'primary'
-    }
-    if (fullGenProgress) {
+    // 전체 문서 생성이 진행 중일 때 우선순위를 가짐
+    if (workflowState !== 'idle' && fullGenProgress) {
       if (fullGenProgress.status === FullGenerationStatus.ERROR) return 'error'
       if (fullGenProgress.status === FullGenerationStatus.COMPLETED) return 'success'
+      return 'primary'
+    }
+    // 시나리오 생성이 진행 중일 때
+    if (isGenerating && v2Progress) {
+      if (v2Progress.status === V2GenerationStatus.ERROR) return 'error'
+      if (v2Progress.status === V2GenerationStatus.COMPLETED) return 'success'
       return 'primary'
     }
     return 'primary'
@@ -592,16 +596,6 @@ export default function ScenarioGenerationTab() {
                 <Typography variant="h6" fontWeight={600} color="warning.main">
                   전체 문서 생성
                 </Typography>
-                <Chip 
-                  label="Phase 3" 
-                  size="small" 
-                  sx={{ 
-                    ml: 1,
-                    backgroundColor: 'warning.main',
-                    color: 'white',
-                    fontWeight: 600
-                  }}
-                />
               </Box>
               
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -652,7 +646,7 @@ export default function ScenarioGenerationTab() {
         </Grid>
       </Grid>
 
-      {/* Phase 3 진행 상황 표시 */}
+      {/* 통합 진행 상황 표시 */}
       {workflowState !== 'idle' && fullGenProgress &&
         renderProgressCard(
           fullGenProgress.progress ?? 0,
@@ -745,8 +739,8 @@ export default function ScenarioGenerationTab() {
         </Alert>
       )}
 
-      {/* 진행 상황 표시 (기존 기능) */}
-      {v2Progress &&
+      {/* 시나리오 생성 진행 상황 표시 (전체 문서 생성이 진행중이 아닐 때만) */}
+      {workflowState === 'idle' && v2Progress &&
         renderProgressCard(
           v2Progress.progress ?? 0,
           v2Progress.message ?? '처리 중...',
