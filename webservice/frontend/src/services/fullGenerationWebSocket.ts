@@ -75,14 +75,15 @@ export class FullGenerationWebSocket {
         
         const message: FullGenerationProgressMessage = JSON.parse(rawMessage)
         
-        // V2와 동일한 시스템 메시지 필터링
-        const isSystemMessage = message.details?.type === 'ping' || 
+        // V2와 동일한 시스템 메시지 필터링 + welcome 메시지 추가
+        const isSystemMessage = message.details?.type === 'ping' ||
                                 message.details?.type === 'keepalive' ||
                                 message.progress === -1 ||  // keepalive 메시지 식별자
-                                message.message?.includes('ping') || 
+                                message.message?.includes('ping') ||
                                 message.message?.includes('연결 유지') ||
                                 message.message?.includes('연결 상태') ||
-                                message.message?.includes('WebSocket 연결이 설정되었습니다')
+                                message.message?.includes('WebSocket 연결이 설정되었습니다') ||
+                                message.current_step === '연결 설정'  // welcome 메시지 필터링
         
         if (!isSystemMessage) {
           console.log('[FullGenWS] Received message:', message)
