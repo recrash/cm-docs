@@ -72,8 +72,8 @@ Section "Core Files" SEC01
   ; Executable file
   File "..\\dist\\ts-cli.exe"
 
-  ; Debug PowerShell script
-  File "url_handler_debug.ps1"
+  ; PowerShell script for URL handling (production)
+  File "url_handler.ps1"
 
   ; Configuration file
   SetOutPath $INSTDIR\\config
@@ -139,10 +139,10 @@ Section "Register URL Protocol" SEC05
   WriteRegStr HKCR "testscenariomaker\shell" "" ""
   WriteRegStr HKCR "testscenariomaker\shell\open" "" ""
   
-  ; Register command for DEBUGGING - PowerShell with proper syntax
-  ; Direct execution with console visible for debugging
+  ; Register command for PRODUCTION - PowerShell running in background
+  ; Execute PowerShell script in background with proper URL handling
   ; URL parameters are properly quoted to handle & characters
-  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'powershell.exe -NoExit -ExecutionPolicy Bypass -File "$INSTDIR\url_handler_debug.ps1" -url "%1" -exePath "$INSTDIR\ts-cli.exe"'
+  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\url_handler.ps1" -url "%1" -exePath "$INSTDIR\ts-cli.exe"'
   
 SectionEnd
 
