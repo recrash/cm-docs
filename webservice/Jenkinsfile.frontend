@@ -75,21 +75,24 @@ pipeline {
                         ) == 0
                         
                         if (packageChanged || !nodeModulesExists) {
-                            echo "패키지 파일 변경 감지됨 또는 node_modules 없음 - 의존성 설치 실행 (폐쇄망 모드)"
-                            
-                            // 캐시 디렉토리 존재 확인
+                            echo "패키지 파일 변경 감지됨 또는 node_modules 없음 - 의존성 설치 실행"
+
+                            // 캐시 디렉토리 존재 확인 (폐쇄망 모드)
                             def npmCacheExists = bat(
                                 script: 'if exist "C:\\deploys\\packages\\npm-cache" (exit 0) else (exit 1)',
                                 returnStatus: true
                             ) == 0
-                            
+
                             if (npmCacheExists) {
                                 echo "npm 캐시 발견 - 폐쇄망 오프라인 설치 시도"
                                 bat "npm config set cache C:\\deploys\\packages\\npm-cache"
                                 bat "npm ci --prefer-offline"
                                 echo "npm ci 오프라인 설치 완료"
                             } else {
-                                error("폐쇄망 환경: npm 캐시가 없습니다. C:\\deploys\\packages\\npm-cache 디렉토리를 확인하세요.")
+                                // 폐쇄망이 아닌 환경에서는 일반 설치 시도
+                                echo "npm 캐시 없음 - 일반 설치 시도"
+                                bat "npm ci"
+                                echo "npm ci 설치 완료"
                             }
                         } else {
                             echo "패키지 변경 없음 - 기존 node_modules 사용 (폐쇄망 최적)"
@@ -114,7 +117,21 @@ pipeline {
         stage('Lint & Type Check') {
             steps {
                 dir("${env.WORKSPACE_NPM_DIR}") {
-                    bat 'npm run lint'
+                    script {
+                        // eslint 실행 가능 여부 확인
+                        def eslintExists = bat(
+                            script: 'if exist node_modules\\.bin\\eslint.cmd (exit 0) else (exit 1)',
+                            returnStatus: true
+                        ) == 0
+
+                        if (!eslintExists) {
+                            echo "eslint가 설치되지 않음 - node_modules 재설치 시도"
+                            bat "npm ci"
+                        }
+
+                        // npx를 사용하여 eslint 실행
+                        bat 'npx eslint . --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0'
+                    }
                     // TypeScript 타입 체크 (있는 경우)
                     script {
                         def tsconfigExists = bat(
