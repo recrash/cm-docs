@@ -207,10 +207,17 @@ export class V2ProgressWebSocket {
 }
 
 /**
- * 고유한 클라이언트 ID 생성
+ * 고유한 클라이언트 ID 생성 (V2 WebSocket용)
  */
 export function generateClientId(): string {
   return `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+}
+
+/**
+ * 고유한 세션 ID 생성 (Full Generation WebSocket용)
+ */
+export function generateSessionId(): string {
+  return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 }
 
 /**

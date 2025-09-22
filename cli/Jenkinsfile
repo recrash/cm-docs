@@ -3,6 +3,7 @@ pipeline {
     
     parameters {
         string(name: 'BRANCH', defaultValue: 'main', description: 'Branch name to build')
+        string(name: 'BASE_URL', defaultValue: 'https://cm-docs.cloud', description: 'API Base URL to bake into the executable')
     }
     
     environment {
@@ -20,23 +21,23 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
+                checkout scm
                 script {
-                    // Clean checkout with proper branch handling
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: "*/${params.BRANCH ?: env.BRANCH_NAME ?: 'main'}"]],
-                        doGenerateSubmoduleConfigurations: false,
-                        extensions: [
-                            [$class: 'CleanBeforeCheckout'],
-                            [$class: 'CloneOption', depth: 1, noTags: false, shallow: true]
-                        ],
-                        userRemoteConfigs: [[
-                            credentialsId: 'cmdocs',
-                            url: 'https://github.com/recrash/cm-docs.git'
-                        ]]
-                    ])
+                    // 현재 체크아웃된 브랜치 확인
+                    def currentBranch = bat(
+                        script: 'git rev-parse --abbrev-ref HEAD',
+                        returnStdout: true
+                    ).trim()
                     
-                    echo "Checkout completed for branch: ${params.BRANCH ?: env.BRANCH_NAME}"
+                    echo "소스코드 체크아웃 완료 - 현재 브랜치: ${currentBranch}"
+                    
+                    // 파라미터로 받은 브랜치와 비교
+                    if (params.BRANCH) {
+                        echo "요청된 브랜치: ${params.BRANCH}"
+                        if (currentBranch != params.BRANCH && !currentBranch.endsWith("/${params.BRANCH}")) {
+                            echo "경고: 요청된 브랜치와 현재 브랜치가 다를 수 있습니다"
+                        }
+                    }
                     
                     // Show current commit for verification
                     bat 'git log --oneline -1'
@@ -48,7 +49,7 @@ pipeline {
             steps {
                 dir('cli') {
                     script {
-                        echo 'Setting up Python virtual environment'
+                        echo '빠른 테스트 환경 구축 (휠하우스 활용)'
                         
                         // Clean previous venv if exists
                         bat '''
@@ -58,46 +59,35 @@ pipeline {
                             )
                         '''
                         
-                        // Create new virtual environment
-                        bat '''
-                            echo Creating Python 3.13 virtual environment
-                            py -3.13 -m venv .venv
-                        '''
+                        // Python 3.13 가상환경 생성
+                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
                         
-                        // Upgrade pip
-                        bat '''
-                            echo Upgrading pip
-                            .venv\\Scripts\\python.exe -m pip install --upgrade pip
-                        '''
+                        // 휠하우스 활용 고속 설치
+                        script {
+                            def wheelHouseExists = fileExists(env.WHEELHOUSE_PATH)
+                            
+                            if (wheelHouseExists) {
+                                echo '휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)'
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements-dev.txt\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -e .\""
+                            } else {
+                                echo '휠하우스 없음 - 온라인 설치'
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install -r requirements-dev.txt\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install -e .\""
+                            }
+                        }
+                        
+                        // 주요 패키지 검증 (시간 단축)
+                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -c \\\"import click; import rich; print('Test environment ready - CLI dependencies loaded')\\\"\""
+                        
+                        echo '테스트 환경 구축 완료 (최적화됨)'
                     }
                 }
             }
         }
         
-        stage('Install Dependencies') {
-            steps {
-                dir('cli') {
-                    script {
-                        // Check if wheelhouse exists for offline mode
-                        def wheelHouseExists = fileExists(env.WHEELHOUSE_PATH)
-                        
-                        if (wheelHouseExists) {
-                            echo 'Installing dependencies from Wheelhouse (Offline Mode)'
-                            bat """
-                                .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r requirements-dev.txt
-                                .venv\\Scripts\\pip.exe install --no-index --find-links="${env.WHEELHOUSE_PATH}" -e .
-                            """
-                        } else {
-                            echo 'Installing dependencies from PyPI (Online Mode)'
-                            bat '''
-                                .venv\\Scripts\\pip.exe install -r requirements-dev.txt
-                                .venv\\Scripts\\pip.exe install -e .
-                            '''
-                        }
-                    }
-                }
-            }
-        }
         
         stage('Run Tests') {
             steps {
@@ -152,12 +142,13 @@ pipeline {
                 dir('cli') {
                     script {
                         echo 'Building executable with PyInstaller'
+                        echo "API Base URL: ${params.BASE_URL}" // 받은 파라미터 확인
                         
                         // Run build script
-                        bat '''
-                            set PYTHONPATH=src
-                            .venv\\Scripts\\python.exe scripts\\build.py
-                        '''
+                        script {
+                            def baseUrl = params.BASE_URL ?: 'https://cm-docs.cloud'
+                            bat "powershell -Command \"\$env:PYTHONPATH='src'; \$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' scripts\\build.py --base-url '${baseUrl}'\""
+                        }
                         
                         // Verify executable was created
                         script {

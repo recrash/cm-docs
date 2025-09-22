@@ -12,3 +12,6 @@ websockets>=11.0.0
 # 유틸리티
 pathlib2>=2.3.0;python_version<"3.4"
 configparser>=3.8.0
+
+# Windows 전용 프로세스 관리
+pywin32>=300;sys_platform=='win32'

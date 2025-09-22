@@ -20,7 +20,8 @@ from .models import (
     ChangeRequest, 
     ParseHtmlResponse, 
     CreateDocumentResponse, 
-    HealthResponse
+    HealthResponse,
+    EnhancedScenarioRequest
 )
 from .parsers.itsupp_html_parser import parse_itsupp_html
 from .services.label_based_word_builder import build_change_request_doc_label_based
@@ -115,6 +116,65 @@ async def health_check(request: Request):
         raise HTTPException(status_code=500, detail=f"헬스 체크 실패: {str(e)}")
 
 
+@router.post("/parse-html-only", response_model=ParseHtmlResponse)
+async def parse_html_only(request: Request, file: UploadFile = File(...)):
+    """HTML 파일 파싱 전용 엔드포인트
+    
+    업로드된 HTML 파일을 파싱하여 JSON 형태로만 반환 (파일 저장 없음)
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    start_time = time.time()
+    
+    logger.info(f"HTML 파싱 전용 요청: client_ip={client_ip}, filename={file.filename}, content_type={file.content_type}")
+    
+    try:
+        # 파일 타입 검증
+        if not file.content_type or 'html' not in file.content_type.lower():
+            if not file.filename or not file.filename.lower().endswith('.html'):
+                logger.warning(f"잘못된 파일 타입: filename={file.filename}, content_type={file.content_type}")
+                raise HTTPException(
+                    status_code=400, 
+                    detail="HTML 파일만 업로드 가능합니다"
+                )
+        
+        # 파일 내용 읽기
+        content = await file.read()
+        file_size = len(content)
+        html_content = content.decode('utf-8')
+        
+        logger.info(f"HTML 파일 읽기 완료: filename={file.filename}, size={file_size} bytes")
+        
+        # HTML 파싱
+        parsed_data = parse_itsupp_html(html_content)
+        field_count = len(parsed_data) if parsed_data else 0
+        
+        processing_time = time.time() - start_time
+        logger.info(f"HTML 파싱 전용 성공: filename={file.filename}, fields_parsed={field_count}, processing_time={processing_time:.3f}s")
+        
+        return ParseHtmlResponse(
+            success=True,
+            data=parsed_data
+        )
+        
+    except HTTPException:
+        # HTTPException은 그대로 재발생
+        raise
+    except UnicodeDecodeError as e:
+        processing_time = time.time() - start_time
+        logger.error(f"파일 인코딩 오류: filename={file.filename}, processing_time={processing_time:.3f}s, error={str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail="파일 인코딩 오류: UTF-8로 인코딩된 HTML 파일이 필요합니다"
+        )
+    except Exception as e:
+        processing_time = time.time() - start_time
+        logger.exception(f"HTML 파싱 실패: filename={file.filename}, processing_time={processing_time:.3f}s, error={str(e)}")
+        return ParseHtmlResponse(
+            success=False,
+            error=f"HTML 파싱 실패: {str(e)}"
+        )
+
+
 @router.post("/parse-html", response_model=ParseHtmlResponse)
 async def parse_html_endpoint(request: Request, file: UploadFile = File(...)):
     """HTML 파일 파싱 엔드포인트
@@ -169,6 +229,81 @@ async def parse_html_endpoint(request: Request, file: UploadFile = File(...)):
             success=False,
             error=f"HTML 파싱 실패: {str(e)}"
         )
+
+
+@router.post("/build-cm-word", response_model=CreateDocumentResponse)
+async def build_cm_word(http_request: Request, data: ChangeRequest):
+    """JSON 기반 변경관리 Word 문서 생성 엔드포인트
+    
+    메타데이터 JSON을 받아서 기존 검증된 API를 호출하여 Word 문서를 생성합니다.
+    """
+    logger.info(f"build-cm-word API 호출: change_id={data.change_id}, system={data.system}")
+    
+    # 기존 검증된 API 호출 (raw_data 없이)
+    enhanced_request = {
+        "raw_data": {},  # 빈 raw_data
+        "change_request": data.dict()
+    }
+    
+    # create_change_management_word_enhanced를 내부 호출
+    result = await create_change_management_word_enhanced(http_request, enhanced_request)
+    
+    logger.info(f"build-cm-word API 완료: 기존 API 호출 결과 반환")
+    return result
+
+
+@router.post("/build-base-scenario", response_model=CreateDocumentResponse)
+async def build_base_scenario(request: Request, data: ChangeRequest):
+    """JSON 기반 기본 시나리오 Excel 생성 엔드포인트 (하위 호환성)
+    
+    메타데이터 JSON을 받아서 기존 검증된 API를 호출하여 기본 시나리오 Excel을 생성합니다.
+    """
+    logger.info(f"build-base-scenario API 호출: change_id={data.change_id}, system={data.system}")
+    
+    # 기존 검증된 API 호출
+    result = await create_test_scenario_excel(request, data)
+    
+    logger.info(f"build-base-scenario API 완료: 기존 API 호출 결과 반환")
+    return result
+
+
+@router.post("/build-test-scenario", response_model=CreateDocumentResponse)
+async def build_test_scenario(request: Request, data: EnhancedScenarioRequest):
+    """JSON 기반 통합 테스트 시나리오 Excel 생성 엔드포인트
+    
+    기본 시나리오 + LLM 테스트 케이스를 통합하여 완성된 Excel을 생성합니다.
+    """
+    change_request = data.change_request
+    test_cases = data.test_cases or []
+    
+    logger.info(f"build-test-scenario API 호출: change_id={change_request.change_id}, system={change_request.system}, test_cases_count={len(test_cases)}")
+    
+    # 1. 기존 기본 시나리오 생성
+    base_result = await create_test_scenario_excel(request, change_request)
+    
+    if not base_result.ok:
+        logger.error(f"기본 시나리오 생성 실패: {base_result.error}")
+        return base_result
+    
+    # 2. LLM 테스트 케이스가 있으면 Excel에 행 추가
+    if test_cases:
+        try:
+            from .services.excel_enhancer import append_test_cases_to_excel
+            from .services.paths import get_documents_dir
+            
+            documents_dir = get_documents_dir()
+            excel_path = documents_dir / base_result.filename
+            
+            added_rows = append_test_cases_to_excel(excel_path, test_cases)
+            logger.info(f"LLM 테스트 케이스 {added_rows}개 추가 완료")
+            
+        except Exception as e:
+            logger.error(f"LLM 테스트 케이스 추가 실패: {e}")
+            # 기본 시나리오는 생성되었으므로 경고만 기록하고 계속 진행
+            logger.warning("기본 시나리오는 정상 생성되었습니다.")
+    
+    logger.info(f"build-test-scenario API 완료: 통합 시나리오 생성 성공")
+    return base_result
 
 
 @router.post("/create-cm-word-enhanced", response_model=CreateDocumentResponse)
@@ -289,6 +424,9 @@ async def create_change_management_list(request: Request, data: List[Union[Chang
             filename=output_path.name
         )
         
+    except HTTPException:
+        # HTTPException은 FastAPI가 처리하도록 다시 발생
+        raise
     except ValueError as e:
         processing_time = time.time() - start_time
         logger.error(f"Excel 변경관리 목록 검증 오류: data_count={data_count}, processing_time={processing_time:.3f}s, error={str(e)}")
@@ -306,6 +444,22 @@ async def create_change_management_list(request: Request, data: List[Union[Chang
         )
 
 
+@router.post("/build-cm-list", response_model=CreateDocumentResponse)
+async def build_cm_list(request: Request, data: List[ChangeRequest]):
+    """JSON 기반 변경관리 목록 Excel 생성 엔드포인트
+    
+    메타데이터 JSON 배열을 받아서 기존 검증된 API를 호출하여 변경요청 목록 Excel을 생성합니다.
+    """
+    data_count = len(data) if data else 0
+    logger.info(f"build-cm-list API 호출: data_count={data_count}")
+    
+    # 기존 검증된 API 호출
+    result = await create_change_management_list(request, data)
+    
+    logger.info(f"build-cm-list API 완료: 기존 API 호출 결과 반환")
+    return result
+
+
 @router.get("/download/{filename}")
 async def download_file(request: Request, filename: str):
     """파일 다운로드 엔드포인트
@@ -317,38 +471,59 @@ async def download_file(request: Request, filename: str):
     logger.info(f"파일 다운로드 요청: client_ip={client_ip}, filename={filename}")
     
     try:
-        # 파일 경로 생성
-        documents_dir = get_documents_dir()
-        file_path = documents_dir / filename
-        
+        import urllib.parse
+        import os
+
+        # webservice와 동일한 방식으로 변경: os.path 사용
+        documents_dir = str(get_documents_dir())
+
+        # URL 디코딩 처리
+        decoded_filename = urllib.parse.unquote(filename)
+
+        # 파일 경로 생성 (os.path 사용)
+        file_path = os.path.join(documents_dir, decoded_filename)
+
         # 파일 존재 여부 확인
-        if not file_path.exists():
-            logger.warning(f"파일 다운로드 실패: 파일 없음 - filename={filename}")
+        if not os.path.exists(file_path):
+            logger.warning(f"파일 다운로드 실패: 파일 없음 - filename={decoded_filename}")
             raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
-        
+
         # 파일이 documents 디렉터리 내부에 있는지 확인 (보안)
         try:
-            file_path.resolve().relative_to(documents_dir.resolve())
-        except ValueError:
-            logger.error(f"파일 다운로드 보안 위반: path_traversal 시도 - filename={filename}, client_ip={client_ip}")
+            # pathlib 방식에서 os.path 방식으로 변경
+            abs_file_path = os.path.abspath(file_path)
+            abs_documents_dir = os.path.abspath(documents_dir)
+            if not abs_file_path.startswith(abs_documents_dir):
+                raise ValueError("Path traversal detected")
+        except (ValueError, OSError):
+            logger.error(f"파일 다운로드 보안 위반: path_traversal 시도 - filename={decoded_filename}, client_ip={client_ip}")
             raise HTTPException(status_code=403, detail="접근 권한이 없습니다")
-        
-        # 파일 정보 수집
-        file_size = file_path.stat().st_size
-        
+
+        # 파일 정보 수집 (os.path 사용)
+        file_size = os.path.getsize(file_path)
+
         # MIME 타입 결정
         content_type = "application/octet-stream"
-        if filename.lower().endswith('.docx'):
+        if decoded_filename.lower().endswith('.docx'):
             content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        elif filename.lower().endswith('.xlsx'):
+        elif decoded_filename.lower().endswith('.xlsx'):
             content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        
-        logger.info(f"파일 다운로드 시작: filename={filename}, size={file_size} bytes, content_type={content_type}")
-        
+
+        # UTF-8 파일명 인코딩 처리
+        filename_utf8 = urllib.parse.quote(os.path.basename(file_path), safe='')
+
+        logger.info(f"파일 다운로드 시작: filename={decoded_filename}, size={file_size} bytes, content_type={content_type}")
+
         return FileResponse(
-            path=str(file_path),
+            path=file_path,  # str로 이미 처리됨
             media_type=content_type,
-            filename=filename
+            filename=os.path.basename(file_path),  # webservice와 동일하게 basename 사용
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_utf8}",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
         )
         
     except HTTPException:

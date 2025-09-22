@@ -22,13 +22,27 @@ export default defineConfig({
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
+
+    /* WebSocket 및 파일 업로드 테스트를 위한 확장 타임아웃 */
+    actionTimeout: 30000,
+    navigationTimeout: 30000,
   },
 
   /* Configure projects for major browsers */
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        /* Full Generation 테스트를 위한 권한 설정 */
+        launchOptions: {
+          args: [
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor',
+            '--allow-running-insecure-content'
+          ]
+        }
+      },
     },
 
     {
@@ -70,10 +84,19 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: 'python -m uvicorn backend.main:app --reload --port 8000',
+      command: 'source .venv/bin/activate && export PYTHONPATH=$(pwd):$PYTHONPATH && python -m uvicorn app.main:app --reload --port 8000',
       port: 8000,
       reuseExistingServer: !process.env.CI,
       cwd: '../',
+      env: {
+        PYTHONPATH: process.cwd() + '/..',
+      },
     },
   ],
+
+  /* 전역 테스트 타임아웃 설정 */
+  timeout: 60000,
+  expect: {
+    timeout: 10000,
+  },
 })

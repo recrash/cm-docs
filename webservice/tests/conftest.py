@@ -146,3 +146,35 @@ def mock_ollama_response():
     }
 
 
+@pytest.fixture(autouse=True)
+def mock_background_tasks():
+    """백그라운드 태스크 전역 모킹 - 무한루프 방지"""
+    with patch('fastapi.BackgroundTasks.add_task') as mock_add_task:
+        # 백그라운드 태스크를 즉시 실행하지 않고 기록만
+        mock_add_task.return_value = None
+        yield mock_add_task
+
+
+@pytest.fixture(autouse=True)
+def mock_session_cleanup():
+    """세션 정리 태스크 모킹 - 무한루프 방지"""
+    async def mock_cleanup():
+        """모킹된 정리 함수 - 즉시 반환"""
+        return
+
+    with patch('app.api.routers.v2.session.cleanup_expired_sessions', side_effect=mock_cleanup):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def set_testing_environment():
+    """테스트 환경 변수 설정"""
+    original_testing = os.getenv("TESTING")
+    os.environ["TESTING"] = "true"
+    yield
+    if original_testing:
+        os.environ["TESTING"] = original_testing
+    else:
+        os.environ.pop("TESTING", None)
+
+

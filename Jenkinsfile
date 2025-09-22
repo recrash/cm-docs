@@ -1,6 +1,6 @@
 // cm-docs/Jenkinsfile - 통합 멀티브랜치 파이프라인
 // Pseudo MSA 아키텍처에 맞춘 스마트 배포 시스템
-pipeline {
+pipeline { 
     agent any
     
     environment {
@@ -37,9 +37,7 @@ pipeline {
         AUTODOC_PIP = "${AUTODOC_DEPLOY_PATH}\\.venv312\\Scripts\\pip.exe"
         
         // 서비스 URL
-        WEBSERVICE_BACKEND_URL = 'http://localhost:8000'
-        WEBSERVICE_FRONTEND_URL = 'http://localhost'
-        AUTODOC_SERVICE_URL = 'http://localhost:8001'
+        WEBSERVICE_FRONTEND_URL = 'http://localhost'    
         
         // 헬스체크 URL
         WEBSERVICE_HEALTH_URL = 'http://localhost:8000/api/webservice/health'
@@ -101,9 +99,12 @@ pipeline {
                     // 서비스별 변경 감지 로직
                     env.AUTODOC_CHANGED = filteredFiles.any { it.startsWith('autodoc_service/') || it == 'autodoc_service/Jenkinsfile' } ? 'true' : 'false'
                     
-                    // Webservice Backend 변경 감지 (frontend 제외)
+                    // Webservice Backend 변경 감지 (frontend 및 frontend Jenkinsfile 제외)
                     env.WEBSERVICE_BACKEND_CHANGED = filteredFiles.any { 
-                        (it.startsWith('webservice/') && !it.startsWith('webservice/frontend/')) || it == 'webservice/Jenkinsfile.backend'
+                        (it.startsWith('webservice/') && 
+                         !it.startsWith('webservice/frontend/') && 
+                         it != 'webservice/Jenkinsfile.frontend') || 
+                        it == 'webservice/Jenkinsfile.backend'
                     } ? 'true' : 'false'
                     
                     // Webservice Frontend 변경 감지
@@ -185,6 +186,14 @@ pipeline {
                     env.AUTO_DST = "${env.DEPLOY_ROOT}\\${env.BID}\\autodoc"
                     env.URL_PREFIX = "/tests/${env.BID}/"
                     
+                    // AUTODOC_SERVICE_URL 환경변수 설정 (모든 브랜치 통합)
+                    if (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master') {
+                        env.AUTODOC_SERVICE_URL = "http://localhost:8001"
+                    } else {
+                        // develop, feature/*, hotfix/* 등은 동적 포트 사용
+                        env.AUTODOC_SERVICE_URL = "http://localhost:${env.AUTO_PORT}"
+                    }
+                    
                     echo """
                     ===========================================
                     🔧 브랜치 설정
@@ -194,6 +203,7 @@ pipeline {
                     • BID: ${env.BID}
                     • Backend Port: ${env.BACK_PORT}
                     • AutoDoc Port: ${env.AUTO_PORT}
+                    • AutoDoc Service URL: ${env.AUTODOC_SERVICE_URL}
                     • URL Prefix: ${env.URL_PREFIX}
                     ===========================================
                     """
@@ -221,7 +231,8 @@ pipeline {
                                 env.AUTODOC_DEPLOY_STATUS = 'FAILED'
                                 env.FAILED_SERVICES += 'AutoDoc '
                                 echo "AutoDoc Service 배포 실패: ${e.getMessage()}"
-                                // Non-Critical 서비스이므로 다른 서비스는 계속 진행
+                                // AutoDoc 빌드 실패 시 파이프라인 실패
+                                error("AutoDoc Service 빌드/배포 실패: ${e.getMessage()}")
                             }
                         }
                     }
@@ -236,7 +247,10 @@ pipeline {
                             try {
                                 echo "Webservice Backend 빌드/배포 시작"
                                 build job: 'webservice-backend-pipeline',
-                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
+                                      parameters: [
+                                          string(name: 'BRANCH', value: env.BRANCH_NAME),
+                                          string(name: 'AUTODOC_SERVICE_URL', value: env.AUTODOC_SERVICE_URL)
+                                      ]
                                 
                                 env.WEBSERVICE_BACKEND_STATUS = 'SUCCESS'
                                 echo "Webservice Backend 배포 성공"
@@ -246,6 +260,8 @@ pipeline {
                                 env.FAILED_SERVICES += 'WebBackend '
                                 env.CRITICAL_FAILURE = 'true'  // Critical 서비스 실패
                                 echo "Webservice Backend 배포 실패: ${e.getMessage()}"
+                                // Webservice Backend 빌드 실패 시 파이프라인 실패
+                                error("Webservice Backend 빌드/배포 실패: ${e.getMessage()}")
                             }
                         }
                     }
@@ -295,6 +311,8 @@ pipeline {
                                 env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
                                 env.FAILED_SERVICES += 'WebFrontend '
                                 echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
+                                // Webservice Frontend 빌드 실패 시 파이프라인 실패
+                                error("Webservice Frontend 빌드/배포 실패: ${e.getMessage()}")
                             }
                         }
                     }
@@ -309,10 +327,19 @@ pipeline {
                             try {
                                 echo "CLI 빌드/패키징 시작 (독립 파이프라인 호출)"
                                 
+                                def cliBaseUrl = 'https://cm-docs.cloud' // 기본값은 프로덕션 URL
+                                if (env.IS_TEST == 'true') {
+                                    // is_test가 true이면 브랜치별 테스트 URL 생성
+                                    cliBaseUrl += "/tests/${env.BID}"
+                                }
+                                echo "🚀 CLI에 주입할 Base URL: ${cliBaseUrl}"
                                 // CLI 전용 파이프라인 호출
                                 build job: 'cli-pipeline',
-                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)],
-                                      wait: true
+                                      parameters: [
+                                        string(name: 'BRANCH', value: env.BRANCH_NAME),
+                                        string(name: 'BASE_URL', value: cliBaseUrl)
+                                    ],
+                                    wait: true
                                 
                                 env.CLI_BUILD_STATUS = 'SUCCESS'
                                 echo "CLI 빌드/패키징 성공"
@@ -403,6 +430,7 @@ pipeline {
                                         try {
                                             def response = powershell(
                                                 script: """
+                                                    \$env:PYTHONIOENCODING='utf-8'
                                                     try {
                                                         \$result = Invoke-WebRequest -Uri '${url}' -UseBasicParsing -TimeoutSec 10
                                                         Write-Output \$result.StatusCode
@@ -566,24 +594,312 @@ pipeline {
                 expression { env.IS_TEST == 'true' } 
             }
             steps {
-                bat '''
-                chcp 65001 >NUL
-                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_test_env.ps1" ^
-                    -Bid "%BID%" ^
-                    -BackPort %BACK_PORT% ^
-                    -AutoPort %AUTO_PORT% ^
-                    -Py "%PY_PATH%" ^
-                    -Nssm "%NSSM_PATH%" ^
-                    -Nginx "%NGINX_PATH%" ^
-                    -NginxConfDir "%NGINX_CONF_DIR%" ^
-                    -WebSrc "%WORKSPACE%\\webservice" ^
-                    -AutoSrc "%WORKSPACE%\\autodoc_service" ^
-                    -WebBackDst "%WEB_BACK_DST%" ^
-                    -WebFrontDst "%WEB_FRONT_DST%" ^
-                    -AutoDst "%AUTO_DST%" ^
-                    -UrlPrefix "%URL_PREFIX%" ^
-                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
-                '''
+                script {
+                    echo """
+                    ===========================================
+                    🚀 테스트 인스턴스 병렬 배포 시작
+                    ===========================================
+                    • 브랜치: ${env.BRANCH_NAME}
+                    • BID: ${env.BID}
+                    • 변경된 서비스 감지:
+                      - Frontend: ${env.WEBSERVICE_FRONTEND_CHANGED}
+                      - Backend: ${env.WEBSERVICE_BACKEND_CHANGED}
+                      - AutoDoc: ${env.AUTODOC_CHANGED}
+                    ===========================================
+                    """
+                    
+                    // 배포 상태 공유를 위한 Map
+                    def deployResults = [:]
+                    def servicesChanged = []
+                    
+                    // 각 서비스 변경 여부와 빌드 성공 여부 확인
+                    def deployFrontend = (env.WEBSERVICE_FRONTEND_CHANGED == 'true' && env.WEBSERVICE_FRONTEND_STATUS == 'SUCCESS')
+                    def deployBackend = (env.WEBSERVICE_BACKEND_CHANGED == 'true' && env.WEBSERVICE_BACKEND_STATUS == 'SUCCESS')
+                    def deployAutodoc = (env.AUTODOC_CHANGED == 'true' && env.AUTODOC_DEPLOY_STATUS == 'SUCCESS')
+                    
+                    // 전체 재배포가 필요한 경우 (인프라 또는 루트 변경)
+                    if (env.INFRA_CHANGED == 'true' || env.ROOT_CHANGED == 'true') {
+                        echo "인프라 또는 루트 설정 변경 감지 - 모든 서비스 재배포"
+                        deployFrontend = true
+                        deployBackend = true
+                        deployAutodoc = true
+                        servicesChanged = ['Frontend', 'Backend', 'AutoDoc']
+                    } else {
+                        if (deployFrontend) servicesChanged.add('Frontend')
+                        if (deployBackend) servicesChanged.add('Backend')
+                        if (deployAutodoc) servicesChanged.add('AutoDoc')
+                    }
+                    
+                    if (servicesChanged.size() == 0) {
+                        echo """
+                        테스트 인스턴스 배포 스킵
+                        - 변경된 서비스가 없거나 빌드가 실패한 서비스만 있습니다.
+                        - Frontend 빌드 상태: ${env.WEBSERVICE_FRONTEND_STATUS ?: 'N/A'}
+                        - Backend 빌드 상태: ${env.WEBSERVICE_BACKEND_STATUS ?: 'N/A'}
+                        - AutoDoc 빌드 상태: ${env.AUTODOC_DEPLOY_STATUS ?: 'N/A'}
+                        """
+                        return
+                    }
+                    
+                    echo "병렬 배포할 서비스: ${servicesChanged.join(', ')}"
+                    
+                    // Frontend 아티팩트 확인 (Frontend 배포 시에만)
+                    if (deployFrontend) {
+                        def frontendZipExists = fileExists("${WORKSPACE}/webservice/frontend.zip")
+                        if (!frontendZipExists) {
+                            echo """
+                            경고: frontend.zip 파일이 없습니다.
+                            Frontend 배포를 스킵합니다.
+                            """
+                            deployFrontend = false
+                            servicesChanged.remove('Frontend')
+                        } else {
+                            echo "✓ frontend.zip 아티팩트 확인 완료"
+                        }
+                    }
+                    
+                    // 포트 유효성 검사 제거 - 각 배포 스크립트에서 서비스 정리를 이미 수행함
+                    // deploy_webservice_only.ps1과 deploy_autodoc_only.ps1이 기존 서비스를 자동으로 정리하므로
+                    // 사전 포트 검사는 불필요하며 오히려 충돌을 일으킴
+                    
+                    // 공통 초기화 수행 (병렬 배포 전)
+                    echo "📋 공통 초기화 작업 수행 중..."
+                    try {
+                        bat """
+                        chcp 65001 >NUL
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Cleanup-OldBranchFolders -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
+                        """
+                        echo "✓ 공통 초기화 완료"
+                    } catch (Exception initError) {
+                        error("공통 초기화 실패: ${initError.getMessage()}")
+                    }
+                    
+                    // 병렬 배포 실행
+                    def parallelDeployments = [:]
+                    
+                    // Frontend 배포 작업
+                    if (deployFrontend) {
+                        parallelDeployments['Frontend'] = {
+                            echo "🎨 Frontend 배포 시작..."
+                            try {
+                                bat """
+                                chcp 65001 >NUL
+                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_frontend_only.ps1" ^
+                                    -Bid "%BID%" ^
+                                    -WebSrc "%WORKSPACE%\\webservice" ^
+                                    -WebFrontDst "%WEB_FRONT_DST%" ^
+                                    -UrlPrefix "%URL_PREFIX%" ^
+                                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
+                                """
+                                deployResults['Frontend'] = 'SUCCESS'
+                                echo "✅ Frontend 배포 성공"
+                            } catch (Exception e) {
+                                deployResults['Frontend'] = 'FAILED'
+                                echo """
+                                ❌ Frontend 배포 실패
+                                ===========================================
+                                에러: ${e.getMessage()}
+                                
+                                📋 Frontend 배포 문제 해결:
+                                1. frontend.zip 파일 확인:
+                                   - 경로: ${WORKSPACE}\\webservice\\frontend.zip
+                                   - 파일 존재 여부와 크기 확인
+                                
+                                2. 배포 디렉토리 권한:
+                                   - 대상: ${env.WEB_FRONT_DST}
+                                   - nginx 프로세스 접근 권한 확인
+                                
+                                3. 디스크 공간 확인:
+                                   - C: 드라이브 여유 공간 확인
+                                ===========================================
+                                """
+                                throw e
+                            }
+                        }
+                    }
+                    
+                    // Backend 배포 작업
+                    if (deployBackend) {
+                        parallelDeployments['Backend'] = {
+                            echo "⚙️ Backend 배포 시작..."
+                            try {
+                                bat """
+                                chcp 65001 >NUL
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_webservice_only.ps1' -Bid '%BID%' -BackPort %BACK_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -WebSrc '%WORKSPACE%\\webservice' -WebBackDst '%WEB_BACK_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages' -AutoDocServiceUrl '%AUTODOC_SERVICE_URL%' -UrlPrefix '%URL_PREFIX%'"
+                                """
+                                deployResults['Backend'] = 'SUCCESS'
+                                echo "✅ Backend 배포 성공"
+                            } catch (Exception e) {
+                                deployResults['Backend'] = 'FAILED'
+                                echo """
+                                ❌ Backend 배포 실패
+                                ===========================================
+                                에러: ${e.getMessage()}
+                                포트: ${env.BACK_PORT}
+                                
+                                📋 Backend 배포 문제 해결:
+                                1. 포트 충돌 확인:
+                                   - 포트 ${env.BACK_PORT} 사용 확인: netstat -ano | findstr ${env.BACK_PORT}
+                                   - 기존 서비스 중지: nssm stop cm-web-${env.BID}
+                                
+                                2. 프로세스 정리:
+                                   - Python 프로세스 확인: tasklist | findstr python
+                                   - 강제 종료: taskkill /f /im python.exe
+                                
+                                3. 서비스 상태 확인:
+                                   - 서비스 조회: sc query cm-web-${env.BID}
+                                   - 수동 제거: nssm remove cm-web-${env.BID} confirm
+                                
+                                4. 권한 문제:
+                                   - 배포 경로: ${env.WEB_BACK_DST}
+                                   - NSSM 실행 권한 확인
+                                ===========================================
+                                """
+                                throw e
+                            }
+                        }
+                    }
+                    
+                    // AutoDoc 배포 작업
+                    if (deployAutodoc) {
+                        parallelDeployments['AutoDoc'] = {
+                            echo "📄 AutoDoc 배포 시작..."
+                            try {
+                                bat """
+                                chcp 65001 >NUL
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_autodoc_only.ps1' -Bid '%BID%' -AutoPort %AUTO_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -AutoSrc '%WORKSPACE%\\autodoc_service' -AutoDst '%AUTO_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'"
+                                """
+                                deployResults['AutoDoc'] = 'SUCCESS'
+                                echo "✅ AutoDoc 배포 성공"
+                            } catch (Exception e) {
+                                deployResults['AutoDoc'] = 'FAILED'
+                                echo """
+                                ❌ AutoDoc 배포 실패
+                                ===========================================
+                                에러: ${e.getMessage()}
+                                포트: ${env.AUTO_PORT}
+                                
+                                📋 AutoDoc 배포 문제 해결:
+                                1. 포트 충돌 확인:
+                                   - 포트 ${env.AUTO_PORT} 사용 확인: netstat -ano | findstr ${env.AUTO_PORT}
+                                   - 기존 서비스 중지: nssm stop cm-autodoc-${env.BID}
+                                
+                                2. 템플릿 파일 확인:
+                                   - 템플릿 경로: C:\\deploys\\data\\autodoc_service\\templates\\
+                                   - 템플릿 파일 존재 여부 확인
+                                
+                                3. Python 환경:
+                                   - Python 3.12 설치 확인
+                                   - 가상환경 경로: ${env.AUTO_DST}\\.venv312
+                                
+                                4. 서비스 상태:
+                                   - 서비스 조회: sc query cm-autodoc-${env.BID}
+                                   - 수동 제거: nssm remove cm-autodoc-${env.BID} confirm
+                                ===========================================
+                                """
+                                throw e
+                            }
+                        }
+                    }
+                    
+                    if (parallelDeployments.size() > 0) {
+                        try {
+                            // 병렬 실행
+                            parallel parallelDeployments
+
+                            // Nginx 설정은 각 서비스 배포 스크립트에서 개별적으로 처리됨
+                            // deploy_webservice_only.ps1과 deploy_autodoc_only.ps1이 각각
+                            // 서비스별 분리된 nginx 설정 파일을 생성하므로 충돌 없음
+                            echo "✅ 병렬 배포 완료 - 각 서비스별 nginx 설정 적용됨"
+                            
+                            // 배포 후 포트 상태 검증도 제거 - 서비스 헬스체크로 충분함
+                            // Test-ServiceHealth가 이미 포트 상태를 확인하므로 중복 검사 불필요
+                            
+                            // 최종 서비스 상태 확인
+                            echo "🔍 최종 서비스 상태 확인 중..."
+                            
+                            // 서비스 헬스체크 파라미터 구성
+                            def healthCheckCmd = ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Test-ServiceHealth"
+                            
+                            if (deployBackend && env.BACK_PORT) {
+                                healthCheckCmd += " -BackPort ${env.BACK_PORT}"
+                            }
+                            // BackPort가 없으면 파라미터 자체를 전달하지 않음
+
+                            if (deployAutodoc && env.AUTO_PORT) {
+                                healthCheckCmd += " -AutoPort ${env.AUTO_PORT}"
+                            }
+                            // AutoPort가 없으면 파라미터 자체를 전달하지 않음
+                            
+                            healthCheckCmd += " -Bid '%BID%' -Nssm '%NSSM_PATH%'"
+                            
+                            bat """
+                            chcp 65001 >NUL
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & {${healthCheckCmd}}"
+                            """
+                            
+                            // 성공한 서비스들 로그
+                            def successfulServices = []
+                            def failedServices = []
+                            deployResults.each { service, status ->
+                                if (status == 'SUCCESS') {
+                                    successfulServices.add(service)
+                                } else {
+                                    failedServices.add(service)
+                                }
+                            }
+                            
+                            def deploymentSummary = """
+                            ===========================================
+                            ✅ 병렬 배포 완료
+                            ===========================================
+                            • 성공한 서비스: ${successfulServices.join(', ')}
+                            ${failedServices.size() > 0 ? "• 실패한 서비스: ${failedServices.join(', ')}" : ""}
+                            • 배포 시간: 병렬 처리로 단축
+                            """
+                            
+                            // 포트 정보 추가
+                            if (deployBackend && env.BACK_PORT) {
+                                deploymentSummary += "\n• Backend 포트: ${env.BACK_PORT}"
+                            }
+                            if (deployAutodoc && env.AUTO_PORT) {
+                                deploymentSummary += "\n• AutoDoc 포트: ${env.AUTO_PORT}"
+                            }
+                            
+                            deploymentSummary += """
+                            ===========================================
+                            """
+                            
+                            echo deploymentSummary
+                            
+                        } catch (Exception e) {
+                            // 구체적인 에러 분석 및 해결 가이드 제공
+                            def errorMessage = e.getMessage()
+                            def errorAnalysis = analyzeDeploymentError(errorMessage, deployResults)
+                            
+                            echo """
+                            ❌ 병렬 배포 실패 - 상세 분석
+                            ===========================================
+                            에러 메시지: ${errorMessage}
+                            실패한 배포 단계: ${deployResults}
+                            
+                            ${errorAnalysis.diagnosis}
+                            
+                            해결 방법:
+                            ${errorAnalysis.solution}
+                            
+                            ⚠️ 배포가 중단되었습니다. 위 해결 방법을 적용한 후 다시 시도해주세요.
+                            ===========================================
+                            """
+                            
+                            // 즉시 실패 처리 (폴백 없음)
+                            error("테스트 인스턴스 배포 실패: ${errorMessage}")
+                        }
+                    } else {
+                        echo "배포할 서비스가 없습니다."
+                    }
+                }
+                
                 echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
             }
         }
@@ -760,4 +1076,88 @@ def pickPort(String b, int base, int span) {
     int hash = b.hashCode()
     if (hash < 0) hash = -hash  // 음수 처리
     return (int)(base + (hash % span))
+}
+
+@NonCPS
+def analyzeDeploymentError(String errorMessage, Map deployResults) {
+    def diagnosis = ""
+    def solution = ""
+    
+    // AutoPort null 에러 분석
+    if (errorMessage.contains("AutoPort") || errorMessage.contains("BackPort")) {
+        diagnosis = """
+        📌 포트 파라미터 전달 문제 감지
+        - PowerShell에 잘못된 포트 값이 전달되었습니다
+        - 'null' 문자열이 실제 null 대신 전달되어 발생한 문제입니다
+        """
+        solution = """
+        1. PowerShell 파라미터에서 \$null 사용을 확인하세요
+        2. Jenkins 환경변수가 올바르게 설정되었는지 확인하세요
+        3. Port 할당 로직을 점검하세요 (pickPort 함수)
+        """
+    }
+    
+    // Permission denied 에러 분석
+    else if (errorMessage.contains("Access is denied") || errorMessage.contains("Permission denied")) {
+        diagnosis = """
+        📌 파일 접근 권한 문제 감지
+        - 서비스 프로세스가 완전히 종료되지 않아 파일이 잠겨있습니다
+        - NSSM 서비스 중지 후 프로세스가 남아있는 상황입니다
+        """
+        solution = """
+        1. NSSM 서비스를 수동으로 중지: nssm stop [서비스명]
+        2. 프로세스 강제 종료: taskkill /f /im python.exe
+        3. 잠금 파일 삭제 후 재시도하세요
+        4. 서비스 중지 후 10초 이상 대기를 고려하세요
+        """
+    }
+    
+    // 서비스 등록 실패 분석
+    else if (errorMessage.contains("service") && (errorMessage.contains("install") || errorMessage.contains("start"))) {
+        diagnosis = """
+        📌 NSSM 서비스 등록/시작 실패
+        - 동일한 이름의 서비스가 이미 존재하거나
+        - 서비스 설정에 문제가 있습니다
+        """
+        solution = """
+        1. 기존 서비스 확인: sc query [서비스명]
+        2. 기존 서비스 삭제: nssm remove [서비스명] confirm
+        3. Windows 이벤트 로그를 확인하세요
+        4. NSSM 로그를 확인하세요
+        """
+    }
+    
+    // 일반적인 배포 실패
+    else {
+        diagnosis = """
+        📌 일반적인 배포 실패
+        - 예상하지 못한 오류가 발생했습니다
+        - 배포 단계별 상세 로그를 확인이 필요합니다
+        """
+        solution = """
+        1. PowerShell 실행 정책을 확인하세요: Get-ExecutionPolicy
+        2. UTF-8 인코딩 설정을 확인하세요
+        3. 배포 스크립트 경로와 권한을 확인하세요
+        4. Windows 서비스 상태를 확인하세요
+        """
+    }
+    
+    // 실패한 서비스별 추가 정보
+    def failedServices = deployResults.findAll { key, value -> value == 'FAILED' }.keySet()
+    if (failedServices.size() > 0) {
+        diagnosis += """
+        
+        📊 실패한 서비스: ${failedServices.join(', ')}
+        """
+        solution += """
+        
+        실패한 서비스별 로그 확인:
+        ${failedServices.collect { "- ${it}: C:\\deploys\\tests\\%BID%\\logs\\${it.toLowerCase()}-*.log" }.join('\n        ')}
+        """
+    }
+    
+    return [
+        diagnosis: diagnosis.trim(),
+        solution: solution.trim()
+    ]
 }

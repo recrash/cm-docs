@@ -1,0 +1,17 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=TestscenarioMaker CLI Protocol Handler
+Comment=Handle testscenariomaker:// URLs for repository analysis
+Exec=/opt/testscenariomaker/cli/testscenariomaker-cli-protocol-handler.sh %u
+Icon=application-x-executable
+StartupNotify=true
+NoDisplay=true
+MimeType=x-scheme-handler/testscenariomaker;
+Categories=Development;
+
+# Install instructions:
+# 1. Copy this file to ~/.local/share/applications/
+# 2. Copy the handler script to /opt/testscenariomaker/cli/
+# 3. Run: update-desktop-database ~/.local/share/applications/
+# 4. Set as default handler: xdg-mime default testscenariomaker-protocol.desktop x-scheme-handler/testscenariomaker

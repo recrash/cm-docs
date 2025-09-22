@@ -7,6 +7,22 @@ TestscenarioMaker CLI 메인 모듈
 
 import sys
 import os
+import codecs
+
+# Windows 환경에서 Unicode 출력 문제 해결
+if sys.platform.startswith('win'):
+    try:
+        # stdout/stderr을 UTF-8로 강제 설정
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+            sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+        else:
+            # 이전 Python 버전 호환성
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach(), errors='replace')
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach(), errors='replace')
+    except Exception:
+        # 인코딩 설정 실패 시 무시하고 계속 진행
+        pass
 # ▼▼▼ 이 코드를 추가해줘! ▼▼▼
 # PyInstaller로 빌드된 실행 파일이 어디서 실행되든
 # 자기 자신의 위치를 기준으로 모듈을 찾을 수 있게 해주는 코드
@@ -24,11 +40,14 @@ import os
 import platform
 import urllib.parse
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import click
 import requests
 from rich.console import Console
+
+# API client import
+from ts_cli.api_client import APIClient
 from rich.traceback import install
 
 # PyInstaller 호환성을 위한 import 처리
@@ -37,6 +56,7 @@ try:
     from .cli_handler import CLIHandler
     from .utils.logger import setup_logger, set_log_level
     from .utils.config_loader import load_config
+    from .core.process_manager import handle_duplicate_session
 except ImportError:
     # PyInstaller 환경에서는 절대 import 사용
     import ts_cli
@@ -44,12 +64,17 @@ except ImportError:
     from ts_cli.cli_handler import CLIHandler
     from ts_cli.utils.logger import setup_logger, set_log_level
     from ts_cli.utils.config_loader import load_config
+    from ts_cli.core.process_manager import handle_duplicate_session
 
 # Rich traceback 설치 (더 예쁜 에러 메시지)
 install(show_locals=True)
 
 # 콘솔 인스턴스
-console = Console()
+# Windows 환경에서 Unicode 호환성을 위한 Console 설정
+console = Console(
+    force_terminal=True,
+    legacy_windows=True
+)
 
 
 def load_server_config() -> str:
@@ -179,7 +204,7 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
             response = session.post(
                 api_url,
                 json=request_data,
-                timeout=(10, 30)  # (연결 타임아웃, 읽기 타임아웃)
+                timeout=(30, 60)  # (연결 타임아웃, 읽기 타임아웃)
             )
             
             # HTTP 상태 코드 확인
@@ -233,6 +258,128 @@ def make_api_request(server_url: str, repo_path: Path, client_id: Optional[str] 
         
     except Exception as e:
         console.print(f"[red]예상치 못한 오류가 발생했습니다: {e}[/red]")
+        return False
+
+
+async def handle_full_generation(server_url: str, repository_path: Path, session_id: str, metadata_json: Optional[dict], html_path: Optional[Path] = None) -> bool:
+    """
+    전체 문서 생성 모드 핸들러 (Phase 3)
+    
+    Args:
+        server_url: 웹서비스 서버 URL
+        repository_path: VCS 저장소 경로
+        session_id: 세션 ID (마스터 키)
+        metadata_json: 메타데이터 JSON (선택적 - HTML 파일에서 파싱된 경우)
+        html_path: HTML 파일 경로 (선택적 - 직접 파일 경로가 전달된 경우)
+        
+    Returns:
+        성공 여부
+    """
+    try:
+        console.print("[cyan]Starting VCS repository analysis...[/cyan]")
+        
+        # VCS 분석기를 사용하여 저장소 타입 자동 감지 및 분석
+        from ts_cli.vcs import get_analyzer
+        
+        analyzer = get_analyzer(repository_path)
+        if analyzer is None:
+            console.print("[red]지원하지 않는 VCS 타입입니다.[/red]")
+            return False
+            
+        # VCS 타입 확인 및 분석 로직 (make_api_request와 동일)
+        vcs_type = analyzer.get_vcs_type()
+        is_valid_repo = analyzer.validate_repository()
+        
+        console.print(f"[cyan]감지된 VCS 타입: {vcs_type.upper()}[/cyan]")
+        
+        # VCS 타입에 따른 변경사항 분석 수행
+        if vcs_type.lower() == "git":
+            # Git: 브랜치 간 비교 분석
+            changes_data = analyzer.get_changes("origin/develop", "HEAD")
+            console.print("[dim]Git 브랜치 비교: origin/develop → HEAD[/dim]")
+        elif vcs_type.lower() == "svn":
+            # SVN: Working Directory vs HEAD 비교 (브랜치 파라미터 무시됨)
+            try:
+                changes_data = analyzer.get_changes()
+                console.print("[dim]SVN Working Directory vs HEAD 비교[/dim]")
+            except Exception as e:
+                console.print(f"[red]SVN 분석 중 오류 발생: {str(e)}[/red]")
+                console.print("[yellow]SVN 명령어가 설치되었는지 확인해주세요.[/yellow]")
+                return False
+        else:
+            console.print(f"[red]지원되지 않는 VCS 타입입니다: {vcs_type}[/red]")
+            return False
+            
+        if not changes_data:
+            console.print("[yellow]변경사항이 없습니다.[/yellow]")
+            return True
+            
+        console.print(f"[green]{vcs_type.upper()} 저장소 분석 완료[/green]")
+        console.print(f"[dim]변경사항 크기: {len(changes_data)} 문자[/dim]")
+        
+        # HTML 파일이 있으면 메타데이터 생성/보완
+        if html_path and html_path.exists():
+            console.print(f"[cyan]HTML file found: {html_path}[/cyan]")
+            # HTML 파일이 있으면 파일 경로만 메타데이터에 추가
+            if metadata_json is None:
+                metadata_json = {}
+            metadata_json['html_file_path'] = str(html_path)
+            console.print(f"[green]HTML file path added to metadata[/green]")
+        elif html_path:
+            console.print(f"[yellow]Warning: HTML file not found: {html_path}[/yellow]")
+        
+        # 메타데이터가 없으면 세션 저장소에서 조회 시도
+        if metadata_json is None:
+            console.print(f"[cyan]메타데이터 없음. 세션 저장소에서 조회 시도: {session_id}[/cyan]")
+            try:
+                # 임시 API 클라이언트로 세션 메타데이터 조회
+                temp_api_config = {
+                    'base_url': server_url,
+                    'timeout': 30,
+                    'max_retries': 2,
+                    'retry_delay': 1.0
+                }
+                async with APIClient(temp_api_config) as temp_client:
+                    session_metadata = await temp_client.get_session_metadata(session_id)
+                    if session_metadata:
+                        metadata_json = session_metadata
+                        console.print(f"[green]세션 저장소에서 메타데이터 복원 성공[/green]")
+                    else:
+                        console.print(f"[yellow]세션 저장소에 메타데이터 없음. 빈 딕셔너리 사용[/yellow]")
+                        metadata_json = {}
+            except Exception as e:
+                console.print(f"[yellow]세션 메타데이터 조회 실패 ({e}). 빈 딕셔너리 사용[/yellow]")
+                metadata_json = {}
+        
+        # 비동기 API 클라이언트를 사용하여 전체 문서 생성 요청
+        console.print(f"[cyan]Starting full generation workflow...[/cyan]")
+
+        # APIClient에 올바른 설정 딕셔너리 전달
+        api_config = {
+            'base_url': server_url,
+            'timeout': 120,
+            'max_retries': 3,
+            'retry_delay': 1.0
+        }
+        async with APIClient(api_config) as client:
+            # VCS 분석 결과를 백엔드에 전송하여 전체 문서 생성 시작
+            console.print(f"[cyan]Sending VCS analysis data to backend for full document generation...[/cyan]")
+            result = await client.start_full_generation(
+                session_id=session_id,
+                vcs_analysis_text=changes_data,  # VCS 분석 결과 (Git/SVN 모두 동일 필드명)
+                metadata_json=metadata_json
+            )
+
+            console.print(f"[green]Full generation request sent successfully![/green]")
+            console.print(f"[cyan]Session ID: {result.get('session_id', session_id)}[/cyan]")
+            console.print(f"[yellow]Backend processing started. You can monitor progress on the web UI: {server_url}[/yellow]")
+            console.print(f"[green]CLI task completed - backend will continue processing in the background.[/green]")
+
+            return True
+            
+    except Exception as e:
+        console.print(f"[red]전체 문서 생성 중 오류가 발생했습니다: {e}[/red]")
+        console.print_exception(show_locals=True)
         return False
 
 
@@ -416,15 +563,15 @@ def log_debug_info(debug_info: dict) -> None:
         console.print(f"[red]Debug logging failed: {e}[/red]")
 
 
-def parse_url_parameters(url: str) -> tuple[Path, Optional[str]]:
+def parse_url_parameters(url: str) -> tuple[Path, Optional[str], Optional[str], Optional[dict], Optional[str], Optional[Path]]:
     """
-    URL에서 repoPath와 clientId를 추출합니다.
+    URL에서 repoPath, clientId, sessionId, metadata, server_url, htmlPath을 추출합니다.
     
     Args:
         url: testscenariomaker:// 형식의 URL
         
     Returns:
-        tuple of (repository_path, client_id)
+        tuple of (repository_path, client_id, session_id, metadata_json, server_url, html_path)
         
     Raises:
         ValueError: URL 파싱 실패 시
@@ -441,6 +588,57 @@ def parse_url_parameters(url: str) -> tuple[Path, Optional[str]]:
         # 쿼리 파라미터 파싱
         query_params = urllib.parse.parse_qs(parsed.query)
         client_id = query_params.get('clientId', [None])[0]
+        session_id = query_params.get('sessionId', [None])[0]
+        server_url = query_params.get('server_url', [None])[0]
+        
+        # metadata 파라미터 처리 (Base64 디코딩)
+        metadata_json = None
+        metadata_param = query_params.get('metadata', [None])[0]
+        if metadata_param:
+            try:
+                import base64
+                import json
+                import re
+                
+                console.print(f"[cyan]메타데이터 디코딩 시도 중...[/cyan]")
+                console.print(f"[dim]원본 길이: {len(metadata_param)} 글자[/dim]")
+                console.print(f"[dim]첫 50글자: {metadata_param[:50]}...[/dim]")
+                console.print(f"[dim]마지막 50글자: ...{metadata_param[-50:]}[/dim]")
+                
+                # 1. Base64 문자 정규화 (유효하지 않은 문자 제거)
+                # Base64는 A-Z, a-z, 0-9, +, /, = 만 포함
+                cleaned_metadata = re.sub(r'[^A-Za-z0-9+/=]', '', metadata_param)
+                if len(cleaned_metadata) != len(metadata_param):
+                    console.print(f"[yellow]Base64 문자 정규화: {len(metadata_param)} → {len(cleaned_metadata)} 글자[/yellow]")
+                
+                # 2. Base64 패딩 보정 (= 문자가 부족한 경우 추가)
+                # Base64는 4의 배수여야 함
+                missing_padding = len(cleaned_metadata) % 4
+                if missing_padding:
+                    cleaned_metadata += '=' * (4 - missing_padding)
+                    console.print(f"[yellow]Base64 패딩 보정 적용 (추가된 '=' 개수: {4 - missing_padding})[/yellow]")
+                
+                # 3. Base64 디코딩 시도 (일반 + URL-safe)
+                try:
+                    # 일반 Base64 디코딩 시도
+                    decoded_metadata = base64.b64decode(cleaned_metadata).decode('utf-8')
+                    console.print(f"[green]일반 Base64 디코딩 성공[/green]")
+                except Exception:
+                    # URL-safe Base64 디코딩 시도
+                    decoded_metadata = base64.urlsafe_b64decode(cleaned_metadata).decode('utf-8')
+                    console.print(f"[green]URL-safe Base64 디코딩 성공[/green]")
+                
+                # 4. JSON 파싱
+                metadata_json = json.loads(decoded_metadata)
+                console.print(f"[green]메타데이터 JSON 파싱 성공[/green]")
+                
+            except Exception as e:
+                console.print(f"[yellow]메타데이터 디코딩 실패: {e}[/yellow]")
+                console.print(f"[yellow]세션 ID로 서버에서 메타데이터를 조회합니다[/yellow]")
+                console.print(f"[dim]원본 길이: {len(metadata_param) if metadata_param else 0} 글자[/dim]")
+                if metadata_param:
+                    console.print(f"[dim]첫 100글자: {metadata_param[:100]}...[/dim]")
+                # 에러를 발생시키지 않고 None으로 설정 (세션 조회 fallback 사용)
         
         # 경로 추출: 쿼리 파라미터에서 repoPath를 우선 확인
         repo_path_param = query_params.get('repoPath', [None])[0]
@@ -466,7 +664,15 @@ def parse_url_parameters(url: str) -> tuple[Path, Optional[str]]:
         # pathlib.Path 객체로 변환하여 크로스 플랫폼 호환성 보장
         repository_path = Path(path_str)
         
-        return repository_path, client_id
+        # HTML 파일 경로 추출 (선택적)
+        html_path = None
+        html_path_param = query_params.get('htmlPath', [None])[0]
+        if html_path_param:
+            html_path_str = urllib.parse.unquote(html_path_param)
+            html_path = Path(html_path_str)
+            console.print(f"[green]HTML file path detected: {html_path}[/green]")
+        
+        return repository_path, client_id, session_id, metadata_json, server_url, html_path
         
     except Exception as e:
         raise ValueError(f"URL 파싱 실패: {e}") from e
@@ -515,7 +721,7 @@ def validate_repository_path(repo_path: Path) -> None:
         
     # 성공적으로 검증된 경우 VCS 타입 표시
     vcs_type = analyzer.get_vcs_type().upper()
-    console.print(f"[green]✓ {vcs_type} 저장소 확인됨: {repo_path}[/green]")
+    console.print(f"[green]{vcs_type} repository validated: {repo_path}[/green]")
 
 
 def handle_url_protocol() -> None:
@@ -533,34 +739,82 @@ def handle_url_protocol() -> None:
             console.print("[red]Invalid URL format.[/red]")
             sys.exit(1)
         
-        console.print(f"[cyan]Processing URL protocol: {raw_url}[/cyan]")
+        console.print(f"[cyan]{'='*60}[/cyan]")
+        console.print(f"[bold cyan]TestscenarioMaker CLI - URL Protocol Handler[/bold cyan]")
+        console.print(f"[cyan]{'='*60}[/cyan]")
+        console.print(f"[yellow]Processing URL:[/yellow]")
+        console.print(f"[dim]{raw_url}[/dim]")
+        console.print(f"[cyan]{'='*60}[/cyan]")
         
         # 종합 디버깅 정보 수집
         debug_info = collect_debug_info(raw_url)
         log_debug_info(debug_info)
         console.print(f"[dim]Debug log: {debug_info['debug_file']}[/dim]")
         
-        # URL에서 repoPath, clientId 추출
+        # URL에서 repoPath, clientId, sessionId, metadata, server_url, htmlPath 추출
         try:
-            repository_path, client_id = parse_url_parameters(raw_url)
+            repository_path, client_id, session_id, metadata_json, url_server, html_path = parse_url_parameters(raw_url)
             console.print(f"[green]Target repository: {repository_path.resolve()}[/green]")
             if client_id:
                 console.print(f"[cyan]Client ID: {client_id}[/cyan]")
+            if session_id:
+                console.print(f"[cyan]Session ID: {session_id}[/cyan]")
+            if metadata_json:
+                console.print(f"[cyan]Metadata keys: {list(metadata_json.keys())}[/cyan]")
+            if html_path:
+                console.print(f"[cyan]HTML file: {html_path}[/cyan]")
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             sys.exit(1)
         
         # 경로 유효성 검증
         validate_repository_path(repository_path)
+
+        # 서버 설정: URL 파라미터 우선, 없으면 config에서 로드
+        if url_server:
+            server_url = url_server
+            console.print(f"[green]Server URL from protocol: {server_url}[/green]")
+        else:
+            server_url = load_server_config()
+
+        # 중복 세션 체크 및 관리 (Phase 1 & 2 적용)
+        effective_session_id = session_id or client_id or "default_session"
+        console.print(f"[cyan]Session management: {effective_session_id}[/cyan]")
+
+        if not handle_duplicate_session(effective_session_id, str(repository_path.resolve())):
+            console.print("[red]프로세스 관리 실패 또는 중복 세션 감지로 인해 종료합니다.[/red]")
+            console.print("[yellow]기존 프로세스를 종료하려면 '--force' 옵션을 사용하세요.[/yellow]")
+            sys.exit(1)
+
+        console.print("[green]Session registration completed[/green]")
         
-        # 서버 설정 로드
-        server_url = load_server_config()
-        
-        # 동기 API 호출
         console.print(f"[bold blue]TestscenarioMaker CLI v{__version__}[/bold blue]")
         console.print(f"Repository analysis started: [green]{repository_path.resolve()}[/green]")
         
-        success = make_api_request(server_url, repository_path, client_id)
+        # 새로운 워크플로우 분기: sessionId가 있으면 전체 문서 생성 모드
+        # metadata_json이 없어도 html_path가 있으면 처리 가능
+        if session_id:
+            console.print(f"[cyan]{'='*60}[/cyan]")
+            console.print("[bold magenta]✨ Full Document Generation Mode ✨[/bold magenta]")
+            console.print(f"[green]Session ID:[/green] {session_id}")
+            if metadata_json:
+                console.print(f"[green]Metadata Fields:[/green] {', '.join(metadata_json.keys())}")
+            if html_path:
+                console.print(f"[green]HTML File:[/green] {html_path}")
+            console.print(f"[green]API Server:[/green] {server_url}")
+            console.print(f"[cyan]{'='*60}[/cyan]")
+            # 비동기 핸들러 함수 호출
+            import asyncio
+            success = asyncio.run(handle_full_generation(server_url, repository_path, session_id, metadata_json, html_path))
+        else:
+            console.print(f"[cyan]{'='*60}[/cyan]")
+            console.print("[bold cyan]📝 Legacy Scenario Generation Mode 📝[/bold cyan]")
+            if client_id:
+                console.print(f"[green]Client ID:[/green] {client_id}")
+            console.print(f"[green]API Server:[/green] {server_url}")
+            console.print(f"[cyan]{'='*60}[/cyan]")
+            # 기존 API 호출 방식
+            success = make_api_request(server_url, repository_path, client_id)
         
         if success:
             console.print("[bold green]Repository analysis completed successfully.[/bold green]")

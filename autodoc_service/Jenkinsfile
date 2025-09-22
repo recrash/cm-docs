@@ -16,6 +16,9 @@ pipeline {
         DEPLOY_PYTHON_CMD = "${DEPLOY_PATH}\\.venv312\\Scripts\\python.exe"
         DEPLOY_PIP_CMD = "${DEPLOY_PATH}\\.venv312\\Scripts\\pip.exe"
         
+        // 공유 캐시 폴더
+        WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'
+        
         // 환경변수 기반 데이터 경로 (커밋 f57efef)
         AUTODOC_DATA_PATH = 'C:\\deploys\\data\\autodoc_service'
         
@@ -28,8 +31,21 @@ pipeline {
             steps {
                 checkout scm
                 script {
-                    def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
-                    echo "소스코드 체크아웃 완료 - 브랜치: ${branchName}"
+                    // 현재 체크아웃된 브랜치 확인
+                    def currentBranch = bat(
+                        script: 'git rev-parse --abbrev-ref HEAD',
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "소스코드 체크아웃 완료 - 현재 브랜치: ${currentBranch}"
+                    
+                    // 파라미터로 받은 브랜치와 비교
+                    if (params.BRANCH) {
+                        echo "요청된 브랜치: ${params.BRANCH}"
+                        if (currentBranch != params.BRANCH && !currentBranch.endsWith("/${params.BRANCH}")) {
+                            echo "경고: 요청된 브랜치와 현재 브랜치가 다를 수 있습니다"
+                        }
+                    }
                 }
             }
         }
@@ -40,29 +56,46 @@ pipeline {
                     script {
                         echo "빠른 테스트 환경 구축 (휠하우스 활용)"
                         
+                        // 기존 가상환경 정리
+                        bat '''
+                            if exist .venv312 (
+                                echo Removing existing virtual environment
+                                rmdir /S /Q .venv312 2>nul || echo "Directory already cleaned"
+                            )
+                        '''
+                        
                         // Python 3.12 가상환경 생성
                         bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.12 -m venv .venv312'
                         
+                        // 가상환경 생성 검증
+                        def venvExists = bat(
+                            script: 'if exist ".venv312\\Scripts\\python.exe" echo found',
+                            returnStdout: true
+                        ).contains('found')
+                        
+                        if (!venvExists) {
+                            error("가상환경 생성 실패: .venv312\\Scripts\\python.exe를 찾을 수 없습니다")
+                        }
+                        echo "가상환경 생성 검증 완료"
+                        
+                        // pip 업그레이드
+                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv312\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                        
                         // 휠하우스 활용 고속 설치
                         script {
-                            def wheelHouseExists = bat(
-                                script: 'if exist "C:\\deploys\\packages\\wheelhouse\\*.whl" echo found',
-                                returnStdout: true
-                            ).contains('found')
+                            def wheelHouseExists = fileExists(env.WHEELHOUSE_PATH)
                             
                             if (wheelHouseExists) {
                                 echo "휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)"
-                                bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements.txt\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv312\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements.txt\""
                             } else {
                                 echo "휠하우스 없음 - 온라인 설치 (느림)"
-                                bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                                bat "powershell -Command \"& '${env.WORKSPACE_PIP_CMD}' install -r requirements.txt\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv312\\Scripts\\pip.exe' install -r requirements.txt\""
                             }
                         }
                         
                         // 최소 검증만 수행 (시간 단축)
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from docx import Document; print('Test environment ready')\\\"\""
+                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv312\\Scripts\\python.exe' -c \\\"from docx import Document; print('Test environment ready')\\\"\""
                         
                         echo "테스트 환경 구축 완료 (최적화됨)"
                     }
@@ -89,7 +122,7 @@ pipeline {
                         }
                         
                         // 템플릿 무결성 검사 (Jenkins Workspace에서 실행)
-                        bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_templates_present.py -v\""
+                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_templates_present.py -v\""
                         echo "템플릿 검증 완료"
                     }
                 }
@@ -100,11 +133,11 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
                     // 전체 테스트 실행 (Windows 콘솔 인코딩 및 파일 핸들 문제 해결)
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v -x --tb=short --disable-warnings\""
-                    
+                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v -x --tb=short --disable-warnings\""
+
                     // 특별히 중요한 문서 생성 테스트 개별 실행
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_word_label.py -v\""
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_excel_test.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_word_label.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_excel_test.py -v\""
                     
                     echo "AutoDoc Service 테스트 완료 (Jenkins Workspace)"
                 }
@@ -115,10 +148,10 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
                     // FastAPI 통합 테스트 (Jenkins Workspace에서 실행)
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_fastapi_integration.py -v\""
-                    
+                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_fastapi_integration.py -v\""
+
                     // 로깅 시스템 테스트
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_logging_system.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_logging_system.py -v\""
                     
                     echo "통합 테스트 완료 (Jenkins Workspace)"
                 }
@@ -173,7 +206,7 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
                     // Jenkins Workspace에서 wheel 빌드
-                    bat "powershell -Command \"& '${env.WORKSPACE_PYTHON_CMD}' -m build\""
+                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m build\""
                     
                     // 빌드 결과 검증
                     script {

@@ -221,10 +221,10 @@ class APIClient:
             # timeout을 connect_timeout으로 변경 (websockets 라이브러리 호환성)
             import websockets.client
             timeout_config = websockets.client.WebSocketClientProtocol
-            
+
             # Context7 FastAPI WebSocket RPC 패턴: 안정적인 연결 설정
             async with websockets.connect(
-                websocket_url,
+                self._convert_websocket_protocol(websocket_url),
                 open_timeout=30,     # 연결 대기 시간
                 close_timeout=10,    # 종료 대기 시간
                 ping_timeout=30,     # ping 대기 시간 증가
@@ -421,6 +421,42 @@ class APIClient:
             self.logger.error(f"결과 파일 다운로드 중 오류: {e}")
             raise APIError(f"결과 파일 다운로드 실패: {str(e)}") from e
 
+    def _convert_websocket_protocol(self, websocket_url: str) -> str:
+        """
+        CLI의 base_url 설정에 따라 WebSocket URL 프로토콜을 자동 변환
+
+        폐쇄망 환경(HTTP)과 외부 환경(HTTPS)에서 모두 동작하도록
+        base_url의 프로토콜에 따라 WebSocket 프로토콜을 자동 변환합니다.
+
+        Args:
+            websocket_url: 백엔드에서 받은 WebSocket URL
+
+        Returns:
+            환경에 맞게 변환된 WebSocket URL
+        """
+        base_url = self.config.get('base_url', '')
+
+        # CLI가 HTTPS로 설정된 경우 WSS 사용
+        if base_url.startswith('https://'):
+            if websocket_url.startswith('ws://'):
+                converted_url = websocket_url.replace('ws://', 'wss://', 1)
+                self.logger.info(f"🔄 WebSocket 프로토콜 변환: ws:// → wss:// (HTTPS 환경)")
+                self.logger.debug(f"변환 전: {websocket_url}")
+                self.logger.debug(f"변환 후: {converted_url}")
+                return converted_url
+
+        # CLI가 HTTP로 설정된 경우 WS 사용
+        elif base_url.startswith('http://'):
+            if websocket_url.startswith('wss://'):
+                converted_url = websocket_url.replace('wss://', 'ws://', 1)
+                self.logger.info(f"🔄 WebSocket 프로토콜 변환: wss:// → ws:// (HTTP 환경)")
+                self.logger.debug(f"변환 전: {websocket_url}")
+                self.logger.debug(f"변환 후: {converted_url}")
+                return converted_url
+
+        self.logger.info(f"✅ WebSocket 프로토콜 변환 불필요: {websocket_url}")
+        return websocket_url
+
     async def _handle_response(self, response: httpx.Response) -> None:
         """
         HTTP 응답 처리
@@ -490,6 +526,96 @@ class APIClient:
         except Exception as e:
             self.logger.warning(f"서버 상태 확인 실패: {e}")
             return False
+
+    async def start_full_generation(
+        self, 
+        session_id: str, 
+        vcs_analysis_text: str, 
+        metadata_json: dict
+    ) -> dict:
+        """
+        전체 문서 생성 요청 (Phase 2 신규 API)
+        
+        Args:
+            session_id: WebSocket 세션 ID
+            vcs_analysis_text: Git/SVN 저장소 분석 결과 텍스트
+            metadata_json: HTML에서 파싱된 메타데이터 JSON
+            
+        Returns:
+            API 응답 JSON
+            
+        Raises:
+            APIError: API 요청 실패 시
+        """
+        try:
+            self.logger.info(f"전체 문서 생성 API 호출 시작: session_id={session_id}")
+            
+            # 요청 데이터 구성
+            request_data = {
+                "session_id": session_id,
+                "vcs_analysis_text": vcs_analysis_text,
+                "metadata_json": metadata_json
+            }
+            
+            # v2 오케스트레이션 API 호출
+            endpoint = "/api/webservice/v2/start-full-generation"
+            response = await self.client.post(endpoint, json=request_data, timeout=60.0)
+            
+            # 응답 처리 (_handle_response 사용)
+            await self._handle_response(response)
+            result = response.json()
+            self.logger.info(f"전체 문서 생성 API 호출 성공: session_id={session_id}")
+            return result
+                
+        except Exception as e:
+            self.logger.error(f"전체 문서 생성 API 호출 실패: session_id={session_id}, error={str(e)}")
+            if isinstance(e, APIError):
+                raise
+            raise APIError(f"전체 문서 생성 API 요청 중 오류: {str(e)}")
+
+    async def get_session_metadata(self, session_id: str) -> Optional[dict]:
+        """
+        세션 메타데이터 조회
+        
+        Args:
+            session_id: 세션 ID
+            
+        Returns:
+            세션 메타데이터 딕셔너리 또는 None
+            
+        Raises:
+            APIError: API 요청 실패 시
+        """
+        try:
+            self.logger.info(f"세션 메타데이터 조회: session_id={session_id}")
+            
+            # 세션 메타데이터 조회 API 호출
+            endpoint = f"/api/webservice/v2/session/{session_id}/metadata"
+            response = await self.client.get(endpoint, timeout=30.0)
+            
+            # 404는 정상적인 경우 (세션이 없음)
+            if response.status_code == 404:
+                self.logger.info(f"세션 메타데이터 없음: session_id={session_id}")
+                return None
+                
+            # 기타 오류 응답 처리
+            await self._handle_response(response)
+            result = response.json()
+            
+            self.logger.info(f"세션 메타데이터 조회 성공: session_id={session_id}")
+            return result
+                
+        except APIError as e:
+            # 404 오류는 None 반환
+            if e.status_code == 404:
+                return None
+            self.logger.error(f"세션 메타데이터 조회 실패: session_id={session_id}, error={str(e)}")
+            raise
+        except Exception as e:
+            self.logger.error(f"세션 메타데이터 조회 중 오류: session_id={session_id}, error={str(e)}")
+            raise APIError(f"세션 메타데이터 조회 요청 중 오류: {str(e)}")
+
+
 
     async def close(self) -> None:
         """클라이언트 종료"""
