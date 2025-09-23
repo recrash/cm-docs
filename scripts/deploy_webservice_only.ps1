@@ -211,9 +211,22 @@ try {
         $env:PIP_NO_BUILD_ISOLATION = '1'
 
         # 전용 임시 디렉토리 사용
-        $tempPipDir = "$env:TEMP\pip-install-$([System.Guid]::NewGuid())"
-        $env:TMPDIR = $tempPipDir
+        # Windows 경로 길이 제한 우회를 위한 짧은 임시 디렉토리 사용
+        $shortGuid = [System.Guid]::NewGuid().ToString().Substring(0,8)
+        $tempPipDir = "C:\tmp\pip-$shortGuid"
+        $buildDir = "C:\tmp\build-$shortGuid"
+        
+        # 루트 tmp 디렉토리 생성
+        New-Item -ItemType Directory -Force -Path "C:\tmp" | Out-Null
         New-Item -ItemType Directory -Force -Path $tempPipDir | Out-Null
+        New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
+        
+        # 모든 임시 및 빌드 디렉토리를 짧은 경로로 설정
+        $env:TMPDIR = $tempPipDir
+        $env:TEMP = $tempPipDir
+        $env:TMP = $tempPipDir
+        $env:PIP_BUILD_DIR = $tempPipDir
+        $env:BUILD_DIR = $buildDir
 
         try {
             if (Test-Path "$WebSrc\pip.constraints.txt") {
@@ -223,9 +236,12 @@ try {
             }
             Write-Host "  - 의존성 설치 완료 (메모리 최적화)"
         } finally {
-            # 임시 디렉토리 정리
+            # 임시 디렉토리 정리 (짧은 경로 포함)
             if (Test-Path $tempPipDir) {
                 Remove-Item -Recurse -Force $tempPipDir -ErrorAction SilentlyContinue
+            }
+            if (Test-Path $buildDir) {
+                Remove-Item -Recurse -Force $buildDir -ErrorAction SilentlyContinue
             }
         }
     } else {
