@@ -186,8 +186,12 @@ try {
     
     # 기존 webservice 패키지만 언인스톨 (의존성은 유지)
     Write-Host "  - 기존 webservice 패키지 제거 중..."
-    & $webPip uninstall webservice -y 2>&1 | Out-Null
-    Write-Host "  - 기존 패키지 제거 완료"
+    try {
+        & $webPip uninstall webservice -y 2>&1 | Out-Null
+        Write-Host "  - 기존 패키지 제거 완료"
+    } catch {
+        Write-Host "  - 기존 패키지가 설치되지 않음 (새 설치)"
+    }
     
     # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
     if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {

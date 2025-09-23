@@ -106,7 +106,7 @@ py -3.10 -m venv test_env
 
 # 오프라인 설치 (인터넷 연결 없이)
 pip install --no-index --find-links=C:\deploys\packages\wheelhouse `
-    -r C:\Users\recrash1325\Documents\cm-docs\webservice\requirements.txt `
+    -r C:\Users\recrash1325\Documents\cm-docs\webservice\requirements_no_version.txt `
     -c C:\Users\recrash1325\Documents\cm-docs\webservice\pip.constraints.txt
 
 # CUDA 확인

@@ -11,7 +11,8 @@ pipeline {
         
         // 테스트 인스턴스 환경 (브랜치별)
         DEPLOY_ROOT = 'C:\\deploys\\tests'
-        PY_PATH = '%LOCALAPPDATA%\\Programs\\Python\\Python312\\python.exe'
+        PY_PATH = '%LOCALAPPDATA%\\Programs\\Python\\Python39\\python.exe'
+        PY_PATH_312 = '%LOCALAPPDATA%\\Programs\\Python\\Python312\\python.exe'
         NSSM_PATH = 'nssm'
         NGINX_PATH = 'C:\\nginx\\nginx.exe'
         NGINX_CONF_DIR = 'C:\\nginx\\conf\\conf.d'
@@ -352,7 +353,7 @@ pipeline {
                             }
                         }
                     }
-                }
+                } 
             } 
         }
         
@@ -767,7 +768,7 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                             try {
                                 bat """
                                 chcp 65001 >NUL
-powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_autodoc_only.ps1' -Bid '%BID%' -AutoPort %AUTO_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -AutoSrc '%WORKSPACE%\\autodoc_service' -AutoDst '%AUTO_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'"
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_autodoc_only.ps1' -Bid '%BID%' -AutoPort %AUTO_PORT% -Py '%PY_PATH_312%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -AutoSrc '%WORKSPACE%\\autodoc_service' -AutoDst '%AUTO_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'"
                                 """
                                 deployResults['AutoDoc'] = 'SUCCESS'
                                 echo "✅ AutoDoc 배포 성공"
