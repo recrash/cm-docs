@@ -3,7 +3,7 @@
 pipeline { 
     agent any
     
-    environment { 
+    environment {   
         // 통합 환경변수 관리
         CM_DOCS_ROOT = 'C:\\deploys\\cm-docs'
         WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'
