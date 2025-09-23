@@ -1,4 +1,3 @@
-# CUDA 11.1 버전 설치 (RTX 3090, Python 3.9 전용)
 --extra-index-url https://download.pytorch.org/whl/cu111
 
 annotated-types==0.7.0
