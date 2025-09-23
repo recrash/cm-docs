@@ -64,8 +64,8 @@ pipeline {
                     script {
                         echo "빠른 테스트 환경 구축 (휠하우스 활용)"
                         
-                        // Python 3.12 가상환경 생성
-                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.12 -m venv .venv'
+                        // Python 3.10 가상환경 생성
+                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.10 -m venv .venv'
                         
                         // 휠하우스 활용 고속 설치
                         script {
@@ -81,7 +81,7 @@ pipeline {
                             } else {
                                 echo "휠하우스 없음 - 온라인 설치 (PyTorch CUDA 포함)"
                                 bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pip install --upgrade pip\""
-                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements.txt -c pip.constraints.txt --prefer-binary\""
+                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PIP_CMD}' install --extra-index-url https://download.pytorch.org/whl/cu111 -r requirements.txt -c pip.constraints.txt --prefer-binary\""
                             }
                         }
                         
@@ -436,13 +436,13 @@ pipeline {
                 
                 1. ${env.WHEELHOUSE_PATH}\\ 에 의존성 준비
                 2. 환경변수 설정: set WEBSERVICE_DATA_PATH=C:\\deploys\\data\\webservice
-                3. 가상환경 생성: py -3.12 -m venv .venv
+                3. 가상환경 생성: py -3.10 -m venv .venv
                 4. 가상환경 활성화: .venv\\Scripts\\activate
                 5. 오프라인 설치: pip install --no-index --find-links=${env.WHEELHOUSE_PATH} webservice-*.whl
                 
                 휠하우스 준비 (CUDA 포함):
-                - pip download --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements.txt -c pip.constraints.txt -d wheelhouse
-                - wheelhouse 내용을 ${env.WHEELHOUSE_PATH}\\ 로 복사
+                - pip download --extra-index-url https://download.pytorch.org/whl/cu111 -r requirements.txt -c pip.constraints.txt -d wheelhouse
+                - wheelhouse 내용을 C:\\deploys\\packages\\wheelhouse\\ 로 복사
                 - 이후 모든 배포는 인터넷 없이 초고속 진행 (PyTorch CUDA 포함)
                 =========================================
                 """
