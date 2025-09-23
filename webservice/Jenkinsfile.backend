@@ -64,8 +64,8 @@ pipeline {
                     script {
                         echo "빠른 테스트 환경 구축 (휠하우스 활용)"
                         
-                        // Python 3.10 가상환경 생성
-                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.10 -m venv .venv'
+                        // Python 3.9 가상환경 생성
+                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.9 -m venv .venv'
                         
                         // 휠하우스 활용 고속 설치
                         script {
@@ -436,7 +436,7 @@ pipeline {
                 
                 1. ${env.WHEELHOUSE_PATH}\\ 에 의존성 준비
                 2. 환경변수 설정: set WEBSERVICE_DATA_PATH=C:\\deploys\\data\\webservice
-                3. 가상환경 생성: py -3.10 -m venv .venv
+                3. 가상환경 생성: py -3.9 -m venv .venv
                 4. 가상환경 활성화: .venv\\Scripts\\activate
                 5. 오프라인 설치: pip install --no-index --find-links=${env.WHEELHOUSE_PATH} webservice-*.whl
                 
