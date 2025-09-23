@@ -136,15 +136,43 @@ try {
     # 스마트 가상환경 관리 (기존 환경 유지 또는 생성)
     $needsDependencies = $false
     if (-not (Test-Path "$WebBackDst\.venv")) {
-        Write-Host "가상환경 생성 중 (Python 3.9)..."
-        # UTF-8 인코딩 환경변수 설정
+        Write-Host "가상환경 생성 중 (Python 3.9 + 메모리 최적화)..."
+
+        # UTF-8 인코딩 및 메모리 최적화 환경변수 설정
         $env:PYTHONIOENCODING = 'utf-8'
         $env:LC_ALL = 'C.UTF-8'
+        $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
+        $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
+        $env:TMPDIR = "$env:TEMP\pip-tmp-$([System.Guid]::NewGuid())"  # 전용 임시 디렉토리
 
-        # Jenkins와 동일한 Python 3.9 가상환경 생성 방식 사용
-        & $Python39Path -3.9 -m venv "$WebBackDst\.venv"
-        $needsDependencies = $true
-        Write-Host "새 가상환경 생성 완료 (Python 3.9)"
+        # 전용 임시 디렉토리 생성
+        New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
+
+        try {
+            # Jenkins와 동일한 Python 3.9 가상환경 생성 방식 사용
+            & $Python39Path -3.9 -m venv "$WebBackDst\.venv"
+
+            Write-Host "pip 자동 업그레이드 중... (메모리 에러 방지)"
+
+            # pip 업그레이드 (wheelhouse에서 오프라인)
+            if (Test-Path "$GlobalWheelPath\wheelhouse\pip*.whl") {
+                & "$WebBackDst\.venv\Scripts\python.exe" -m pip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip setuptools wheel
+                Write-Host "pip 오프라인 업그레이드 완료"
+            } else {
+                # 온라인 업그레이드 (메모리 최적화 옵션)
+                & "$WebBackDst\.venv\Scripts\python.exe" -m pip install --upgrade pip setuptools wheel --no-cache-dir --disable-pip-version-check
+                Write-Host "pip 온라인 업그레이드 완료"
+            }
+
+            $needsDependencies = $true
+            Write-Host "새 가상환경 생성 완료 (Python 3.9 + pip 최적화)"
+
+        } finally {
+            # 임시 디렉토리 정리
+            if (Test-Path $env:TMPDIR) {
+                Remove-Item -Recurse -Force $env:TMPDIR -ErrorAction SilentlyContinue
+            }
+        }
     } else {
         Write-Host "기존 가상환경 유지 (빠른 배포)"
         if ($ForceUpdateDeps) {
@@ -173,16 +201,32 @@ try {
     
     # 1. 선택적 의존성 설치 (새 환경이거나 강제 업데이트 시에만)
     if ($needsDependencies) {
-        Write-Host "  - 의존성 설치 (from wheelhouse)..."
+        Write-Host "  - 의존성 설치 (메모리 최적화 모드)..."
 
-        # UTF-8 인코딩 환경변수 설정 (pip 인코딩 오류 방지)
+        # 메모리 최적화 환경변수 설정
         $env:PYTHONIOENCODING = 'utf-8'
         $env:LC_ALL = 'C.UTF-8'
+        $env:PIP_NO_CACHE_DIR = '1'
+        $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'
+        $env:PIP_NO_BUILD_ISOLATION = '1'
 
-        if (Test-Path "$WebSrc\pip.constraints.txt") {
-            & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
-        } else {
-            & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
+        # 전용 임시 디렉토리 사용
+        $tempPipDir = "$env:TEMP\pip-install-$([System.Guid]::NewGuid())"
+        $env:TMPDIR = $tempPipDir
+        New-Item -ItemType Directory -Force -Path $tempPipDir | Out-Null
+
+        try {
+            if (Test-Path "$WebSrc\pip.constraints.txt") {
+                & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt" --no-cache-dir --disable-pip-version-check
+            } else {
+                & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" --no-cache-dir --disable-pip-version-check
+            }
+            Write-Host "  - 의존성 설치 완료 (메모리 최적화)"
+        } finally {
+            # 임시 디렉토리 정리
+            if (Test-Path $tempPipDir) {
+                Remove-Item -Recurse -Force $tempPipDir -ErrorAction SilentlyContinue
+            }
         }
     } else {
         Write-Host "  - 의존성 스킵 (기존 환경 유지 - 고속 배포)"

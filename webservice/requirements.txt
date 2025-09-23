@@ -1,5 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cu111
 
+pip==25.2
 annotated-types==0.7.0
 anyio==4.10.0
 attrs==25.3.0
