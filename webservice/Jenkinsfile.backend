@@ -56,7 +56,7 @@ pipeline {
                     }
                 }
             }
-        }
+        } 
         
         stage('Setup Test Environment') {
             steps {
