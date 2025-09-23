@@ -92,9 +92,10 @@ pipeline {
 try {
     New-Item -Path \$env:TMPDIR -ItemType Directory -Force | Out-Null
 
-    if (Test-Path '${env.WHEELHOUSE_PATH}\\pip-*.whl') {
+    \$wheelHousePath = 'C:\\deploys\\packages\\wheelhouse'
+    if (Test-Path "\$wheelHousePath\\pip-*.whl") {
         Write-Host '휠하우스에서 pip 업그레이드 중...'
-        & '.venv312\\Scripts\\python.exe' -m pip install --no-index --find-links='${env.WHEELHOUSE_PATH}' --upgrade pip --no-cache-dir
+        & '.venv312\\Scripts\\python.exe' -m pip install --no-index --find-links="\$wheelHousePath" --upgrade pip --no-cache-dir
     } else {
         Write-Host '기본 pip 업그레이드 중...'
         & '.venv312\\Scripts\\python.exe' -m pip install --upgrade pip --no-cache-dir
