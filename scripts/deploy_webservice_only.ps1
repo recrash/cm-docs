@@ -206,8 +206,8 @@ try {
         Write-Host "  - 휠하우스 발견 - 오프라인 빠른 설치"
         & $webPip install $webWheelFile.FullName --no-index --find-links="$GlobalWheelPath\wheelhouse" --no-deps
     } else {
-        Write-Host "  - 일반 설치 모드"
-        & $webPip install $webWheelFile.FullName --no-deps
+        Write-Host "  - 일반 설치 모드 (오프라인 강제)"
+        & $webPip install $webWheelFile.FullName --no-index --no-deps
     }
     Write-Host "웹서비스 설치 완료 (Jenkins 스타일 고속 배포)"
     
