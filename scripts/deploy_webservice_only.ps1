@@ -137,8 +137,12 @@ try {
     $needsDependencies = $false
     if (-not (Test-Path "$WebBackDst\.venv")) {
         Write-Host "가상환경 생성 중 (Python 3.9)..."
+        # UTF-8 인코딩 환경변수 설정
+        $env:PYTHONIOENCODING = 'utf-8'
+        $env:LC_ALL = 'C.UTF-8'
+
         # Jenkins와 동일한 Python 3.9 가상환경 생성 방식 사용
-        $env:PYTHONIOENCODING='utf-8'; & $Python39Path -3.9 -m venv "$WebBackDst\.venv"
+        & $Python39Path -3.9 -m venv "$WebBackDst\.venv"
         $needsDependencies = $true
         Write-Host "새 가상환경 생성 완료 (Python 3.9)"
     } else {
@@ -170,6 +174,11 @@ try {
     # 1. 선택적 의존성 설치 (새 환경이거나 강제 업데이트 시에만)
     if ($needsDependencies) {
         Write-Host "  - 의존성 설치 (from wheelhouse)..."
+
+        # UTF-8 인코딩 환경변수 설정 (pip 인코딩 오류 방지)
+        $env:PYTHONIOENCODING = 'utf-8'
+        $env:LC_ALL = 'C.UTF-8'
+
         if (Test-Path "$WebSrc\pip.constraints.txt") {
             & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
         } else {

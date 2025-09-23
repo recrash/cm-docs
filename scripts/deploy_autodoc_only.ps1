@@ -132,7 +132,11 @@ try {
     $needsDependencies = $false
     if (-not (Test-Path "$AutoDst\.venv312")) {
         Write-Host "가상환경 생성 중..."
-        $env:PYTHONIOENCODING='utf-8'; & $PythonPath -m venv "$AutoDst\.venv312"
+        # UTF-8 인코딩 환경변수 설정
+        $env:PYTHONIOENCODING = 'utf-8'
+        $env:LC_ALL = 'C.UTF-8'
+
+        & $PythonPath -m venv "$AutoDst\.venv312"
         $needsDependencies = $true
         Write-Host "새 가상환경 생성 완료"
     } else {
@@ -164,6 +168,11 @@ try {
     # 1. 선택적 의존성 설치 (새 환경이거나 강제 업데이트 시에만)
     if ($needsDependencies) {
         Write-Host "  - 의존성 설치 (from wheelhouse)..."
+
+        # UTF-8 인코딩 환경변수 설정 (pip 인코딩 오류 방지)
+        $env:PYTHONIOENCODING = 'utf-8'
+        $env:LC_ALL = 'C.UTF-8'
+
         & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
     } else {
         Write-Host "  - 의존성 스킵 (기존 환경 유지 - 고속 배포)"
