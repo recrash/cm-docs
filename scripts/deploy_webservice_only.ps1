@@ -62,11 +62,9 @@ try {
     # 4. Wheel 설치
     Write-Host "`n단계 3: 웹서비스 Wheel 설치 중..."
     
-    # Python 경로 확장
-    $PythonPath = $Py
-    if ($PythonPath.Contains('%LOCALAPPDATA%')) {
-        $PythonPath = $PythonPath.Replace('%LOCALAPPDATA%', $env:LOCALAPPDATA)
-    }
+    # Python 3.9 경로 설정 (Jenkins와 동일한 방식)
+    $Python39Path = "$env:LOCALAPPDATA\Programs\Python\Launcher\py.exe"
+    Write-Host "Python 3.9 Launcher 경로: $Python39Path"
     
     # 6. 서비스 관리 (가상환경 정리 전에 먼저 수행)
     Write-Host "`n단계 4: 웹서비스 서비스 관리 중..."
@@ -138,10 +136,11 @@ try {
     # 스마트 가상환경 관리 (기존 환경 유지 또는 생성)
     $needsDependencies = $false
     if (-not (Test-Path "$WebBackDst\.venv")) {
-        Write-Host "가상환경 생성 중..."
-        $env:PYTHONIOENCODING='utf-8'; & $PythonPath -m venv "$WebBackDst\.venv"
+        Write-Host "가상환경 생성 중 (Python 3.9)..."
+        # Jenkins와 동일한 Python 3.9 가상환경 생성 방식 사용
+        $env:PYTHONIOENCODING='utf-8'; & $Python39Path -3.9 -m venv "$WebBackDst\.venv"
         $needsDependencies = $true
-        Write-Host "새 가상환경 생성 완료"
+        Write-Host "새 가상환경 생성 완료 (Python 3.9)"
     } else {
         Write-Host "기존 가상환경 유지 (빠른 배포)"
         if ($ForceUpdateDeps) {
@@ -292,7 +291,7 @@ try {
     
     4. 가상환경 문제:
        - 가상환경 재생성: rmdir /s $WebBackDst\.venv
-       - Python 경로 확인: $PythonPath
+       - Python 3.9 Launcher 확인: $Python39Path
     ===========================================
     """
     
