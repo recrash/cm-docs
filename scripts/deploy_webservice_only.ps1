@@ -217,9 +217,9 @@ try {
 
         try {
             if (Test-Path "$WebSrc\pip.constraints.txt") {
-                & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt" --no-cache-dir --disable-pip-version-check
+                & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt" --no-cache-dir --disable-pip-version-check --prefer-binary --no-build-isolation
             } else {
-                & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" --no-cache-dir --disable-pip-version-check
+                & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" --no-cache-dir --disable-pip-version-check --prefer-binary --no-build-isolation
             }
             Write-Host "  - 의존성 설치 완료 (메모리 최적화)"
         } finally {
