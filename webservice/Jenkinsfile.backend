@@ -277,17 +277,66 @@ pipeline {
                         bat 'nssm stop webservice'
                         echo "Webservice 중지 완료"
                         
-                        // 5단계: 초고속 wheel 설치 (휠하우스 활용)
+                        // 5단계: 의존성 업데이트 확인 및 wheel 설치
                         powershell """
                             \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\webservice-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
                             Write-Host "효율적인 재설치 시작: \$(\$deployWhl.Name)"
-                            
+
+                            # requirements.txt 변경 확인 (의존성 업데이트 필요 여부)
+                            Write-Host "========================================="
+                            Write-Host "의존성 변경 확인 중..."
+                            \$requirementsChanged = \$false
+                            \$lastReqHashFile = "${env.DEPLOY_PATH}\\.last_requirements_hash"
+
+                            if (Test-Path "${WORKSPACE}\\webservice\\requirements.txt") {
+                                \$currentReqHash = (Get-FileHash "${WORKSPACE}\\webservice\\requirements.txt" -Algorithm SHA256).Hash
+
+                                if (Test-Path \$lastReqHashFile) {
+                                    \$lastReqHash = Get-Content \$lastReqHashFile
+                                    if (\$currentReqHash -ne \$lastReqHash) {
+                                        Write-Host ">>> requirements.txt가 변경됨 - 의존성 업데이트 필요"
+                                        \$requirementsChanged = \$true
+                                    } else {
+                                        Write-Host ">>> requirements.txt 변경 없음"
+                                    }
+                                } else {
+                                    Write-Host ">>> 첫 배포 - 의존성 확인 필요"
+                                    \$requirementsChanged = \$true
+                                }
+
+                                # 의존성 업데이트가 필요한 경우
+                                if (\$requirementsChanged) {
+                                    Write-Host "의존성 업데이트 진행..."
+                                    if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
+                                        Write-Host "휠하우스에서 의존성 업데이트 (폐쇄망 환경)"
+                                        & "${env.DEPLOY_PIP_CMD}" install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
+                                        if (\$LASTEXITCODE -eq 0) {
+                                            # 성공시 해시 저장
+                                            \$currentReqHash | Out-File \$lastReqHashFile -Force
+                                            Write-Host ">>> 의존성 업데이트 완료"
+                                        } else {
+                                            Write-Host ">>> 의존성 업데이트 실패 - 계속 진행"
+                                        }
+                                    } else {
+                                        Write-Host "휠하우스 없음 - 온라인 설치 시도"
+                                        & "${env.DEPLOY_PIP_CMD}" install --extra-index-url https://download.pytorch.org/whl/cu111 -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
+                                        if (\$LASTEXITCODE -eq 0) {
+                                            \$currentReqHash | Out-File \$lastReqHashFile -Force
+                                            Write-Host ">>> 의존성 업데이트 완료"
+                                        }
+                                    }
+                                } else {
+                                    Write-Host ">>> 의존성 업데이트 스킵"
+                                }
+                            }
+                            Write-Host "========================================="
+
                             # 기존 webservice 패키지만 언인스톨 (의존성은 유지)
                             Write-Host "기존 webservice 패키지 제거 중..."
                             & "${env.DEPLOY_PIP_CMD}" uninstall webservice -y 2>&1 | Out-Null
                             Write-Host "기존 패키지 제거 완료"
-                            
-                            # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
+
+                            # webservice wheel 설치
                             if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
                                 Write-Host "휠하우스 발견 - 오프라인 빠른 설치"
                                 & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --no-deps
