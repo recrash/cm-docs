@@ -132,9 +132,30 @@ try {
     $needsDependencies = $false
     if (-not (Test-Path "$AutoDst\.venv312")) {
         Write-Host "가상환경 생성 중..."
-        $env:PYTHONIOENCODING='utf-8'; & $PythonPath -m venv "$AutoDst\.venv312"
+        # UTF-8 인코딩 및 메모리 최적화 환경변수 설정
+        $env:PYTHONIOENCODING = 'utf-8'
+        $env:LC_ALL = 'C.UTF-8'
+        $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
+        $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
+        $env:TMPDIR = "$env:TEMP\pip-tmp-$([System.Guid]::NewGuid())"  # 전용 임시 디렉토리
+
+        & $PythonPath -m venv "$AutoDst\.venv312"
+
+        # 가상환경 생성 직후 pip 업그레이드 (메모리 오류 방지)
+        Write-Host "pip 업그레이드 중... (메모리 오류 방지)"
+        $autoPip = "$AutoDst\.venv312\Scripts\pip.exe"
+
+        # 휠하우스에서 pip 업그레이드 시도 (오프라인 환경 대응)
+        if (Test-Path "$GlobalWheelPath\wheelhouse\pip-*.whl") {
+            Write-Host "  - 휠하우스에서 pip 업그레이드"
+            & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip
+        } else {
+            Write-Host "  - 기본 pip 업그레이드"
+            & $autoPip install --upgrade pip
+        }
+
         $needsDependencies = $true
-        Write-Host "새 가상환경 생성 완료"
+        Write-Host "새 가상환경 생성 및 pip 업그레이드 완료"
     } else {
         Write-Host "기존 가상환경 유지 (빠른 배포)"
         if ($ForceUpdateDeps) {
@@ -164,7 +185,27 @@ try {
     # 1. 선택적 의존성 설치 (새 환경이거나 강제 업데이트 시에만)
     if ($needsDependencies) {
         Write-Host "  - 의존성 설치 (from wheelhouse)..."
-        & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
+
+        # UTF-8 인코딩 및 메모리 최적화 환경변수 설정
+        $env:PYTHONIOENCODING = 'utf-8'
+        $env:LC_ALL = 'C.UTF-8'
+        $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
+        $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
+        $env:PIP_NO_BUILD_ISOLATION = '1'     # 빌드 격리 비활성화로 메모리 절약
+        $env:TMPDIR = "$env:TEMP\pip-tmp-autodoc-$([System.Guid]::NewGuid())"  # 전용 임시 디렉토리
+
+        # 임시 디렉토리 생성
+        New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
+
+        try {
+            # 메모리 효율적인 pip 설치
+            & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt" --no-cache-dir --disable-pip-version-check
+        } finally {
+            # 임시 디렉토리 정리
+            if (Test-Path $env:TMPDIR) {
+                Remove-Item -Recurse -Force $env:TMPDIR -ErrorAction SilentlyContinue
+            }
+        }
     } else {
         Write-Host "  - 의존성 스킵 (기존 환경 유지 - 고속 배포)"
     }
@@ -175,8 +216,12 @@ try {
     
     # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
     Write-Host "  - 기존 autodoc_service 패키지 제거 중..."
-    & $autoPip uninstall autodoc_service -y 2>&1 | Out-Null
-    Write-Host "  - 기존 패키지 제거 완료"
+    try {
+        & $autoPip uninstall autodoc_service -y 2>&1 | Out-Null
+        Write-Host "  - 기존 패키지 제거 완료"
+    } catch {
+        Write-Host "  - 기존 패키지가 설치되지 않음 (새 설치)"
+    }
     
     # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
     if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {

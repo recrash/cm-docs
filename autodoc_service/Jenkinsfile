@@ -78,8 +78,25 @@ pipeline {
                         }
                         echo "가상환경 생성 검증 완료"
                         
-                        // pip 업그레이드
-                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv312\\Scripts\\python.exe' -m pip install --upgrade pip\""
+                        // pip 메모리 최적화 업그레이드 (메모리 오류 방지)
+                        echo "pip 업그레이드 중 (메모리 최적화)..."
+
+                        // 단순한 batch 명령어로 변경 (구문 오류 방지)
+                        bat '''
+                        set PIP_NO_CACHE_DIR=1
+                        set PIP_DISABLE_PIP_VERSION_CHECK=1
+                        set PIP_NO_BUILD_ISOLATION=1
+
+                        if exist "C:\\deploys\\packages\\wheelhouse\\pip-*.whl" (
+                            echo 휠하우스에서 pip 업그레이드 중...
+                            .venv312\\Scripts\\python.exe -m pip install --no-index --find-links="C:\\deploys\\packages\\wheelhouse" --upgrade pip --no-cache-dir
+                        ) else (
+                            echo 기본 pip 업그레이드 중...
+                            .venv312\\Scripts\\python.exe -m pip install --upgrade pip --no-cache-dir
+                        )
+
+                        echo ✅ pip 업그레이드 완료
+                        '''
                         
                         // 휠하우스 활용 고속 설치
                         script {

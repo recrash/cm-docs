@@ -11,7 +11,8 @@ pipeline {
         
         // 테스트 인스턴스 환경 (브랜치별)
         DEPLOY_ROOT = 'C:\\deploys\\tests'
-        PY_PATH = '%LOCALAPPDATA%\\Programs\\Python\\Python312\\python.exe'
+        PY_PATH = '%LOCALAPPDATA%\\Programs\\Python\\Python39\\python.exe'
+        PY_PATH_312 = '%LOCALAPPDATA%\\Programs\\Python\\Python312\\python.exe'
         NSSM_PATH = 'nssm'
         NGINX_PATH = 'C:\\nginx\\nginx.exe'
         NGINX_CONF_DIR = 'C:\\nginx\\conf\\conf.d'
@@ -166,6 +167,91 @@ pipeline {
             }
         }
         
+        stage('Wheelhouse 검증') {
+            steps {
+                script {
+                    echo """
+                    ===========================================
+                    📦 Wheelhouse 검증 및 pip 환경 준비
+                    ===========================================
+                    """
+
+                    try {
+                        bat """
+                        chcp 65001 >NUL
+                        powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & {
+                            # Wheelhouse 기본 검증
+                            Write-Host '📋 Wheelhouse 상태 확인...'
+                            if (-not (Test-Path '${env.WHEELHOUSE_PATH}')) {
+                                Write-Host '⚠️  Wheelhouse 디렉토리가 없습니다. 생성합니다: ${env.WHEELHOUSE_PATH}'
+                                New-Item -ItemType Directory -Force -Path '${env.WHEELHOUSE_PATH}' | Out-Null
+                            }
+
+                            # pip wheel 파일 확인
+                            \$pipWheels = Get-ChildItem -Path '${env.WHEELHOUSE_PATH}' -Filter 'pip-*.whl' -ErrorAction SilentlyContinue
+                            if (\$pipWheels.Count -eq 0) {
+                                Write-Warning '⚠️  pip wheel 파일이 없습니다. pip 업그레이드가 온라인으로 진행됩니다.'
+                                Write-Host '권장사항: pip wheel을 wheelhouse에 미리 준비하세요.'
+                            } else {
+                                Write-Host \"✅ pip wheel 발견: \$(\$pipWheels.Count)개 파일\"
+                                \$pipWheels | ForEach-Object { Write-Host \"  - \$(\$_.Name)\" }
+                            }
+
+                            # 전체 wheel 개수 확인
+                            \$allWheels = Get-ChildItem -Path '${env.WHEELHOUSE_PATH}' -Filter '*.whl' -ErrorAction SilentlyContinue
+                            Write-Host \"📊 총 wheel 파일: \$(\$allWheels.Count)개\"
+
+                            # 최소 필수 패키지 확인 (권장사항)
+                            \$recommendedPackages = @('setuptools', 'wheel', 'pip', 'torch', 'torchvision', 'torchaudio')
+                            \$missingPackages = @()
+                            foreach (\$pkg in \$recommendedPackages) {
+                                \$found = \$allWheels | Where-Object { \$_.Name -like \"\$pkg-*\" }
+                                if (-not \$found) {
+                                    \$missingPackages += \$pkg
+                                }
+                            }
+
+                            if (\$missingPackages.Count -gt 0) {
+                                Write-Warning \"⚠️  권장 패키지가 wheelhouse에 없습니다: \$(\$missingPackages -join ', ')\"
+                                Write-Host '이는 경고사항이며 빌드는 계속 진행됩니다.'
+                            } else {
+                                Write-Host '✅ 모든 권장 패키지가 wheelhouse에 준비되었습니다.'
+                            }
+
+                            # Wheelhouse 잠금 파일 정리 (이전 빌드 잔존물)
+                            if (Test-Path '${env.WHEELHOUSE_PATH}\\.lock') {
+                                Remove-Item '${env.WHEELHOUSE_PATH}\\.lock' -Force -ErrorAction SilentlyContinue
+                                Write-Host '🧹 이전 빌드의 wheelhouse 잠금 파일 정리'
+                            }
+
+                            Write-Host '✅ Wheelhouse 검증 완료'
+                        }"
+                        """
+
+                        env.WHEELHOUSE_STATUS = 'VERIFIED'
+                        echo "✅ Wheelhouse 검증 성공"
+
+                    } catch (Exception e) {
+                        env.WHEELHOUSE_STATUS = 'WARNING'
+                        echo """
+                        ⚠️ Wheelhouse 검증 경고
+                        ===========================================
+                        경고: ${e.getMessage()}
+
+                        이는 경고사항이며 빌드는 계속 진행됩니다.
+                        다만 pip 설치 중 메모리 오류가 발생할 가능성이 있습니다.
+
+                        권장사항:
+                        1. pip wheel을 미리 다운로드하여 wheelhouse에 저장
+                        2. PyTorch 등 대용량 패키지 wheel 준비
+                        3. 폐쇄망 환경에서는 모든 의존성을 사전 다운로드
+                        ===========================================
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Branch Detect') {
             steps {
                 script {
@@ -352,8 +438,8 @@ pipeline {
                             }
                         }
                     }
-                }
-            }
+                } 
+            } 
         }
         
         
@@ -767,7 +853,7 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                             try {
                                 bat """
                                 chcp 65001 >NUL
-powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_autodoc_only.ps1' -Bid '%BID%' -AutoPort %AUTO_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -AutoSrc '%WORKSPACE%\\autodoc_service' -AutoDst '%AUTO_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'"
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_autodoc_only.ps1' -Bid '%BID%' -AutoPort %AUTO_PORT% -Py '%PY_PATH_312%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -AutoSrc '%WORKSPACE%\\autodoc_service' -AutoDst '%AUTO_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'"
                                 """
                                 deployResults['AutoDoc'] = 'SUCCESS'
                                 echo "✅ AutoDoc 배포 성공"
