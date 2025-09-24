@@ -7,12 +7,12 @@ name = "webservice"
 version = "0.1.0"
 description = "Git 변경사항 분석 및 테스트 시나리오 생성 웹 서비스"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.9,<3.10"
 dependencies = [
     # Core FastAPI & Web Server
-    "fastapi==0.116.1",
-    "uvicorn[standard]==0.35.0",
-    "pydantic==2.11.7",
+    "fastapi==0.117.1",
+    "uvicorn[standard]==0.36.0",
+    "pydantic==2.11.9",
     "python-multipart==0.0.20",
     "websockets==15.0.1",
     
@@ -21,25 +21,25 @@ dependencies = [
     "PyYAML==6.0.2",
     
     # Vector DB & AI/ML
-    "chromadb==1.0.20",
-    "sentence-transformers==5.1.0",
-    "torch==2.5.1",
-    "transformers==4.55.4",
-    "scikit-learn==1.7.1",
-    "numpy==2.3.2",
+    "chromadb==1.1.0",
+    "sentence-transformers==2.2.2",
+    "torch==1.9.1+cu111",
+    "transformers==4.17.0",
+    "scikit-learn==1.6.1",
+    "numpy==1.24.4",
     
     # Data Processing
     "pandas==2.3.2",
     "openpyxl==3.1.5",
     "python-docx==1.2.0",
     "python-calamine==0.4.0",
-    "lxml==6.0.1",
+    "lxml==6.0.2",
     
     # Git & VCS
     "GitPython==3.1.45",
     
     # HTTP & Network
-    "requests==2.32.4",
+    "requests==2.32.5",
     "httpx==0.28.1",
     
     # Logging & Console
@@ -49,10 +49,10 @@ dependencies = [
     "portalocker==3.2.0",
     
     # Testing (Development)
-    "pytest==8.4.1",
-    "pytest-mock==3.14.1",
-    "pytest-cov==6.2.1",
-    "pytest-asyncio==1.1.0",
+    "pytest==8.4.2",
+    "pytest-mock==3.15.1",
+    "pytest-cov==7.0.0",
+    "pytest-asyncio==1.2.0",
 ]
 
 [tool.setuptools]

@@ -1,4 +1,4 @@
-# =================================================================
+﻿# =================================================================
 # 폐쇄망 배포용 'deploy-package.zip' 생성 스크립트
 # =================================================================
 # 실행 방법:
@@ -45,7 +45,7 @@ try {
     
     Write-Host "    - 'autodoc_service' 빌드 중..."
     py -3.12 -m venv .venv312
-    & ".\.venv312\Scripts\pip.exe" install build --quiet
+    & ".\.venv312\Scripts\pip.exe" install setuptools build wheel --upgrade --quiet
     & ".\.venv312\Scripts\python.exe" -m build --wheel --no-isolation
     
     $targetDir = Join-Path $PackageDir "autodoc_service"
@@ -65,9 +65,9 @@ try {
     Push-Location $servicePath
 
     Write-Host "    - 'webservice' 빌드 중..."
-    py -3.13 -m venv .venv
-    & ".\.venv\Scripts\pip.exe" install build --quiet    
-    & "..\.venv\Scripts\python.exe" -m build --wheel --no-isolation
+    py -3.9 -m venv .venv
+    & ".\.venv\Scripts\pip.exe" install setuptools build wheel --upgrade --quiet
+    & ".\.venv\Scripts\python.exe" -m build --wheel --no-isolation
 
     $targetDir = Join-Path $PackageDir "webservice"
     New-Item -Path $targetDir -ItemType Directory | Out-Null
@@ -126,13 +126,20 @@ Write-Host "    - 'webservice'의 임베딩 모델을 다운로드 및 복사합
 try {
     $servicePath = Join-Path $ProjectRoot "webservice"
     Push-Location $servicePath
-    
+
     # webservice 가상환경의 python으로 다운로드 스크립트 실행
     & ".\.venv\Scripts\python.exe" ".\scripts\download_embedding_model.py"
 
-    $sourceDir = Join-Path $servicePath "models" # 스크립트가 ./models에 다운로드한다고 가정
+    $sourceDir = Join-Path $servicePath "app\data\models" # 새로운 모델 저장 경로
     $targetDir = Join-Path $DataDir "webservice\models"
-    Copy-Item -Path $sourceDir -Destination $targetDir -Recurse -Force
+
+    # 모델 경로가 존재하는지 확인
+    if (Test-Path $sourceDir) {
+        Copy-Item -Path $sourceDir -Destination $targetDir -Recurse -Force
+        Write-Host "    - 임베딩 모델 복사 완료!" -ForegroundColor Green
+    } else {
+        Write-Host "    - 경고: 모델 경로 '$sourceDir'가 존재하지 않습니다. 모델 다운로드를 건너뜁니다." -ForegroundColor Yellow
+    }
 
     Pop-Location
 } catch {

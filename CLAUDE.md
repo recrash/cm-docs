@@ -651,7 +651,7 @@ cm-docs/
 │   │   └── src/utils/           # 유틸리티
 │   ├── tests/                   # 테스트 파일
 │   ├── data/                    # 개발용 데이터 (환경변수 미설정시)
-│   └── .venv/                   # Python 3.12 가상환경
+│   └── .venv/                   # Python 3.9 가상환경
 ├── cli/                          # CLI 도구
 │   ├── src/ts_cli/              # CLI 소스코드
 │   │   ├── main.py              # CLI 진입점

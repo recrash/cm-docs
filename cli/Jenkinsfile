@@ -66,14 +66,32 @@ pipeline {
                         script {
                             def wheelHouseExists = fileExists(env.WHEELHOUSE_PATH)
                             
+                            // pip 메모리 최적화 업그레이드 (메모리 오류 방지)
+                            echo "pip 업그레이드 중 (메모리 최적화)..."
+
+                            // 단순한 PowerShell 명령어로 변경 (구문 오류 방지)
+                            bat '''
+                            set PIP_NO_CACHE_DIR=1
+                            set PIP_DISABLE_PIP_VERSION_CHECK=1
+                            set PIP_NO_BUILD_ISOLATION=1
+
+                            if exist "C:\\deploys\\packages\\wheelhouse\\pip-*.whl" (
+                                echo 휠하우스에서 pip 업그레이드 중...
+                                .venv\\Scripts\\python.exe -m pip install --no-index --find-links="C:\\deploys\\packages\\wheelhouse" --upgrade pip --no-cache-dir
+                            ) else (
+                                echo 기본 pip 업그레이드 중...
+                                .venv\\Scripts\\python.exe -m pip install --upgrade pip --no-cache-dir
+                            )
+
+                            echo ✅ pip 업그레이드 완료
+                            '''
+
                             if (wheelHouseExists) {
                                 echo '휠하우스 발견 - 오프라인 고속 설치 모드 (폐쇄망 호환)'
-                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
                                 bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -r requirements-dev.txt\""
                                 bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install --no-index --find-links=${env.WHEELHOUSE_PATH} -e .\""
                             } else {
                                 echo '휠하우스 없음 - 온라인 설치'
-                                bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -m pip install --upgrade pip\""
                                 bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install -r requirements-dev.txt\""
                                 bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\pip.exe' install -e .\""
                             }

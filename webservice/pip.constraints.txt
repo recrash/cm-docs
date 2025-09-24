@@ -1,4 +1,14 @@
-# jsonschema & referencing 세트: 오프라인에서도 Draft-03 인식
+torch==1.9.1+cu111
+torchvision==0.10.1+cu111
+torchaudio==0.9.1
+
+
+transformers==4.17.0
+sentence-transformers==2.2.2
+huggingface-hub<0.20.0  # sentence-transformers 2.2.2 호환성
+numpy<2.0.0  # NumPy 1.x 유지로 호환성 문제 해결
+
+
 jsonschema>=4.19,<5
 jsonschema-specifications>=2023.7.1
 referencing>=0.30,<0.37

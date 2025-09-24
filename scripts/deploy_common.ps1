@@ -773,6 +773,142 @@ function Validate-DeploymentPorts {
 }
 
 # ===============================================
+# pip 메모리 최적화 함수
+# ===============================================
+
+function Optimize-PipEnvironment {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$ServiceName = "default",
+
+        [Parameter(Mandatory=$false)]
+        [switch]$CreateTempDir = $true,
+
+        [Parameter(Mandatory=$false)]
+        [string]$TempBasePath = $env:TEMP
+    )
+
+    Write-Host "pip 메모리 최적화 환경 설정: $ServiceName"
+
+    # UTF-8 인코딩 및 메모리 최적화 환경변수 설정
+    $env:PYTHONIOENCODING = 'utf-8'
+    $env:LC_ALL = 'C.UTF-8'
+    $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
+    $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
+    $env:PIP_NO_BUILD_ISOLATION = '1'     # 빌드 격리 비활성화로 메모리 절약
+
+    # 전용 임시 디렉토리 생성
+    if ($CreateTempDir) {
+        $tempDirGuid = [System.Guid]::NewGuid()
+        $env:TMPDIR = "$TempBasePath\pip-tmp-$ServiceName-$tempDirGuid"
+
+        if (-not (Test-Path $env:TMPDIR)) {
+            New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
+            Write-Host "  - 전용 임시 디렉토리 생성: $env:TMPDIR"
+        }
+
+        return $env:TMPDIR
+    }
+
+    Write-Host "  - 메모리 최적화 환경변수 설정 완료"
+    return $null
+}
+
+function Cleanup-PipEnvironment {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$TempDir = $null
+    )
+
+    if ($TempDir -and (Test-Path $TempDir)) {
+        try {
+            Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
+            Write-Host "pip 임시 디렉토리 정리 완료: $TempDir"
+        } catch {
+            Write-Warning "pip 임시 디렉토리 정리 실패: $($_.Exception.Message)"
+        }
+    }
+}
+
+function Install-PipPackagesOptimized {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$PipExecutable,
+
+        [Parameter(Mandatory=$true)]
+        [string]$RequirementsPath,
+
+        [Parameter(Mandatory=$false)]
+        [string]$WheelhousePath = $null,
+
+        [Parameter(Mandatory=$false)]
+        [string]$ServiceName = "default"
+    )
+
+    # pip 환경 최적화
+    $tempDir = Optimize-PipEnvironment -ServiceName $ServiceName -CreateTempDir
+
+    try {
+        Write-Host "최적화된 pip 패키지 설치 시작: $ServiceName"
+
+        if ($WheelhousePath -and (Test-Path "$WheelhousePath\*.whl")) {
+            Write-Host "  - 휠하우스 오프라인 설치 모드: $WheelhousePath"
+            & $PipExecutable install --no-index --find-links="$WheelhousePath" -r "$RequirementsPath" --no-cache-dir --disable-pip-version-check
+        } else {
+            Write-Host "  - 일반 설치 모드"
+            & $PipExecutable install -r "$RequirementsPath" --no-cache-dir --disable-pip-version-check
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "pip 패키지 설치 실패 (ExitCode: $LASTEXITCODE)"
+        }
+
+        Write-Host "최적화된 pip 패키지 설치 완료: $ServiceName"
+
+    } finally {
+        # 임시 디렉토리 정리
+        Cleanup-PipEnvironment -TempDir $tempDir
+    }
+}
+
+function Upgrade-PipOptimized {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$PipExecutable,
+
+        [Parameter(Mandatory=$false)]
+        [string]$WheelhousePath = $null,
+
+        [Parameter(Mandatory=$false)]
+        [string]$ServiceName = "default"
+    )
+
+    Write-Host "최적화된 pip 업그레이드: $ServiceName"
+
+    # 메모리 최적화 환경 설정 (임시 디렉토리 불필요)
+    Optimize-PipEnvironment -ServiceName $ServiceName -CreateTempDir:$false | Out-Null
+
+    try {
+        if ($WheelhousePath -and (Test-Path "$WheelhousePath\pip-*.whl")) {
+            Write-Host "  - 휠하우스에서 pip 업그레이드"
+            & $PipExecutable install --no-index --find-links="$WheelhousePath" --upgrade pip --no-cache-dir --disable-pip-version-check
+        } else {
+            Write-Host "  - 기본 pip 업그레이드"
+            & $PipExecutable install --upgrade pip --no-cache-dir --disable-pip-version-check
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "pip 업그레이드 실패 (ExitCode: $LASTEXITCODE), 계속 진행"
+        } else {
+            Write-Host "pip 업그레이드 완료: $ServiceName"
+        }
+
+    } catch {
+        Write-Warning "pip 업그레이드 중 오류: $($_.Exception.Message), 계속 진행"
+    }
+}
+
+# ===============================================
 # 공통 함수 정의
 # ===============================================
 

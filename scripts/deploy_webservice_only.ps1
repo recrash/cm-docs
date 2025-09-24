@@ -62,11 +62,9 @@ try {
     # 4. Wheel 설치
     Write-Host "`n단계 3: 웹서비스 Wheel 설치 중..."
     
-    # Python 경로 확장
-    $PythonPath = $Py
-    if ($PythonPath.Contains('%LOCALAPPDATA%')) {
-        $PythonPath = $PythonPath.Replace('%LOCALAPPDATA%', $env:LOCALAPPDATA)
-    }
+    # Python 3.9 경로 설정 (Jenkins와 동일한 방식)
+    $Python39Path = "$env:LOCALAPPDATA\Programs\Python\Launcher\py.exe"
+    Write-Host "Python 3.9 Launcher 경로: $Python39Path"
     
     # 6. 서비스 관리 (가상환경 정리 전에 먼저 수행)
     Write-Host "`n단계 4: 웹서비스 서비스 관리 중..."
@@ -138,10 +136,43 @@ try {
     # 스마트 가상환경 관리 (기존 환경 유지 또는 생성)
     $needsDependencies = $false
     if (-not (Test-Path "$WebBackDst\.venv")) {
-        Write-Host "가상환경 생성 중..."
-        $env:PYTHONIOENCODING='utf-8'; & $PythonPath -m venv "$WebBackDst\.venv"
-        $needsDependencies = $true
-        Write-Host "새 가상환경 생성 완료"
+        Write-Host "가상환경 생성 중 (Python 3.9 + 메모리 최적화)..."
+
+        # UTF-8 인코딩 및 메모리 최적화 환경변수 설정
+        $env:PYTHONIOENCODING = 'utf-8'
+        $env:LC_ALL = 'C.UTF-8'
+        $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
+        $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
+        $env:TMPDIR = "$env:TEMP\pip-tmp-$([System.Guid]::NewGuid())"  # 전용 임시 디렉토리
+
+        # 전용 임시 디렉토리 생성
+        New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
+
+        try {
+            # Jenkins와 동일한 Python 3.9 가상환경 생성 방식 사용
+            & $Python39Path -3.9 -m venv "$WebBackDst\.venv"
+
+            Write-Host "pip 자동 업그레이드 중... (메모리 에러 방지)"
+
+            # pip 업그레이드 (wheelhouse에서 오프라인)
+            if (Test-Path "$GlobalWheelPath\wheelhouse\pip*.whl") {
+                & "$WebBackDst\.venv\Scripts\python.exe" -m pip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip setuptools wheel
+                Write-Host "pip 오프라인 업그레이드 완료"
+            } else {
+                # 온라인 업그레이드 (메모리 최적화 옵션)
+                & "$WebBackDst\.venv\Scripts\python.exe" -m pip install --upgrade pip setuptools wheel --no-cache-dir --disable-pip-version-check
+                Write-Host "pip 온라인 업그레이드 완료"
+            }
+
+            $needsDependencies = $true
+            Write-Host "새 가상환경 생성 완료 (Python 3.9 + pip 최적화)"
+
+        } finally {
+            # 임시 디렉토리 정리
+            if (Test-Path $env:TMPDIR) {
+                Remove-Item -Recurse -Force $env:TMPDIR -ErrorAction SilentlyContinue
+            }
+        }
     } else {
         Write-Host "기존 가상환경 유지 (빠른 배포)"
         if ($ForceUpdateDeps) {
@@ -170,11 +201,48 @@ try {
     
     # 1. 선택적 의존성 설치 (새 환경이거나 강제 업데이트 시에만)
     if ($needsDependencies) {
-        Write-Host "  - 의존성 설치 (from wheelhouse)..."
-        if (Test-Path "$WebSrc\pip.constraints.txt") {
-            & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
-        } else {
-            & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
+        Write-Host "  - 의존성 설치 (메모리 최적화 모드)..."
+
+        # 메모리 최적화 환경변수 설정
+        $env:PYTHONIOENCODING = 'utf-8'
+        $env:LC_ALL = 'C.UTF-8'
+        $env:PIP_NO_CACHE_DIR = '1'
+        $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'
+        $env:PIP_NO_BUILD_ISOLATION = '1'
+
+        # 전용 임시 디렉토리 사용
+        # Windows 경로 길이 제한 우회를 위한 짧은 임시 디렉토리 사용
+        $shortGuid = [System.Guid]::NewGuid().ToString().Substring(0,8)
+        $tempPipDir = "C:\tmp\pip-$shortGuid"
+        $buildDir = "C:\tmp\build-$shortGuid"
+        
+        # 루트 tmp 디렉토리 생성
+        New-Item -ItemType Directory -Force -Path "C:\tmp" | Out-Null
+        New-Item -ItemType Directory -Force -Path $tempPipDir | Out-Null
+        New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
+        
+        # 모든 임시 및 빌드 디렉토리를 짧은 경로로 설정
+        $env:TMPDIR = $tempPipDir
+        $env:TEMP = $tempPipDir
+        $env:TMP = $tempPipDir
+        $env:PIP_BUILD_DIR = $tempPipDir
+        $env:BUILD_DIR = $buildDir
+
+        try {
+            if (Test-Path "$WebSrc\pip.constraints.txt") {
+                & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt" --no-cache-dir --disable-pip-version-check --prefer-binary --no-build-isolation
+            } else {
+                & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" --no-cache-dir --disable-pip-version-check --prefer-binary --no-build-isolation
+            }
+            Write-Host "  - 의존성 설치 완료 (메모리 최적화)"
+        } finally {
+            # 임시 디렉토리 정리 (짧은 경로 포함)
+            if (Test-Path $tempPipDir) {
+                Remove-Item -Recurse -Force $tempPipDir -ErrorAction SilentlyContinue
+            }
+            if (Test-Path $buildDir) {
+                Remove-Item -Recurse -Force $buildDir -ErrorAction SilentlyContinue
+            }
         }
     } else {
         Write-Host "  - 의존성 스킵 (기존 환경 유지 - 고속 배포)"
@@ -186,16 +254,20 @@ try {
     
     # 기존 webservice 패키지만 언인스톨 (의존성은 유지)
     Write-Host "  - 기존 webservice 패키지 제거 중..."
-    & $webPip uninstall webservice -y 2>&1 | Out-Null
-    Write-Host "  - 기존 패키지 제거 완료"
+    try {
+        & $webPip uninstall webservice -y 2>&1 | Out-Null
+        Write-Host "  - 기존 패키지 제거 완료"
+    } catch {
+        Write-Host "  - 기존 패키지가 설치되지 않음 (새 설치)"
+    }
     
     # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
     if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {
         Write-Host "  - 휠하우스 발견 - 오프라인 빠른 설치"
         & $webPip install $webWheelFile.FullName --no-index --find-links="$GlobalWheelPath\wheelhouse" --no-deps
     } else {
-        Write-Host "  - 일반 설치 모드"
-        & $webPip install $webWheelFile.FullName --no-deps
+        Write-Host "  - 일반 설치 모드 (오프라인 강제)"
+        & $webPip install $webWheelFile.FullName --no-index --no-deps
     }
     Write-Host "웹서비스 설치 완료 (Jenkins 스타일 고속 배포)"
     
@@ -288,7 +360,7 @@ try {
     
     4. 가상환경 문제:
        - 가상환경 재생성: rmdir /s $WebBackDst\.venv
-       - Python 경로 확인: $PythonPath
+       - Python 3.9 Launcher 확인: $Python39Path
     ===========================================
     """
     

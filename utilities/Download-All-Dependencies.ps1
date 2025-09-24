@@ -72,7 +72,7 @@ foreach ($service in $Services) {
 # --- 빌드 도구 자체도 다운로드 (첫 번째 사용 가능한 환경 사용) ---
 Write-Host "    - 빌드 필수 도구(build, wheel)를 다운로드합니다."
 foreach ($service in $Services) {
-    $venvPath = Join-Path $ProjectRoot $service.Dir $service.VenvDir
+    $venvPath = Join-Path $ProjectRoot "$($service.Dir)\$($service.VenvDir)"
     
     if (Test-Path $venvPath) {
         $pipPath = Join-Path $venvPath "Scripts\pip.exe"
