@@ -64,8 +64,13 @@ pipeline {
                     script {
                         echo "빠른 테스트 환경 구축 (휠하우스 활용)"
                         
-                        // Python 3.9 가상환경 생성
-                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.9 -m venv .venv'
+                        // Python 3.9 가상환경 생성 (환경 격리)
+                        echo "Python 환경 격리로 가상환경 생성 중..."
+                        bat '''
+                        (echo @echo off & echo set PYTHONHOME= & echo set PYTHONPATH= & echo py %%*) > py_clean.bat
+                        py_clean.bat -3.9 -m venv .venv
+                        del py_clean.bat
+                        '''
 
                         // pip 메모리 최적화 업그레이드 (메모리 오류 방지)
                         echo "pip 업그레이드 중 (메모리 최적화)..."
@@ -279,18 +284,28 @@ pipeline {
                             if (-not (Test-Path "${env.DEPLOY_PATH}\\.venv")) {
                                 Write-Host ">>> 가상환경이 없습니다. 새로 생성합니다..."
 
-                                # Python 3.9로 가상환경 생성
-                                \$pyPath = "\$env:LOCALAPPDATA\\Programs\\Python\\Launcher\\py.exe"
-                                if (Test-Path \$pyPath) {
-                                    & \$pyPath -3.9 -m venv "${env.DEPLOY_PATH}\\.venv"
-                                } else {
-                                    # py.exe가 없으면 직접 Python 경로 사용
-                                    \$pythonPath = "C:\\Python39\\python.exe"
-                                    if (Test-Path \$pythonPath) {
-                                        & \$pythonPath -m venv "${env.DEPLOY_PATH}\\.venv"
-                                    } else {
-                                        throw "Python 3.9를 찾을 수 없습니다"
+                                # Python 3.9로 가상환경 생성 (환경 격리)
+                                Write-Host "Python 환경 격리로 배포 가상환경 생성 중..."
+
+                                # 배치 래퍼 생성 (PYTHONHOME 격리)
+                                \$wrapperContent = @"
+@echo off
+set PYTHONHOME=
+set PYTHONPATH=
+py %*
+"@
+                                \$wrapperPath = "py_deploy_clean.bat"
+                                \$wrapperContent | Out-File -FilePath \$wrapperPath -Encoding ascii
+
+                                # 격리된 환경에서 가상환경 생성
+                                try {
+                                    & ".\\\$wrapperPath" -3.9 -m venv "${env.DEPLOY_PATH}\\.venv"
+                                    if (\$LASTEXITCODE -ne 0) {
+                                        throw "가상환경 생성 실패 (Exit Code: \$LASTEXITCODE)"
                                     }
+                                } finally {
+                                    # 임시 래퍼 정리
+                                    Remove-Item \$wrapperPath -Force -ErrorAction SilentlyContinue
                                 }
 
                                 if (Test-Path "${env.DEPLOY_PATH}\\.venv\\Scripts\\python.exe") {

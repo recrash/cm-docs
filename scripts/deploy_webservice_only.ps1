@@ -149,8 +149,30 @@ try {
         New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
 
         try {
-            # Jenkins와 동일한 Python 3.9 가상환경 생성 방식 사용
-            & $Python39Path -3.9 -m venv "$WebBackDst\.venv"
+            # Jenkins와 동일한 Python 3.9 가상환경 생성 방식 사용 (환경 격리)
+            Write-Host "Python 환경 격리로 가상환경 생성 중..."
+
+            # 배치 래퍼 생성 (PYTHONHOME 격리)
+            $wrapperContent = @"
+@echo off
+set PYTHONHOME=
+set PYTHONPATH=
+py %*
+"@
+            $wrapperPath = "py_webservice_clean.bat"
+            $wrapperContent | Out-File -FilePath $wrapperPath -Encoding ascii
+
+            # 격리된 환경에서 가상환경 생성
+            try {
+                & ".\$wrapperPath" -3.9 -m venv "$WebBackDst\.venv"
+                if ($LASTEXITCODE -ne 0) {
+                    throw "가상환경 생성 실패 (Exit Code: $LASTEXITCODE)"
+                }
+                Write-Host "✅ Python 환경 격리로 가상환경 생성 성공"
+            } finally {
+                # 임시 래퍼 정리
+                Remove-Item $wrapperPath -Force -ErrorAction SilentlyContinue
+            }
 
             Write-Host "pip 자동 업그레이드 중... (메모리 에러 방지)"
 
