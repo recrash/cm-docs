@@ -166,18 +166,31 @@ py %*
     }
     
     # 1. 의존성 먼저 설치 (wheelhouse에서)
-    Write-Host "  - 의존성 설치 (from wheelhouse)..."
-    $webPip = "$WebBackDst\.venv\Scripts\pip.exe"
-    if (Test-Path "$WebSrc\pip.constraints.txt") {
-        & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
-    } else {
-        & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
+    Write-Host "  - 의존성 설치 (from wheelhouse, 환경 격리)..."
+
+    # pip wrapper 생성 (환경 격리)
+    $pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"$WebBackDst\.venv\Scripts\pip.exe" %*
+"@
+    $pipWrapper | Out-File -FilePath "pip_web_test.bat" -Encoding ascii
+
+    try {
+        if (Test-Path "$WebSrc\pip.constraints.txt") {
+            & ".\pip_web_test.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt"
+        } else {
+            & ".\pip_web_test.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt"
+        }
+
+        # 2. 의존성 검사 없이 .whl 패키지 설치
+        Write-Host "  - webservice.whl 패키지 설치 (--no-deps)..."
+        $webWheelFile = Get-ChildItem -Path "$WebWheelSource" -Filter "webservice-*.whl" | Select-Object -First 1
+        & ".\pip_web_test.bat" install $webWheelFile.FullName --no-deps
+    } finally {
+        Remove-Item "pip_web_test.bat" -Force -ErrorAction SilentlyContinue
     }
-    
-    # 2. 의존성 검사 없이 .whl 패키지 설치
-    Write-Host "  - webservice.whl 패키지 설치 (--no-deps)..."
-    $webWheelFile = Get-ChildItem -Path "$WebWheelSource" -Filter "webservice-*.whl" | Select-Object -First 1
-    & $webPip install $webWheelFile.FullName --no-deps
     Write-Host "웹서비스 설치 완료"
     
     # AutoDoc 설치
@@ -216,16 +229,28 @@ py %*
         throw "autodoc_service wheel 파일을 찾을 수 없습니다: $BranchAutoWheelPath 또는 $GlobalWheelPath\autodoc_service"
     }
     
-    # 1. AutoDoc 의존성 먼저 설치 (wheelhouse에서)
-    Write-Host "  - AutoDoc 의존성 설치 (from wheelhouse)..."
-    $autoPip = "$AutoDst\.venv312\Scripts\pip.exe"
-    & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
+    # 1. AutoDoc 의존성 먼저 설치 (wheelhouse에서, 환경 격리)
+    Write-Host "  - AutoDoc 의존성 설치 (from wheelhouse, 환경 격리)..."
+
+    # pip wrapper 생성 (환경 격리)
+    $pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"$AutoDst\.venv312\Scripts\pip.exe" %*
+"@
+    $pipWrapper | Out-File -FilePath "pip_auto_test.bat" -Encoding ascii
+
+    try {
+        & ".\pip_auto_test.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
+
+        # 2. AutoDoc wheel 설치
+        & ".\pip_auto_test.bat" install --no-index --find-links="$AutoWheelSource" autodoc_service
+    } finally {
+        Remove-Item "pip_auto_test.bat" -Force -ErrorAction SilentlyContinue
+    }
     
-    # 2. AutoDoc wheel 설치
-    & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$AutoWheelSource" autodoc_service
-    
-    # AutoDoc 추가 의존성 설치
-    & "$AutoDst\.venv312\Scripts\pip.exe" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt"
+    # AutoDoc 추가 의존성 설치는 위에서 이미 완료됨 (중복 제거)
     Write-Host "AutoDoc 설치 완료"
     
     # 4. 프론트엔드 아티팩트 배포 (작업 공간에서) - 조건부 처리

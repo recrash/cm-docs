@@ -164,17 +164,29 @@ py %*
             Remove-Item $wrapperPath -Force -ErrorAction SilentlyContinue
         }
 
-        # 가상환경 생성 직후 pip 업그레이드 (메모리 오류 방지)
-        Write-Host "pip 업그레이드 중... (메모리 오류 방지)"
-        $autoPip = "$AutoDst\.venv312\Scripts\pip.exe"
+        # 가상환경 생성 직후 pip 업그레이드 (메모리 오류 방지, 환경 격리)
+        Write-Host "pip 업그레이드 중... (메모리 오류 방지 + 환경 격리)"
 
-        # 휠하우스에서 pip 업그레이드 시도 (오프라인 환경 대응)
-        if (Test-Path "$GlobalWheelPath\wheelhouse\pip-*.whl") {
-            Write-Host "  - 휠하우스에서 pip 업그레이드"
-            & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip
-        } else {
-            Write-Host "  - 기본 pip 업그레이드"
-            & $autoPip install --upgrade pip
+        # pip wrapper 생성 (환경 격리)
+        $pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"$AutoDst\.venv312\Scripts\python.exe" %*
+"@
+        $pipWrapper | Out-File -FilePath "python_autodoc_clean.bat" -Encoding ascii
+
+        try {
+            # 휠하우스에서 pip 업그레이드 시도 (오프라인 환경 대응)
+            if (Test-Path "$GlobalWheelPath\wheelhouse\pip-*.whl") {
+                Write-Host "  - 휠하우스에서 pip 업그레이드"
+                & ".\python_autodoc_clean.bat" -m pip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip
+            } else {
+                Write-Host "  - 기본 pip 업그레이드"
+                & ".\python_autodoc_clean.bat" -m pip install --upgrade pip
+            }
+        } finally {
+            Remove-Item "python_autodoc_clean.bat" -Force -ErrorAction SilentlyContinue
         }
 
         $needsDependencies = $true
@@ -220,10 +232,21 @@ py %*
         # 임시 디렉토리 생성
         New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
 
+        # pip wrapper 생성 (환경 격리)
+        $pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"$AutoDst\.venv312\Scripts\pip.exe" %*
+"@
+        $pipWrapper | Out-File -FilePath "pip_autodoc_deps.bat" -Encoding ascii
+
         try {
-            # 메모리 효율적인 pip 설치
-            & $autoPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt" --no-cache-dir --disable-pip-version-check
+            # 메모리 효율적인 pip 설치 (환경 격리)
+            & ".\pip_autodoc_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt" --no-cache-dir --disable-pip-version-check
         } finally {
+            # pip wrapper 정리
+            Remove-Item "pip_autodoc_deps.bat" -Force -ErrorAction SilentlyContinue
             # 임시 디렉토리 정리
             if (Test-Path $env:TMPDIR) {
                 Remove-Item -Recurse -Force $env:TMPDIR -ErrorAction SilentlyContinue
