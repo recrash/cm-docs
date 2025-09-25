@@ -155,8 +155,8 @@ try {
             # 배치 래퍼 생성 (PYTHONHOME 격리)
             $wrapperContent = @"
 @echo off
-set PYTHONHOME=
-set PYTHONPATH=
+set "PYTHONHOME="
+set "PYTHONPATH="
 py %*
 "@
             $wrapperPath = "py_webservice_clean.bat"

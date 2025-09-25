@@ -94,8 +94,8 @@ function New-IsolatedPythonVenv {
         # 배치 래퍼 생성 (핵심 해결책)
         @"
 @echo off
-set PYTHONHOME=
-set PYTHONPATH=
+set "PYTHONHOME="
+set "PYTHONPATH="
 "$PyLauncherPath" %*
 "@ | Out-File -FilePath $wrapperName -Encoding ascii
 
@@ -185,8 +185,8 @@ function Test-PythonIsolation {
         $wrapperName = "test_py_wrapper.bat"
         @"
 @echo off
-set PYTHONHOME=
-set PYTHONPATH=
+set "PYTHONHOME="
+set "PYTHONPATH="
 py %*
 "@ | Out-File -FilePath $wrapperName -Encoding ascii
 
@@ -234,8 +234,8 @@ function New-JenkinsPythonWrapper {
 
     @"
 @echo off
-set PYTHONHOME=
-set PYTHONPATH=
+set "PYTHONHOME="
+set "PYTHONPATH="
 py %*
 "@ | Out-File -FilePath $WrapperName -Encoding ascii
 

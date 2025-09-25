@@ -136,8 +136,8 @@ try {
     Write-Host "Python 환경 격리로 웹서비스 가상환경 생성 중..."
     $wrapperContent = @"
 @echo off
-set PYTHONHOME=
-set PYTHONPATH=
+set "PYTHONHOME="
+set "PYTHONPATH="
 py %*
 "@
     $wrapperPath = "py_webtest_clean.bat"
@@ -187,8 +187,8 @@ py %*
     Write-Host "Python 환경 격리로 AutoDoc 가상환경 생성 중..."
     $wrapperContent = @"
 @echo off
-set PYTHONHOME=
-set PYTHONPATH=
+set "PYTHONHOME="
+set "PYTHONPATH="
 py %*
 "@
     $wrapperPath = "py_autotest_clean.bat"
