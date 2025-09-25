@@ -380,12 +380,13 @@ set "PYTHONHOME="
 set "PYTHONPATH="
 "${env.DEPLOY_PATH}\\.venv\\Scripts\\pip.exe" %*
 "@
-                                    \$pipWrapper | Out-File -FilePath "pip_deploy_clean.bat" -Encoding ascii
+                                    \$deployPipWrapper = "\$env:TEMP\\pip_deploy_clean_\$((Get-Random)).bat"
+                                    \$pipWrapper | Out-File -FilePath \$deployPipWrapper -Encoding ascii
 
                                     try {
                                         if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
                                             Write-Host "휠하우스에서 의존성 업데이트 (폐쇄망 환경)"
-                                            & ".\\pip_deploy_clean.bat" install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
+                                            & \$deployPipWrapper install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
                                             if (\$LASTEXITCODE -eq 0) {
                                                 # 성공시 해시 저장
                                                 \$currentReqHash | Out-File \$lastReqHashFile -Force
@@ -395,7 +396,7 @@ set "PYTHONPATH="
                                             }
                                         } else {
                                             Write-Host "휠하우스 없음 - 온라인 설치 시도"
-                                            & ".\\pip_deploy_clean.bat" install --extra-index-url https://download.pytorch.org/whl/cu111 -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
+                                            & \$deployPipWrapper install --extra-index-url https://download.pytorch.org/whl/cu111 -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
                                             if (\$LASTEXITCODE -eq 0) {
                                                 \$currentReqHash | Out-File \$lastReqHashFile -Force
                                                 Write-Host ">>> 의존성 업데이트 완료"
@@ -403,7 +404,7 @@ set "PYTHONPATH="
                                         }
                                     } finally {
                                         # pip wrapper 정리
-                                        Remove-Item "pip_deploy_clean.bat" -Force -ErrorAction SilentlyContinue
+                                        Remove-Item \$deployPipWrapper -Force -ErrorAction SilentlyContinue
                                     }
                                 } else {
                                     Write-Host ">>> 의존성 업데이트 스킵"
@@ -421,23 +422,24 @@ set "PYTHONHOME="
 set "PYTHONPATH="
 "${env.DEPLOY_PATH}\\.venv\\Scripts\\pip.exe" %*
 "@
-                            \$pipWrapper | Out-File -FilePath "pip_wheel_install.bat" -Encoding ascii
+                            \$wheelInstallWrapper = "\$env:TEMP\\pip_wheel_install_\$((Get-Random)).bat"
+                            \$pipWrapper | Out-File -FilePath \$wheelInstallWrapper -Encoding ascii
 
                             try {
-                                & ".\\pip_wheel_install.bat" uninstall webservice -y 2>&1 | Out-Null
+                                & \$wheelInstallWrapper uninstall webservice -y 2>&1 | Out-Null
                                 Write-Host "기존 패키지 제거 완료"
 
                                 # webservice wheel 설치
                                 if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
                                     Write-Host "휠하우스 발견 - 오프라인 빠른 설치"
-                                    & ".\\pip_wheel_install.bat" install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --no-deps
+                                    & \$wheelInstallWrapper install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --no-deps
                                 } else {
                                     Write-Host "일반 설치 모드"
-                                    & ".\\pip_wheel_install.bat" install \$deployWhl.FullName --no-deps
+                                    & \$wheelInstallWrapper install \$deployWhl.FullName --no-deps
                                 }
                             } finally {
                                 # pip wrapper 정리
-                                Remove-Item "pip_wheel_install.bat" -Force -ErrorAction SilentlyContinue
+                                Remove-Item \$wheelInstallWrapper -Force -ErrorAction SilentlyContinue
                             }
                             Write-Host "설치 완료"
                         """
@@ -464,14 +466,15 @@ set "PYTHONHOME="
 set "PYTHONPATH="
 "${env.DEPLOY_PATH}\\.venv\\Scripts\\pip.exe" %*
 "@
-                                \$pipWrapper | Out-File -FilePath "pip_rollback.bat" -Encoding ascii
+                                \$webRollbackWrapper = "\$env:TEMP\\pip_rollback_\$((Get-Random)).bat"
+                                \$pipWrapper | Out-File -FilePath \$webRollbackWrapper -Encoding ascii
 
                                 try {
                                     # 타겟 폴더에서 설치
-                                    & ".\\pip_rollback.bat" uninstall webservice -y 2>&1 | Out-Null
-                                    & ".\\pip_rollback.bat" install "\$(\$backupWhl.FullName)" --no-deps
+                                    & \$webRollbackWrapper uninstall webservice -y 2>&1 | Out-Null
+                                    & \$webRollbackWrapper install "\$(\$backupWhl.FullName)" --no-deps
                                 } finally {
-                                    Remove-Item "pip_rollback.bat" -Force -ErrorAction SilentlyContinue
+                                    Remove-Item \$webRollbackWrapper -Force -ErrorAction SilentlyContinue
                                 }
                             }
                         """
