@@ -328,30 +328,31 @@ pipeline {
                                 # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
                                 Write-Host "기존 autodoc_service 패키지 제거 중..."
 
-                                # pip wrapper 생성 (환경 격리)
+                                # pip wrapper 생성 (환경 격리) - 절대 경로 사용
+                                \$wrapperPath = "\$env:TEMP\\pip_autodoc_clean_\$((Get-Random)).bat"
                                 \$pipWrapper = @"
 @echo off
 set "PYTHONHOME="
 set "PYTHONPATH="
 "${env.DEPLOY_PATH}\\.venv312\\Scripts\\pip.exe" %*
 "@
-                                \$pipWrapper | Out-File -FilePath "pip_autodoc_clean.bat" -Encoding ascii
+                                \$pipWrapper | Out-File -FilePath \$wrapperPath -Encoding ascii
 
                                 try {
-                                    & ".\\pip_autodoc_clean.bat" uninstall autodoc-service -y 2>&1 | Out-Null
+                                    & \$wrapperPath uninstall autodoc-service -y 2>&1 | Out-Null
                                     Write-Host "기존 패키지 제거 완료"
 
                                     # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
                                     if (Test-Path "C:\\deploys\\packages\\wheelhouse\\*.whl") {
                                         Write-Host "휠하우스 발견 - 오프라인 빠른 설치"
-                                        & ".\\pip_autodoc_clean.bat" install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --no-deps
+                                        & \$wrapperPath install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --no-deps
                                     } else {
                                         Write-Host "일반 설치 모드"
-                                        & ".\\pip_autodoc_clean.bat" install \$deployWhl.FullName --no-deps
+                                        & \$wrapperPath install \$deployWhl.FullName --no-deps
                                     }
                                 } finally {
                                     # pip wrapper 정리
-                                    Remove-Item "pip_autodoc_clean.bat" -Force -ErrorAction SilentlyContinue
+                                    Remove-Item \$wrapperPath -Force -ErrorAction SilentlyContinue
                                 }
                                 Write-Host "설치 완료"
                             } else {
@@ -403,21 +404,22 @@ set "PYTHONPATH="
                                 # 백업을 타겟 폴더로 복사
                                 Copy-Item -Path \$backupWhl.FullName -Destination "${env.DEPLOY_PATH}" -Force
 
-                                # pip wrapper 생성 (환경 격리)
+                                # pip wrapper 생성 (환경 격리) - 절대 경로 사용
+                                \$rollbackWrapperPath = "\$env:TEMP\\pip_rollback_\$((Get-Random)).bat"
                                 \$pipWrapper = @"
 @echo off
 set "PYTHONHOME="
 set "PYTHONPATH="
 "${env.DEPLOY_PATH}\\.venv312\\Scripts\\pip.exe" %*
 "@
-                                \$pipWrapper | Out-File -FilePath "pip_rollback.bat" -Encoding ascii
+                                \$pipWrapper | Out-File -FilePath \$rollbackWrapperPath -Encoding ascii
 
                                 try {
                                     # 타겟 폴더에서 설치
-                                    & ".\\pip_rollback.bat" uninstall autodoc-service -y 2>&1 | Out-Null
-                                    & ".\\pip_rollback.bat" install "\$(\$backupWhl.FullName)" --no-deps
+                                    & \$rollbackWrapperPath uninstall autodoc-service -y 2>&1 | Out-Null
+                                    & \$rollbackWrapperPath install "\$(\$backupWhl.FullName)" --no-deps
                                 } finally {
-                                    Remove-Item "pip_rollback.bat" -Force -ErrorAction SilentlyContinue
+                                    Remove-Item \$rollbackWrapperPath -Force -ErrorAction SilentlyContinue
                                 }
                             }
                         """
