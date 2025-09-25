@@ -286,57 +286,76 @@ pipeline {
                         """
                         
                         // 4단계: 배포 환경 가상환경 확인 및 생성
-                        powershell """
-                            Write-Host "배포 환경 가상환경 확인 중..."
-                            if (-not (Test-Path "${env.DEPLOY_PATH}\\.venv")) {
-                                Write-Host ">>> 가상환경이 없습니다. 새로 생성합니다..."
+                        script {
+                            def venvCreated = false
 
-                                # Python 3.9로 가상환경 생성 (환경 격리)
-                                Write-Host "Python 환경 격리로 배포 가상환경 생성 중..."
+                            powershell """
+                                Write-Host "배포 환경 가상환경 확인 중..."
+                                \$global:VenvCreated = \$false
 
-                                # 배치 래퍼 생성 (PYTHONHOME 격리)
-                                \$wrapperContent = @"
+                                if (-not (Test-Path "${env.DEPLOY_PATH}\\.venv")) {
+                                    Write-Host ">>> 가상환경이 없습니다. 새로 생성합니다..."
+                                    \$global:VenvCreated = \$true
+
+                                    # Python 3.9로 가상환경 생성 (환경 격리)
+                                    Write-Host "Python 환경 격리로 배포 가상환경 생성 중..."
+
+                                    # 배치 래퍼 생성 (PYTHONHOME 격리)
+                                    \$wrapperContent = @"
 @echo off
 set "PYTHONHOME="
 set "PYTHONPATH="
 py %*
 "@
-                                \$wrapperPath = "py_deploy_clean.bat"
-                                \$wrapperContent | Out-File -FilePath \$wrapperPath -Encoding ascii
+                                    \$wrapperPath = "\$env:TEMP\\py_deploy_clean_\$((Get-Random)).bat"
+                                    \$wrapperContent | Out-File -FilePath \$wrapperPath -Encoding ascii
 
-                                # 격리된 환경에서 가상환경 생성
-                                try {
-                                    & ".\\\$wrapperPath" -3.9 -m venv "${env.DEPLOY_PATH}\\.venv"
-                                    if (\$LASTEXITCODE -ne 0) {
-                                        throw "가상환경 생성 실패 (Exit Code: \$LASTEXITCODE)"
+                                    # 격리된 환경에서 가상환경 생성
+                                    try {
+                                        & \$wrapperPath -3.9 -m venv "${env.DEPLOY_PATH}\\.venv"
+                                        if (\$LASTEXITCODE -ne 0) {
+                                            throw "가상환경 생성 실패 (Exit Code: \$LASTEXITCODE)"
+                                        }
+                                    } finally {
+                                        # 임시 래퍼 정리
+                                        Remove-Item \$wrapperPath -Force -ErrorAction SilentlyContinue
                                     }
-                                } finally {
-                                    # 임시 래퍼 정리
-                                    Remove-Item \$wrapperPath -Force -ErrorAction SilentlyContinue
-                                }
 
-                                if (Test-Path "${env.DEPLOY_PATH}\\.venv\\Scripts\\python.exe") {
-                                    Write-Host ">>> 가상환경 생성 완료"
+                                    if (Test-Path "${env.DEPLOY_PATH}\\.venv\\Scripts\\python.exe") {
+                                        Write-Host ">>> 가상환경 생성 완료"
 
-                                    # pip 업그레이드 (환경 격리)
-                                    Write-Host ">>> pip 업그레이드 중..."
-                                    \$pipWrapper = @"
+                                        # pip 업그레이드 (환경 격리)
+                                        Write-Host ">>> pip 업그레이드 중..."
+                                        \$pipWrapper = @"
 @echo off
 set "PYTHONHOME="
 set "PYTHONPATH="
 "${env.DEPLOY_PATH}\\.venv\\Scripts\\python.exe" %*
 "@
-                                    \$pipWrapper | Out-File -FilePath "python_deploy_clean.bat" -Encoding ascii
-                                    & ".\\python_deploy_clean.bat" -m pip install --upgrade pip --no-cache-dir
-                                    Remove-Item "python_deploy_clean.bat" -Force -ErrorAction SilentlyContinue
-                                    Write-Host ">>> pip 업그레이드 완료"
+                                        \$pythonWrapper = "\$env:TEMP\\python_deploy_clean_\$((Get-Random)).bat"
+                                        \$pipWrapper | Out-File -FilePath \$pythonWrapper -Encoding ascii
+                                        & \$pythonWrapper -m pip install --upgrade pip --no-cache-dir
+                                        Remove-Item \$pythonWrapper -Force -ErrorAction SilentlyContinue
+                                        Write-Host ">>> pip 업그레이드 완료"
+                                    } else {
+                                        throw "가상환경 생성 실패"
+                                    }
                                 } else {
-                                    throw "가상환경 생성 실패"
+                                    Write-Host ">>> 가상환경이 이미 존재합니다"
                                 }
-                            } else {
-                                Write-Host ">>> 가상환경이 이미 존재합니다"
-                            }
-                        """
+
+                                # 가상환경 생성 여부를 환경변수로 전달
+                                if (\$global:VenvCreated) {
+                                    \$env:VENV_WAS_CREATED = "true"
+                                } else {
+                                    \$env:VENV_WAS_CREATED = "false"
+                                }
+                            """
+
+                            // PowerShell 환경변수를 Jenkins 변수로 가져오기
+                            venvCreated = powershell(returnStdout: true, script: 'Write-Output $env:VENV_WAS_CREATED').trim() == 'true'
+                            env.VENV_WAS_CREATED = venvCreated ? 'true' : 'false'
+                        }
 
                         // 5단계: 서비스 중지 (빠른 교체를 위해 마지막에)
                         bat 'nssm stop webservice'
@@ -347,68 +366,81 @@ set "PYTHONPATH="
                             \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\webservice-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
                             Write-Host "효율적인 재설치 시작: \$(\$deployWhl.Name)"
 
-                            # requirements.txt 변경 확인 (의존성 업데이트 필요 여부)
+                            # 의존성 설치 필요 여부 판단
                             Write-Host "========================================="
-                            Write-Host "의존성 변경 확인 중..."
-                            \$requirementsChanged = \$false
+                            Write-Host "의존성 설치 필요 여부 확인 중..."
+                            \$requirementsInstallNeeded = \$false
                             \$lastReqHashFile = "${env.DEPLOY_PATH}\\.last_requirements_hash"
 
-                            if (Test-Path "${WORKSPACE}\\webservice\\requirements.txt") {
-                                \$currentReqHash = (Get-FileHash "${WORKSPACE}\\webservice\\requirements.txt" -Algorithm SHA256).Hash
+                            # 1순위: 새 가상환경이 생성된 경우 무조건 의존성 설치
+                            if ("${env.VENV_WAS_CREATED}" -eq "true") {
+                                Write-Host ">>> 새 가상환경 생성 - 의존성 설치 필수"
+                                \$requirementsInstallNeeded = \$true
+                            } else {
+                                # 2순위: 기존 가상환경에서 requirements.txt 변경 확인
+                                if (Test-Path "${WORKSPACE}\\webservice\\requirements.txt") {
+                                    \$currentReqHash = (Get-FileHash "${WORKSPACE}\\webservice\\requirements.txt" -Algorithm SHA256).Hash
 
-                                if (Test-Path \$lastReqHashFile) {
-                                    \$lastReqHash = Get-Content \$lastReqHashFile
-                                    if (\$currentReqHash -ne \$lastReqHash) {
-                                        Write-Host ">>> requirements.txt가 변경됨 - 의존성 업데이트 필요"
-                                        \$requirementsChanged = \$true
+                                    if (Test-Path \$lastReqHashFile) {
+                                        \$lastReqHash = Get-Content \$lastReqHashFile
+                                        if (\$currentReqHash -ne \$lastReqHash) {
+                                            Write-Host ">>> requirements.txt 변경됨 - 의존성 업데이트 필요"
+                                            \$requirementsInstallNeeded = \$true
+                                        } else {
+                                            Write-Host ">>> requirements.txt 변경 없음"
+                                        }
                                     } else {
-                                        Write-Host ">>> requirements.txt 변경 없음"
+                                        Write-Host ">>> 첫 배포 - 의존성 설치 필요"
+                                        \$requirementsInstallNeeded = \$true
                                     }
-                                } else {
-                                    Write-Host ">>> 첫 배포 - 의존성 확인 필요"
-                                    \$requirementsChanged = \$true
                                 }
+                            }
 
-                                # 의존성 업데이트가 필요한 경우
-                                if (\$requirementsChanged) {
-                                    Write-Host "의존성 업데이트 진행..."
+                            # 의존성 설치가 필요한 경우
+                            if (\$requirementsInstallNeeded) {
+                                Write-Host "의존성 설치/업데이트 진행..."
 
-                                    # pip wrapper 생성 (환경 격리)
-                                    \$pipWrapper = @"
+                                # pip wrapper 생성 (환경 격리)
+                                \$pipWrapper = @"
 @echo off
 set "PYTHONHOME="
 set "PYTHONPATH="
 "${env.DEPLOY_PATH}\\.venv\\Scripts\\pip.exe" %*
 "@
-                                    \$deployPipWrapper = "\$env:TEMP\\pip_deploy_clean_\$((Get-Random)).bat"
-                                    \$pipWrapper | Out-File -FilePath \$deployPipWrapper -Encoding ascii
+                                \$deployPipWrapper = "\$env:TEMP\\pip_deploy_clean_\$((Get-Random)).bat"
+                                \$pipWrapper | Out-File -FilePath \$deployPipWrapper -Encoding ascii
 
-                                    try {
-                                        if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
-                                            Write-Host "휠하우스에서 의존성 업데이트 (폐쇄망 환경)"
-                                            & \$deployPipWrapper install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
-                                            if (\$LASTEXITCODE -eq 0) {
-                                                # 성공시 해시 저장
+                                try {
+                                    if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
+                                        Write-Host "휠하우스에서 의존성 설치 (폐쇄망 환경)"
+                                        & \$deployPipWrapper install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
+                                        if (\$LASTEXITCODE -eq 0) {
+                                            # 성공시 해시 저장
+                                            if (Test-Path "${WORKSPACE}\\webservice\\requirements.txt") {
+                                                \$currentReqHash = (Get-FileHash "${WORKSPACE}\\webservice\\requirements.txt" -Algorithm SHA256).Hash
                                                 \$currentReqHash | Out-File \$lastReqHashFile -Force
-                                                Write-Host ">>> 의존성 업데이트 완료"
-                                            } else {
-                                                Write-Host ">>> 의존성 업데이트 실패 - 계속 진행"
                                             }
+                                            Write-Host ">>> 의존성 설치 완료"
                                         } else {
-                                            Write-Host "휠하우스 없음 - 온라인 설치 시도"
-                                            & \$deployPipWrapper install --extra-index-url https://download.pytorch.org/whl/cu111 -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
-                                            if (\$LASTEXITCODE -eq 0) {
-                                                \$currentReqHash | Out-File \$lastReqHashFile -Force
-                                                Write-Host ">>> 의존성 업데이트 완료"
-                                            }
+                                            Write-Host ">>> 의존성 설치 실패 - 계속 진행"
                                         }
-                                    } finally {
-                                        # pip wrapper 정리
-                                        Remove-Item \$deployPipWrapper -Force -ErrorAction SilentlyContinue
+                                    } else {
+                                        Write-Host "휠하우스 없음 - 온라인 설치 시도"
+                                        & \$deployPipWrapper install --extra-index-url https://download.pytorch.org/whl/cu111 -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
+                                        if (\$LASTEXITCODE -eq 0) {
+                                            if (Test-Path "${WORKSPACE}\\webservice\\requirements.txt") {
+                                                \$currentReqHash = (Get-FileHash "${WORKSPACE}\\webservice\\requirements.txt" -Algorithm SHA256).Hash
+                                                \$currentReqHash | Out-File \$lastReqHashFile -Force
+                                            }
+                                            Write-Host ">>> 의존성 설치 완료"
+                                        }
                                     }
-                                } else {
-                                    Write-Host ">>> 의존성 업데이트 스킵"
+                                } finally {
+                                    # pip wrapper 정리
+                                    Remove-Item \$deployPipWrapper -Force -ErrorAction SilentlyContinue
                                 }
+                            } else {
+                                Write-Host ">>> 의존성 설치 스킵 (기존 가상환경 & requirements.txt 변경 없음)"
                             }
                             Write-Host "========================================="
 
@@ -444,8 +476,56 @@ set "PYTHONPATH="
                             Write-Host "설치 완료"
                         """
                         
-                        // 7단계: 서비스 즉시 시작 (최소 다운타임)
-                        bat 'nssm start webservice'
+                        // 7단계: 서비스 견고한 시작 (SERVICE_PAUSED 상태 처리)
+                        powershell """
+                            try {
+                                Write-Host "Webservice 시작 중..."
+                                \$status = nssm status webservice
+                                Write-Host "현재 서비스 상태: \$status"
+
+                                if (\$status -eq "SERVICE_PAUSED") {
+                                    Write-Host "일시중지 상태 감지 - CONTINUE 후 정상 시작"
+                                    nssm continue webservice
+                                    Start-Sleep -Seconds 3
+
+                                    # 상태 재확인 후 시작
+                                    \$newStatus = nssm status webservice
+                                    Write-Host "CONTINUE 후 상태: \$newStatus"
+
+                                    if (\$newStatus -ne "SERVICE_RUNNING") {
+                                        Write-Host "STOP 후 재시작"
+                                        nssm stop webservice
+                                        Start-Sleep -Seconds 2
+                                        nssm start webservice
+                                    }
+                                } else {
+                                    Write-Host "일반 시작 명령"
+                                    nssm start webservice
+                                }
+
+                                Start-Sleep -Seconds 5
+
+                                # 최종 상태 확인
+                                \$finalStatus = nssm status webservice
+                                Write-Host "최종 서비스 상태: \$finalStatus"
+
+                                if (\$finalStatus -eq "SERVICE_RUNNING") {
+                                    Write-Host "✅ Webservice 시작 성공"
+                                } else {
+                                    Write-Host "⚠️ 서비스 상태가 정상 실행이 아닙니다: \$finalStatus"
+                                }
+
+                            } catch {
+                                Write-Host "서비스 시작 중 오류: \$(\$_.Exception.Message)"
+                                # 강제 시작 시도
+                                try {
+                                    sc start "webservice" 2>\$null
+                                    Write-Host "SC 명령어로 시작 시도"
+                                } catch {
+                                    Write-Host "SC 명령어도 실패"
+                                }
+                            }
+                        """
                         echo "Webservice 시작 완료 - 최소 다운타임으로 배포 완료"
                         
                     } catch (Exception e) {
@@ -478,7 +558,35 @@ set "PYTHONPATH="
                                 }
                             }
                         """
-                        bat 'nssm start webservice'
+                        powershell """
+                            try {
+                                Write-Host "롤백 후 Webservice 시작 중..."
+                                \$status = nssm status webservice
+
+                                if (\$status -eq "SERVICE_PAUSED") {
+                                    Write-Host "일시중지 상태 감지 - CONTINUE 후 시작"
+                                    nssm continue webservice
+                                    Start-Sleep -Seconds 2
+
+                                    \$newStatus = nssm status webservice
+                                    if (\$newStatus -ne "SERVICE_RUNNING") {
+                                        nssm stop webservice
+                                        Start-Sleep -Seconds 2
+                                        nssm start webservice
+                                    }
+                                } else {
+                                    nssm start webservice
+                                }
+
+                                Start-Sleep -Seconds 3
+                                \$finalStatus = nssm status webservice
+                                Write-Host "롤백 후 서비스 상태: \$finalStatus"
+
+                            } catch {
+                                Write-Host "롤백 후 서비스 시작 오류: \$(\$_.Exception.Message)"
+                                sc start "webservice" 2>\$null
+                            }
+                        """
                         throw e
                     }
                 }
