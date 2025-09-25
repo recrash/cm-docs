@@ -81,14 +81,17 @@ pipeline {
                         set PIP_DISABLE_PIP_VERSION_CHECK=1
                         set PIP_NO_BUILD_ISOLATION=1
 
+                        (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\python.exe" %%*) > python_clean.bat
+
                         if exist "C:\\deploys\\packages\\wheelhouse\\pip-*.whl" (
                             echo 휠하우스에서 pip 업그레이드 중...
-                            .venv\\Scripts\\python.exe -m pip install --no-index --find-links="C:\\deploys\\packages\\wheelhouse" --upgrade pip --no-cache-dir --disable-pip-version-check
+                            python_clean.bat -m pip install --no-index --find-links="C:\\deploys\\packages\\wheelhouse" --upgrade pip --no-cache-dir --disable-pip-version-check
                         ) else (
                             echo 기본 pip 업그레이드 중...
-                            .venv\\Scripts\\python.exe -m pip install --upgrade pip --no-cache-dir --disable-pip-version-check
+                            python_clean.bat -m pip install --upgrade pip --no-cache-dir --disable-pip-version-check
                         )
 
+                        del python_clean.bat
                         echo ✅ pip 업그레이드 완료
                         '''
 
@@ -105,7 +108,9 @@ pipeline {
                                 set PIP_NO_CACHE_DIR=1
                                 set PIP_DISABLE_PIP_VERSION_CHECK=1
                                 set PIP_NO_BUILD_ISOLATION=1
-                                .venv\\Scripts\\pip.exe install --no-index --find-links="C:\\deploys\\packages\\wheelhouse" -r requirements.txt -c pip.constraints.txt --no-cache-dir --disable-pip-version-check
+                                (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\pip.exe" %%*) > pip_clean.bat
+                                pip_clean.bat install --no-index --find-links="C:\\deploys\\packages\\wheelhouse" -r requirements.txt -c pip.constraints.txt --no-cache-dir --disable-pip-version-check
+                                del pip_clean.bat
                                 '''
                             } else {
                                 echo "휠하우스 없음 - 온라인 설치 (PyTorch CUDA 포함)"
@@ -113,7 +118,9 @@ pipeline {
                                 set PIP_NO_CACHE_DIR=1
                                 set PIP_DISABLE_PIP_VERSION_CHECK=1
                                 set PIP_NO_BUILD_ISOLATION=1
-                                .venv\\Scripts\\pip.exe install --extra-index-url https://download.pytorch.org/whl/cu111 -r requirements.txt -c pip.constraints.txt --prefer-binary --no-cache-dir --disable-pip-version-check
+                                (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\pip.exe" %%*) > pip_clean.bat
+                                pip_clean.bat install --extra-index-url https://download.pytorch.org/whl/cu111 -r requirements.txt -c pip.constraints.txt --prefer-binary --no-cache-dir --disable-pip-version-check
+                                del pip_clean.bat
                                 '''
                             }
                         }
@@ -311,9 +318,17 @@ py %*
                                 if (Test-Path "${env.DEPLOY_PATH}\\.venv\\Scripts\\python.exe") {
                                     Write-Host ">>> 가상환경 생성 완료"
 
-                                    # pip 업그레이드
+                                    # pip 업그레이드 (환경 격리)
                                     Write-Host ">>> pip 업그레이드 중..."
-                                    & "${env.DEPLOY_PATH}\\.venv\\Scripts\\python.exe" -m pip install --upgrade pip --no-cache-dir
+                                    \$pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"${env.DEPLOY_PATH}\\.venv\\Scripts\\python.exe" %*
+"@
+                                    \$pipWrapper | Out-File -FilePath "python_deploy_clean.bat" -Encoding ascii
+                                    & ".\\python_deploy_clean.bat" -m pip install --upgrade pip --no-cache-dir
+                                    Remove-Item "python_deploy_clean.bat" -Force -ErrorAction SilentlyContinue
                                     Write-Host ">>> pip 업그레이드 완료"
                                 } else {
                                     throw "가상환경 생성 실패"
@@ -357,23 +372,38 @@ py %*
                                 # 의존성 업데이트가 필요한 경우
                                 if (\$requirementsChanged) {
                                     Write-Host "의존성 업데이트 진행..."
-                                    if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
-                                        Write-Host "휠하우스에서 의존성 업데이트 (폐쇄망 환경)"
-                                        & "${env.DEPLOY_PIP_CMD}" install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
-                                        if (\$LASTEXITCODE -eq 0) {
-                                            # 성공시 해시 저장
-                                            \$currentReqHash | Out-File \$lastReqHashFile -Force
-                                            Write-Host ">>> 의존성 업데이트 완료"
+
+                                    # pip wrapper 생성 (환경 격리)
+                                    \$pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"${env.DEPLOY_PATH}\\.venv\\Scripts\\pip.exe" %*
+"@
+                                    \$pipWrapper | Out-File -FilePath "pip_deploy_clean.bat" -Encoding ascii
+
+                                    try {
+                                        if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
+                                            Write-Host "휠하우스에서 의존성 업데이트 (폐쇄망 환경)"
+                                            & ".\\pip_deploy_clean.bat" install --no-index --find-links="${env.WHEELHOUSE_PATH}" -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
+                                            if (\$LASTEXITCODE -eq 0) {
+                                                # 성공시 해시 저장
+                                                \$currentReqHash | Out-File \$lastReqHashFile -Force
+                                                Write-Host ">>> 의존성 업데이트 완료"
+                                            } else {
+                                                Write-Host ">>> 의존성 업데이트 실패 - 계속 진행"
+                                            }
                                         } else {
-                                            Write-Host ">>> 의존성 업데이트 실패 - 계속 진행"
+                                            Write-Host "휠하우스 없음 - 온라인 설치 시도"
+                                            & ".\\pip_deploy_clean.bat" install --extra-index-url https://download.pytorch.org/whl/cu111 -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
+                                            if (\$LASTEXITCODE -eq 0) {
+                                                \$currentReqHash | Out-File \$lastReqHashFile -Force
+                                                Write-Host ">>> 의존성 업데이트 완료"
+                                            }
                                         }
-                                    } else {
-                                        Write-Host "휠하우스 없음 - 온라인 설치 시도"
-                                        & "${env.DEPLOY_PIP_CMD}" install --extra-index-url https://download.pytorch.org/whl/cu111 -r "${WORKSPACE}\\webservice\\requirements.txt" -c "${WORKSPACE}\\webservice\\pip.constraints.txt" --upgrade
-                                        if (\$LASTEXITCODE -eq 0) {
-                                            \$currentReqHash | Out-File \$lastReqHashFile -Force
-                                            Write-Host ">>> 의존성 업데이트 완료"
-                                        }
+                                    } finally {
+                                        # pip wrapper 정리
+                                        Remove-Item "pip_deploy_clean.bat" -Force -ErrorAction SilentlyContinue
                                     }
                                 } else {
                                     Write-Host ">>> 의존성 업데이트 스킵"
@@ -383,16 +413,31 @@ py %*
 
                             # 기존 webservice 패키지만 언인스톨 (의존성은 유지)
                             Write-Host "기존 webservice 패키지 제거 중..."
-                            & "${env.DEPLOY_PIP_CMD}" uninstall webservice -y 2>&1 | Out-Null
-                            Write-Host "기존 패키지 제거 완료"
 
-                            # webservice wheel 설치
-                            if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
-                                Write-Host "휠하우스 발견 - 오프라인 빠른 설치"
-                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --no-deps
-                            } else {
-                                Write-Host "일반 설치 모드"
-                                & "${env.DEPLOY_PIP_CMD}" install \$deployWhl.FullName --no-deps
+                            # pip wrapper 생성 (환경 격리)
+                            \$pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"${env.DEPLOY_PATH}\\.venv\\Scripts\\pip.exe" %*
+"@
+                            \$pipWrapper | Out-File -FilePath "pip_wheel_install.bat" -Encoding ascii
+
+                            try {
+                                & ".\\pip_wheel_install.bat" uninstall webservice -y 2>&1 | Out-Null
+                                Write-Host "기존 패키지 제거 완료"
+
+                                # webservice wheel 설치
+                                if (Test-Path "${env.WHEELHOUSE_PATH}\\*.whl") {
+                                    Write-Host "휠하우스 발견 - 오프라인 빠른 설치"
+                                    & ".\\pip_wheel_install.bat" install \$deployWhl.FullName --no-index --find-links=${env.WHEELHOUSE_PATH} --no-deps
+                                } else {
+                                    Write-Host "일반 설치 모드"
+                                    & ".\\pip_wheel_install.bat" install \$deployWhl.FullName --no-deps
+                                }
+                            } finally {
+                                # pip wrapper 정리
+                                Remove-Item "pip_wheel_install.bat" -Force -ErrorAction SilentlyContinue
                             }
                             Write-Host "설치 완료"
                         """
@@ -411,9 +456,23 @@ py %*
                                 Write-Host "백업에서 롤백 실행: \$(\$backupWhl.FullName)"
                                 # 백업을 타겟 폴더로 복사
                                 Copy-Item -Path \$backupWhl.FullName -Destination "${env.DEPLOY_PATH}" -Force
-                                # 타겟 폴더에서 설치
-                                & "${env.DEPLOY_PIP_CMD}" uninstall webservice -y 2>&1 | Out-Null
-                                & "${env.DEPLOY_PIP_CMD}" install "\$(\$backupWhl.FullName)" --no-deps
+
+                                # pip wrapper 생성 (환경 격리)
+                                \$pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"${env.DEPLOY_PATH}\\.venv\\Scripts\\pip.exe" %*
+"@
+                                \$pipWrapper | Out-File -FilePath "pip_rollback.bat" -Encoding ascii
+
+                                try {
+                                    # 타겟 폴더에서 설치
+                                    & ".\\pip_rollback.bat" uninstall webservice -y 2>&1 | Out-Null
+                                    & ".\\pip_rollback.bat" install "\$(\$backupWhl.FullName)" --no-deps
+                                } finally {
+                                    Remove-Item "pip_rollback.bat" -Force -ErrorAction SilentlyContinue
+                                }
                             }
                         """
                         bat 'nssm start webservice'
