@@ -319,82 +319,61 @@ pipeline {
                             }
                         """
                         
-                        // 2단계: 배포 환경 가상환경 확인 및 생성
-                        script {
-                            def venvCreated = false
+                        // 2단계: 배포 환경 가상환경 확인, 생성 및 의존성 설치
+                        powershell """
+                            Write-Host "배포 환경 가상환경 확인 중..."
+                            \$venvCreated = \$false
 
-                            powershell """
-                                Write-Host "배포 환경 가상환경 확인 중..."
-                                \$global:VenvCreated = \$false
+                            if (-not (Test-Path "${env.DEPLOY_PATH}\\.venv312")) {
+                                Write-Host ">>> 배포용 가상환경이 없습니다. 새로 생성합니다..."
+                                \$venvCreated = \$true
 
-                                if (-not (Test-Path "${env.DEPLOY_PATH}\\.venv312")) {
-                                    Write-Host ">>> 배포용 가상환경이 없습니다. 새로 생성합니다..."
-                                    \$global:VenvCreated = \$true
+                                # Python 3.12로 가상환경 생성 (환경 격리)
+                                Write-Host "Python 환경 격리로 배포 가상환경 생성 중..."
 
-                                    # Python 3.12로 가상환경 생성 (환경 격리)
-                                    Write-Host "Python 환경 격리로 배포 가상환경 생성 중..."
-
-                                    # 배치 래퍼 생성 (PYTHONHOME 격리)
-                                    \$wrapperContent = @"
+                                # 배치 래퍼 생성 (PYTHONHOME 격리)
+                                \$wrapperContent = @"
 @echo off
 set "PYTHONHOME="
 set "PYTHONPATH="
 py %*
 "@
-                                    \$wrapperPath = "\$env:TEMP\\py_deploy_autodoc_clean_\$((Get-Random)).bat"
-                                    \$wrapperContent | Out-File -FilePath \$wrapperPath -Encoding ascii
+                                \$wrapperPath = "\$env:TEMP\\py_deploy_autodoc_clean_\$((Get-Random)).bat"
+                                \$wrapperContent | Out-File -FilePath \$wrapperPath -Encoding ascii
 
-                                    # 격리된 환경에서 가상환경 생성
-                                    try {
-                                        & \$wrapperPath -3.12 -m venv "${env.DEPLOY_PATH}\\.venv312"
-                                        if (\$LASTEXITCODE -ne 0) {
-                                            throw "가상환경 생성 실패 (Exit Code: \$LASTEXITCODE)"
-                                        }
-                                    } finally {
-                                        # 임시 래퍼 정리
-                                        Remove-Item \$wrapperPath -Force -ErrorAction SilentlyContinue
+                                # 격리된 환경에서 가상환경 생성
+                                try {
+                                    & \$wrapperPath -3.12 -m venv "${env.DEPLOY_PATH}\\.venv312"
+                                    if (\$LASTEXITCODE -ne 0) {
+                                        throw "가상환경 생성 실패 (Exit Code: \$LASTEXITCODE)"
                                     }
+                                } finally {
+                                    # 임시 래퍼 정리
+                                    Remove-Item \$wrapperPath -Force -ErrorAction SilentlyContinue
+                                }
 
-                                    if (Test-Path "${env.DEPLOY_PATH}\\.venv312\\Scripts\\python.exe") {
-                                        Write-Host ">>> 배포 가상환경 생성 완료"
+                                if (Test-Path "${env.DEPLOY_PATH}\\.venv312\\Scripts\\python.exe") {
+                                    Write-Host ">>> 배포 가상환경 생성 완료"
 
-                                        # pip 업그레이드 (환경 격리)
-                                        Write-Host ">>> pip 업그레이드 중..."
-                                        \$pipWrapper = @"
+                                    # pip 업그레이드 (환경 격리)
+                                    Write-Host ">>> pip 업그레이드 중..."
+                                    \$pipWrapper = @"
 @echo off
 set "PYTHONHOME="
 set "PYTHONPATH="
 "${env.DEPLOY_PATH}\\.venv312\\Scripts\\python.exe" %*
 "@
-                                        \$pythonWrapper = "\$env:TEMP\\python_deploy_autodoc_clean_\$((Get-Random)).bat"
-                                        \$pipWrapper | Out-File -FilePath \$pythonWrapper -Encoding ascii
-                                        & \$pythonWrapper -m pip install --upgrade pip --no-cache-dir
-                                        Remove-Item \$pythonWrapper -Force -ErrorAction SilentlyContinue
-                                        Write-Host ">>> pip 업그레이드 완료"
-                                    } else {
-                                        throw "가상환경 생성 실패"
-                                    }
+                                    \$pythonWrapper = "\$env:TEMP\\python_deploy_autodoc_clean_\$((Get-Random)).bat"
+                                    \$pipWrapper | Out-File -FilePath \$pythonWrapper -Encoding ascii
+                                    & \$pythonWrapper -m pip install --upgrade pip --no-cache-dir
+                                    Remove-Item \$pythonWrapper -Force -ErrorAction SilentlyContinue
+                                    Write-Host ">>> pip 업그레이드 완료"
                                 } else {
-                                    Write-Host ">>> 배포 가상환경이 이미 존재합니다"
+                                    throw "가상환경 생성 실패"
                                 }
-
-                                # 가상환경 생성 여부를 환경변수로 전달
-                                if (\$global:VenvCreated) {
-                                    \$env:AUTODOC_VENV_WAS_CREATED = "true"
-                                } else {
-                                    \$env:AUTODOC_VENV_WAS_CREATED = "false"
-                                }
-                            """
-
-                            // PowerShell 환경변수를 Jenkins 변수로 가져오기
-                            venvCreated = powershell(returnStdout: true, script: 'Write-Output $env:AUTODOC_VENV_WAS_CREATED').trim() == 'true'
-                            env.AUTODOC_VENV_WAS_CREATED = venvCreated ? 'true' : 'false'
-                        }
-
-                        // 3단계: 의존성 설치 및 wheel 설치
-                        powershell """
-                            \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\autodoc_service-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                            Write-Host "효율적인 재설치 시작: \$(\$deployWhl.Name)"
+                            } else {
+                                Write-Host ">>> 배포 가상환경이 이미 존재합니다"
+                            }
 
                             # 의존성 설치 필요 여부 판단
                             Write-Host "========================================="
@@ -403,8 +382,8 @@ set "PYTHONPATH="
                             \$lastReqHashFile = "${env.DEPLOY_PATH}\\.last_requirements_hash"
 
                             # 1순위: 새 가상환경이 생성된 경우 무조건 의존성 설치
-                            if ("${env.AUTODOC_VENV_WAS_CREATED}" -eq "true") {
-                                Write-Host ">>> 새 가상환경 생성 - 의존성 설치 필수"
+                            if (\$venvCreated) {
+                                Write-Host ">>> 새 가상환경 생성됨 - 의존성 설치 필수"
                                 \$requirementsInstallNeeded = \$true
                             } else {
                                 # 2순위: 기존 가상환경에서 requirements.txt 변경 확인
@@ -474,6 +453,13 @@ set "PYTHONPATH="
                             }
                             Write-Host "========================================="
 
+                        """
+
+                        // 3단계: Wheel 패키지 설치
+                        powershell """
+                            \$deployWhl = Get-ChildItem -Path "${env.DEPLOY_PATH}\\autodoc_service-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                            Write-Host "AutoDoc Service wheel 설치 시작: \$(\$deployWhl.Name)"
+
                             # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
                             Write-Host "기존 autodoc_service 패키지 제거 중..."
 
@@ -503,30 +489,39 @@ set "PYTHONPATH="
                                 # pip wrapper 정리
                                 Remove-Item \$wrapperPath -Force -ErrorAction SilentlyContinue
                             }
-                            Write-Host "설치 완료"
+                            Write-Host "AutoDoc Service wheel 설치 완료"
                         """
                         
-                        // 서비스 시작 (상태 확인 포함)
+                        // 4단계: 서비스 시작 (단순화)
                         powershell """
+                            Write-Host "AutoDoc Service 시작 중..."
+
                             try {
-                                Write-Host "AutoDoc Service 시작 중..."
+                                # 깨끗한 시작을 위해 확실히 중지
+                                nssm stop autodoc_service 2>\$null
+                                Start-Sleep -Seconds 2
+
+                                # 서비스 시작
                                 nssm start autodoc_service
-                                Start-Sleep -Seconds 3
-                                
-                                # 시작 상태 확인
+                                Start-Sleep -Seconds 5
+
+                                # 상태 확인
                                 \$status = nssm status autodoc_service
-                                Write-Host "서비스 시작 후 상태: \$status"
-                                
-                                if (\$status -ne "SERVICE_RUNNING") {
-                                    Write-Host "경고: 서비스가 정상 실행 상태가 아닙니다"
+                                Write-Host "서비스 상태: \$status"
+
+                                if (\$status -eq "SERVICE_RUNNING") {
+                                    Write-Host "✅ AutoDoc Service 시작 성공"
+                                } else {
+                                    Write-Host "⚠️ 서비스 시작 실패 - 상태: \$status"
+                                    throw "서비스가 정상적으로 시작되지 않았습니다"
                                 }
-                                
+
                             } catch {
-                                Write-Host "서비스 시작 중 오류: \$(\$_.Exception.Message)"
+                                Write-Host "❌ 서비스 시작 중 오류: \$(\$_.Exception.Message)"
                                 throw
                             }
                         """
-                        echo "AutoDoc Service 시작 완료"
+                        echo "AutoDoc Service 시작 완료 - 배포 성공"
                         
                     } catch (Exception e) {
                         echo "배포 실패: ${e.getMessage()}"
