@@ -59,8 +59,13 @@ pipeline {
                             )
                         '''
                         
-                        // Python 3.13 가상환경 생성
-                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.13 -m venv .venv'
+                        // Python 3.13 가상환경 생성 (환경 격리)
+                        echo "Python 환경 격리로 가상환경 생성 중..."
+                        bat '''
+                        (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo py %%*) > py_clean.bat
+                        py_clean.bat -3.13 -m venv .venv
+                        del py_clean.bat
+                        '''
                         
                         // 휠하우스 활용 고속 설치
                         script {

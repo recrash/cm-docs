@@ -139,7 +139,30 @@ try {
         $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
         $env:TMPDIR = "$env:TEMP\pip-tmp-$([System.Guid]::NewGuid())"  # 전용 임시 디렉토리
 
-        & $PythonPath -m venv "$AutoDst\.venv312"
+        # Python 3.12 가상환경 생성 (환경 격리)
+        Write-Host "Python 환경 격리로 가상환경 생성 중..."
+
+        # 배치 래퍼 생성 (PYTHONHOME 격리)
+        $wrapperContent = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+py %*
+"@
+        $wrapperPath = "py_autodoc_clean.bat"
+        $wrapperContent | Out-File -FilePath $wrapperPath -Encoding ascii
+
+        # 격리된 환경에서 가상환경 생성
+        try {
+            & ".\$wrapperPath" -3.12 -m venv "$AutoDst\.venv312"
+            if ($LASTEXITCODE -ne 0) {
+                throw "가상환경 생성 실패 (Exit Code: $LASTEXITCODE)"
+            }
+            Write-Host "✅ Python 환경 격리로 가상환경 생성 성공"
+        } finally {
+            # 임시 래퍼 정리
+            Remove-Item $wrapperPath -Force -ErrorAction SilentlyContinue
+        }
 
         # 가상환경 생성 직후 pip 업그레이드 (메모리 오류 방지)
         Write-Host "pip 업그레이드 중... (메모리 오류 방지)"

@@ -64,8 +64,13 @@ pipeline {
                             )
                         '''
                         
-                        // Python 3.12 가상환경 생성
-                        bat '"%LOCALAPPDATA%\\Programs\\Python\\Launcher\\py.exe" -3.12 -m venv .venv312'
+                        // Python 3.12 가상환경 생성 (환경 격리)
+                        echo "Python 환경 격리로 가상환경 생성 중..."
+                        bat '''
+                        (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo py %%*) > py_clean.bat
+                        py_clean.bat -3.12 -m venv .venv312
+                        del py_clean.bat
+                        '''
                         
                         // 가상환경 생성 검증
                         def venvExists = bat(

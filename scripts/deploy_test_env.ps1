@@ -131,7 +131,27 @@ try {
     
     # 웹서비스 설치
     Write-Host "웹서비스 설치 중..."
-    $env:PYTHONIOENCODING='utf-8'; & $PythonPath -m venv "$WebBackDst\.venv"
+
+    # Python 3.9 가상환경 생성 (환경 격리)
+    Write-Host "Python 환경 격리로 웹서비스 가상환경 생성 중..."
+    $wrapperContent = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+py %*
+"@
+    $wrapperPath = "py_webtest_clean.bat"
+    $wrapperContent | Out-File -FilePath $wrapperPath -Encoding ascii
+
+    try {
+        & ".\$wrapperPath" -3.9 -m venv "$WebBackDst\.venv"
+        if ($LASTEXITCODE -ne 0) {
+            throw "웹서비스 가상환경 생성 실패 (Exit Code: $LASTEXITCODE)"
+        }
+        Write-Host "✅ 웹서비스 가상환경 생성 성공"
+    } finally {
+        Remove-Item $wrapperPath -Force -ErrorAction SilentlyContinue
+    }
     
     # Wheel 경로 결정 (브랜치 → 글로벌 폴백)
     $WebWheelSource = ""
@@ -162,7 +182,27 @@ try {
     
     # AutoDoc 설치
     Write-Host "AutoDoc 설치 중..."
-    $env:PYTHONIOENCODING='utf-8'; & $PythonPath -m venv "$AutoDst\.venv312"
+
+    # Python 3.12 가상환경 생성 (환경 격리)
+    Write-Host "Python 환경 격리로 AutoDoc 가상환경 생성 중..."
+    $wrapperContent = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+py %*
+"@
+    $wrapperPath = "py_autotest_clean.bat"
+    $wrapperContent | Out-File -FilePath $wrapperPath -Encoding ascii
+
+    try {
+        & ".\$wrapperPath" -3.12 -m venv "$AutoDst\.venv312"
+        if ($LASTEXITCODE -ne 0) {
+            throw "AutoDoc 가상환경 생성 실패 (Exit Code: $LASTEXITCODE)"
+        }
+        Write-Host "✅ AutoDoc 가상환경 생성 성공"
+    } finally {
+        Remove-Item $wrapperPath -Force -ErrorAction SilentlyContinue
+    }
     
     # AutoDoc Wheel 경로 결정
     $AutoWheelSource = ""
