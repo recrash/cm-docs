@@ -212,58 +212,72 @@ pipeline {
         stage('Build') {
             steps {
                 dir("${WORKSPACE}/webservice") {
-                    // 폐쇄망 환경: 빌드 의존성 사전 설치 및 오프라인 빌드 설정
                     script {
-                        def wheelHouseExists = fileExists('C:\\deploys\\packages\\wheelhouse')
+                        // ==========================================================
+                        // 1. 빌드 도구 사전 설치 (Claude의 개선안 + Gemini의 안정성)
+                        // ==========================================================
+                        echo '휠하우스에서 빌드 도구 사전 설치 중...'
+                        def installResult = bat(
+                            script: '''
+                                chcp 65001 >NUL
 
-                        if (wheelHouseExists) {
-                            echo '휠하우스에서 빌드 도구 사전 설치 중...'
-                            bat '''
+                                REM --- 환경 격리를 위한 배치 래퍼 생성 ---
                                 (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\pip.exe" %%*) > pip_build_clean.bat
 
-                                REM 빌드 도구들을 wheelhouse에서 설치
-                                pip_build_clean.bat install --no-index --find-links=C:\\deploys\\packages\\wheelhouse setuptools>=61.0 build wheel --quiet --disable-pip-version-check
+                                REM --- wheelhouse에서 빌드 도구 설치 ---
+                                pip_build_clean.bat install --no-index --find-links=C:/deploys/packages/wheelhouse "setuptools>=61.0" build wheel --quiet --disable-pip-version-check
 
+                                REM --- 임시 래퍼 삭제 ---
                                 del pip_build_clean.bat
-                            '''
-                        } else {
-                            echo '휠하우스 없음 - 온라인 빌드 도구 설치'
-                            bat '''
-                                (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\pip.exe" %%*) > pip_build_clean.bat
-                                pip_build_clean.bat install setuptools>=61.0 build wheel --quiet
-                                del pip_build_clean.bat
-                            '''
+                            ''',
+                            returnStatus: true
+                        )
+
+                        if (installResult != 0) {
+                            error("빌드 도구 설치 실패: wheelhouse에서 setuptools, build, wheel 패키지를 찾을 수 없습니다.")
                         }
+                        echo '빌드 도구 설치 완료.'
+
+                        // ==========================================================
+                        // 2. Wheel 파일 빌드 (격리 비활성화)
+                        // ==========================================================
+                        echo 'Wheel 파일 빌드 시작...'
+                        def buildResult = bat(
+                            script: '''
+                                chcp 65001 >NUL
+
+                                REM --- 환경 격리를 위한 배치 래퍼 생성 ---
+                                (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\python.exe" %%*) > python_build_clean.bat
+
+                                REM --- 격리 없이 빌드 실행 ---
+                                python_build_clean.bat -m build --no-isolation
+
+                                REM --- 임시 래퍼 삭제 ---
+                                del python_build_clean.bat
+                            ''',
+                            returnStatus: true
+                        )
+
+                        if (buildResult != 0) {
+                            error("Wheel 빌드 실패. 로그를 확인하세요.")
+                        }
+                        echo 'Wheel 파일 빌드 성공.'
                     }
 
-                    // Jenkins Workspace에서 wheel 빌드 (폐쇄망 환경 - Python 환경 완전 격리)
-                    bat '''
-                        echo 폐쇄망 환경 빌드 시작 (Python 환경 완전 격리)
-
-                        REM Python 환경 격리 배치 래퍼 생성
-                        (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\python.exe" %%*) > python_build_clean.bat
-
-                        REM 안전한 빌드 실행 (격리 유지)
-                        python_build_clean.bat -m build
-
-                        REM 임시 파일 정리
-                        del python_build_clean.bat
-
-                        echo 빌드 성공 - wheel 파일 생성 완료
-                    '''
-                    
-                    // 빌드 결과 검증
+                    // ==========================================================
+                    // 3. 빌드 결과 검증
+                    // ==========================================================
                     script {
                         def whlExists = bat(
                             script: 'if exist "dist\\webservice-*.whl" echo found',
                             returnStdout: true
                         ).contains('found')
-                        
+
                         if (!whlExists) {
-                            error("빌드 실패: wheel 파일이 생성되지 않았습니다")
+                            error("빌드 실패: wheel 파일이 생성되지 않았습니다.")
                         }
                     }
-                    
+
                     echo "Wheel 빌드 완료 (Jenkins Workspace)"
                 }
             }
