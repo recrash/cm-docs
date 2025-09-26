@@ -212,8 +212,55 @@ pipeline {
         stage('Build') {
             steps {
                 dir("${WORKSPACE}/webservice") {
-                    // Jenkins Workspace에서 wheel 빌드
-                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m build\""
+                    // 폐쇄망 환경: 빌드 의존성 사전 설치 및 오프라인 빌드 설정
+                    script {
+                        def wheelHouseExists = fileExists('C:\\deploys\\packages\\wheelhouse')
+
+                        if (wheelHouseExists) {
+                            echo '휠하우스에서 빌드 도구 사전 설치 중...'
+                            bat '''
+                                (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\pip.exe" %%*) > pip_build_clean.bat
+
+                                REM 빌드 도구들을 wheelhouse에서 설치
+                                pip_build_clean.bat install --no-index --find-links=C:\\deploys\\packages\\wheelhouse setuptools>=61.0 build wheel --quiet --disable-pip-version-check
+
+                                del pip_build_clean.bat
+                            '''
+                        } else {
+                            echo '휠하우스 없음 - 온라인 빌드 도구 설치'
+                            bat '''
+                                (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\pip.exe" %%*) > pip_build_clean.bat
+                                pip_build_clean.bat install setuptools>=61.0 build wheel --quiet
+                                del pip_build_clean.bat
+                            '''
+                        }
+                    }
+
+                    // Jenkins Workspace에서 wheel 빌드 (폐쇄망 환경 - Python 환경 완전 격리)
+                    bat """
+                        powershell -NoProfile -Command "& {
+                            # Python 환경 완전 격리 (시스템 PYTHONHOME 무효화)
+                            \\\$env:PYTHONHOME = ''
+                            \\\$env:PYTHONPATH = ''
+                            \\\$env:PYTHONIOENCODING = 'utf-8'
+
+                            # 폐쇄망 환경: 오프라인 빌드 설정
+                            \\\$env:PIP_NO_INDEX = '1'
+                            \\\$env:PIP_FIND_LINKS = 'C:/deploys/packages/wheelhouse'
+                            \\\$env:PIP_NO_BUILD_ISOLATION = '1'
+                            \\\$env:PIP_QUIET = '1'
+
+                            Write-Host '폐쇄망 빌드 시작 (Python 환경 완전 격리)'
+
+                            try {
+                                & '${env.WORKSPACE_PYTHON_CMD}' -m build --no-isolation
+                                Write-Host '빌드 성공 - wheel 파일 생성 완료'
+                            } catch {
+                                Write-Host '빌드 실패: ' + \\\$_.Exception.Message -ForegroundColor Red
+                                exit 1
+                            }
+                        }"
+                    """
                     
                     // 빌드 결과 검증
                     script {
