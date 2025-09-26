@@ -134,8 +134,8 @@ pipeline {
                             """
                         }
 
-                        // npx를 사용하여 eslint 실행 (오프라인 모드)
-                        bat 'npx --offline eslint . --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0'
+                        // package.json scripts를 사용하여 eslint 실행 (폐쇄망 환경 호환)
+                        bat 'npm run lint'
                     }
                     // TypeScript 타입 체크 (있는 경우)
                     script {
@@ -145,7 +145,7 @@ pipeline {
                         ).contains('found')
                         
                         if (tsconfigExists) {
-                            bat 'npx --offline tsc --noEmit'
+                            bat 'npm run type-check'
                             echo "TypeScript 타입 체크 완료"
                         }
                     }
