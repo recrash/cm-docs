@@ -263,30 +263,20 @@ pipeline {
                     }
 
                     // Jenkins Workspace에서 wheel 빌드 (폐쇄망 환경 - Python 환경 완전 격리)
-                    bat """
-                        powershell -NoProfile -Command "& {
-                            # Python 환경 완전 격리 (시스템 PYTHONHOME 무효화)
-                            \\\$env:PYTHONHOME = ''
-                            \\\$env:PYTHONPATH = ''
-                            \\\$env:PYTHONIOENCODING = 'utf-8'
+                    bat '''
+                        echo 폐쇄망 환경 빌드 시작 (Python 환경 완전 격리)
 
-                            # 폐쇄망 환경: 오프라인 빌드 설정
-                            \\\$env:PIP_NO_INDEX = '1'
-                            \\\$env:PIP_FIND_LINKS = 'C:/deploys/packages/wheelhouse'
-                            \\\$env:PIP_NO_BUILD_ISOLATION = '1'
-                            \\\$env:PIP_QUIET = '1'
+                        REM Python 환경 격리 배치 래퍼 생성
+                        (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv312\\Scripts\\python.exe" %%*) > python_build_clean.bat
 
-                            Write-Host '폐쇄망 빌드 시작 (Python 환경 완전 격리)'
+                        REM 안전한 빌드 실행 (격리 유지)
+                        python_build_clean.bat -m build
 
-                            try {
-                                & '${env.WORKSPACE_PYTHON_CMD}' -m build --no-isolation
-                                Write-Host '빌드 성공 - wheel 파일 생성 완료'
-                            } catch {
-                                Write-Host '빌드 실패: ' + \\\$_.Exception.Message -ForegroundColor Red
-                                exit 1
-                            }
-                        }"
-                    """
+                        REM 임시 파일 정리
+                        del python_build_clean.bat
+
+                        echo 빌드 성공 - wheel 파일 생성 완료
+                    '''
                     
                     // 빌드 결과 검증
                     script {
