@@ -75,25 +75,18 @@ pipeline {
                         ) == 0
                         
                         if (packageChanged || !nodeModulesExists) {
-                            echo "패키지 파일 변경 감지됨 또는 node_modules 없음 - 의존성 설치 실행"
+                            echo "패키지 파일 변경 감지됨 또는 node_modules 없음 - 강제 오프라인 설치 실행"
 
-                            // 캐시 디렉토리 존재 확인 (폐쇄망 모드)
-                            def npmCacheExists = bat(
-                                script: 'if exist "C:\\deploys\\packages\\npm-cache" (exit 0) else (exit 1)',
-                                returnStatus: true
-                            ) == 0
-
-                            if (npmCacheExists) {
-                                echo "npm 캐시 발견 - 폐쇄망 오프라인 설치 시도"
-                                bat "npm config set cache C:\\deploys\\packages\\npm-cache"
-                                bat "npm ci --prefer-offline"
-                                echo "npm ci 오프라인 설치 완료"
-                            } else {
-                                // 폐쇄망이 아닌 환경에서는 일반 설치 시도
-                                echo "npm 캐시 없음 - 일반 설치 시도"
-                                bat "npm ci"
-                                echo "npm ci 설치 완료"
-                            }
+                            // 폐쇄망 환경 - 강제 오프라인 모드 설정
+                            echo "npm 강제 오프라인 모드 설정 중..."
+                            bat """
+                            npm config set cache C:\\deploys\\packages\\npm-cache
+                            npm config set offline true
+                            npm config set prefer-offline true
+                            npm config set audit false
+                            npm ci --offline
+                            """
+                            echo "npm ci 강제 오프라인 설치 완료"
                         } else {
                             echo "패키지 변경 없음 - 기존 node_modules 사용 (폐쇄망 최적)"
                         }
@@ -125,8 +118,14 @@ pipeline {
                         ) == 0
 
                         if (!eslintExists) {
-                            echo "eslint가 설치되지 않음 - node_modules 재설치 시도"
-                            bat "npm ci"
+                            echo "eslint가 설치되지 않음 - 강제 오프라인 재설치 시도"
+                            bat """
+                            npm config set cache C:\\deploys\\packages\\npm-cache
+                            npm config set offline true
+                            npm config set prefer-offline true
+                            npm config set audit false
+                            npm ci --offline
+                            """
                         }
 
                         // npx를 사용하여 eslint 실행
