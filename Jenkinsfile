@@ -365,9 +365,20 @@ pipeline {
                         script {
                             try {
                                 echo "Webservice Frontend 빌드/배포 시작"
+
+                                // 환경변수를 안전하게 전달 (Windows 호환성)
+                                bat """
+                                chcp 65001 >NUL
+                                set "BRANCH_NAME=${env.BRANCH_NAME ?: 'unknown'}"
+                                set "NODE_MODULES_BUNDLE_PATH=C:\\deploys\\packages\\frontend\\node_modules"
+                                """
+
                                 def frontendBuild = build job: "webservice-frontend-pipeline",
-                                      parameters: [string(name: 'BRANCH', value: env.BRANCH_NAME)]
-                                
+                                      parameters: [
+                                          string(name: 'BRANCH', value: env.BRANCH_NAME ?: 'unknown'),
+                                          string(name: 'NODE_MODULES_BUNDLE_PATH', value: 'C:\\deploys\\packages\\frontend\\node_modules')
+                                      ]
+
                                 env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
                                 echo "Webservice Frontend 배포 성공"
                                 
@@ -384,15 +395,18 @@ pipeline {
                                         fingerprintArtifacts: true
                                     )
                                     
-                                    // 아티팩트 존재 확인
-                                    bat '''
-                                    if exist "%WORKSPACE%\\webservice\\frontend.zip" (
-                                        echo "frontend.zip 복사 성공: %WORKSPACE%\\webservice\\frontend.zip"
+                                    // 아티팩트 존재 확인 (Windows 호환성 개선)
+                                    bat """
+                                    chcp 65001 >NUL
+                                    if exist "${WORKSPACE}\\webservice\\frontend.zip" (
+                                        echo "✅ frontend.zip 복사 성공: ${WORKSPACE}\\webservice\\frontend.zip"
                                     ) else (
-                                        echo "frontend.zip 복사 실패"
+                                        echo "❌ frontend.zip 복사 실패"
+                                        echo "확인 경로: ${WORKSPACE}\\webservice\\"
+                                        dir "${WORKSPACE}\\webservice\\"
                                         exit 1
                                     )
-                                    '''
+                                    """
                                     
                                     echo "테스트 인스턴스용 프론트엔드 아티팩트 복사 완료"
                                 }
@@ -400,9 +414,22 @@ pipeline {
                             } catch (Exception e) {
                                 env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
                                 env.FAILED_SERVICES += 'WebFrontend '
-                                echo "Webservice Frontend 배포 실패: ${e.getMessage()}"
+
+                                // Windows 호환 에러 메시지 (백슬래시 처리)
+                                def errorMessage = e.getMessage().replace('\\', '\\\\')
+                                echo "❌ Webservice Frontend 배포 실패: ${errorMessage}"
+
+                                // 디버그 정보 출력
+                                bat """
+                                chcp 65001 >NUL
+                                echo "디버그 정보:"
+                                echo "BRANCH_NAME: ${env.BRANCH_NAME ?: 'N/A'}"
+                                echo "WORKSPACE: ${WORKSPACE}"
+                                echo "IS_TEST: ${env.IS_TEST ?: 'N/A'}"
+                                """
+
                                 // Webservice Frontend 빌드 실패 시 파이프라인 실패
-                                error("Webservice Frontend 빌드/배포 실패: ${e.getMessage()}")
+                                error("Webservice Frontend 빌드/배포 실패: ${errorMessage}")
                             }
                         }
                     }

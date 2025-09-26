@@ -11,8 +11,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# UTF-8 출력 설정 (한글 지원)
+# UTF-8 인코딩 설정 (폐쇄망 환경 Windows 호환성)
+chcp 65001 >$null
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$PSDefaultParameterValues['*:Encoding'] = 'utf8'
 
 Write-Host "===========================================`n"
 Write-Host "프론트엔드 배포 시작 (독립 배포)`n"
@@ -23,6 +26,10 @@ Write-Host "• Frontend Destination: $WebFrontDst"
 Write-Host "===========================================`n"
 
 try {
+    # 경로 정규화 (백슬래시 일관성 처리)
+    $WebFrontDst = $WebFrontDst -replace '/', '\'
+    $WebSrc = $WebSrc -replace '/', '\'
+
     # 1. 디렉토리 구조 생성
     Write-Host "단계 1: 프론트엔드 디렉토리 생성 중..."
     New-Item -ItemType Directory -Force -Path $WebFrontDst | Out-Null
@@ -31,8 +38,8 @@ try {
     # 2. 프론트엔드 아티팩트 배포
     Write-Host "`n단계 2: 프론트엔드 아티팩트 배포 중..."
     
-    # 현재 작업 공간에 복사된 frontend.zip 아티팩트 경로
-    $FrontendZip = "$WebSrc\frontend.zip"
+    # 현재 작업 공간에 복사된 frontend.zip 아티팩트 경로 (경로 정규화)
+    $FrontendZip = Join-Path $WebSrc "frontend.zip"
     
     if (Test-Path $FrontendZip) {
         Write-Host "프론트엔드 아티팩트 발견: $FrontendZip"
@@ -43,8 +50,8 @@ try {
             Write-Host "기존 프론트엔드 파일 정리 완료"
         }
         
-        # frontend.zip을 임시 폴더에 압축 해제
-        $TempExtractDir = "$WebFrontDst\temp_extract"
+        # frontend.zip을 임시 폴더에 압축 해제 (경로 정규화)
+        $TempExtractDir = Join-Path $WebFrontDst "temp_extract"
         if (Test-Path $TempExtractDir) {
             Remove-Item -Recurse -Force $TempExtractDir
         }
@@ -52,7 +59,7 @@ try {
         
         # 압축 해제 및 복사
         Expand-Archive -Path $FrontendZip -DestinationPath $TempExtractDir -Force
-        Copy-Item -Recurse -Force "$TempExtractDir\*" $WebFrontDst
+        Copy-Item -Recurse -Force (Join-Path $TempExtractDir "*") $WebFrontDst
         
         # 임시 폴더 정리
         Remove-Item -Recurse -Force $TempExtractDir
@@ -92,8 +99,8 @@ try {
     # 실패 시 정리
     Write-Host "실패 후 정리 시도 중..."
     
-    # 임시 폴더 정리
-    $TempExtractDir = "$WebFrontDst\temp_extract"
+    # 임시 폴더 정리 (실패 시)
+    $TempExtractDir = Join-Path $WebFrontDst "temp_extract"
     if (Test-Path $TempExtractDir) {
         Remove-Item -Recurse -Force $TempExtractDir -ErrorAction SilentlyContinue
     }

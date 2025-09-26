@@ -75,21 +75,39 @@ pipeline {
                         ) == 0
                         
                         if (packageChanged || !nodeModulesExists) {
-                            echo "패키지 파일 변경 감지됨 또는 node_modules 없음 - 강제 오프라인 설치 실행"
+                            echo "패키지 파일 변경 감지됨 또는 node_modules 없음 - 오프라인 번들 설치 실행"
 
-                            // 폐쇄망 환경 - 강제 오프라인 모드 설정
-                            echo "npm 강제 오프라인 모드 설정 중..."
+                            // 폐쇄망 환경 - node_modules 번들 압축 해제 방식
+                            echo "node_modules 오프라인 번들 설치 중..."
                             bat """
-                            npm config set cache C:\\deploys\\packages\\npm-cache
-                            npm config set offline true
-                            npm config set prefer-offline true
-                            npm config set audit false
-                            npm config set fund false
-                            npm config set update-notifier false
-                            npm config set registry file://C:/deploys/packages/npm-cache
-                            npm ci --offline --no-audit --no-fund
+                            chcp 65001 >NUL
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {
+                                # package-lock.json 해시 계산
+                                \$lockHash = (Get-FileHash 'package-lock.json' -Algorithm SHA256).Hash.Substring(0, 8)
+                                Write-Host \"Package-lock 해시: \$lockHash\"
+
+                                # 번들 파일 경로
+                                \$bundleFile = \"C:\\deploys\\packages\\frontend\\node_modules\\node_modules_\$lockHash.zip\"
+
+                                if (Test-Path \$bundleFile) {
+                                    Write-Host '✅ 유효한 node_modules 번들 발견'
+
+                                    # 기존 node_modules 제거
+                                    if (Test-Path 'node_modules') {
+                                        Remove-Item -Recurse -Force 'node_modules'
+                                    }
+
+                                    # 번들 압축 해제
+                                    Expand-Archive -Path \$bundleFile -DestinationPath '.' -Force
+                                    Write-Host '✅ node_modules 압축 해제 완료'
+                                } else {
+                                    Write-Error '❌ node_modules 번들을 찾을 수 없습니다: ' + \$bundleFile
+                                    Write-Host '폐쇄망 환경에서는 Download-All-Dependencies.ps1로 사전 생성된 번들이 필요합니다.'
+                                    exit 1
+                                }
+                            }"
                             """
-                            echo "npm ci 강제 오프라인 설치 완료"
+                            echo "node_modules 오프라인 번들 설치 완료"
                         } else {
                             echo "패키지 변경 없음 - 기존 node_modules 사용 (폐쇄망 최적)"
                         }
@@ -121,16 +139,25 @@ pipeline {
                         ) == 0
 
                         if (!eslintExists) {
-                            echo "eslint가 설치되지 않음 - 강제 오프라인 재설치 시도"
+                            echo "eslint가 설치되지 않음 - 오프라인 번들 재설치 시도"
                             bat """
-                            npm config set cache C:\\deploys\\packages\\npm-cache
-                            npm config set offline true
-                            npm config set prefer-offline true
-                            npm config set audit false
-                            npm config set fund false
-                            npm config set update-notifier false
-                            npm config set registry file://C:/deploys/packages/npm-cache
-                            npm ci --offline --no-audit --no-fund
+                            chcp 65001 >NUL
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {
+                                # package-lock.json 해시 계산
+                                \$lockHash = (Get-FileHash 'package-lock.json' -Algorithm SHA256).Hash.Substring(0, 8)
+
+                                # 번들 파일 경로
+                                \$bundleFile = \"C:\\deploys\\packages\\frontend\\node_modules\\node_modules_\$lockHash.zip\"
+
+                                if (Test-Path \$bundleFile) {
+                                    # 기존 node_modules 제거 후 재설치
+                                    if (Test-Path 'node_modules') {
+                                        Remove-Item -Recurse -Force 'node_modules'
+                                    }
+                                    Expand-Archive -Path \$bundleFile -DestinationPath '.' -Force
+                                    Write-Host '✅ eslint 문제로 인한 node_modules 재설치 완료'
+                                }
+                            }"
                             """
                         }
 

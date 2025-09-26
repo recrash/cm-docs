@@ -81,15 +81,8 @@ foreach ($service in $Services) {
     }
 }
 
-# --- npm 의존성 캐시 수집 ---
-Write-Host "🚀 npm 의존성 캐시를 수집합니다..." -ForegroundColor Yellow
-$NpmCacheDir = Join-Path $ProjectRoot "npm-cache"
-if (-not (Test-Path $NpmCacheDir)) {
-    New-Item -Path $NpmCacheDir -ItemType Directory | Out-Null
-    Write-Host "    - 새로운 'npm-cache' 폴더를 생성했습니다."
-} else {
-    Write-Host "    - 기존 'npm-cache' 폴더에 누락된 패키지만 추가합니다."
-}
+# --- npm 의존성 완전 오프라인 수집 ---
+Write-Host "🚀 npm 의존성을 완전 오프라인 형태로 수집합니다..." -ForegroundColor Yellow
 
 # webservice frontend npm 의존성 수집
 $FrontendPath = Join-Path $ProjectRoot "webservice\frontend"
@@ -97,15 +90,53 @@ $PackageJsonPath = Join-Path $FrontendPath "package.json"
 $PackageLockPath = Join-Path $FrontendPath "package-lock.json"
 
 if ((Test-Path $PackageJsonPath) -and (Test-Path $PackageLockPath)) {
-    Write-Host "    - webservice frontend의 npm 의존성을 수집합니다."
+    Write-Host "    - webservice frontend의 npm 의존성을 완전 설치 후 복사합니다."
     Push-Location $FrontendPath
-    npm config set cache $NpmCacheDir
-    npm ci --prefer-offline --no-audit
-    Write-Host "    - npm 캐시 수집 완료"
+
+    # 1. 완전한 node_modules 설치
+    npm ci
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "    - 오류: npm ci 실패" -ForegroundColor Red
+        Pop-Location
+        exit 1
+    }
+
+    # 2. package-lock.json 해시 계산
+    $packageLockHash = (Get-FileHash "package-lock.json" -Algorithm SHA256).Hash.Substring(0, 8)
+    Write-Host "    - package-lock.json 해시: $packageLockHash"
+
+    # 3. 번들 메타데이터 생성
+    $bundleInfo = @{
+        "hash" = $packageLockHash
+        "created" = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        "nodeVersion" = & node --version
+        "npmVersion" = & npm --version
+        "packageCount" = (Get-ChildItem "node_modules" -Directory).Count
+    }
+    $bundleInfo | ConvertTo-Json | Out-File "node_modules\bundle.info" -Encoding UTF8
+
+    # 4. node_modules 전체를 해시 기반 파일명으로 압축 저장
+    $NodeModulesBundle = Join-Path $ProjectRoot "node_modules"
+    if (Test-Path $NodeModulesBundle) {
+        Remove-Item $NodeModulesBundle -Recurse -Force
+    }
+    New-Item -Path $NodeModulesBundle -ItemType Directory | Out-Null
+
+    Write-Host "    - node_modules를 해시 기반 오프라인 패키지로 압축 중..."
+    $zipFileName = "node_modules_$packageLockHash.zip"
+    Compress-Archive -Path "node_modules" -DestinationPath "$NodeModulesBundle\$zipFileName" -Force
+    Copy-Item "package.json" "$NodeModulesBundle\" -Force
+    Copy-Item "package-lock.json" "$NodeModulesBundle\" -Force
+
+    Write-Host "    - npm 완전 오프라인 패키지 생성 완료: $NodeModulesBundle\$zipFileName"
     Pop-Location
 } else {
     Write-Host "    - 경고: webservice/frontend의 package.json 또는 package-lock.json을 찾을 수 없습니다." -ForegroundColor DarkYellow
 }
 
-Write-Host "✅ 성공! '$WheelhouseDir' 및 '$NpmCacheDir' 폴더에 모든 의존성 씨앗이 준비되었습니다." -ForegroundColor Green
-Write-Host "   이제 'wheelhouse'와 'npm-cache' 폴더를 소스코드와 함께 인트라넷 환경으로 가져가세요."
+Write-Host "✅ 성공! '$WheelhouseDir' 및 '$NodeModulesBundle' 폴더에 모든 의존성 씨앗이 준비되었습니다." -ForegroundColor Green
+Write-Host "   이제 'wheelhouse'와 'node_modules' 폴더를 소스코드와 함께 폐쇄망 환경으로 가져가세요."
+Write-Host ""
+Write-Host "📋 폐쇄망 환경에서의 설치 방법:" -ForegroundColor Cyan
+Write-Host "   1. Python: pip install --no-index --find-links wheelhouse/ -r requirements.txt"
+Write-Host "   2. Node.js: node_modules 폴더에서 node_modules.zip 압축 해제 후 사용"
