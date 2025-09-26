@@ -4,6 +4,10 @@ pipeline {
     agent any
     
     environment {
+        // Python 환경 격리를 위한 환경변수 초기화 (PYTHONHOME 충돌 방지)
+        PYTHONHOME = ''
+        PYTHONPATH = ''
+
         // 통합 환경변수 관리
         CM_DOCS_ROOT = 'C:\\deploys\\cm-docs'
         WHEELHOUSE_PATH = 'C:\\deploys\\packages\\wheelhouse'

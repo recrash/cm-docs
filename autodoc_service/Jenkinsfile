@@ -128,7 +128,7 @@ pipeline {
                         }
                         
                         // 최소 검증만 수행 (시간 단축)
-                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv312\\Scripts\\python.exe' -c \\\"from docx import Document; print('Test environment ready')\\\"\""
+                        bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '.venv312\\Scripts\\python.exe' -c \\\"from docx import Document; print('Test environment ready')\\\"\""
                         
                         echo "테스트 환경 구축 완료 (최적화됨)"
                     }
@@ -239,7 +239,7 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
                     // Jenkins Workspace에서 wheel 빌드
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m build\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m build\""
                     
                     // 빌드 결과 검증
                     script {

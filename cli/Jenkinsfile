@@ -123,7 +123,7 @@ pipeline {
                         }
                         
                         // 주요 패키지 검증 (시간 단축)
-                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -c \\\"import click; import rich; print('Test environment ready - CLI dependencies loaded')\\\"\""
+                        bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -c \\\"import click; import rich; print('Test environment ready - CLI dependencies loaded')\\\"\""
                         
                         echo '테스트 환경 구축 완료 (최적화됨)'
                     }
@@ -190,7 +190,7 @@ pipeline {
                         // Run build script
                         script {
                             def baseUrl = params.BASE_URL ?: 'https://cm-docs.cloud'
-                            bat "powershell -Command \"\$env:PYTHONPATH='src'; \$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' scripts\\build.py --base-url '${baseUrl}'\""
+                            bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH='src'; \$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' scripts\\build.py --base-url '${baseUrl}'\""
                         }
                         
                         // Verify executable was created
