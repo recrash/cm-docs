@@ -84,7 +84,10 @@ pipeline {
                             npm config set offline true
                             npm config set prefer-offline true
                             npm config set audit false
-                            npm ci --offline
+                            npm config set fund false
+                            npm config set update-notifier false
+                            npm config set registry file://C:/deploys/packages/npm-cache
+                            npm ci --offline --no-audit --no-fund
                             """
                             echo "npm ci 강제 오프라인 설치 완료"
                         } else {
@@ -124,12 +127,15 @@ pipeline {
                             npm config set offline true
                             npm config set prefer-offline true
                             npm config set audit false
-                            npm ci --offline
+                            npm config set fund false
+                            npm config set update-notifier false
+                            npm config set registry file://C:/deploys/packages/npm-cache
+                            npm ci --offline --no-audit --no-fund
                             """
                         }
 
-                        // npx를 사용하여 eslint 실행
-                        bat 'npx eslint . --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0'
+                        // npx를 사용하여 eslint 실행 (오프라인 모드)
+                        bat 'npx --offline eslint . --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0'
                     }
                     // TypeScript 타입 체크 (있는 경우)
                     script {
@@ -139,7 +145,7 @@ pipeline {
                         ).contains('found')
                         
                         if (tsconfigExists) {
-                            bat 'npx tsc --noEmit'
+                            bat 'npx --offline tsc --noEmit'
                             echo "TypeScript 타입 체크 완료"
                         }
                     }

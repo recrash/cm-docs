@@ -155,7 +155,7 @@ pipeline {
                         }
                         
                         // 템플릿 무결성 검사 (Jenkins Workspace에서 실행)
-                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_templates_present.py -v\""
+                        bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_templates_present.py -v\""
                         echo "템플릿 검증 완료"
                     }
                 }
@@ -166,11 +166,11 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
                     // 전체 테스트 실행 (Windows 콘솔 인코딩 및 파일 핸들 문제 해결)
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v -x --tb=short --disable-warnings\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v -x --tb=short --disable-warnings\""
 
                     // 특별히 중요한 문서 생성 테스트 개별 실행
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_word_label.py -v\""
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_excel_test.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_word_label.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_excel_test.py -v\""
                     
                     echo "AutoDoc Service 테스트 완료 (Jenkins Workspace)"
                 }
@@ -181,10 +181,10 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
                     // FastAPI 통합 테스트 (Jenkins Workspace에서 실행)
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_fastapi_integration.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_fastapi_integration.py -v\""
 
                     // 로깅 시스템 테스트
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_logging_system.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_logging_system.py -v\""
                     
                     echo "통합 테스트 완료 (Jenkins Workspace)"
                 }

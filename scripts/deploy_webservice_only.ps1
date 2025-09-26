@@ -176,15 +176,27 @@ py %*
 
             Write-Host "pip 자동 업그레이드 중... (메모리 에러 방지)"
 
+            # Python 환경 격리를 위한 배치 래퍼 생성
+            $pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"$WebBackDst\.venv\Scripts\python.exe" %*
+"@
+            $pipWrapper | Out-File -FilePath "python_web_clean.bat" -Encoding ascii
+
             # pip 업그레이드 (wheelhouse에서 오프라인)
             if (Test-Path "$GlobalWheelPath\wheelhouse\pip*.whl") {
-                & "$WebBackDst\.venv\Scripts\python.exe" -m pip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip setuptools wheel
+                & ".\python_web_clean.bat" -m pip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip setuptools wheel
                 Write-Host "pip 오프라인 업그레이드 완료"
             } else {
                 # 온라인 업그레이드 (메모리 최적화 옵션)
-                & "$WebBackDst\.venv\Scripts\python.exe" -m pip install --upgrade pip setuptools wheel --no-cache-dir --disable-pip-version-check
+                & ".\python_web_clean.bat" -m pip install --upgrade pip setuptools wheel --no-cache-dir --disable-pip-version-check
                 Write-Host "pip 온라인 업그레이드 완료"
             }
+
+            # 임시 래퍼 정리
+            Remove-Item "python_web_clean.bat" -Force -ErrorAction SilentlyContinue
 
             $needsDependencies = $true
             Write-Host "새 가상환경 생성 완료 (Python 3.9 + pip 최적화)"

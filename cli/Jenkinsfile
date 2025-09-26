@@ -143,21 +143,23 @@ pipeline {
                             if not exist test-results mkdir test-results
                         '''
                         
-                        // Run pytest with coverage - 실패해도 계속 진행
+                        // Run pytest with coverage - 실패해도 계속 진행 (Python 환경 격리 적용)
                         bat(returnStatus: true, script: '''
-                            set PYTHONPATH=src
-                            .venv\\Scripts\\pytest.exe tests\\unit\\ -v ^
+                            (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=src" & echo ".venv\\Scripts\\pytest.exe" %%*) > pytest_clean.bat
+                            pytest_clean.bat tests\\unit\\ -v ^
                                 --junit-xml=test-results\\junit-unit.xml ^
                                 --cov=ts_cli ^
                                 --cov-report=html:htmlcov ^
                                 --cov-report=term
+                            del pytest_clean.bat
                         ''')
                         
-                        // Run integration tests - 실패해도 계속 진행
+                        // Run integration tests - 실패해도 계속 진행 (Python 환경 격리 적용)
                         bat(returnStatus: true, script: '''
-                            set PYTHONPATH=src
-                            .venv\\Scripts\\pytest.exe tests\\integration\\ -v ^
+                            (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=src" & echo ".venv\\Scripts\\pytest.exe" %%*) > pytest_clean.bat
+                            pytest_clean.bat tests\\integration\\ -v ^
                                 --junit-xml=test-results\\junit-integration.xml
+                            del pytest_clean.bat
                         ''')
                     }
                 }
