@@ -77,13 +77,22 @@ pipeline {
                         if (packageChanged || !nodeModulesExists) {
                             echo "패키지 파일 변경 감지됨 또는 node_modules 없음 - 오프라인 번들 설치 실행"
 
-                            // 폐쇄망 환경 - node_modules 번들 압축 해제 방식
-                            echo "node_modules 오프라인 번들 설치 중..."
+                            // 폐쇄망 환경 - node_modules 직접 복사 방식
+                            echo "node_modules 오프라인 패키지 복사 중..."
                             bat """
                             chcp 65001 >NUL
-                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$lockHash = (Get-FileHash 'package-lock.json' -Algorithm SHA256).Hash.Substring(0, 8); Write-Host ('Package-lock hash: ' + \$lockHash); \$bundleFile = 'C:\\deploys\\packages\\frontend\\node_modules\\node_modules_' + \$lockHash + '.zip'; if (Test-Path \$bundleFile) { Write-Host 'Valid node_modules bundle found'; if (Test-Path 'node_modules') { Remove-Item -Recurse -Force 'node_modules' }; Expand-Archive -Path \$bundleFile -DestinationPath '.' -Force; Write-Host 'node_modules extraction complete' } else { Write-Host ('ERROR: node_modules bundle not found: ' + \$bundleFile); Write-Host 'Air-gapped environment requires pre-generated bundle from Download-All-Dependencies.ps1'; exit 1 }"
+                            if exist "C:\\deploys\\packages\\frontend\\node_modules" (
+                                echo Copying node_modules from offline package...
+                                if exist node_modules rd /s /q node_modules
+                                xcopy /E /I /H /Y "C:\\deploys\\packages\\frontend\\node_modules" "node_modules\\" >nul 2>&1
+                                echo node_modules copy complete
+                            ) else (
+                                echo ERROR: Offline node_modules not found at C:\\deploys\\packages\\frontend\\node_modules
+                                echo Run Download-All-Dependencies.ps1 to prepare offline packages
+                                exit 1
+                            )
                             """
-                            echo "node_modules 오프라인 번들 설치 완료"
+                            echo "node_modules 오프라인 패키지 복사 완료"
                         } else {
                             echo "패키지 변경 없음 - 기존 node_modules 사용 (폐쇄망 최적)"
                         }
@@ -115,10 +124,15 @@ pipeline {
                         ) == 0
 
                         if (!eslintExists) {
-                            echo "eslint가 설치되지 않음 - 오프라인 번들 재설치 시도"
+                            echo "eslint가 설치되지 않음 - 오프라인 패키지 재복사 시도"
                             bat """
                             chcp 65001 >NUL
-                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$lockHash = (Get-FileHash 'package-lock.json' -Algorithm SHA256).Hash.Substring(0, 8); \$bundleFile = 'C:\\deploys\\packages\\frontend\\node_modules\\node_modules_' + \$lockHash + '.zip'; if (Test-Path \$bundleFile) { if (Test-Path 'node_modules') { Remove-Item -Recurse -Force 'node_modules' }; Expand-Archive -Path \$bundleFile -DestinationPath '.' -Force; Write-Host 'node_modules reinstalled for eslint issue' }"
+                            if exist "C:\\deploys\\packages\\frontend\\node_modules" (
+                                echo Reinstalling node_modules for eslint issue...
+                                if exist node_modules rd /s /q node_modules
+                                xcopy /E /I /H /Y "C:\\deploys\\packages\\frontend\\node_modules" "node_modules\\" >nul 2>&1
+                                echo node_modules reinstalled
+                            )
                             """
                         }
 

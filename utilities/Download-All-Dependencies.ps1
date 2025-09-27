@@ -101,42 +101,35 @@ if ((Test-Path $PackageJsonPath) -and (Test-Path $PackageLockPath)) {
         exit 1
     }
 
-    # 2. package-lock.json 해시 계산
-    $packageLockHash = (Get-FileHash "package-lock.json" -Algorithm SHA256).Hash.Substring(0, 8)
-    Write-Host "    - package-lock.json 해시: $packageLockHash"
-
-    # 3. 번들 메타데이터 생성
-    $bundleInfo = @{
-        "hash" = $packageLockHash
-        "created" = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        "nodeVersion" = & node --version
-        "npmVersion" = & npm --version
-        "packageCount" = (Get-ChildItem "node_modules" -Directory).Count
+    # 2. 대상 디렉토리 준비 (단일 node_modules 폴더)
+    $NodeModulesTarget = "C:\deploys\packages\frontend\node_modules"
+    if (Test-Path $NodeModulesTarget) {
+        Write-Host "    - 기존 node_modules 폴더 제거 중..."
+        Remove-Item $NodeModulesTarget -Recurse -Force
     }
-    $bundleInfo | ConvertTo-Json | Out-File "node_modules\bundle.info" -Encoding UTF8
 
-    # 4. node_modules 전체를 해시 기반 파일명으로 압축 저장
-    $NodeModulesBundle = Join-Path $ProjectRoot "node_modules"
-    if (Test-Path $NodeModulesBundle) {
-        Remove-Item $NodeModulesBundle -Recurse -Force
+    # 3. node_modules 폴더 복사 (xcopy 사용)
+    Write-Host "    - node_modules 폴더를 오프라인 패키지 위치로 복사 중..."
+    $xcopyCmd = "xcopy /E /I /H /Y `"node_modules`" `"$NodeModulesTarget\`" >nul 2>&1"
+    cmd /c $xcopyCmd
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "    - 오류: node_modules 복사 실패" -ForegroundColor Red
+        Pop-Location
+        exit 1
     }
-    New-Item -Path $NodeModulesBundle -ItemType Directory | Out-Null
 
-    Write-Host "    - node_modules를 해시 기반 오프라인 패키지로 압축 중..."
-    $zipFileName = "node_modules_$packageLockHash.zip"
-    Compress-Archive -Path "node_modules" -DestinationPath "$NodeModulesBundle\$zipFileName" -Force
-    Copy-Item "package.json" "$NodeModulesBundle\" -Force
-    Copy-Item "package-lock.json" "$NodeModulesBundle\" -Force
-
-    Write-Host "    - npm 완전 오프라인 패키지 생성 완료: $NodeModulesBundle\$zipFileName"
+    Write-Host "    - npm 오프라인 패키지 준비 완료: $NodeModulesTarget"
     Pop-Location
 } else {
     Write-Host "    - 경고: webservice/frontend의 package.json 또는 package-lock.json을 찾을 수 없습니다." -ForegroundColor DarkYellow
 }
 
-Write-Host "✅ 성공! '$WheelhouseDir' 및 '$NodeModulesBundle' 폴더에 모든 의존성 씨앗이 준비되었습니다." -ForegroundColor Green
-Write-Host "   이제 'wheelhouse'와 'node_modules' 폴더를 소스코드와 함께 폐쇄망 환경으로 가져가세요."
+Write-Host "✅ 성공! 모든 의존성 패키지가 준비되었습니다." -ForegroundColor Green
+Write-Host "   - Python: $WheelhouseDir"
+Write-Host "   - Node.js: C:\deploys\packages\frontend\node_modules"
+Write-Host "   이제 이 폴더들을 폐쇄망 환경으로 복사하세요."
 Write-Host ""
 Write-Host "📋 폐쇄망 환경에서의 설치 방법:" -ForegroundColor Cyan
 Write-Host "   1. Python: pip install --no-index --find-links wheelhouse/ -r requirements.txt"
-Write-Host "   2. Node.js: node_modules 폴더에서 node_modules.zip 압축 해제 후 사용"
+Write-Host "   2. Node.js: xcopy로 C:\deploys\packages\frontend\node_modules 폴더 복사"
