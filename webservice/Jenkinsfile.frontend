@@ -81,31 +81,7 @@ pipeline {
                             echo "node_modules 오프라인 번들 설치 중..."
                             bat """
                             chcp 65001 >NUL
-                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {
-                                # package-lock.json 해시 계산
-                                \$lockHash = (Get-FileHash 'package-lock.json' -Algorithm SHA256).Hash.Substring(0, 8)
-                                Write-Host \"Package-lock 해시: \$lockHash\"
-
-                                # 번들 파일 경로
-                                \$bundleFile = \"C:\\deploys\\packages\\frontend\\node_modules\\node_modules_\$lockHash.zip\"
-
-                                if (Test-Path \$bundleFile) {
-                                    Write-Host '✅ 유효한 node_modules 번들 발견'
-
-                                    # 기존 node_modules 제거
-                                    if (Test-Path 'node_modules') {
-                                        Remove-Item -Recurse -Force 'node_modules'
-                                    }
-
-                                    # 번들 압축 해제
-                                    Expand-Archive -Path \$bundleFile -DestinationPath '.' -Force
-                                    Write-Host '✅ node_modules 압축 해제 완료'
-                                } else {
-                                    Write-Error '❌ node_modules 번들을 찾을 수 없습니다: ' + \$bundleFile
-                                    Write-Host '폐쇄망 환경에서는 Download-All-Dependencies.ps1로 사전 생성된 번들이 필요합니다.'
-                                    exit 1
-                                }
-                            }"
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$lockHash = (Get-FileHash 'package-lock.json' -Algorithm SHA256).Hash.Substring(0, 8); Write-Host ('Package-lock hash: ' + \$lockHash); \$bundleFile = 'C:\\deploys\\packages\\frontend\\node_modules\\node_modules_' + \$lockHash + '.zip'; if (Test-Path \$bundleFile) { Write-Host 'Valid node_modules bundle found'; if (Test-Path 'node_modules') { Remove-Item -Recurse -Force 'node_modules' }; Expand-Archive -Path \$bundleFile -DestinationPath '.' -Force; Write-Host 'node_modules extraction complete' } else { Write-Host ('ERROR: node_modules bundle not found: ' + \$bundleFile); Write-Host 'Air-gapped environment requires pre-generated bundle from Download-All-Dependencies.ps1'; exit 1 }"
                             """
                             echo "node_modules 오프라인 번들 설치 완료"
                         } else {
@@ -142,22 +118,7 @@ pipeline {
                             echo "eslint가 설치되지 않음 - 오프라인 번들 재설치 시도"
                             bat """
                             chcp 65001 >NUL
-                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {
-                                # package-lock.json 해시 계산
-                                \$lockHash = (Get-FileHash 'package-lock.json' -Algorithm SHA256).Hash.Substring(0, 8)
-
-                                # 번들 파일 경로
-                                \$bundleFile = \"C:\\deploys\\packages\\frontend\\node_modules\\node_modules_\$lockHash.zip\"
-
-                                if (Test-Path \$bundleFile) {
-                                    # 기존 node_modules 제거 후 재설치
-                                    if (Test-Path 'node_modules') {
-                                        Remove-Item -Recurse -Force 'node_modules'
-                                    }
-                                    Expand-Archive -Path \$bundleFile -DestinationPath '.' -Force
-                                    Write-Host '✅ eslint 문제로 인한 node_modules 재설치 완료'
-                                }
-                            }"
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$lockHash = (Get-FileHash 'package-lock.json' -Algorithm SHA256).Hash.Substring(0, 8); \$bundleFile = 'C:\\deploys\\packages\\frontend\\node_modules\\node_modules_' + \$lockHash + '.zip'; if (Test-Path \$bundleFile) { if (Test-Path 'node_modules') { Remove-Item -Recurse -Force 'node_modules' }; Expand-Archive -Path \$bundleFile -DestinationPath '.' -Force; Write-Host 'node_modules reinstalled for eslint issue' }"
                             """
                         }
 
