@@ -104,28 +104,50 @@ for SERVICE_INFO in "${SERVICES[@]}"; do
     fi
 done
 
-# --- npm 의존성 캐시 수집 ---
-echo -e "${YELLOW}🚀 npm 의존성 캐시를 수집합니다...${NC}"
-NPM_CACHE_DIR="$PROJECT_ROOT/npm-cache"
-if [ ! -d "$NPM_CACHE_DIR" ]; then
-    mkdir -p "$NPM_CACHE_DIR"
-    echo "    - 새로운 'npm-cache' 폴더를 생성했습니다."
-else
-    echo "    - 기존 'npm-cache' 폴더에 누락된 패키지만 추가합니다."
-fi
-
-# webservice frontend npm 의존성 수집
+# --- npm 의존성 처리 (node_modules 직접 복사 방식) ---
+echo -e "${YELLOW}🚀 npm 의존성을 설치하고 복사합니다...${NC}"
 FRONTEND_PATH="$PROJECT_ROOT/webservice/frontend"
+
 if [ -f "$FRONTEND_PATH/package.json" ] && [ -f "$FRONTEND_PATH/package-lock.json" ]; then
-    echo "    - webservice frontend의 npm 의존성을 수집합니다."
+    echo "    - webservice frontend의 npm 의존성을 완전 설치 후 복사합니다."
     cd "$FRONTEND_PATH"
-    npm config set cache "$NPM_CACHE_DIR"
-    npm ci --prefer-offline --no-audit
-    echo "    - npm 캐시 수집 완료"
+
+    # 1. 완전한 node_modules 설치
+    npm ci
+    if [ $? -ne 0 ]; then
+        echo -e "    - ${RED}오류: npm ci 실패${NC}"
+        exit 1
+    fi
+
+    # 2. 대상 디렉토리 준비 (단일 node_modules 폴더)
+    NODE_MODULES_TARGET="/deploys/packages/frontend/node_modules"
+    # Windows Git Bash의 경우 경로 변환
+    if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+        NODE_MODULES_TARGET="C:/deploys/packages/frontend/node_modules"
+    fi
+
+    if [ -d "$NODE_MODULES_TARGET" ]; then
+        echo "    - 기존 node_modules 폴더 제거 중..."
+        rm -rf "$NODE_MODULES_TARGET"
+    fi
+
+    # 3. node_modules 폴더 복사
+    echo "    - node_modules 폴더를 오프라인 패키지 위치로 복사 중..."
+    mkdir -p "$(dirname "$NODE_MODULES_TARGET")"
+    cp -r node_modules "$NODE_MODULES_TARGET"
+
+    if [ $? -ne 0 ]; then
+        echo -e "    - ${RED}오류: node_modules 복사 실패${NC}"
+        exit 1
+    fi
+
+    echo "    - npm 오프라인 패키지 준비 완료: $NODE_MODULES_TARGET"
     cd "$PROJECT_ROOT"
 else
     echo -e "    - ${YELLOW}경고: webservice/frontend의 package.json 또는 package-lock.json을 찾을 수 없습니다.${NC}"
 fi
 
-echo -e "${GREEN}✅ 성공! '$WHEELHOUSE_DIR' 및 '$NPM_CACHE_DIR' 폴더에 모든 의존성 씨앗이 준비되었습니다.${NC}"
-echo "   이제 'wheelhouse'와 'npm-cache' 폴더를 소스코드와 함께 인트라넷 환경으로 가져가세요."
+echo -e "${GREEN}✅ 성공! 모든 의존성 패키지가 준비되었습니다.${NC}"
+echo "   - Python: $WHEELHOUSE_DIR"
+echo "   - Node.js: $NODE_MODULES_TARGET"
+echo "   이제 이 폴더들을 폐쇄망 환경으로 복사하세요."
