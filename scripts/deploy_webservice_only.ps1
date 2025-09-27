@@ -23,12 +23,18 @@ $ErrorActionPreference = "Stop"
 # 공통 함수 로드
 . "$PSScriptRoot\deploy_common.ps1" -Bid $Bid -Nssm $Nssm -Nginx $Nginx -PackagesRoot $PackagesRoot
 
+# ==========================================
+# 글로벌 변수 정의 (wheelhouse 감지용)
+# ==========================================
+$GlobalWheelPath = "C:\deploys\packages"
+
 Write-Host "===========================================`n"
 Write-Host "웹서비스 백엔드 배포 시작 (독립 배포)`n"
 Write-Host "===========================================`n"
 Write-Host "• BID: $Bid"
 Write-Host "• Backend Port: $BackPort"
 Write-Host "• Packages Root: $PackagesRoot"
+Write-Host "• Global Wheel Path: $GlobalWheelPath"
 Write-Host "===========================================`n"
 
 try {
@@ -194,19 +200,28 @@ set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
 
             # pip 업그레이드 (wheelhouse에서 오프라인)
             Write-Host "Python 환경 격리 상태에서 pip 업그레이드 중..."
-            if (Test-Path "$GlobalWheelPath\wheelhouse\pip*.whl") {
-                & ".\python_web_clean.bat" -m pip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip setuptools wheel
-                if ($LASTEXITCODE -ne 0) {
-                    throw "pip 오프라인 업그레이드 실패 (Exit Code: $LASTEXITCODE)"
+            Write-Host "wheelhouse 경로 확인: $GlobalWheelPath\wheelhouse"
+
+            # wheelhouse 폴더와 pip 파일 존재 확인
+            $wheelhouse_path = "$GlobalWheelPath\wheelhouse"
+            if (Test-Path $wheelhouse_path) {
+                $pip_files = Get-ChildItem -Path $wheelhouse_path -Name "pip-*.whl" -ErrorAction SilentlyContinue
+                if ($pip_files.Count -gt 0) {
+                    Write-Host "wheelhouse에서 pip 파일 발견: $($pip_files -join ', ')"
+                    & ".\python_web_clean.bat" -m pip install --no-index --find-links="$wheelhouse_path" --upgrade pip setuptools wheel
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "pip 오프라인 업그레이드 실패 (Exit Code: $LASTEXITCODE)"
+                    }
+                    Write-Host "pip 오프라인 업그레이드 완료"
+                } else {
+                    Write-Host "경고: wheelhouse 폴더는 존재하지만 pip wheel 파일을 찾을 수 없음"
+                    # 폐쇄망 환경에서는 온라인 업그레이드 시도하지 않음
+                    Write-Host "폐쇄망 환경: pip 온라인 업그레이드 건너뜀"
                 }
-                Write-Host "pip 오프라인 업그레이드 완료"
             } else {
-                # 온라인 업그레이드 (메모리 최적화 옵션)
-                & ".\python_web_clean.bat" -m pip install --upgrade pip setuptools wheel --no-cache-dir --disable-pip-version-check
-                if ($LASTEXITCODE -ne 0) {
-                    throw "pip 온라인 업그레이드 실패 (Exit Code: $LASTEXITCODE)"
-                }
-                Write-Host "pip 온라인 업그레이드 완료"
+                Write-Host "경고: wheelhouse 폴더가 존재하지 않음: $wheelhouse_path"
+                Write-Host "폐쇄망 환경: pip 온라인 업그레이드 건너뜀 (인터넷 연결 불가)"
+                Write-Host "기존 pip 버전으로 계속 진행"
             }
 
             # 임시 래퍼 정리
@@ -231,7 +246,7 @@ set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
     
     # Wheel 경로 결정 (브랜치 → 글로벌 폴백)
     $BranchWebWheelPath = "$PackagesRoot\webservice"
-    $GlobalWheelPath = "C:\deploys\packages"
+    # $GlobalWheelPath는 이미 스크립트 상단에서 정의됨
     
     $WebWheelSource = ""
     if (Test-Path "$BranchWebWheelPath\webservice-*.whl") {
