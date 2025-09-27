@@ -306,8 +306,6 @@ set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
         } finally {
             # pip wrapper 정리
             Remove-Item "pip_web_deps.bat" -Force -ErrorAction SilentlyContinue
-        }
-        } finally {
             # 임시 디렉토리 정리 (짧은 경로 포함)
             if (Test-Path $tempPipDir) {
                 Remove-Item -Recurse -Force $tempPipDir -ErrorAction SilentlyContinue
