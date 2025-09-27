@@ -176,22 +176,36 @@ py %*
 
             Write-Host "pip 자동 업그레이드 중... (메모리 에러 방지)"
 
-            # Python 환경 격리를 위한 배치 래퍼 생성
+            # Python 환경 완전 격리를 위한 강화된 배치 래퍼 생성
             $pipWrapper = @"
 @echo off
+REM === Python 환경 완전 격리 ===
 set "PYTHONHOME="
 set "PYTHONPATH="
+set "PYTHONSTARTUP="
+set "PYTHONUSERBASE="
+set "PYTHON_EGG_CACHE="
+set "PYTHONDONTWRITEBYTECODE=1"
+REM 시스템 Python 경로 완전 차단
+set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
 "$WebBackDst\.venv\Scripts\python.exe" %*
 "@
             $pipWrapper | Out-File -FilePath "python_web_clean.bat" -Encoding ascii
 
             # pip 업그레이드 (wheelhouse에서 오프라인)
+            Write-Host "Python 환경 격리 상태에서 pip 업그레이드 중..."
             if (Test-Path "$GlobalWheelPath\wheelhouse\pip*.whl") {
                 & ".\python_web_clean.bat" -m pip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip setuptools wheel
+                if ($LASTEXITCODE -ne 0) {
+                    throw "pip 오프라인 업그레이드 실패 (Exit Code: $LASTEXITCODE)"
+                }
                 Write-Host "pip 오프라인 업그레이드 완료"
             } else {
                 # 온라인 업그레이드 (메모리 최적화 옵션)
                 & ".\python_web_clean.bat" -m pip install --upgrade pip setuptools wheel --no-cache-dir --disable-pip-version-check
+                if ($LASTEXITCODE -ne 0) {
+                    throw "pip 온라인 업그레이드 실패 (Exit Code: $LASTEXITCODE)"
+                }
                 Write-Host "pip 온라인 업그레이드 완료"
             }
 
@@ -262,13 +276,37 @@ set "PYTHONPATH="
         $env:PIP_BUILD_DIR = $tempPipDir
         $env:BUILD_DIR = $buildDir
 
+        # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성
+        $pipWrapperDeps = @"
+@echo off
+REM === Python 환경 완전 격리 (의존성 설치용) ===
+set "PYTHONHOME="
+set "PYTHONPATH="
+set "PYTHONSTARTUP="
+set "PYTHONUSERBASE="
+set "PYTHON_EGG_CACHE="
+set "PYTHONDONTWRITEBYTECODE=1"
+REM 시스템 Python 경로 완전 차단
+set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
+"$WebBackDst\.venv\Scripts\pip.exe" %*
+"@
+        $pipWrapperDeps | Out-File -FilePath "pip_web_deps.bat" -Encoding ascii
+
         try {
+            Write-Host "Python 환경 격리 상태에서 의존성 설치 중..."
             if (Test-Path "$WebSrc\pip.constraints.txt") {
-                & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt" --no-cache-dir --disable-pip-version-check --prefer-binary --no-build-isolation
+                & ".\pip_web_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" -c "$WebSrc\pip.constraints.txt" --no-cache-dir --disable-pip-version-check --prefer-binary --no-build-isolation
             } else {
-                & $webPip install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" --no-cache-dir --disable-pip-version-check --prefer-binary --no-build-isolation
+                & ".\pip_web_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$WebSrc\requirements.txt" --no-cache-dir --disable-pip-version-check --prefer-binary --no-build-isolation
             }
-            Write-Host "  - 의존성 설치 완료 (메모리 최적화)"
+            if ($LASTEXITCODE -ne 0) {
+                throw "의존성 설치 실패 (Exit Code: $LASTEXITCODE)"
+            }
+            Write-Host "  - 의존성 설치 완료 (Python 환경 격리)"
+        } finally {
+            # pip wrapper 정리
+            Remove-Item "pip_web_deps.bat" -Force -ErrorAction SilentlyContinue
+        }
         } finally {
             # 임시 디렉토리 정리 (짧은 경로 포함)
             if (Test-Path $tempPipDir) {
@@ -286,24 +324,49 @@ set "PYTHONPATH="
     $webWheelFile = Get-ChildItem -Path "$WebWheelSource" -Filter "webservice-*.whl" | Select-Object -First 1
     Write-Host "효율적인 재설치 시작: $($webWheelFile.Name)"
     
-    # 기존 webservice 패키지만 언인스톨 (의존성은 유지)
-    Write-Host "  - 기존 webservice 패키지 제거 중..."
+    # Python 환경 격리를 위한 wheel 설치용 wrapper 생성
+    $wheelWrapperContent = @"
+@echo off
+REM === Python 환경 완전 격리 (wheel 설치용) ===
+set "PYTHONHOME="
+set "PYTHONPATH="
+set "PYTHONSTARTUP="
+set "PYTHONUSERBASE="
+set "PYTHON_EGG_CACHE="
+set "PYTHONDONTWRITEBYTECODE=1"
+REM 시스템 Python 경로 완전 차단
+set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
+"$WebBackDst\.venv\Scripts\pip.exe" %*
+"@
+    $wheelWrapperContent | Out-File -FilePath "pip_web_wheel.bat" -Encoding ascii
+
     try {
-        & $webPip uninstall webservice -y 2>&1 | Out-Null
-        Write-Host "  - 기존 패키지 제거 완료"
-    } catch {
-        Write-Host "  - 기존 패키지가 설치되지 않음 (새 설치)"
+        # 기존 webservice 패키지만 언인스톨 (의존성은 유지)
+        Write-Host "  - 기존 webservice 패키지 제거 중..."
+        try {
+            & ".\pip_web_wheel.bat" uninstall webservice -y 2>&1 | Out-Null
+            Write-Host "  - 기존 패키지 제거 완료"
+        } catch {
+            Write-Host "  - 기존 패키지가 설치되지 않음 (새 설치)"
+        }
+
+        # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
+        Write-Host "Python 환경 격리 상태에서 wheel 설치 중..."
+        if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {
+            Write-Host "  - 휠하우스 발견 - 오프라인 빠른 설치"
+            & ".\pip_web_wheel.bat" install $webWheelFile.FullName --no-index --find-links="$GlobalWheelPath\wheelhouse" --no-deps
+        } else {
+            Write-Host "  - 일반 설치 모드 (오프라인 강제)"
+            & ".\pip_web_wheel.bat" install $webWheelFile.FullName --no-index --no-deps
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "웹서비스 wheel 설치 실패 (Exit Code: $LASTEXITCODE)"
+        }
+        Write-Host "웹서비스 설치 완료 (Python 환경 격리)"
+    } finally {
+        # wheel wrapper 정리
+        Remove-Item "pip_web_wheel.bat" -Force -ErrorAction SilentlyContinue
     }
-    
-    # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
-    if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {
-        Write-Host "  - 휠하우스 발견 - 오프라인 빠른 설치"
-        & $webPip install $webWheelFile.FullName --no-index --find-links="$GlobalWheelPath\wheelhouse" --no-deps
-    } else {
-        Write-Host "  - 일반 설치 모드 (오프라인 강제)"
-        & $webPip install $webWheelFile.FullName --no-index --no-deps
-    }
-    Write-Host "웹서비스 설치 완료 (Jenkins 스타일 고속 배포)"
     
     # 5. 마스터 데이터 복사
     Copy-MasterData -TestWebDataPath $TestWebDataPath -TestAutoDataPath $null
@@ -369,7 +432,7 @@ set "PYTHONPATH="
 } catch {
     $errorMessage = $_.Exception.Message
     $errorLine = $_.InvocationInfo.ScriptLineNumber
-    
+
     Write-Error """
     ❌ 웹서비스 백엔드 배포 실패
     ===========================================
@@ -377,57 +440,60 @@ set "PYTHONPATH="
     발생 위치: 라인 $errorLine
     BID: $Bid
     BackPort: $BackPort
-    
+
     📋 문제 해결 가이드:
-    1. Permission Denied 에러:
+    1. runpy 모듈 에러:
+       - Python 환경 오염 문제: 시스템 PYTHONPATH 확인
+       - 가상환경 재생성: rmdir /s $WebBackDst\.venv
+       - Python 3.9 Launcher 확인: $Python39Path
+
+    2. Permission Denied 에러:
        - NSSM 서비스 수동 중지: nssm stop cm-web-$Bid
        - 프로세스 강제 종료: taskkill /f /im python.exe
        - 가상환경 폴더 접근 권한 확인
-    
-    2. 포트 관련 에러:
+
+    3. 포트 관련 에러:
        - 포트 $BackPort 사용 여부 확인: netstat -ano | findstr $BackPort
        - 다른 프로세스가 포트를 사용 중인지 확인
-    
-    3. 서비스 등록 실패:
+
+    4. 서비스 등록 실패:
        - 기존 서비스 확인: sc query cm-web-$Bid
        - 서비스 수동 삭제: sc delete cm-web-$Bid
-    
-    4. 가상환경 문제:
-       - 가상환경 재생성: rmdir /s $WebBackDst\.venv
-       - Python 3.9 Launcher 확인: $Python39Path
     ===========================================
     """
-    
+
     # 실패 시 정리
     Write-Host "실패 후 정리 시도 중..."
-    
+
     try {
         $cleanupWebSvc = Get-Service -Name "cm-web-$Bid" -ErrorAction SilentlyContinue
         if ($cleanupWebSvc) {
             Write-Host "  -> 서비스 중지 시도: cm-web-$Bid"
             & $Nssm stop "cm-web-$Bid" 2>$null
             Start-Sleep -Seconds 5
-            
+
             Write-Host "  -> 서비스 제거 시도: cm-web-$Bid"
             & $Nssm remove "cm-web-$Bid" confirm 2>$null
         }
-        
+
         # 남아있는 프로세스 강제 종료
-        $remainingProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object { 
-            $_.CommandLine -like "*cm-web-$Bid*" -or 
+        $remainingProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object {
+            $_.CommandLine -like "*cm-web-$Bid*" -or
             ($_.CommandLine -like "*uvicorn*" -and $_.CommandLine -like "*$BackPort*")
         }
         if ($remainingProcess) {
             Write-Host "  -> 남아있는 프로세스 강제 종료"
-            $remainingProcess | ForEach-Object { 
+            $remainingProcess | ForEach-Object {
                 Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
             }
         }
-        
+
         Write-Host "정리 완료"
     } catch {
         Write-Warning "정리 중 오류 발생: $($_.Exception.Message)"
     }
-    
-    throw $_.Exception
+
+    # Jenkins에 실패 신호 전송
+    Write-Host "❌ 웹서비스 배포 실패 - Jenkins에 실패 신호 전송 중..."
+    exit 1
 }

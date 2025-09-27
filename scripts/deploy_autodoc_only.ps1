@@ -167,24 +167,39 @@ py %*
         # 가상환경 생성 직후 pip 업그레이드 (메모리 오류 방지, 환경 격리)
         Write-Host "pip 업그레이드 중... (메모리 오류 방지 + 환경 격리)"
 
-        # pip wrapper 생성 (환경 격리)
+        # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성
         $pipWrapper = @"
 @echo off
+REM === Python 환경 완전 격리 (AutoDoc) ===
 set "PYTHONHOME="
 set "PYTHONPATH="
+set "PYTHONSTARTUP="
+set "PYTHONUSERBASE="
+set "PYTHON_EGG_CACHE="
+set "PYTHONDONTWRITEBYTECODE=1"
+REM 시스템 Python 경로 완전 차단
+set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
 "$AutoDst\.venv312\Scripts\python.exe" %*
 "@
         $pipWrapper | Out-File -FilePath "python_autodoc_clean.bat" -Encoding ascii
 
         try {
+            Write-Host "Python 환경 격리 상태에서 pip 업그레이드 중..."
             # 휠하우스에서 pip 업그레이드 시도 (오프라인 환경 대응)
             if (Test-Path "$GlobalWheelPath\wheelhouse\pip-*.whl") {
                 Write-Host "  - 휠하우스에서 pip 업그레이드"
                 & ".\python_autodoc_clean.bat" -m pip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip
+                if ($LASTEXITCODE -ne 0) {
+                    throw "pip 오프라인 업그레이드 실패 (Exit Code: $LASTEXITCODE)"
+                }
             } else {
                 Write-Host "  - 기본 pip 업그레이드"
                 & ".\python_autodoc_clean.bat" -m pip install --upgrade pip
+                if ($LASTEXITCODE -ne 0) {
+                    throw "pip 온라인 업그레이드 실패 (Exit Code: $LASTEXITCODE)"
+                }
             }
+            Write-Host "pip 업그레이드 완료 (Python 환경 격리)"
         } finally {
             Remove-Item "python_autodoc_clean.bat" -Force -ErrorAction SilentlyContinue
         }
@@ -232,18 +247,30 @@ set "PYTHONPATH="
         # 임시 디렉토리 생성
         New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
 
-        # pip wrapper 생성 (환경 격리)
+        # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성 (의존성 설치용)
         $pipWrapper = @"
 @echo off
+REM === Python 환경 완전 격리 (AutoDoc 의존성 설치용) ===
 set "PYTHONHOME="
 set "PYTHONPATH="
+set "PYTHONSTARTUP="
+set "PYTHONUSERBASE="
+set "PYTHON_EGG_CACHE="
+set "PYTHONDONTWRITEBYTECODE=1"
+REM 시스템 Python 경로 완전 차단
+set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
 "$AutoDst\.venv312\Scripts\pip.exe" %*
 "@
         $pipWrapper | Out-File -FilePath "pip_autodoc_deps.bat" -Encoding ascii
 
         try {
+            Write-Host "Python 환경 격리 상태에서 의존성 설치 중..."
             # 메모리 효율적인 pip 설치 (환경 격리)
             & ".\pip_autodoc_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt" --no-cache-dir --disable-pip-version-check
+            if ($LASTEXITCODE -ne 0) {
+                throw "AutoDoc 의존성 설치 실패 (Exit Code: $LASTEXITCODE)"
+            }
+            Write-Host "  - 의존성 설치 완료 (Python 환경 격리)"
         } finally {
             # pip wrapper 정리
             Remove-Item "pip_autodoc_deps.bat" -Force -ErrorAction SilentlyContinue
@@ -260,24 +287,49 @@ set "PYTHONPATH="
     $autoWheelFile = Get-ChildItem -Path "$AutoWheelSource" -Filter "autodoc_service-*.whl" | Select-Object -First 1
     Write-Host "효율적인 재설치 시작: $($autoWheelFile.Name)"
     
-    # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
-    Write-Host "  - 기존 autodoc_service 패키지 제거 중..."
+    # Python 환경 격리를 위한 wheel 설치용 wrapper 생성
+    $wheelWrapperContent = @"
+@echo off
+REM === Python 환경 완전 격리 (AutoDoc wheel 설치용) ===
+set "PYTHONHOME="
+set "PYTHONPATH="
+set "PYTHONSTARTUP="
+set "PYTHONUSERBASE="
+set "PYTHON_EGG_CACHE="
+set "PYTHONDONTWRITEBYTECODE=1"
+REM 시스템 Python 경로 완전 차단
+set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
+"$AutoDst\.venv312\Scripts\pip.exe" %*
+"@
+    $wheelWrapperContent | Out-File -FilePath "pip_autodoc_wheel.bat" -Encoding ascii
+
     try {
-        & $autoPip uninstall autodoc_service -y 2>&1 | Out-Null
-        Write-Host "  - 기존 패키지 제거 완료"
-    } catch {
-        Write-Host "  - 기존 패키지가 설치되지 않음 (새 설치)"
+        # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
+        Write-Host "  - 기존 autodoc_service 패키지 제거 중..."
+        try {
+            & ".\pip_autodoc_wheel.bat" uninstall autodoc_service -y 2>&1 | Out-Null
+            Write-Host "  - 기존 패키지 제거 완료"
+        } catch {
+            Write-Host "  - 기존 패키지가 설치되지 않음 (새 설치)"
+        }
+
+        # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
+        Write-Host "Python 환경 격리 상태에서 wheel 설치 중..."
+        if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {
+            Write-Host "  - 휠하우스 발견 - 오프라인 빠른 설치"
+            & ".\pip_autodoc_wheel.bat" install $autoWheelFile.FullName --no-index --find-links="$GlobalWheelPath\wheelhouse" --no-deps
+        } else {
+            Write-Host "  - 일반 설치 모드"
+            & ".\pip_autodoc_wheel.bat" install $autoWheelFile.FullName --no-deps
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "AutoDoc wheel 설치 실패 (Exit Code: $LASTEXITCODE)"
+        }
+        Write-Host "AutoDoc 설치 완료 (Python 환경 격리)"
+    } finally {
+        # wheel wrapper 정리
+        Remove-Item "pip_autodoc_wheel.bat" -Force -ErrorAction SilentlyContinue
     }
-    
-    # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
-    if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {
-        Write-Host "  - 휠하우스 발견 - 오프라인 빠른 설치"
-        & $autoPip install $autoWheelFile.FullName --no-index --find-links="$GlobalWheelPath\wheelhouse" --no-deps
-    } else {
-        Write-Host "  - 일반 설치 모드"
-        & $autoPip install $autoWheelFile.FullName --no-deps
-    }
-    Write-Host "AutoDoc 설치 완료 (Jenkins 스타일 고속 배포)"
     
     # 5. 마스터 데이터 복사
     Copy-MasterData -TestWebDataPath $null -TestAutoDataPath $TestAutoDataPath
@@ -333,16 +385,70 @@ set "PYTHONPATH="
     Write-Host "===========================================`n"
     
 } catch {
-    Write-Error "AutoDoc 서비스 배포 실패: $($_.Exception.Message)"
-    
+    $errorMessage = $_.Exception.Message
+    $errorLine = $_.InvocationInfo.ScriptLineNumber
+
+    Write-Error """
+    ❌ AutoDoc 서비스 배포 실패
+    ===========================================
+    에러 메시지: $errorMessage
+    발생 위치: 라인 $errorLine
+    BID: $Bid
+    AutoPort: $AutoPort
+
+    📋 문제 해결 가이드:
+    1. runpy 모듈 에러:
+       - Python 환경 오염 문제: 시스템 PYTHONPATH 확인
+       - 가상환경 재생성: rmdir /s $AutoDst\.venv312
+       - Python 3.12 설치 확인
+
+    2. Permission Denied 에러:
+       - NSSM 서비스 수동 중지: nssm stop cm-autodoc-$Bid
+       - 프로세스 강제 종료: taskkill /f /im python.exe
+       - 가상환경 폴더 접근 권한 확인
+
+    3. 포트 관련 에러:
+       - 포트 $AutoPort 사용 여부 확인: netstat -ano | findstr $AutoPort
+       - 다른 프로세스가 포트를 사용 중인지 확인
+
+    4. 서비스 등록 실패:
+       - 기존 서비스 확인: sc query cm-autodoc-$Bid
+       - 서비스 수동 삭제: sc delete cm-autodoc-$Bid
+    ===========================================
+    """
+
     # 실패 시 정리
     Write-Host "실패 후 정리 시도 중..."
-    
-    $cleanupAutoSvc = Get-Service -Name "cm-autodoc-$Bid" -ErrorAction SilentlyContinue
-    if ($cleanupAutoSvc) {
-        & $Nssm stop "cm-autodoc-$Bid" 2>$null
-        & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+
+    try {
+        $cleanupAutoSvc = Get-Service -Name "cm-autodoc-$Bid" -ErrorAction SilentlyContinue
+        if ($cleanupAutoSvc) {
+            Write-Host "  -> 서비스 중지 시도: cm-autodoc-$Bid"
+            & $Nssm stop "cm-autodoc-$Bid" 2>$null
+            Start-Sleep -Seconds 5
+
+            Write-Host "  -> 서비스 제거 시도: cm-autodoc-$Bid"
+            & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+        }
+
+        # 남아있는 프로세스 강제 종료
+        $remainingProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object {
+            $_.CommandLine -like "*cm-autodoc-$Bid*" -or
+            ($_.CommandLine -like "*uvicorn*" -and $_.CommandLine -like "*$AutoPort*")
+        }
+        if ($remainingProcess) {
+            Write-Host "  -> 남아있는 프로세스 강제 종료"
+            $remainingProcess | ForEach-Object {
+                Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        Write-Host "정리 완료"
+    } catch {
+        Write-Warning "정리 중 오류 발생: $($_.Exception.Message)"
     }
-    
-    throw $_.Exception
+
+    # Jenkins에 실패 신호 전송
+    Write-Host "❌ AutoDoc 서비스 배포 실패 - Jenkins에 실패 신호 전송 중..."
+    exit 1
 }
