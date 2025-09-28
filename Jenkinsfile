@@ -95,7 +95,8 @@ pipeline {
 
                     } catch (Exception e) {
                         echo "변경 감지 실패, 전체 빌드 실행: ${e.getMessage()}"
-                        changedFiles = ['webservice/', 'autodoc_service/', 'cli/']
+                        // Backend와 Frontend를 분리하여 모든 서비스 빌드 실행
+                        changedFiles = ['webservice/app/', 'webservice/frontend/', 'autodoc_service/', 'cli/']
                     }
 
                     // *.md 파일은 제외하고 감지
