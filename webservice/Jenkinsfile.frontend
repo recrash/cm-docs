@@ -130,7 +130,7 @@ pipeline {
                             if exist "C:\\deploys\\packages\\frontend\\node_modules" (
                                 echo Reinstalling node_modules for eslint issue...
                                 if exist node_modules rd /s /q node_modules
-                                xcopy /E /I /H /Y "C:\\deploys\\packages\\frontend\\node_modules" "node_modules\    \" >nul 2>&1
+                                xcopy /E /I /H /Y "C:\\deploys\\packages\\frontend\\node_modules" "node_modules\\" >nul 2>&1
                                 echo node_modules reinstalled
                             )
                             '''
