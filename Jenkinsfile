@@ -225,8 +225,8 @@ pipeline {
                             }
 
                             # Wheelhouse 잠금 파일 정리 (이전 빌드 잔존물)
-                            if (Test-Path '%WHEELHOUSE_PATH%\.lock') {
-                                Remove-Item '%WHEELHOUSE_PATH%\.lock' -Force -ErrorAction SilentlyContinue
+                            if (Test-Path '%WHEELHOUSE_PATH%\\.lock') {
+                                Remove-Item '%WHEELHOUSE_PATH%\\.lock' -Force -ErrorAction SilentlyContinue
                                 Write-Host '🧹 이전 빌드의 wheelhouse 잠금 파일 정리'
                             }
 
@@ -401,12 +401,12 @@ pipeline {
                                     bat '''
                                     chcp 65001 >NUL
                                     set "WORKSPACE_PATH=%WORKSPACE%"
-                                    if exist "%WORKSPACE_PATH%\webservice\frontend.zip" (
-                                        echo "✅ frontend.zip 복사 성공: %WORKSPACE_PATH%\webservice\frontend.zip"
+                                    if exist "%WORKSPACE_PATH%\\webservice\\frontend.zip" (
+                                        echo "✅ frontend.zip 복사 성공: %WORKSPACE_PATH%\\webservice\\frontend.zip"
                                     ) else (
                                         echo "❌ frontend.zip 복사 실패"
-                                        echo "확인 경로: %WORKSPACE_PATH%\webservice\"
-                                        dir "%WORKSPACE_PATH%\webservice\"
+                                        echo "확인 경로: %WORKSPACE_PATH%\\webservice\\"
+                                        dir "%WORKSPACE_PATH%\\webservice\\"
                                         exit 1
                                     )
                                     '''
@@ -896,7 +896,7 @@ pipeline {
                     try {
                         bat '''
                         chcp 65001 >NUL
-powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:PYTHONIOENCODING='utf-8'; & {. '.\scripts\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\deploys\tests\%BID%\packages'; Cleanup-OldBranchFolders -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:PYTHONIOENCODING='utf-8'; & {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Cleanup-OldBranchFolders -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
                         '''
                         echo "✓ 공통 초기화 완료"
                     } catch (Exception initError) {
@@ -915,10 +915,10 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                                 chcp 65001 >NUL
                                 powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\deploy_frontend_only.ps1" ^
                                     -Bid "%BID%" ^
-                                    -WebSrc "%WORKSPACE%\webservice" ^
+                                    -WebSrc "%WORKSPACE%\\webservice" ^
                                     -WebFrontDst "%WEB_FRONT_DST%" ^
                                     -UrlPrefix "%URL_PREFIX%" ^
-                                    -PackagesRoot "C:\deploys\tests\%BID%\packages"
+                                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
                                 '''
                                 deployResults['Frontend'] = 'SUCCESS'
                                 echo "✅ Frontend 배포 성공"
@@ -954,7 +954,7 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                             try {
                                 bat '''
                                 chcp 65001 >NUL
-powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:PYTHONIOENCODING='utf-8'; & '.\scripts\deploy_webservice_only.ps1' -Bid '%BID%' -BackPort %BACK_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -WebSrc '%WORKSPACE%\webservice' -WebBackDst '%WEB_BACK_DST%' -PackagesRoot 'C:\deploys\tests\%BID%\packages' -AutoDocServiceUrl '%AUTODOC_SERVICE_URL%' -UrlPrefix '%URL_PREFIX%'"
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_webservice_only.ps1' -Bid '%BID%' -BackPort %BACK_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -WebSrc '%WORKSPACE%\\webservice' -WebBackDst '%WEB_BACK_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages' -AutoDocServiceUrl '%AUTODOC_SERVICE_URL%' -UrlPrefix '%URL_PREFIX%'"
                                 '''
                                 deployResults['Backend'] = 'SUCCESS'
                                 echo "✅ Backend 배포 성공"
@@ -996,7 +996,7 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                             try {
                                 bat '''
                                 chcp 65001 >NUL
-powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:PYTHONIOENCODING='utf-8'; & '.\scripts\deploy_autodoc_only.ps1' -Bid '%BID%' -AutoPort %AUTO_PORT% -Py '%PY_PATH_312%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -AutoSrc '%WORKSPACE%\autodoc_service' -AutoDst '%AUTO_DST%' -PackagesRoot 'C:\deploys\tests\%BID%\packages'"
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_autodoc_only.ps1' -Bid '%BID%' -AutoPort %AUTO_PORT% -Py '%PY_PATH_312%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -AutoSrc '%WORKSPACE%\\autodoc_service' -AutoDst '%AUTO_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'"
                                 '''
                                 deployResults['AutoDoc'] = 'SUCCESS'
                                 echo "✅ AutoDoc 배포 성공"

@@ -173,9 +173,9 @@ pipeline {
                         set "BACKUP_DIR=%BACKUP_DIR%"
                         set "NGINX_ROOT=%NGINX_ROOT%"
                         if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
-                        if exist "%NGINX_ROOT%\*" (
-                            powershell -Command "Remove-Item -Path '%BACKUP_DIR%\*' -Recurse -Force -ErrorAction SilentlyContinue"
-                            powershell -Command "Copy-Item -Path '%NGINX_ROOT%\*' -Destination '%BACKUP_DIR%' -Recurse -Force -ErrorAction SilentlyContinue"
+                        if exist "%NGINX_ROOT%\\*" (
+                            powershell -Command "Remove-Item -Path '%BACKUP_DIR%\\*' -Recurse -Force -ErrorAction SilentlyContinue"
+                            powershell -Command "Copy-Item -Path '%NGINX_ROOT%\\*' -Destination '%BACKUP_DIR%' -Recurse -Force -ErrorAction SilentlyContinue"
                         )
                     '''
                     echo "기존 웹 파일을 중앙화된 백업 디렉토리에 백업 완료"
