@@ -457,3 +457,5 @@ attachments/
 
 # Serena Model
 .serena/   
+
+TestscenarioMaker-CLI*.exe
