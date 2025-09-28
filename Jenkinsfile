@@ -384,35 +384,33 @@ pipeline {
                                 env.WEBSERVICE_FRONTEND_STATUS = 'SUCCESS'
                                 echo "Webservice Frontend 배포 성공"
                                 
-                                // 테스트 인스턴스용 프론트엔드 아티팩트 복사
-                                if (env.IS_TEST == 'true') {
-                                    echo "테스트 인스턴스용 프론트엔드 아티팩트 복사 시작..."
-                                    
-                                    copyArtifacts(
-                                        projectName: 'webservice-frontend-pipeline',
-                                        selector: lastSuccessful(),
-                                        // selector: [$class: 'LastSuccessfulBuildSelector'],
-                                        target: 'webservice/',
-                                        flatten: true,
-                                        fingerprintArtifacts: true
-                                    )
-                                    
-                                    // 아티팩트 존재 확인 (Windows 호환성 개선)
-                                    bat '''
-                                    chcp 65001 >NUL
-                                    set "WORKSPACE_PATH=%WORKSPACE%"
-                                    if exist "%WORKSPACE_PATH%\\webservice\\frontend.zip" (
-                                        echo "✅ frontend.zip 복사 성공: %WORKSPACE_PATH%\\webservice\\frontend.zip"
-                                    ) else (
-                                        echo "❌ frontend.zip 복사 실패"
-                                        echo "확인 경로: %WORKSPACE_PATH%\\webservice\\"
-                                        dir "%WORKSPACE_PATH%\\webservice\\"
-                                        exit 1
-                                    )
-                                    '''
-                                    
-                                    echo "테스트 인스턴스용 프론트엔드 아티팩트 복사 완료"
-                                }
+                                // 프론트엔드 아티팩트 복사                                
+                                echo "테스트 인스턴스용 프론트엔드 아티팩트 복사 시작..."
+                                
+                                copyArtifacts(
+                                    projectName: 'webservice-frontend-pipeline',
+                                    selector: lastSuccessful(),
+                                    // selector: [$class: 'LastSuccessfulBuildSelector'],
+                                    target: 'webservice/',
+                                    flatten: true,
+                                    fingerprintArtifacts: true
+                                )
+                                
+                                // 아티팩트 존재 확인 (Windows 호환성 개선)
+                                bat '''
+                                chcp 65001 >NUL
+                                set "WORKSPACE_PATH=%WORKSPACE%"
+                                if exist "%WORKSPACE_PATH%\\webservice\\frontend.zip" (
+                                    echo "✅ frontend.zip 복사 성공: %WORKSPACE_PATH%\\webservice\\frontend.zip"
+                                ) else (
+                                    echo "❌ frontend.zip 복사 실패"
+                                    echo "확인 경로: %WORKSPACE_PATH%\\webservice\\"
+                                    dir "%WORKSPACE_PATH%\\webservice\\"
+                                    exit 1
+                                )
+                                '''
+                                
+                                echo "테스트 인스턴스용 프론트엔드 아티팩트 복사 완료"                                
                                 
                             } catch (Exception e) {
                                 env.WEBSERVICE_FRONTEND_STATUS = 'FAILED'
