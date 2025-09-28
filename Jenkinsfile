@@ -913,7 +913,7 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                             try {
                                 bat '''
                                 chcp 65001 >NUL
-                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\deploy_frontend_only.ps1" ^
+                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_frontend_only.ps1" ^
                                     -Bid "%BID%" ^
                                     -WebSrc "%WORKSPACE%\\webservice" ^
                                     -WebFrontDst "%WEB_FRONT_DST%" ^
