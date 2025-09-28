@@ -1117,7 +1117,7 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                         }
                     } else {
                         echo "배포할 서비스가 없습니다."
-                    }
+                    } 
                 
                     echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
                     } // else (feature 브랜치) 블록 닫기
