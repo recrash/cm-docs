@@ -1276,20 +1276,20 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                 } catch (Exception e) {
                     echo "아티팩트 보관 실패: ${e.getMessage()}"
                 }
-
-                // 워크스페이스 정리 (폐쇄망 환경 고려)
-                cleanWs(patterns: [
-                    [pattern: '**/node_modules', type: 'EXCLUDE'],  // 폐쇄망에서 재다운로드 어려움
-                    [pattern: '**/.venv*', type: 'EXCLUDE'],        // Python 환경 보존
-                    [pattern: '**/wheelhouse', type: 'EXCLUDE'],    // 휠하우스 보존
-                    [pattern: '**/logs', type: 'EXCLUDE'],          // 로그 보존
-                    [pattern: '**/.pytest_cache', type: 'INCLUDE'], // 임시 캐시 삭제
-                    [pattern: '**/temp*', type: 'INCLUDE'],         // 임시 파일 삭제
-                    [pattern: '**/*.tmp', type: 'INCLUDE']          // 임시 파일 삭제
-                ])
-
-                echo "워크스페이스 정리 완료 (폐쇄망 환경 고려)"
             }
+
+            // 워크스페이스 정리 (폐쇄망 환경 고려)
+            cleanWs(patterns: [
+                [pattern: '**/node_modules', type: 'EXCLUDE'],  // 폐쇄망에서 재다운로드 어려움
+                [pattern: '**/.venv*', type: 'EXCLUDE'],        // Python 환경 보존
+                [pattern: '**/wheelhouse', type: 'EXCLUDE'],    // 휠하우스 보존
+                [pattern: '**/logs', type: 'EXCLUDE'],          // 로그 보존
+                [pattern: '**/.pytest_cache', type: 'INCLUDE'], // 임시 캐시 삭제
+                [pattern: '**/temp*', type: 'INCLUDE'],         // 임시 파일 삭제
+                [pattern: '**/*.tmp', type: 'INCLUDE']          // 임시 파일 삭제
+            ])
+
+            echo "워크스페이스 정리 완료 (폐쇄망 환경 고려)"
         }
     }
 }
