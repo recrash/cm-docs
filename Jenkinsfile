@@ -372,7 +372,7 @@ pipeline {
                                 bat '''
                                 chcp 65001 >NUL
                                 set "BRANCH_NAME=%BRANCH_NAME%"
-                                set "NODE_MODULES_BUNDLE_PATH=C:\deploys\packages\frontend\node_modules"
+                                set "NODE_MODULES_BUNDLE_PATH=C:\\deploys\\packages\\frontend\\node_modules"
                                 '''
 
                                 def frontendBuild = build job: "webservice-frontend-pipeline",
