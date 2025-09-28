@@ -2,15 +2,27 @@
 # AutoDoc 서비스만 배포하는 스크립트
 
 param(
-    [Parameter(Mandatory=$true)][string]$Bid,
-    [Parameter(Mandatory=$true)][int]$AutoPort,
+    # === 분기용 파라미터 ===
+    [Parameter(Mandatory=$false)][switch]$IsMainBranch,
+
+    # === Main 브랜치 전용 파라미터 ===
+    [Parameter(Mandatory=$false)][string]$MainDeployPath = 'C:\deploys\apps\autodoc_service',
+    [Parameter(Mandatory=$false)][string]$MainDataPath = 'C:\deploys\data\autodoc_service',
+    [Parameter(Mandatory=$false)][string]$MainServiceName = 'autodoc_service',
+    [Parameter(Mandatory=$false)][int]$MainPort = 8001,
+
+    # === Feature 브랜치 전용 파라미터 ===
+    [Parameter(Mandatory=$false)][string]$Bid,
+    [Parameter(Mandatory=$false)][int]$AutoPort,
+    [Parameter(Mandatory=$false)][string]$AutoDst,     # C:\deploys\tests\{BID}\apps\autodoc_service
+    [Parameter(Mandatory=$false)][string]$PackagesRoot, # "C:\deploys\tests\{BID}\packages"
+    [Parameter(Mandatory=$false)][switch]$ForceUpdateDeps = $false,  # 의존성 강제 업데이트
+
+    # === 공통 파라미터 ===
     [Parameter(Mandatory=$true)][string]$Py,
     [Parameter(Mandatory=$true)][string]$Nssm,
     [Parameter(Mandatory=$true)][string]$Nginx,
-    [Parameter(Mandatory=$true)][string]$AutoSrc,     # repo/autodoc_service
-    [Parameter(Mandatory=$true)][string]$AutoDst,     # C:\deploys\tests\{BID}\apps\autodoc_service
-    [Parameter(Mandatory=$true)][string]$PackagesRoot, # "C:\deploys\tests\{BID}\packages"
-    [Parameter(Mandatory=$false)][switch]$ForceUpdateDeps = $false  # 의존성 강제 업데이트
+    [Parameter(Mandatory=$true)][string]$AutoSrc     # repo/autodoc_service
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,15 +30,136 @@ $ErrorActionPreference = "Stop"
 # UTF-8 출력 설정 (한글 지원)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# 공통 함수 로드
-. "$PSScriptRoot\deploy_common.ps1" -Bid $Bid -Nssm $Nssm -Nginx $Nginx -PackagesRoot $PackagesRoot
+# ==========================================
+# Main/Feature 브랜치 분기 처리
+# ==========================================
 
-Write-Host "===========================================`n"
-Write-Host "AutoDoc 서비스 배포 시작 (독립 배포)`n"
+if ($IsMainBranch) {
+    # =====================================
+    # MAIN 브랜치 프로덕션 배포 로직
+    # =====================================
+    Write-Host "===========================================`n"
+    Write-Host "MAIN 브랜치 AutoDoc 프로덕션 배포 시작`n"
+    Write-Host "===========================================`n"
+    Write-Host "• Deploy Path: $MainDeployPath"
+    Write-Host "• Data Path: $MainDataPath"
+    Write-Host "• Service Name: $MainServiceName"
+    Write-Host "• Port: $MainPort"
+    Write-Host "===========================================`n"
+
+    try {
+        # 1. 서비스 중지
+        Write-Host "1. 서비스 중지 중..."
+        & $Nssm stop $MainServiceName
+        Start-Sleep -Seconds 3
+
+        # 2. 소스 파일 복사
+        Write-Host "2. 소스 파일 복사 중..."
+        if (Test-Path $AutoSrc) {
+            Copy-Item -Path "$AutoSrc\*" -Destination $MainDeployPath -Recurse -Force
+            Write-Host "소스 파일 복사 완료"
+        } else {
+            throw "AutoDoc 소스 경로를 찾을 수 없습니다: $AutoSrc"
+        }
+
+        # 3. 가상환경 확인 및 의존성 업데이트 (Python 환경 격리)
+        Write-Host "3. 가상환경 확인 및 의존성 업데이트 중..."
+        if (Test-Path "$MainDeployPath\.venv312") {
+            # 기존 가상환경이 있는 경우 의존성만 업데이트
+            Write-Host "기존 가상환경 발견 - 의존성 업데이트 중..."
+
+            # Python 환경 격리 래퍼 생성
+            $pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"$MainDeployPath\.venv312\Scripts\pip.exe" %*
+"@
+            $wrapperPath = "$env:TEMP\pip_autodoc_main_clean_$(Get-Random).bat"
+            $pipWrapper | Out-File -FilePath $wrapperPath -Encoding ascii
+
+            try {
+                & $wrapperPath install -r "$MainDeployPath\requirements.txt" --upgrade
+                Write-Host "의존성 업데이트 완료"
+            } finally {
+                Remove-Item $wrapperPath -Force -ErrorAction SilentlyContinue
+            }
+        } else {
+            # 새 가상환경 생성
+            Write-Host "가상환경 생성 중..."
+
+            # Python 환경 격리 래퍼 생성
+            $pyWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+py %*
+"@
+            $pyWrapperPath = "$env:TEMP\py_autodoc_main_clean_$(Get-Random).bat"
+            $pyWrapper | Out-File -FilePath $pyWrapperPath -Encoding ascii
+
+            try {
+                & $pyWrapperPath -3.12 -m venv "$MainDeployPath\.venv312"
+                Write-Host "가상환경 생성 완료"
+
+                # pip 업그레이드 및 의존성 설치
+                $pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"$MainDeployPath\.venv312\Scripts\pip.exe" %*
+"@
+                $pipWrapperPath = "$env:TEMP\pip_autodoc_main_clean_$(Get-Random).bat"
+                $pipWrapper | Out-File -FilePath $pipWrapperPath -Encoding ascii
+
+                & $pipWrapperPath install --upgrade pip
+                & $pipWrapperPath install -r "$MainDeployPath\requirements.txt"
+                Write-Host "의존성 설치 완료"
+
+                Remove-Item $pipWrapperPath -Force -ErrorAction SilentlyContinue
+            } finally {
+                Remove-Item $pyWrapperPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        # 4. 서비스 시작
+        Write-Host "4. 서비스 시작 중..."
+        & $Nssm start $MainServiceName
+        Start-Sleep -Seconds 5
+
+        Write-Host "===========================================`n"
+        Write-Host "MAIN 브랜치 AutoDoc 프로덕션 배포 완료`n"
+        Write-Host "===========================================`n"
+
+    } catch {
+        Write-Host "MAIN 브랜치 AutoDoc 배포 실패: $($_.Exception.Message)"
+        # 서비스 복구 시도
+        try {
+            & $Nssm start $MainServiceName
+        } catch {
+            Write-Host "서비스 복구 실패: $($_.Exception.Message)"
+        }
+        throw
+    }
+
+} else {
+    # =====================================
+    # FEATURE 브랜치 테스트 인스턴스 배포 로직
+    # =====================================
+
+    # 공통 함수 로드
+    . "$PSScriptRoot\deploy_common.ps1" -Bid $Bid -Nssm $Nssm -Nginx $Nginx -PackagesRoot $PackagesRoot
+
+    # 글로벌 변수 정의 (wheelhouse 감지용)
+    $GlobalWheelPath = "C:\deploys\packages"
+
+    Write-Host "===========================================`n"
+    Write-Host "AutoDoc 서비스 배포 시작 (독립 배포)`n"
 Write-Host "===========================================`n"
 Write-Host "• BID: $Bid"
 Write-Host "• AutoDoc Port: $AutoPort"
 Write-Host "• Packages Root: $PackagesRoot"
+Write-Host "• Global Wheel Path: $GlobalWheelPath"
 Write-Host "===========================================`n"
 
 try {
@@ -167,24 +300,47 @@ py %*
         # 가상환경 생성 직후 pip 업그레이드 (메모리 오류 방지, 환경 격리)
         Write-Host "pip 업그레이드 중... (메모리 오류 방지 + 환경 격리)"
 
-        # pip wrapper 생성 (환경 격리)
+        # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성
         $pipWrapper = @"
 @echo off
+REM === Python 환경 완전 격리 (AutoDoc) ===
 set "PYTHONHOME="
 set "PYTHONPATH="
+set "PYTHONSTARTUP="
+set "PYTHONUSERBASE="
+set "PYTHON_EGG_CACHE="
+set "PYTHONDONTWRITEBYTECODE=1"
+REM 시스템 Python 경로 완전 차단
+set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
 "$AutoDst\.venv312\Scripts\python.exe" %*
 "@
         $pipWrapper | Out-File -FilePath "python_autodoc_clean.bat" -Encoding ascii
 
         try {
-            # 휠하우스에서 pip 업그레이드 시도 (오프라인 환경 대응)
-            if (Test-Path "$GlobalWheelPath\wheelhouse\pip-*.whl") {
-                Write-Host "  - 휠하우스에서 pip 업그레이드"
-                & ".\python_autodoc_clean.bat" -m pip install --no-index --find-links="$GlobalWheelPath\wheelhouse" --upgrade pip
+            Write-Host "Python 환경 격리 상태에서 pip 업그레이드 중..."
+            Write-Host "wheelhouse 경로 확인: $GlobalWheelPath\wheelhouse"
+
+            # wheelhouse 폴더와 pip 파일 존재 확인
+            $wheelhouse_path = "$GlobalWheelPath\wheelhouse"
+            if (Test-Path $wheelhouse_path) {
+                $pip_files = Get-ChildItem -Path $wheelhouse_path -Name "pip-*.whl" -ErrorAction SilentlyContinue
+                if ($pip_files.Count -gt 0) {
+                    Write-Host "wheelhouse에서 pip 파일 발견: $($pip_files -join ', ')"
+                    & ".\python_autodoc_clean.bat" -m pip install --no-index --find-links="$wheelhouse_path" --upgrade pip
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "pip 오프라인 업그레이드 실패 (Exit Code: $LASTEXITCODE)"
+                    }
+                    Write-Host "pip 오프라인 업그레이드 완료"
+                } else {
+                    Write-Host "경고: wheelhouse 폴더는 존재하지만 pip wheel 파일을 찾을 수 없음"
+                    Write-Host "폐쇄망 환경: pip 온라인 업그레이드 건너뜀"
+                }
             } else {
-                Write-Host "  - 기본 pip 업그레이드"
-                & ".\python_autodoc_clean.bat" -m pip install --upgrade pip
+                Write-Host "경고: wheelhouse 폴더가 존재하지 않음: $wheelhouse_path"
+                Write-Host "폐쇄망 환경: pip 온라인 업그레이드 건너뜀 (인터넷 연결 불가)"
+                Write-Host "기존 pip 버전으로 계속 진행"
             }
+            Write-Host "pip 업그레이드 완료 (Python 환경 격리)"
         } finally {
             Remove-Item "python_autodoc_clean.bat" -Force -ErrorAction SilentlyContinue
         }
@@ -201,7 +357,7 @@ set "PYTHONPATH="
     
     # AutoDoc Wheel 경로 결정
     $BranchAutoWheelPath = "$PackagesRoot\autodoc_service"
-    $GlobalWheelPath = "C:\deploys\packages"
+    # $GlobalWheelPath는 이미 스크립트 상단에서 정의됨
     
     $AutoWheelSource = ""
     if (Test-Path "$BranchAutoWheelPath\autodoc_service-*.whl") {
@@ -232,18 +388,30 @@ set "PYTHONPATH="
         # 임시 디렉토리 생성
         New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
 
-        # pip wrapper 생성 (환경 격리)
+        # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성 (의존성 설치용)
         $pipWrapper = @"
 @echo off
+REM === Python 환경 완전 격리 (AutoDoc 의존성 설치용) ===
 set "PYTHONHOME="
 set "PYTHONPATH="
+set "PYTHONSTARTUP="
+set "PYTHONUSERBASE="
+set "PYTHON_EGG_CACHE="
+set "PYTHONDONTWRITEBYTECODE=1"
+REM 시스템 Python 경로 완전 차단
+set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
 "$AutoDst\.venv312\Scripts\pip.exe" %*
 "@
         $pipWrapper | Out-File -FilePath "pip_autodoc_deps.bat" -Encoding ascii
 
         try {
+            Write-Host "Python 환경 격리 상태에서 의존성 설치 중..."
             # 메모리 효율적인 pip 설치 (환경 격리)
             & ".\pip_autodoc_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$AutoSrc\requirements.txt" --no-cache-dir --disable-pip-version-check
+            if ($LASTEXITCODE -ne 0) {
+                throw "AutoDoc 의존성 설치 실패 (Exit Code: $LASTEXITCODE)"
+            }
+            Write-Host "  - 의존성 설치 완료 (Python 환경 격리)"
         } finally {
             # pip wrapper 정리
             Remove-Item "pip_autodoc_deps.bat" -Force -ErrorAction SilentlyContinue
@@ -260,24 +428,49 @@ set "PYTHONPATH="
     $autoWheelFile = Get-ChildItem -Path "$AutoWheelSource" -Filter "autodoc_service-*.whl" | Select-Object -First 1
     Write-Host "효율적인 재설치 시작: $($autoWheelFile.Name)"
     
-    # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
-    Write-Host "  - 기존 autodoc_service 패키지 제거 중..."
+    # Python 환경 격리를 위한 wheel 설치용 wrapper 생성
+    $wheelWrapperContent = @"
+@echo off
+REM === Python 환경 완전 격리 (AutoDoc wheel 설치용) ===
+set "PYTHONHOME="
+set "PYTHONPATH="
+set "PYTHONSTARTUP="
+set "PYTHONUSERBASE="
+set "PYTHON_EGG_CACHE="
+set "PYTHONDONTWRITEBYTECODE=1"
+REM 시스템 Python 경로 완전 차단
+set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
+"$AutoDst\.venv312\Scripts\pip.exe" %*
+"@
+    $wheelWrapperContent | Out-File -FilePath "pip_autodoc_wheel.bat" -Encoding ascii
+
     try {
-        & $autoPip uninstall autodoc_service -y 2>&1 | Out-Null
-        Write-Host "  - 기존 패키지 제거 완료"
-    } catch {
-        Write-Host "  - 기존 패키지가 설치되지 않음 (새 설치)"
+        # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
+        Write-Host "  - 기존 autodoc_service 패키지 제거 중..."
+        try {
+            & ".\pip_autodoc_wheel.bat" uninstall autodoc_service -y 2>&1 | Out-Null
+            Write-Host "  - 기존 패키지 제거 완료"
+        } catch {
+            Write-Host "  - 기존 패키지가 설치되지 않음 (새 설치)"
+        }
+
+        # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
+        Write-Host "Python 환경 격리 상태에서 wheel 설치 중..."
+        if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {
+            Write-Host "  - 휠하우스 발견 - 오프라인 빠른 설치"
+            & ".\pip_autodoc_wheel.bat" install $autoWheelFile.FullName --no-index --find-links="$GlobalWheelPath\wheelhouse" --no-deps
+        } else {
+            Write-Host "  - 일반 설치 모드"
+            & ".\pip_autodoc_wheel.bat" install $autoWheelFile.FullName --no-deps
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "AutoDoc wheel 설치 실패 (Exit Code: $LASTEXITCODE)"
+        }
+        Write-Host "AutoDoc 설치 완료 (Python 환경 격리)"
+    } finally {
+        # wheel wrapper 정리
+        Remove-Item "pip_autodoc_wheel.bat" -Force -ErrorAction SilentlyContinue
     }
-    
-    # 휠하우스가 있으면 오프라인 설치로 속도 최적화 (폐쇄망 호환)
-    if (Test-Path "$GlobalWheelPath\wheelhouse\*.whl") {
-        Write-Host "  - 휠하우스 발견 - 오프라인 빠른 설치"
-        & $autoPip install $autoWheelFile.FullName --no-index --find-links="$GlobalWheelPath\wheelhouse" --no-deps
-    } else {
-        Write-Host "  - 일반 설치 모드"
-        & $autoPip install $autoWheelFile.FullName --no-deps
-    }
-    Write-Host "AutoDoc 설치 완료 (Jenkins 스타일 고속 배포)"
     
     # 5. 마스터 데이터 복사
     Copy-MasterData -TestWebDataPath $null -TestAutoDataPath $TestAutoDataPath
@@ -333,16 +526,71 @@ set "PYTHONPATH="
     Write-Host "===========================================`n"
     
 } catch {
-    Write-Error "AutoDoc 서비스 배포 실패: $($_.Exception.Message)"
-    
+    $errorMessage = $_.Exception.Message
+    $errorLine = $_.InvocationInfo.ScriptLineNumber
+
+    Write-Error """
+    ❌ AutoDoc 서비스 배포 실패
+    ===========================================
+    에러 메시지: $errorMessage
+    발생 위치: 라인 $errorLine
+    BID: $Bid
+    AutoPort: $AutoPort
+
+    📋 문제 해결 가이드:
+    1. runpy 모듈 에러:
+       - Python 환경 오염 문제: 시스템 PYTHONPATH 확인
+       - 가상환경 재생성: rmdir /s $AutoDst\.venv312
+       - Python 3.12 설치 확인
+
+    2. Permission Denied 에러:
+       - NSSM 서비스 수동 중지: nssm stop cm-autodoc-$Bid
+       - 프로세스 강제 종료: taskkill /f /im python.exe
+       - 가상환경 폴더 접근 권한 확인
+
+    3. 포트 관련 에러:
+       - 포트 $AutoPort 사용 여부 확인: netstat -ano | findstr $AutoPort
+       - 다른 프로세스가 포트를 사용 중인지 확인
+
+    4. 서비스 등록 실패:
+       - 기존 서비스 확인: sc query cm-autodoc-$Bid
+       - 서비스 수동 삭제: sc delete cm-autodoc-$Bid
+    ===========================================
+    """
+
     # 실패 시 정리
     Write-Host "실패 후 정리 시도 중..."
-    
-    $cleanupAutoSvc = Get-Service -Name "cm-autodoc-$Bid" -ErrorAction SilentlyContinue
-    if ($cleanupAutoSvc) {
-        & $Nssm stop "cm-autodoc-$Bid" 2>$null
-        & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+
+    try {
+        $cleanupAutoSvc = Get-Service -Name "cm-autodoc-$Bid" -ErrorAction SilentlyContinue
+        if ($cleanupAutoSvc) {
+            Write-Host "  -> 서비스 중지 시도: cm-autodoc-$Bid"
+            & $Nssm stop "cm-autodoc-$Bid" 2>$null
+            Start-Sleep -Seconds 5
+
+            Write-Host "  -> 서비스 제거 시도: cm-autodoc-$Bid"
+            & $Nssm remove "cm-autodoc-$Bid" confirm 2>$null
+        }
+
+        # 남아있는 프로세스 강제 종료
+        $remainingProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object {
+            $_.CommandLine -like "*cm-autodoc-$Bid*" -or
+            ($_.CommandLine -like "*uvicorn*" -and $_.CommandLine -like "*$AutoPort*")
+        }
+        if ($remainingProcess) {
+            Write-Host "  -> 남아있는 프로세스 강제 종료"
+            $remainingProcess | ForEach-Object {
+                Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        Write-Host "정리 완료"
+    } catch {
+        Write-Warning "정리 중 오류 발생: $($_.Exception.Message)"
     }
-    
-    throw $_.Exception
+
+    # Jenkins에 실패 신호 전송
+    Write-Host "❌ AutoDoc 서비스 배포 실패 - Jenkins에 실패 신호 전송 중..."
+    exit 1
+}
 }

@@ -440,7 +440,7 @@ set "PYTHONPATH="
         & $Nssm set "cm-web-$Bid" AppDirectory $WebBackDst
         & $Nssm set "cm-web-$Bid" AppStdout "$TestLogsPath\web-$Bid.out.log"
         & $Nssm set "cm-web-$Bid" AppStderr "$TestLogsPath\web-$Bid.err.log"
-        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8"
+        & $Nssm set "cm-web-$Bid" AppEnvironmentExtra "WEBSERVICE_DATA_PATH=$TestWebDataPath" "PYTHONIOENCODING=utf-8" "PYTHONHOME=" "PYTHONPATH="
         & $Nssm start "cm-web-$Bid"
         Write-Host "웹서비스 서비스 시작 완료 (Port: $BackPort)"
     }
@@ -456,7 +456,7 @@ set "PYTHONPATH="
         & $Nssm set "cm-autodoc-$Bid" AppDirectory $AutoDst
         & $Nssm set "cm-autodoc-$Bid" AppStdout "$TestLogsPath\autodoc-$Bid.out.log"
         & $Nssm set "cm-autodoc-$Bid" AppStderr "$TestLogsPath\autodoc-$Bid.err.log"
-        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath" "PYTHONIOENCODING=utf-8"
+        & $Nssm set "cm-autodoc-$Bid" AppEnvironmentExtra "AUTODOC_DATA_PATH=$TestAutoDataPath" "PYTHONIOENCODING=utf-8" "PYTHONHOME=" "PYTHONPATH="
         & $Nssm start "cm-autodoc-$Bid"
         Write-Host "AutoDoc 서비스 시작 완료 (Port: $AutoPort)"
     }

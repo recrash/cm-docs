@@ -139,10 +139,10 @@ Section "Register URL Protocol" SEC05
   WriteRegStr HKCR "testscenariomaker\shell" "" ""
   WriteRegStr HKCR "testscenariomaker\shell\open" "" ""
   
-  ; Register command for PRODUCTION - PowerShell running in background
-  ; Execute PowerShell script in background with proper URL handling
+  ; Register command for PRODUCTION - PowerShell with visible console for debugging
+  ; Execute PowerShell script with visible console window for debugging
   ; URL parameters are properly quoted to handle & characters
-  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\url_handler.ps1" -url "%1" -exePath "$INSTDIR\ts-cli.exe"'
+  WriteRegStr HKCR "testscenariomaker\shell\open\command" "" 'powershell.exe -ExecutionPolicy Bypass -File "$INSTDIR\url_handler.ps1" -url "%1" -exePath "$INSTDIR\ts-cli.exe"'
   
 SectionEnd
 

@@ -121,6 +121,13 @@ $sourceDir = Join-Path $ProjectRoot "webservice\prompts"
 $targetDir = Join-Path $DataDir "webservice\prompts"
 Copy-Item -Path $sourceDir -Destination $targetDir -Recurse -Force
 
+# --- Webservice 설정 파일 복사 ---
+Write-Host "    - 'webservice'의 설정 파일(config.json)을 복사합니다."
+$sourceFile = Join-Path $ProjectRoot "webservice\config.json"
+$targetDir = Join-Path $DataDir "webservice"
+New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
+Copy-Item -Path $sourceFile -Destination $targetDir -Force
+
 # --- 임베딩 모델 다운로드 및 복사 ---
 Write-Host "    - 'webservice'의 임베딩 모델을 다운로드 및 복사합니다. (시간이 걸릴 수 있습니다)"
 try {

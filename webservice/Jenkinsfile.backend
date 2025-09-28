@@ -126,7 +126,7 @@ pipeline {
                         }
                         
                         // CUDA 및 주요 패키지 검증 (시간 단축)
-                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import fastapi; import torch; print(f'Test environment ready - PyTorch {torch.__version__} CUDA: {torch.cuda.is_available()}')\\\"\""
+                        bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"import fastapi; import torch; print(f'Test environment ready - PyTorch {torch.__version__} CUDA: {torch.cuda.is_available()}')\\\"\""
                         
                         echo "테스트 환경 구축 완료 (최적화됨)"
                     }
@@ -144,13 +144,13 @@ pipeline {
                     }
                     
                     // 전체 테스트 실행 (Windows 콘솔 인코딩 문제 해결 + CI config)
-                    bat "powershell -NoProfile -Command \"\$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/ -v -x --tb=short --disable-warnings\""
+                    bat "powershell -NoProfile -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=(Get-Location).Path; \$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/ -v -x --tb=short --disable-warnings\""
                     
                     // 특별히 중요한 테스트 개별 실행
-                    bat "powershell -NoProfile -Command \"\$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/test_scenario_api.py -v\""
+                    bat "powershell -NoProfile -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=(Get-Location).Path; \$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/test_scenario_api.py -v\""
                     
                     // V2 API 시나리오 테스트 (config 통합 로딩 검증)
-                    bat "powershell -NoProfile -Command \"\$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/v2/test_scenario_v2.py -v\""
+                    bat "powershell -NoProfile -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=(Get-Location).Path; \$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest tests/api/v2/test_scenario_v2.py -v\""
                     
                     echo "Webservice API 테스트 완료 (Jenkins CI Config)"
                 }
@@ -161,7 +161,7 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/webservice") {
                     // PYTHONPATH 및 CMDOCS_CONFIG 설정 후 통합 테스트 실행
-                    bat "powershell -NoProfile -Command \"\$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONPATH = (Get-Location).Path + ';' + \$env:PYTHONPATH; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from app.core.config_loader import load_config; config = load_config(); print('Config loaded:', config is not None)\\\"\""
+                    bat "powershell -NoProfile -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=(Get-Location).Path; \$env:CMDOCS_CONFIG='${env.CMDOCS_CONFIG}'; \$env:PYTHONIOENCODING='utf-8'; [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; & '${env.WORKSPACE_PYTHON_CMD}' -c \\\"from app.core.config_loader import load_config; config = load_config(); print('Config loaded:', config is not None)\\\"\""
                     
                     // 모듈 임포트 및 config 로딩 성공 확인
                     echo "통합 테스트 완료 - config_loader 임포트 및 CI config 로딩 성공"
@@ -212,32 +212,81 @@ pipeline {
         stage('Build') {
             steps {
                 dir("${WORKSPACE}/webservice") {
-                    // Jenkins Workspace에서 wheel 빌드
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m build\""
-                    
-                    // 빌드 결과 검증
+                    script {
+                        // ==========================================================
+                        // 1. 빌드 도구 사전 설치 (Claude의 개선안 + Gemini의 안정성)
+                        // ==========================================================
+                        echo '휠하우스에서 빌드 도구 사전 설치 중...'
+                        def installResult = bat(
+                            script: '''
+                                chcp 65001 >NUL
+
+                                REM --- 환경 격리를 위한 배치 래퍼 생성 ---
+                                (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\pip.exe" %%*) > pip_build_clean.bat
+
+                                REM --- wheelhouse에서 빌드 도구 설치 ---
+                                pip_build_clean.bat install --no-index --find-links=C:/deploys/packages/wheelhouse "setuptools>=61.0" build wheel --quiet --disable-pip-version-check
+
+                                REM --- 임시 래퍼 삭제 ---
+                                del pip_build_clean.bat
+                            ''',
+                            returnStatus: true
+                        )
+
+                        if (installResult != 0) {
+                            error("빌드 도구 설치 실패: wheelhouse에서 setuptools, build, wheel 패키지를 찾을 수 없습니다.")
+                        }
+                        echo '빌드 도구 설치 완료.'
+
+                        // ==========================================================
+                        // 2. Wheel 파일 빌드 (격리 비활성화)
+                        // ==========================================================
+                        echo 'Wheel 파일 빌드 시작...'
+                        def buildResult = bat(
+                            script: '''
+                                chcp 65001 >NUL
+
+                                REM --- 환경 격리를 위한 배치 래퍼 생성 ---
+                                (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv\\Scripts\\python.exe" %%*) > python_build_clean.bat
+
+                                REM --- 격리 없이 빌드 실행 ---
+                                python_build_clean.bat -m build --no-isolation
+
+                                REM --- 임시 래퍼 삭제 ---
+                                del python_build_clean.bat
+                            ''',
+                            returnStatus: true
+                        )
+
+                        if (buildResult != 0) {
+                            error("Wheel 빌드 실패. 로그를 확인하세요.")
+                        }
+                        echo 'Wheel 파일 빌드 성공.'
+                    }
+
+                    // ==========================================================
+                    // 3. 빌드 결과 검증
+                    // ==========================================================
                     script {
                         def whlExists = bat(
                             script: 'if exist "dist\\webservice-*.whl" echo found',
                             returnStdout: true
                         ).contains('found')
-                        
+
                         if (!whlExists) {
-                            error("빌드 실패: wheel 파일이 생성되지 않았습니다")
+                            error("빌드 실패: wheel 파일이 생성되지 않았습니다.")
                         }
                     }
-                    
+
                     echo "Wheel 빌드 완료 (Jenkins Workspace)"
                 }
             }
         }
         
-        stage('Deploy') {
-            when { 
-                expression { 
-                    def branch = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
-                    return branch == 'main' || branch.endsWith('/main')
-                }
+        // Deploy 스테이지는 루트 Jenkinsfile에서 중앙 관리됩니다.
+        stage('Deploy [Removed]') {
+            when {
+                expression { false } // Deploy 비활성화 - 루트에서 처리
             }
             steps {
                 script {

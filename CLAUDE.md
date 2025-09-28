@@ -1,22 +1,19 @@
 # TestscenarioMaker Claude Code Instructions
 
-**Entry Point & Core Directives**
+## Entry Point & Core Directives
 
-@DEV_ENVIRONMENT.md
-@MONOREPO_STRUCTURE.md
-@BUILD_DEPLOY.md
-@PROJECT_RULES.md
+@DEV_ENVIRONMENT.md | @MONOREPO_STRUCTURE.md | @BUILD_DEPLOY.md | @PROJECT_RULES.md
 
 ## 🎯 프로젝트 핵심 원칙
 
-**Development First**: 각 모노레포별 가상환경 → Context7 패턴 조회 → 구현 → 검증
-**Evidence-Based**: 모든 최적화는 측정 기반, 하드코딩 회피 금지
-**Cross-Platform**: Windows Server 프로덕션 환경 우선 고려
-**Air-gapped Environment**: 폐쇄망 환경에서 인터넷 연결 없이 완전 독립 운영 가능
+- **Development First**: 각 모노레포별 가상환경 → Context7 패턴 조회 → 구현 → 검증
+- **Evidence-Based**: 모든 최적화는 측정 기반, 하드코딩 회피 금지
+- **Cross-Platform**: Windows Server 프로덕션 환경 우선 고려
+- **Air-gapped Environment**: 폐쇄망 환경에서 인터넷 연결 없이 완전 독립 운영 가능
 
-# ═══════════════════════════════════════════════════
+---
+
 # TestscenarioMaker Project Architecture
-# ═══════════════════════════════════════════════════
 
 ## Monorepo Structure & Services
 
@@ -46,9 +43,9 @@ deployment:
   environment: "Air-gapped (폐쇄망) - 인터넷 연결 없음"
 ```
 
-# ═══════════════════════════════════════════════════
+---
+
 # Air-gapped Environment Requirements
-# ═══════════════════════════════════════════════════
 
 ## 🚨 폐쇄망 환경 운영 지침
 
@@ -123,14 +120,14 @@ deployment_package:
     └── scripts/                   # 설치/배포 스크립트
 ```
 
-# ═══════════════════════════════════════════════════
+---
+
 # Development Environment Setup
-# ═══════════════════════════════════════════════════
 
 ## Environment Prerequisites & Activation
 
-**Critical Rule**: 각 서비스 작업시 반드시 해당 가상환경 먼저 활성화
-**Air-gapped Rule**: 모든 의존성은 사전에 다운로드하여 오프라인으로 설치
+- **Critical Rule**: 각 서비스 작업시 반드시 해당 가상환경 먼저 활성화
+- **Air-gapped Rule**: 모든 의존성은 사전에 다운로드하여 오프라인으로 설치
 
 ### Service-Specific Virtual Environments
 
@@ -203,13 +200,13 @@ ts-cli info /path/to/repository
 ts-cli config-show
 ```
 
-# ═══════════════════════════════════════════════════
+---
+
 # Testing & Quality Assurance
-# ═══════════════════════════════════════════════════
 
 ## Test Execution Matrix
 
-**Critical**: E2E 테스트 필수 (webservice), WebSocket 타임아웃 ~60초 고려
+- **Critical**: E2E 테스트 필수 (webservice), WebSocket 타임아웃 ~60초 고려
 
 ### Service-by-Service Testing
 
@@ -254,11 +251,13 @@ quality_targets:
   e2e_requirements: "WebSocket 대기시간 ~60초"
 ```
 
-## 🔧 빌드 및 배포
+---
 
-### 프로덕션 빌드 전체 프로세스
+# 빌드 및 배포
 
-#### 1. 전체 시스템 빌드 (순차 실행)
+## 프로덕션 빌드 전체 프로세스
+
+### 1. 전체 시스템 빌드 (순차 실행)
 
 ```bash
 # 1단계: CLI 빌드 (실행파일 생성)
@@ -288,7 +287,7 @@ source .venv312/bin/activate
 python -c "import app.main; print('AutoDoc import 성공')"
 ```
 
-#### 2. Windows 프로덕션 배포용 빌드
+### 2. Windows 프로덕션 배포용 빌드
 
 ```powershell
 # PowerShell 스크립트 시작 부분 (UTF-8 인코딩 설정)
@@ -319,9 +318,9 @@ Copy-Item "dist\*" "C:\nginx\html\" -Recurse -Force
 Copy-Item "..\cli\dist\ts-cli.exe" "C:\deploys\bin\" -Force
 ```
 
-### CLI 빌드 (크로스 플랫폼)
+## CLI 빌드 (크로스 플랫폼)
 
-#### 개발 환경 빌드
+### 개발 환경 빌드
 
 ```bash
 cd cli
@@ -345,7 +344,7 @@ ls -la dist/
 # Linux: ts-cli
 ```
 
-#### Jenkins 자동화 빌드 (Windows)
+### Jenkins 자동화 빌드 (Windows)
 
 ```groovy
 // Jenkinsfile에서 CLI 빌드
@@ -365,9 +364,9 @@ stage('CLI Build') {
 }
 ```
 
-### Webservice 빌드
+## Webservice 빌드
 
-#### Frontend 빌드 (React + Vite)
+### Frontend 빌드 (React + Vite)
 
 ```bash
 cd webservice/frontend
@@ -387,7 +386,7 @@ ls -la dist/
 # index.html, assets/, favicon.ico 등
 ```
 
-#### Frontend Jenkins 빌드 (Windows)
+### Frontend Jenkins 빌드 (Windows)
 
 ```groovy
 // Jenkinsfile에서 Frontend 빌드
@@ -414,7 +413,7 @@ stage('Frontend Build') {
 }
 ```
 
-#### Backend 빌드 확인
+### Backend 빌드 확인
 
 ```bash
 cd webservice
@@ -435,7 +434,7 @@ print('✅ Backend 모듈 임포트 성공')
 # python -m alembic upgrade head
 ```
 
-### AutoDoc Service 빌드
+## AutoDoc Service 빌드
 
 ```bash
 cd autodoc_service
@@ -456,9 +455,9 @@ ls -la data/templates/
 # cm_word_template.docx, test_excel_template.xlsx 등
 ```
 
-### 배포 전 빌드 검증
+## 배포 전 빌드 검증
 
-#### 통합 테스트 (모든 서비스)
+### 통합 테스트 (모든 서비스)
 
 ```bash
 # 1. CLI 실행 테스트
@@ -491,7 +490,7 @@ curl http://localhost:3000
 pkill -f "http.server"
 ```
 
-#### Windows 서버 배포 스크립트
+### Windows 서버 배포 스크립트
 
 ```powershell
 # deploy_windows.ps1
@@ -540,9 +539,9 @@ if ($health1.StatusCode -eq 200 -and $health2.StatusCode -eq 200 -and $health3.S
 }
 ```
 
-### 빌드 최적화 팁
+## 빌드 최적화 팁
 
-#### 빌드 속도 향상
+### 빌드 속도 향상
 
 ```bash
 # 1. npm 캐시 활용
@@ -556,7 +555,7 @@ pip install --cache-dir .pip-cache -r requirements.txt
 # Docker build context 최적화
 ```
 
-#### 빌드 크기 최적화
+### 빌드 크기 최적화
 
 ```bash
 # Frontend 번들 크기 분석
@@ -569,9 +568,9 @@ cd cli
 python scripts/build.py --optimize-size
 ```
 
-### 주요 빌드 에러 해결
+## 주요 빌드 에러 해결
 
-#### 1. CLI 빌드 실패
+### 1. CLI 빌드 실패
 
 ```bash
 # PyInstaller 캐시 삭제
@@ -584,7 +583,7 @@ pip install --upgrade pyinstaller
 pip install -r requirements.txt
 ```
 
-#### 2. Frontend 빌드 실패
+### 2. Frontend 빌드 실패
 
 ```bash
 # Node 모듈 재설치
@@ -598,7 +597,7 @@ npm run type-check
 # 오류 수정 후 재빌드
 ```
 
-#### 3. Windows PowerShell 인코딩 오류
+### 3. Windows PowerShell 인코딩 오류
 
 ```powershell
 # 스크립트 최상단에 반드시 추가
@@ -608,9 +607,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $PSDefaultParameterValues['*:Encoding'] = 'utf8'
 ```
 
-## 📋 API 엔드포인트
+---
 
-### Webservice API (프리픽스: `/api/webservice`)
+# API 엔드포인트
+
+## Webservice API (프리픽스: `/api/webservice`)
 
 ```
 POST   /scenario                           # V1 시나리오 생성 (레거시)
@@ -623,7 +624,7 @@ GET    /files                              # 파일 목록
 GET    /health                             # 헬스체크
 ```
 
-### AutoDoc Service API (프리픽스: `/api/autodoc`)
+## AutoDoc Service API (프리픽스: `/api/autodoc`)
 
 ```
 POST   /parse-html                         # HTML 파일 파싱
@@ -635,7 +636,9 @@ GET    /list-templates                     # 템플릿 목록
 GET    /health                             # 헬스체크
 ```
 
-## 🗂️ 프로젝트 구조
+---
+
+# 프로젝트 구조
 
 ```
 cm-docs/
@@ -674,9 +677,11 @@ cm-docs/
 └── Jenkinsfile                  # 통합 CI/CD 파이프라인
 ```
 
-## 🔄 CI/CD 파이프라인
+---
 
-### 파이프라인 구조
+# CI/CD 파이프라인
+
+## 파이프라인 구조
 
 - **통합 파이프라인**: `Jenkinsfile` (변경 감지 기반 스마트 배포)
 - **서비스별 파이프라인**:
@@ -685,7 +690,7 @@ cm-docs/
   - `autodoc_service/Jenkinsfile` (문서 서비스)
   - `cli/Jenkinsfile` (CLI 도구)
 
-### 변경 감지 시스템
+## 변경 감지 시스템
 
 ```bash
 # 파이프라인이 자동으로 감지하는 변경사항
@@ -697,12 +702,12 @@ scripts/            → 전체 재배포
 *.md                → 빌드 스킵 (문서 변경만)
 ```
 
-### 브랜치별 배포 전략
+## 브랜치별 배포 전략
 
 - **main/develop**: 프로덕션 배포
 - **feature/hotfix**: 테스트 인스턴스 배포 (`/tests/{브랜치명}/`)
 
-### 배포 환경
+## 배포 환경
 
 ```bash
 # 프로덕션 서버 (Windows Server + NSSM)
@@ -716,9 +721,11 @@ Frontend:  /tests/{브랜치명}/          (nginx 서브패스)
 AutoDoc:   http://localhost:8500-8700  (브랜치별 포트)
 ```
 
-## 🛠️ Jenkins PowerShell 실행 가이드
+---
 
-### 인코딩 문제 해결
+# Jenkins PowerShell 실행 가이드
+
+## 인코딩 문제 해결
 
 ```powershell
 # 모든 PowerShell 스크립트 시작 부분에 추가
@@ -728,7 +735,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $PSDefaultParameterValues['*:Encoding'] = 'utf8'
 ```
 
-### 백슬래시 문제 해결
+## 백슬래시 문제 해결
 
 ```groovy
 // Jenkinsfile에서 PowerShell 실행 시
@@ -741,7 +748,7 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass ^
 """
 ```
 
-### 멀티라인 명령어
+## 멀티라인 명령어
 
 ```groovy
 // 잘못된 예 (Windows에서 오류)
@@ -762,7 +769,7 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
 """
 ```
 
-### 환경변수 처리
+## 환경변수 처리
 
 ```groovy
 // Jenkins 환경변수를 PowerShell로 안전하게 전달
@@ -778,47 +785,49 @@ powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "& { ^
 """
 ```
 
-## 🔍 문제 해결 가이드
+---
 
-### 자주 발생하는 오류
+# 문제 해결 가이드
 
-#### 1. ChromaDB 잠금 오류
+## 자주 발생하는 오류
+
+### 1. ChromaDB 잠금 오류
 ```bash
 # 해결: 벡터 DB 초기화
 rm -rf webservice/data/db/
 rm -rf webservice/vector_db_data/
 ```
 
-#### 2. Module Import 오류 (webservice)
+### 2. Module Import 오류 (webservice)
 ```bash
 # 해결: PYTHONPATH 설정 확인
 cd webservice
 export PYTHONPATH=$(pwd):$PYTHONPATH
 ```
 
-#### 3. E2E 테스트 타임아웃
+### 3. E2E 테스트 타임아웃
 ```bash
 # 해결: WebSocket 대기 시간 조정 (~60초)
 cd webservice/frontend
 npm run test:e2e -- --timeout 120000
 ```
 
-#### 4. PowerShell 실행 정책 오류
+### 4. PowerShell 실행 정책 오류
 ```powershell
 # 해결: 실행 정책 설정
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-#### 5. UTF-8 인코딩 오류
+### 5. UTF-8 인코딩 오류
 ```powershell
 # 스크립트 시작 부분에 추가
 chcp 65001 >NUL
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 ```
 
-### 서비스 디버깅
+## 서비스 디버깅
 
-#### Webservice 디버깅
+### Webservice 디버깅
 ```bash
 # 헬스체크
 curl http://localhost:8000/api/webservice/health
@@ -830,7 +839,7 @@ tail -f webservice/data/logs/webservice.log
 curl http://localhost:8000/api/webservice/rag/status
 ```
 
-#### AutoDoc Service 디버깅
+### AutoDoc Service 디버깅
 ```bash
 # 헬스체크
 curl http://localhost:8001/api/autodoc/health
@@ -839,19 +848,26 @@ curl http://localhost:8001/api/autodoc/health
 curl http://localhost:8001/api/autodoc/list-templates
 ```
 
-**상호작용 중심 설계:**
+---
+
+# 개발 가이드라인
+
+## 상호작용 중심 설계
+
 - 포괄적이고 인터랙티브한 컴포넌트 생성
 - 마이크로 인터랙션 및 애니메이션 고려
 - 사용자 경험 중심의 디자인 패턴
 
-**견고한 범용 솔루션:**
+## 견고한 범용 솔루션
+
 - 하드코딩 방지, 재사용 가능한 컴포넌트
 - 특정 테스트 케이스가 아닌 일반적 해결책
 - Material-UI 디자인 시스템 일관성 유지
 
-#### 6. 코드 품질 및 구조화
+## 코드 품질 및 구조화
 
-**XML 태그 활용:**
+### XML 태그 활용
+
 ```xml
 <analysis>
 현재 상황 분석
@@ -870,23 +886,24 @@ curl http://localhost:8001/api/autodoc/list-templates
 </validation>
 ```
 
-**출력 스타일 일치:**
+### 출력 스타일 일치
+
 - 요청한 스타일에 맞는 응답 형식
 - 일관된 코드 스타일 유지
 - 명확한 예시와 설명 제공
 
-# ═══════════════════════════════════════════════════
+---
+
 # TestscenarioMaker Project-Specific Rules
-# ═══════════════════════════════════════════════════
 
 ## Core Development Principles
 
-**Evidence-Based Development**: Context7 패턴 조회 → 구현 → 검증 (하드코딩 회피 절대 금지)
-**Environment Isolation**: 각 모노레포별 독립 가상환경 활성화 필수
-**Cross-Platform First**: Windows Server 프로덕션 환경 우선 고려
-**Air-gapped First**: 폐쇄망 환경에서 완전 독립 운영 필수, 인터넷 의존성 절대 금지
+- **Evidence-Based Development**: Context7 패턴 조회 → 구현 → 검증 (하드코딩 회피 절대 금지)
+- **Environment Isolation**: 각 모노레포별 독립 가상환경 활성화 필수
+- **Cross-Platform First**: Windows Server 프로덕션 환경 우선 고려
+- **Air-gapped First**: 폐쇄망 환경에서 완전 독립 운영 필수, 인터넷 의존성 절대 금지
 
-### Architecture-Specific Rules
+## Architecture-Specific Rules
 
 ```yaml
 monorepo_management:
@@ -902,7 +919,7 @@ platform_compatibility:
   network: "폐쇄망 환경 - 인터넷 연결 불가, 로컬 서비스만 사용"
 ```
 
-### Performance & Quality Standards
+## Performance & Quality Standards
 
 ```yaml
 performance_budgets:
@@ -919,7 +936,7 @@ quality_gates:
   no_shortcuts: "하드코딩/테스트 데이터 조작 절대 금지"
 ```
 
-### Development Workflow Rules
+## Development Workflow Rules
 
 ```yaml
 pre_development:
@@ -935,11 +952,13 @@ coding_standards:
   ai_integration: "Ollama 로컬 서버만 사용, 외부 AI API 절대 금지"
 ```
 
-## Code Quality & Style Guidelines
+---
 
-### Frontend Code Standards (TypeScript/React)
+# Code Quality & Style Guidelines
 
-**Mandatory Quality Pipeline**:
+## Frontend Code Standards (TypeScript/React)
+
+### Mandatory Quality Pipeline
 ```bash
 # Post-Development Validation (Required)
 cd webservice/frontend
@@ -948,7 +967,7 @@ npm run type-check     # TypeScript 타입 검증
 npm run build          # 빌드 검증
 ```
 
-**Type Safety Requirements**:
+### Type Safety Requirements
 ```typescript
 // 🚫 Prohibited: any 타입 사용 금지
 const data: any = response.data;
@@ -969,9 +988,9 @@ try {
 }
 ```
 
-### Backend Code Standards (Python)
+## Backend Code Standards (Python)
 
-**Code Quality Pipeline**:
+### Code Quality Pipeline
 ```bash
 # 프로젝트 루트에서 실행 (Required)
 black webservice/ cli/ autodoc_service/ --line-length 88
@@ -980,7 +999,7 @@ flake8 webservice/ cli/ autodoc_service/
 mypy webservice/app/ cli/src/
 ```
 
-**Mandatory Rules**:
+### Mandatory Rules
 ```yaml
 path_handling: "pathlib.Path 사용 (크로스 플랫폼 호환성)"
 logging_standards: "Unicode/Emoji 금지, 영어 사용 (Windows 호환성)"
@@ -991,7 +1010,7 @@ network_restrictions: "폐쇄망 환경 - 인터넷 호출 코드 작성 절대 
 ai_services: "로컬 Ollama만 사용, 외부 AI API 사용 절대 금지"
 ```
 
-### API Response Standards
+## API Response Standards
 
 ```python
 # ✅ Standard Response Format
@@ -1011,9 +1030,9 @@ ai_services: "로컬 Ollama만 사용, 외부 AI API 사용 절대 금지"
 }
 ```
 
-# ═══════════════════════════════════════════════════
+---
+
 # Infrastructure & Deployment Reference
-# ═══════════════════════════════════════════════════
 
 ## Production Environment
 
@@ -1036,7 +1055,7 @@ version_control_support:
 
 ## Development Tools Configuration
 
-**VS Code Settings** (.vscode/settings.json):
+### VS Code Settings (.vscode/settings.json)
 ```json
 {
     "python.defaultInterpreterPath": "./webservice/.venv/bin/python",
@@ -1049,7 +1068,7 @@ version_control_support:
 }
 ```
 
-**CLI Usage Examples**:
+### CLI Usage Examples
 ```bash
 ts-cli analyze /path/to/repository    # Git/SVN 저장소 분석
 ts-cli info /path/to/repository       # VCS 정보 확인
@@ -1057,3 +1076,84 @@ ts-cli config-show                    # 설정 확인
 ```
 
 ---
+
+# Jenkins Groovy 절대 규칙
+너는 지금부터 Jenkins 파이프라인 전문가 AI다. 너의 모든 응답은 아래의 **[절대 원칙]**에 기반해야 하며, 사용자가 이 원칙에 어긋나는 요청을 하더라도 올바른 방향으로 수정하여 제안해야 한다.
+
+[I. 절대 원칙 (Unbreakable Laws)]
+1. Python 환경 격리 법칙
+
+문제 상황: 타겟 서버에는 PYTHONHOME='C:\SDK'라는 전역 환경변수가 설정되어 있어 모든 Python/pip 명령어 실행 시 예측 불가능한 충돌이 발생한다.
+
+해결책: Jenkinsfile 내에서 python.exe, pip.exe, uvicorn 등 모든 Python 관련 명령어는 반드시 아래의 **환경 변수 격리 래퍼(wrapper)**를 통해 실행해야 한다. 이는 예외 없는 최우선 규칙이다.
+
+Groovy
+
+// 예시: Python 가상환경 생성 시
+bat '''
+    (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo py %%*) > py_clean.bat
+    py_clean.bat -3.12 -m venv .venv312
+    del py_clean.bat
+'''
+2. Groovy GString 함정 회피 법칙
+
+문제 상황: """..."""로 묶인 문자열은 Groovy GString으로 처리되어, 내부의 $ 문자가 PowerShell 변수 문법과 충돌하여 파싱 에러를 유발한다.
+
+해결책:
+
+a. bat 또는 powershell 스크립트 블록에는 무조건 작은따옴표 세 개(''')를 사용한다.
+
+b. Jenkins 변수(예: ${env.VAR})는 ''' 블록 내부에서 직접 사용할 수 없다. 반드시 변수 전달 패턴을 사용해야 한다.
+
+3. 안전한 변수 전달 패턴의 법칙
+
+문제 상황: ''' 블록 안에서는 Groovy 변수를 사용할 수 없다.
+
+해결책: Jenkins 변수는 bat의 set 명령어를 통해 Windows 환경 변수로 전달하고, PowerShell 스크립트는 %VAR% 또는 $env:VAR로 참조한다.
+
+Groovy
+
+bat '''
+    @echo off
+    set "DEPLOY_PATH_ENV=%DEPLOY_PATH%"
+    powershell -Command "Write-Host 'Deploying to %DEPLOY_PATH_ENV%'"
+'''
+4. main 브랜치 배포의 법칙
+
+문제 상황: main 브랜치의 서비스는 영구적으로 설치되어 있으며, 테스트 브랜치와 배포 방식이 다르다.
+
+해결책: main 브랜치 배포 로직은 nssm stop -> 파일 업데이트 -> nssm start 순서로만 구성한다. nssm install이나 remove는 절대 사용하지 않는다.
+
+5. 기존 로직 불변의 법칙
+
+문제 상황: feature 브랜치 배포에 사용되는 .ps1 스크립트들은 폐쇄망에서 이미 성공적으로 검증된 자산이다.
+
+해결책: 이 스크립트들의 내용이나 호출 방식을 절대 수정하거나 변경을 제안해서는 안 된다. 오직 main 브랜치 배포 로직을 추가하는 것이 목표다.
+
+[II. 작업별 실행 프로토콜 (Task-Specific Protocols)]
+사용자의 요청에 따라 아래 프로토콜 중 하나를 선택하여 행동한다.
+
+A. 코드 작성/생성 요청 시:
+
+[절대 원칙]을 모두 준수하여 안정적이고 일관된 Jenkinsfile 코드를 생성한다.
+
+특히, 복잡한 로직은 .ps1 스크립트 파일을 활용하는 방안을 적극적으로 권장한다.
+
+B. 코드 수정/리팩토링/디버깅 요청 시:
+
+**[절대 원칙]**에 기반하여 제공된 코드를 수정한다.
+
+수정된 코드 외에 어떤 설명, 주석, 인사말도 추가하지 않는다.
+
+최종 응답은 오직 수정된 코드 블록이어야 한다.
+
+[III. 트라우마 기록 (과거 실패 사례)]
+
+실패 #1 (""" 사용): powershell """ if (Test-Path "${env.DEPLOY_PATH}") ... """ -> illegal string body character 에러로 5시간 디버깅 발생.
+
+실패 #2 (잘못된 변수 참조): powershell ''' ... '''' + url + '''' ...''' -> unexpected token: + 에러 발생.
+
+이러한 실패는 절대 반복해서는 안 된다.
+
+이제 이 지침을 너의 핵심 작동 원리로 삼아라.
+

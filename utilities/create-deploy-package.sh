@@ -65,9 +65,9 @@ echo -e "${YELLOW}🚀 (1/5) Python 백엔드 서비스를 빌드합니다...${N
 (
     cd "$PROJECT_ROOT/webservice"
     echo "    - 'webservice' 빌드 중..."
-    python3.13 -m venv .venv
-    source .venv/bin/activate    
-    pip install --upgrade pip build setuptools wheel --quiet
+    python3.9 -m venv .venv
+    source .venv/bin/activate
+    pip install setuptools build wheel --upgrade --quiet
     python -m build --wheel --no-isolation
     
     TARGET_DIR="$PACKAGE_DIR/webservice"
@@ -113,6 +113,13 @@ TARGET_DIR="$DATA_DIR/webservice/prompts"
 mkdir -p "$TARGET_DIR"
 cp -r "$SOURCE_DIR"/* "$TARGET_DIR/"
 
+# --- Webservice 설정 파일 복사 ---
+echo "    - 'webservice'의 설정 파일(config.json)을 복사합니다."
+SOURCE_FILE="$PROJECT_ROOT/webservice/config.json"
+TARGET_DIR="$DATA_DIR/webservice"
+mkdir -p "$TARGET_DIR"
+cp "$SOURCE_FILE" "$TARGET_DIR/"
+
 # --- 임베딩 모델 다운로드 및 복사 ---
 echo "    - 'webservice'의 임베딩 모델을 다운로드 및 복사합니다. (시간이 걸릴 수 있습니다)"
 (
@@ -121,10 +128,17 @@ echo "    - 'webservice'의 임베딩 모델을 다운로드 및 복사합니다
     python scripts/download_embedding_model.py
     deactivate
 
-    SOURCE_DIR="models" # 스크립트가 ./models에 다운로드한다고 가정
+    SOURCE_DIR="app/data/models" # 새로운 모델 저장 경로
     TARGET_DIR="$DATA_DIR/webservice/models"
-    mkdir -p "$TARGET_DIR"
-    cp -r "$SOURCE_DIR"/* "$TARGET_DIR/"
+
+    # 모델 경로가 존재하는지 확인
+    if [ -d "$SOURCE_DIR" ]; then
+        mkdir -p "$TARGET_DIR"
+        cp -r "$SOURCE_DIR"/* "$TARGET_DIR/"
+        echo -e "    - 임베딩 모델 복사 완료!${GREEN}✔${NC}"
+    else
+        echo -e "    - 경고: 모델 경로 '$SOURCE_DIR'가 존재하지 않습니다. 모델 다운로드를 건너뜁니다.${YELLOW}⚠${NC}"
+    fi
 ) || { echo -e "${RED}❌ 임베딩 모델 처리 중 오류가 발생했습니다.${NC}"; exit 1; }
 
 echo -e "    - 초기 데이터 준비 완료!${GREEN}✔${NC}"

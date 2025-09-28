@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 # 임포트 타이밍 지연 + 실패는 나중에 사용 시점에 에러 처리
 try:
     import chromadb  # type: ignore
+    from chromadb.config import Settings  # type: ignore
 except Exception as _chroma_err:
     chromadb = None  # noqa
 
@@ -43,8 +44,12 @@ class ChromaManager:
             
         self.embedding_model_name = embedding_model
         
-        # ChromaDB 클라이언트 초기화
-        self.client = chromadb.PersistentClient(path=self.persist_directory)
+        # ChromaDB 클라이언트 초기화 (폐쇄망 환경에서 텔레메트리 완전 비활성화)
+        telemetry_settings = Settings(anonymized_telemetry=False)
+        self.client = chromadb.PersistentClient(
+            path=self.persist_directory,
+            settings=telemetry_settings
+        )
         
         # 임베딩 모델 로드 (로컬 경로 우선, 환경변수 기반 기본 경로 사용)
         if local_model_path is None:

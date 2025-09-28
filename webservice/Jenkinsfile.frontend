@@ -75,25 +75,24 @@ pipeline {
                         ) == 0
                         
                         if (packageChanged || !nodeModulesExists) {
-                            echo "패키지 파일 변경 감지됨 또는 node_modules 없음 - 의존성 설치 실행"
+                            echo "패키지 파일 변경 감지됨 또는 node_modules 없음 - 오프라인 번들 설치 실행"
 
-                            // 캐시 디렉토리 존재 확인 (폐쇄망 모드)
-                            def npmCacheExists = bat(
-                                script: 'if exist "C:\\deploys\\packages\\npm-cache" (exit 0) else (exit 1)',
-                                returnStatus: true
-                            ) == 0
-
-                            if (npmCacheExists) {
-                                echo "npm 캐시 발견 - 폐쇄망 오프라인 설치 시도"
-                                bat "npm config set cache C:\\deploys\\packages\\npm-cache"
-                                bat "npm ci --prefer-offline"
-                                echo "npm ci 오프라인 설치 완료"
-                            } else {
-                                // 폐쇄망이 아닌 환경에서는 일반 설치 시도
-                                echo "npm 캐시 없음 - 일반 설치 시도"
-                                bat "npm ci"
-                                echo "npm ci 설치 완료"
-                            }
+                            // 폐쇄망 환경 - node_modules 직접 복사 방식
+                            echo "node_modules 오프라인 패키지 복사 중..."
+                            bat '''
+                            chcp 65001 >NUL
+                            if exist "C:\\deploys\\packages\\frontend\\node_modules" (
+                                echo Copying node_modules from offline package...
+                                if exist node_modules rd /s /q node_modules
+                                xcopy /E /I /H /Y "C:\\deploys\\packages\\frontend\\node_modules" "node_modules\\" >nul 2>&1
+                                echo node_modules copy complete
+                            ) else (
+                                echo ERROR: Offline node_modules not found at C:\\deploys\\packages\\frontend\\node_modules
+                                echo Run Download-All-Dependencies.ps1 to prepare offline packages
+                                exit 1
+                            )
+                            '''
+                            echo "node_modules 오프라인 패키지 복사 완료"
                         } else {
                             echo "패키지 변경 없음 - 기존 node_modules 사용 (폐쇄망 최적)"
                         }
@@ -125,12 +124,20 @@ pipeline {
                         ) == 0
 
                         if (!eslintExists) {
-                            echo "eslint가 설치되지 않음 - node_modules 재설치 시도"
-                            bat "npm ci"
+                            echo "eslint가 설치되지 않음 - 오프라인 패키지 재복사 시도"
+                            bat '''
+                            chcp 65001 >NUL
+                            if exist "C:\\deploys\\packages\\frontend\\node_modules" (
+                                echo Reinstalling node_modules for eslint issue...
+                                if exist node_modules rd /s /q node_modules
+                                xcopy /E /I /H /Y "C:\\deploys\\packages\\frontend\\node_modules" "node_modules\\" >nul 2>&1
+                                echo node_modules reinstalled
+                            )
+                            '''
                         }
 
-                        // npx를 사용하여 eslint 실행
-                        bat 'npx eslint . --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0'
+                        // package.json scripts를 사용하여 eslint 실행 (폐쇄망 환경 호환)
+                        bat 'npm run lint'
                     }
                     // TypeScript 타입 체크 (있는 경우)
                     script {
@@ -140,7 +147,7 @@ pipeline {
                         ).contains('found')
                         
                         if (tsconfigExists) {
-                            bat 'npx tsc --noEmit'
+                            bat 'npm run type-check'
                             echo "TypeScript 타입 체크 완료"
                         }
                     }
@@ -162,13 +169,15 @@ pipeline {
             steps {
                 script {
                     // 현재 nginx 파일들을 중앙화된 백업 디렉토리에 백업
-                    bat """
-                        if not exist "${env.BACKUP_DIR}" mkdir "${env.BACKUP_DIR}"
-                        if exist "${env.NGINX_ROOT}\\*" (
-                            powershell -Command "Remove-Item -Path '${env.BACKUP_DIR}\\*' -Recurse -Force -ErrorAction SilentlyContinue"
-                            powershell -Command "Copy-Item -Path '${env.NGINX_ROOT}\\*' -Destination '${env.BACKUP_DIR}' -Recurse -Force -ErrorAction SilentlyContinue"
+                    bat '''
+                        set "BACKUP_DIR=%BACKUP_DIR%"
+                        set "NGINX_ROOT=%NGINX_ROOT%"
+                        if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
+                        if exist "%NGINX_ROOT%\\*" (
+                            powershell -Command "Remove-Item -Path '%BACKUP_DIR%\\*' -Recurse -Force -ErrorAction SilentlyContinue"
+                            powershell -Command "Copy-Item -Path '%NGINX_ROOT%\\*' -Destination '%BACKUP_DIR%' -Recurse -Force -ErrorAction SilentlyContinue"
                         )
-                    """
+                    '''
                     echo "기존 웹 파일을 중앙화된 백업 디렉토리에 백업 완료"
                 }
             }
@@ -232,12 +241,10 @@ pipeline {
             }
         }
         
-        stage('Deploy') {
-            when { 
-                expression { 
-                    def branch = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
-                    return branch == 'main' || branch.endsWith('/main')
-                }
+        // Deploy 스테이지는 루트 Jenkinsfile에서 중앙 관리됩니다.
+        stage('Deploy [Removed]') {
+            when {
+                expression { false } // Deploy 비활성화 - 루트에서 처리
             }
             steps {
                 script {

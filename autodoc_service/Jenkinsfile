@@ -128,7 +128,7 @@ pipeline {
                         }
                         
                         // 최소 검증만 수행 (시간 단축)
-                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '.venv312\\Scripts\\python.exe' -c \\\"from docx import Document; print('Test environment ready')\\\"\""
+                        bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '.venv312\\Scripts\\python.exe' -c \\\"from docx import Document; print('Test environment ready')\\\"\""
                         
                         echo "테스트 환경 구축 완료 (최적화됨)"
                     }
@@ -155,7 +155,7 @@ pipeline {
                         }
                         
                         // 템플릿 무결성 검사 (Jenkins Workspace에서 실행)
-                        bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_templates_present.py -v\""
+                        bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_templates_present.py -v\""
                         echo "템플릿 검증 완료"
                     }
                 }
@@ -166,11 +166,11 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
                     // 전체 테스트 실행 (Windows 콘솔 인코딩 및 파일 핸들 문제 해결)
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v -x --tb=short --disable-warnings\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/ -v -x --tb=short --disable-warnings\""
 
                     // 특별히 중요한 문서 생성 테스트 개별 실행
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_word_label.py -v\""
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_excel_test.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_word_label.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_builder_excel_test.py -v\""
                     
                     echo "AutoDoc Service 테스트 완료 (Jenkins Workspace)"
                 }
@@ -181,10 +181,10 @@ pipeline {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
                     // FastAPI 통합 테스트 (Jenkins Workspace에서 실행)
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_fastapi_integration.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_fastapi_integration.py -v\""
 
                     // 로깅 시스템 테스트
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_logging_system.py -v\""
+                    bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH=''; \$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m pytest app/tests/test_logging_system.py -v\""
                     
                     echo "통합 테스트 완료 (Jenkins Workspace)"
                 }
@@ -238,33 +238,82 @@ pipeline {
         stage('Build') {
             steps {
                 dir("${WORKSPACE}/autodoc_service") {
-                    // Jenkins Workspace에서 wheel 빌드
-                    bat "powershell -Command \"\$env:PYTHONIOENCODING='utf-8'; & '${env.WORKSPACE_PYTHON_CMD}' -m build\""
-                    
-                    // 빌드 결과 검증
+                    script {
+                        // ==========================================================
+                        // 1. 빌드 도구 사전 설치 (Claude의 개선안 + Gemini의 안정성)
+                        // ==========================================================
+                        echo '휠하우스에서 빌드 도구 사전 설치 중...'
+                        def installResult = bat(
+                            script: '''
+                                chcp 65001 >NUL
+
+                                REM --- 환경 격리를 위한 배치 래퍼 생성 ---
+                                (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv312\\Scripts\\pip.exe" %%*) > pip_build_clean.bat
+
+                                REM --- wheelhouse에서 빌드 도구 설치 ---
+                                pip_build_clean.bat install --no-index --find-links=C:/deploys/packages/wheelhouse "setuptools>=61.0" build wheel --quiet --disable-pip-version-check
+
+                                REM --- 임시 래퍼 삭제 ---
+                                del pip_build_clean.bat
+                            ''',
+                            returnStatus: true
+                        )
+
+                        if (installResult != 0) {
+                            error("빌드 도구 설치 실패: wheelhouse에서 setuptools, build, wheel 패키지를 찾을 수 없습니다.")
+                        }
+                        echo '빌드 도구 설치 완료.'
+
+                        // ==========================================================
+                        // 2. Wheel 파일 빌드 (격리 비활성화)
+                        // ==========================================================
+                        echo 'Wheel 파일 빌드 시작...'
+                        def buildResult = bat(
+                            script: '''
+                                chcp 65001 >NUL
+
+                                REM --- 환경 격리를 위한 배치 래퍼 생성 ---
+                                (echo @echo off & echo set "PYTHONHOME=" & echo set "PYTHONPATH=" & echo ".venv312\\Scripts\\python.exe" %%*) > python_build_clean.bat
+
+                                REM --- 격리 없이 빌드 실행 ---
+                                python_build_clean.bat -m build --no-isolation
+
+                                REM --- 임시 래퍼 삭제 ---
+                                del python_build_clean.bat
+                            ''',
+                            returnStatus: true
+                        )
+
+                        if (buildResult != 0) {
+                            error("Wheel 빌드 실패. 로그를 확인하세요.")
+                        }
+                        echo 'Wheel 파일 빌드 성공.'
+                    }
+
+                    // ==========================================================
+                    // 3. 빌드 결과 검증
+                    // ==========================================================
                     script {
                         def whlExists = bat(
                             script: 'if exist "dist\\autodoc_service-*.whl" echo found',
                             returnStdout: true
                         ).contains('found')
-                        
+
                         if (!whlExists) {
-                            error("빌드 실패: wheel 파일이 생성되지 않았습니다")
+                            error("빌드 실패: wheel 파일이 생성되지 않았습니다.")
                         }
                     }
-                    
+
                     echo "Wheel 빌드 완료 (Jenkins Workspace)"
                 }
             }
         }
         
         
-        stage('Deploy') {
-            when { 
-                expression { 
-                    def branch = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
-                    return branch == 'main' || branch.endsWith('/main')
-                }
+        // Deploy 스테이지는 루트 Jenkinsfile에서 중앙 관리됩니다.
+        stage('Deploy [Removed]') {
+            when {
+                expression { false } // Deploy 비활성화 - 루트에서 처리
             }
             steps {
                 script {
