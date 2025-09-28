@@ -1119,54 +1119,53 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                         echo "배포할 서비스가 없습니다."
                     }
                 }
-                
-                echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
-            }
-        }
-        
 
-        
+                echo "TEST URL: https://<YOUR-DOMAIN>${env.URL_PREFIX}"
+                    } // else (feature 브랜치) 블록 닫기
+                } // script 블록 닫기
+            } // steps 블록 닫기
+        } // Deploy Instance 스테이지 닫기
+
         stage('🔍 배포 상태 확인') {
             steps {
                 script {
                     echo "최종 배포 상태 확인 중..."
-                    
+
                     // 배포된 서비스들의 최종 상태 점검
                     def finalReport = []
-                    
+
                     if (env.AUTODOC_CHANGED == 'true') {
                         def autodocStatus = env.AUTODOC_DEPLOY_STATUS ?: 'UNKNOWN'
                         finalReport.add("AutoDoc Service: ${autodocStatus}")
                     }
-                    
+
                     if (env.WEBSERVICE_CHANGED == 'true') {
                         def backendStatus = env.WEBSERVICE_BACKEND_STATUS ?: 'UNKNOWN'
                         def frontendStatus = env.WEBSERVICE_FRONTEND_STATUS ?: 'UNKNOWN'
                         finalReport.add("Webservice Backend: ${backendStatus}")
                         finalReport.add("Webservice Frontend: ${frontendStatus}")
                     }
-                    
+
                     if (env.CLI_CHANGED == 'true') {
                         def cliStatus = env.CLI_BUILD_STATUS ?: 'UNKNOWN'
                         finalReport.add("CLI Build: ${cliStatus}")
                     }
-                    
+
                     echo """
                     ===========================================
                     📊 최종 배포 리포트
                     ===========================================
                     ${finalReport.join('\n')}
-                    
+
                     통합 테스트: ${env.INTEGRATION_TEST_STATUS ?: 'SKIPPED'}
                     E2E 테스트: ${env.E2E_TEST_STATUS ?: 'SKIPPED'}
-                    
+
                     실패한 서비스: ${env.FAILED_SERVICES ?: 'NONE'}
                     ===========================================
                     """
-                    } // else (feature 브랜치) 블록 닫기
-                } // script 블록 닫기
-            } // steps 블록 닫기
-        } // Deploy Instance 스테이지 닫기
+                }
+            }
+        }
     } // stages 블록 닫기
 
     post {
