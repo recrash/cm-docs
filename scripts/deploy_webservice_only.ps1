@@ -80,10 +80,23 @@ if ($IsMainBranch) {
             $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
             $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
             $env:PIP_NO_BUILD_ISOLATION = '1'     # 빌드 격리 비활성화로 메모리 절약
-            $env:TMPDIR = "$env:TEMP\pip-tmp-webservice-main-$([System.Guid]::NewGuid())"  # 전용 임시 디렉토리
 
-            # 임시 디렉토리 생성
-            New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
+            # Windows 경로 길이 제한 우회를 위한 짧은 임시 디렉토리 사용
+            $shortGuid = [System.Guid]::NewGuid().ToString().Substring(0,8)
+            $tempPipDir = "C:\tmp\pip-web-$shortGuid"
+            $buildDir = "C:\tmp\build-web-$shortGuid"
+
+            # 루트 tmp 디렉토리 생성
+            New-Item -ItemType Directory -Force -Path "C:\tmp" | Out-Null
+            New-Item -ItemType Directory -Force -Path $tempPipDir | Out-Null
+            New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
+
+            # 모든 임시 및 빌드 디렉토리를 짧은 경로로 설정
+            $env:TMPDIR = $tempPipDir
+            $env:TEMP = $tempPipDir
+            $env:TMP = $tempPipDir
+            $env:PIP_BUILD_DIR = $tempPipDir
+            $env:BUILD_DIR = $buildDir
 
             # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성 (의존성 설치용)
             $pipWrapper = @"
@@ -125,12 +138,13 @@ set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
             # 새 가상환경 생성
             Write-Host "가상환경 생성 중..."
 
-            # UTF-8 인코딩 및 메모리 최적화 환경변수 설정
+            # UTF-8 인코딩 및 메모리 최적화 환경변수 설정 (경로 단축)
+            $shortGuid = ([System.Guid]::NewGuid()).ToString().Substring(0, 8)
             $env:PYTHONIOENCODING = 'utf-8'
             $env:LC_ALL = 'C.UTF-8'
             $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
             $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
-            $env:TMPDIR = "$env:TEMP\pip-tmp-webservice-main-$([System.Guid]::NewGuid())"  # 전용 임시 디렉토리
+            $env:TMPDIR = "C:\tmp\pip-web-$shortGuid"  # 단축된 임시 디렉토리
 
             # 전용 임시 디렉토리 생성
             New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
