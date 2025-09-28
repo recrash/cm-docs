@@ -181,56 +181,58 @@ pipeline {
                     """
 
                     try {
-                        bat """
+                        bat '''
                         chcp 65001 >NUL
-                        powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & {
+                        set "WHEELHOUSE_PATH=%WHEELHOUSE_PATH%"
+                        powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& {
+                            $env:PYTHONIOENCODING='utf-8'
                             # Wheelhouse 기본 검증
                             Write-Host '📋 Wheelhouse 상태 확인...'
-                            if (-not (Test-Path '${env.WHEELHOUSE_PATH}')) {
-                                Write-Host '⚠️  Wheelhouse 디렉토리가 없습니다. 생성합니다: ${env.WHEELHOUSE_PATH}'
-                                New-Item -ItemType Directory -Force -Path '${env.WHEELHOUSE_PATH}' | Out-Null
+                            if (-not (Test-Path '%WHEELHOUSE_PATH%')) {
+                                Write-Host '⚠️  Wheelhouse 디렉토리가 없습니다. 생성합니다: %WHEELHOUSE_PATH%'
+                                New-Item -ItemType Directory -Force -Path '%WHEELHOUSE_PATH%' | Out-Null
                             }
 
                             # pip wheel 파일 확인
-                            \$pipWheels = Get-ChildItem -Path '${env.WHEELHOUSE_PATH}' -Filter 'pip-*.whl' -ErrorAction SilentlyContinue
-                            if (\$pipWheels.Count -eq 0) {
+                            $pipWheels = Get-ChildItem -Path '%WHEELHOUSE_PATH%' -Filter 'pip-*.whl' -ErrorAction SilentlyContinue
+                            if ($pipWheels.Count -eq 0) {
                                 Write-Warning '⚠️  pip wheel 파일이 없습니다. pip 업그레이드가 온라인으로 진행됩니다.'
                                 Write-Host '권장사항: pip wheel을 wheelhouse에 미리 준비하세요.'
                             } else {
-                                Write-Host \"✅ pip wheel 발견: \$(\$pipWheels.Count)개 파일\"
-                                \$pipWheels | ForEach-Object { Write-Host \"  - \$(\$_.Name)\" }
+                                Write-Host ('✅ pip wheel 발견: ' + $pipWheels.Count + '개 파일')
+                                $pipWheels | ForEach-Object { Write-Host ('  - ' + $_.Name) }
                             }
 
                             # 전체 wheel 개수 확인
-                            \$allWheels = Get-ChildItem -Path '${env.WHEELHOUSE_PATH}' -Filter '*.whl' -ErrorAction SilentlyContinue
-                            Write-Host \"📊 총 wheel 파일: \$(\$allWheels.Count)개\"
+                            $allWheels = Get-ChildItem -Path '%WHEELHOUSE_PATH%' -Filter '*.whl' -ErrorAction SilentlyContinue
+                            Write-Host ('📊 총 wheel 파일: ' + $allWheels.Count + '개')
 
                             # 최소 필수 패키지 확인 (권장사항)
-                            \$recommendedPackages = @('setuptools', 'wheel', 'pip', 'torch', 'torchvision', 'torchaudio')
-                            \$missingPackages = @()
-                            foreach (\$pkg in \$recommendedPackages) {
-                                \$found = \$allWheels | Where-Object { \$_.Name -like \"\$pkg-*\" }
-                                if (-not \$found) {
-                                    \$missingPackages += \$pkg
+                            $recommendedPackages = @('setuptools', 'wheel', 'pip', 'torch', 'torchvision', 'torchaudio')
+                            $missingPackages = @()
+                            foreach ($pkg in $recommendedPackages) {
+                                $found = $allWheels | Where-Object { $_.Name -like ($pkg + '-*') }
+                                if (-not $found) {
+                                    $missingPackages += $pkg
                                 }
                             }
 
-                            if (\$missingPackages.Count -gt 0) {
-                                Write-Warning \"⚠️  권장 패키지가 wheelhouse에 없습니다: \$(\$missingPackages -join ', ')\"
+                            if ($missingPackages.Count -gt 0) {
+                                Write-Warning ('⚠️  권장 패키지가 wheelhouse에 없습니다: ' + ($missingPackages -join ', '))
                                 Write-Host '이는 경고사항이며 빌드는 계속 진행됩니다.'
                             } else {
                                 Write-Host '✅ 모든 권장 패키지가 wheelhouse에 준비되었습니다.'
                             }
 
                             # Wheelhouse 잠금 파일 정리 (이전 빌드 잔존물)
-                            if (Test-Path '${env.WHEELHOUSE_PATH}\\.lock') {
-                                Remove-Item '${env.WHEELHOUSE_PATH}\\.lock' -Force -ErrorAction SilentlyContinue
+                            if (Test-Path '%WHEELHOUSE_PATH%\.lock') {
+                                Remove-Item '%WHEELHOUSE_PATH%\.lock' -Force -ErrorAction SilentlyContinue
                                 Write-Host '🧹 이전 빌드의 wheelhouse 잠금 파일 정리'
                             }
 
                             Write-Host '✅ Wheelhouse 검증 완료'
                         }"
-                        """
+                        '''
 
                         env.WHEELHOUSE_STATUS = 'VERIFIED'
                         echo "✅ Wheelhouse 검증 성공"
@@ -367,11 +369,11 @@ pipeline {
                                 echo "Webservice Frontend 빌드/배포 시작"
 
                                 // 환경변수를 안전하게 전달 (Windows 호환성)
-                                bat """
+                                bat '''
                                 chcp 65001 >NUL
-                                set "BRANCH_NAME=${env.BRANCH_NAME ?: 'unknown'}"
-                                set "NODE_MODULES_BUNDLE_PATH=C:\\deploys\\packages\\frontend\\node_modules"
-                                """
+                                set "BRANCH_NAME=%BRANCH_NAME%"
+                                set "NODE_MODULES_BUNDLE_PATH=C:\deploys\packages\frontend\node_modules"
+                                '''
 
                                 def frontendBuild = build job: "webservice-frontend-pipeline",
                                       parameters: [
@@ -396,17 +398,18 @@ pipeline {
                                     )
                                     
                                     // 아티팩트 존재 확인 (Windows 호환성 개선)
-                                    bat """
+                                    bat '''
                                     chcp 65001 >NUL
-                                    if exist "${WORKSPACE}\\webservice\\frontend.zip" (
-                                        echo "✅ frontend.zip 복사 성공: ${WORKSPACE}\\webservice\\frontend.zip"
+                                    set "WORKSPACE_PATH=%WORKSPACE%"
+                                    if exist "%WORKSPACE_PATH%\webservice\frontend.zip" (
+                                        echo "✅ frontend.zip 복사 성공: %WORKSPACE_PATH%\webservice\frontend.zip"
                                     ) else (
                                         echo "❌ frontend.zip 복사 실패"
-                                        echo "확인 경로: ${WORKSPACE}\\webservice\\"
-                                        dir "${WORKSPACE}\\webservice\\"
+                                        echo "확인 경로: %WORKSPACE_PATH%\webservice\"
+                                        dir "%WORKSPACE_PATH%\webservice\"
                                         exit 1
                                     )
-                                    """
+                                    '''
                                     
                                     echo "테스트 인스턴스용 프론트엔드 아티팩트 복사 완료"
                                 }
@@ -420,13 +423,13 @@ pipeline {
                                 echo "❌ Webservice Frontend 배포 실패: ${errorMessage}"
 
                                 // 디버그 정보 출력
-                                bat """
+                                bat '''
                                 chcp 65001 >NUL
                                 echo "디버그 정보:"
-                                echo "BRANCH_NAME: ${env.BRANCH_NAME ?: 'N/A'}"
-                                echo "WORKSPACE: ${WORKSPACE}"
-                                echo "IS_TEST: ${env.IS_TEST ?: 'N/A'}"
-                                """
+                                echo "BRANCH_NAME: %BRANCH_NAME%"
+                                echo "WORKSPACE: %WORKSPACE%"
+                                echo "IS_TEST: %IS_TEST%"
+                                '''
 
                                 // Webservice Frontend 빌드 실패 시 파이프라인 실패
                                 error("Webservice Frontend 빌드/배포 실패: ${errorMessage}")
@@ -545,15 +548,19 @@ pipeline {
                                     def servicePassed = false
                                     for (int i = 0; i < 3; i++) {
                                         try {
-                                            def response = powershell(
+                                            def response = bat(
                                                 script: """
-                                                    \$env:PYTHONIOENCODING='utf-8'
-                                                    try {
-                                                        \$result = Invoke-WebRequest -Uri '${url}' -UseBasicParsing -TimeoutSec 10
-                                                        Write-Output \$result.StatusCode
-                                                    } catch {
-                                                        Write-Output "500"
-                                                    }
+                                                    @echo off
+                                                    set "SERVICE_URL=${url}"
+                                                    powershell -NoProfile -ExecutionPolicy Bypass -Command "& {
+                                                        \$env:PYTHONIOENCODING='utf-8'
+                                                        try {
+                                                            \$result = Invoke-WebRequest -Uri '%SERVICE_URL%' -UseBasicParsing -TimeoutSec 10
+                                                            Write-Output \$result.StatusCode
+                                                        } catch {
+                                                            Write-Output '500'
+                                                        }
+                                                    }"
                                                 """,
                                                 returnStdout: true
                                             ).trim()
@@ -706,12 +713,117 @@ pipeline {
             }
         }        
         
-        stage('🧪 Deploy Test Instance') {
-            when { 
-                expression { env.IS_TEST == 'true' } 
+        stage('🧪 Deploy Instance') {
+            when {
+                expression {
+                    // main 브랜치 또는 테스트 브랜치인 경우에만 배포
+                    return env.BRANCH_NAME == 'main' || env.IS_TEST == 'true'
+                }
             }
             steps {
                 script {
+                    // main 브랜치와 feature 브랜치 분기 처리
+                    if (env.BRANCH_NAME == 'main') {
+                        // =====================================
+                        // MAIN 브랜치 프로덕션 배포
+                        // =====================================
+                        echo """
+                        ===========================================
+                        🚀 MAIN 브랜치 프로덕션 배포 시작
+                        ===========================================
+                        • 배포 방식: nssm stop → 파일 업데이트 → nssm start
+                        • Webservice: C:\\deploys\\apps\\webservice
+                        • AutoDoc: C:\\deploys\\apps\\autodoc_service
+                        • Frontend: C:\\nginx\\html
+                        ===========================================
+                        """
+
+                        // 병렬 배포 실행
+                        parallel(
+                            'Webservice Backend': {
+                                echo "⚙️ Webservice Backend 프로덕션 배포 시작..."
+                                try {
+                                    bat '''
+                                    chcp 65001 >NUL
+                                    set "WORKSPACE=%WORKSPACE%"
+                                    set "DEPLOY_PATH=C:\\deploys\\apps\\webservice"
+                                    set "DATA_PATH=C:\\deploys\\data\\webservice"
+                                    set "SERVICE_NAME=webservice"
+                                    set "NSSM_PATH=%NSSM_PATH%"
+
+                                    powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "scripts\\deploy_webservice_only.ps1" ^
+                                        -IsMainBranch ^
+                                        -WebSrc "%WORKSPACE%\\webservice" ^
+                                        -MainDeployPath "%DEPLOY_PATH%" ^
+                                        -MainDataPath "%DATA_PATH%" ^
+                                        -MainServiceName "%SERVICE_NAME%" ^
+                                        -MainPort 8000 ^
+                                        -Py "%PY_PATH%" ^
+                                        -Nssm "%NSSM_PATH%" ^
+                                        -Nginx "%NGINX_PATH%"
+                                    '''
+                                    echo "✅ Webservice Backend 프로덕션 배포 성공"
+                                } catch (Exception e) {
+                                    error("❌ Webservice Backend 프로덕션 배포 실패: ${e.getMessage()}")
+                                }
+                            },
+                            'AutoDoc Service': {
+                                echo "📄 AutoDoc Service 프로덕션 배포 시작..."
+                                try {
+                                    bat '''
+                                    chcp 65001 >NUL
+                                    set "WORKSPACE=%WORKSPACE%"
+                                    set "DEPLOY_PATH=C:\\deploys\\apps\\autodoc_service"
+                                    set "DATA_PATH=C:\\deploys\\data\\autodoc_service"
+                                    set "SERVICE_NAME=autodoc_service"
+                                    set "NSSM_PATH=%NSSM_PATH%"
+
+                                    powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "scripts\\deploy_autodoc_only.ps1" ^
+                                        -IsMainBranch ^
+                                        -AutoSrc "%WORKSPACE%\\autodoc_service" ^
+                                        -MainDeployPath "%DEPLOY_PATH%" ^
+                                        -MainDataPath "%DATA_PATH%" ^
+                                        -MainServiceName "%SERVICE_NAME%" ^
+                                        -MainPort 8001 ^
+                                        -Py "%PY_PATH_312%" ^
+                                        -Nssm "%NSSM_PATH%" ^
+                                        -Nginx "%NGINX_PATH%"
+                                    '''
+                                    echo "✅ AutoDoc Service 프로덕션 배포 성공"
+                                } catch (Exception e) {
+                                    error("❌ AutoDoc Service 프로덕션 배포 실패: ${e.getMessage()}")
+                                }
+                            },
+                            'Frontend': {
+                                echo "🎨 Frontend 프로덕션 배포 시작..."
+                                try {
+                                    bat '''
+                                    chcp 65001 >NUL
+                                    set "WORKSPACE=%WORKSPACE%"
+                                    set "NGINX_ROOT=C:\\nginx\\html"
+
+                                    powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "scripts\\deploy_frontend_only.ps1" ^
+                                        -IsMainBranch ^
+                                        -WebSrc "%WORKSPACE%\\webservice" ^
+                                        -MainNginxRoot "%NGINX_ROOT%"
+                                    '''
+                                    echo "✅ Frontend 프로덕션 배포 성공"
+                                } catch (Exception e) {
+                                    error("❌ Frontend 프로덕션 배포 실패: ${e.getMessage()}")
+                                }
+                            }
+                        )
+
+                        echo """
+                        ===========================================
+                        ✅ MAIN 브랜치 프로덕션 배포 완료
+                        ===========================================
+                        """
+
+                    } else {
+                        // =====================================
+                        // FEATURE 브랜치 테스트 인스턴스 배포
+                        // =====================================
                     echo """
                     ===========================================
                     🚀 테스트 인스턴스 병렬 배포 시작
@@ -782,10 +894,10 @@ pipeline {
                     // 공통 초기화 수행 (병렬 배포 전)
                     echo "📋 공통 초기화 작업 수행 중..."
                     try {
-                        bat """
+                        bat '''
                         chcp 65001 >NUL
-powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Cleanup-OldBranchFolders -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
-                        """
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:PYTHONIOENCODING='utf-8'; & {. '.\scripts\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\deploys\tests\%BID%\packages'; Cleanup-OldBranchFolders -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
+                        '''
                         echo "✓ 공통 초기화 완료"
                     } catch (Exception initError) {
                         error("공통 초기화 실패: ${initError.getMessage()}")
@@ -799,15 +911,15 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                         parallelDeployments['Frontend'] = {
                             echo "🎨 Frontend 배포 시작..."
                             try {
-                                bat """
+                                bat '''
                                 chcp 65001 >NUL
-                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\\deploy_frontend_only.ps1" ^
+                                powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scripts\deploy_frontend_only.ps1" ^
                                     -Bid "%BID%" ^
-                                    -WebSrc "%WORKSPACE%\\webservice" ^
+                                    -WebSrc "%WORKSPACE%\webservice" ^
                                     -WebFrontDst "%WEB_FRONT_DST%" ^
                                     -UrlPrefix "%URL_PREFIX%" ^
-                                    -PackagesRoot "C:\\deploys\\tests\\%BID%\\packages"
-                                """
+                                    -PackagesRoot "C:\deploys\tests\%BID%\packages"
+                                '''
                                 deployResults['Frontend'] = 'SUCCESS'
                                 echo "✅ Frontend 배포 성공"
                             } catch (Exception e) {
@@ -840,10 +952,10 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                         parallelDeployments['Backend'] = {
                             echo "⚙️ Backend 배포 시작..."
                             try {
-                                bat """
+                                bat '''
                                 chcp 65001 >NUL
-powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_webservice_only.ps1' -Bid '%BID%' -BackPort %BACK_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -WebSrc '%WORKSPACE%\\webservice' -WebBackDst '%WEB_BACK_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages' -AutoDocServiceUrl '%AUTODOC_SERVICE_URL%' -UrlPrefix '%URL_PREFIX%'"
-                                """
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:PYTHONIOENCODING='utf-8'; & '.\scripts\deploy_webservice_only.ps1' -Bid '%BID%' -BackPort %BACK_PORT% -Py '%PY_PATH%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -WebSrc '%WORKSPACE%\webservice' -WebBackDst '%WEB_BACK_DST%' -PackagesRoot 'C:\deploys\tests\%BID%\packages' -AutoDocServiceUrl '%AUTODOC_SERVICE_URL%' -UrlPrefix '%URL_PREFIX%'"
+                                '''
                                 deployResults['Backend'] = 'SUCCESS'
                                 echo "✅ Backend 배포 성공"
                             } catch (Exception e) {
@@ -882,10 +994,10 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                         parallelDeployments['AutoDoc'] = {
                             echo "📄 AutoDoc 배포 시작..."
                             try {
-                                bat """
+                                bat '''
                                 chcp 65001 >NUL
-powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & '.\\scripts\\deploy_autodoc_only.ps1' -Bid '%BID%' -AutoPort %AUTO_PORT% -Py '%PY_PATH_312%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -AutoSrc '%WORKSPACE%\\autodoc_service' -AutoDst '%AUTO_DST%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'"
-                                """
+powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:PYTHONIOENCODING='utf-8'; & '.\scripts\deploy_autodoc_only.ps1' -Bid '%BID%' -AutoPort %AUTO_PORT% -Py '%PY_PATH_312%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -AutoSrc '%WORKSPACE%\autodoc_service' -AutoDst '%AUTO_DST%' -PackagesRoot 'C:\deploys\tests\%BID%\packages'"
+                                '''
                                 deployResults['AutoDoc'] = 'SUCCESS'
                                 echo "✅ AutoDoc 배포 성공"
                             } catch (Exception e) {
@@ -935,25 +1047,16 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                             // 최종 서비스 상태 확인
                             echo "🔍 최종 서비스 상태 확인 중..."
                             
-                            // 서비스 헬스체크 파라미터 구성
-                            def healthCheckCmd = ". '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Test-ServiceHealth"
-                            
-                            if (deployBackend && env.BACK_PORT) {
-                                healthCheckCmd += " -BackPort ${env.BACK_PORT}"
-                            }
-                            // BackPort가 없으면 파라미터 자체를 전달하지 않음
+                            // 서비스 헬스체크 실행
+                            def backPortParam = (deployBackend && env.BACK_PORT) ? "-BackPort ${env.BACK_PORT}" : ""
+                            def autoPortParam = (deployAutodoc && env.AUTO_PORT) ? "-AutoPort ${env.AUTO_PORT}" : ""
 
-                            if (deployAutodoc && env.AUTO_PORT) {
-                                healthCheckCmd += " -AutoPort ${env.AUTO_PORT}"
-                            }
-                            // AutoPort가 없으면 파라미터 자체를 전달하지 않음
-                            
-                            healthCheckCmd += " -Bid '%BID%' -Nssm '%NSSM_PATH%'"
-                            
-                            bat """
+                            bat '''
                             chcp 65001 >NUL
-powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "\$env:PYTHONIOENCODING='utf-8'; & {${healthCheckCmd}}"
-                            """
+                            set "BACK_PORT_PARAM=''' + backPortParam + '''"
+                            set "AUTO_PORT_PARAM=''' + autoPortParam + '''"
+                            powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:PYTHONIOENCODING='utf-8'; & {. '.\\scripts\\deploy_common.ps1' -Bid '%BID%' -Nssm '%NSSM_PATH%' -Nginx '%NGINX_PATH%' -PackagesRoot 'C:\\deploys\\tests\\%BID%\\packages'; Test-ServiceHealth %BACK_PORT_PARAM% %AUTO_PORT_PARAM% -Bid '%BID%' -Nssm '%NSSM_PATH%'}"
+                            '''
                             
                             // 성공한 서비스들 로그
                             def successfulServices = []
@@ -1060,11 +1163,12 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                     실패한 서비스: ${env.FAILED_SERVICES ?: 'NONE'}
                     ===========================================
                     """
-                }
-            }
-        }
-    }
-    
+                    } // else (feature 브랜치) 블록 닫기
+                } // script 블록 닫기
+            } // steps 블록 닫기
+        } // Deploy Instance 스테이지 닫기
+    } // stages 블록 닫기
+
     post {
         success {
             script {
@@ -1115,33 +1219,43 @@ powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
                 echo "=== 빌드 리소스 사용량 리포트 ==="
                 try {
                     // Windows 시스템 리소스 확인
-                    powershell """
-                        Write-Host "메모리 사용량:"
-                        Get-WmiObject -Class Win32_OperatingSystem | Select-Object @{Name="사용률(%)";Expression={[math]::Round(((\$_.TotalVisibleMemorySize - \$_.FreePhysicalMemory) / \$_.TotalVisibleMemorySize) * 100, 2)}}
-                        
-                        Write-Host "디스크 공간 (C 드라이브):"
-                        Get-WmiObject -Class Win32_LogicalDisk -Filter "DeviceID='C:'" | Select-Object @{Name="사용률(%)";Expression={[math]::Round(((\$_.Size - \$_.FreeSpace) / \$_.Size) * 100, 2)}}
-                        
-                        Write-Host "활성 Jenkins 워크스페이스:"
-                        Get-ChildItem -Path "${WORKSPACE}" -Directory | Measure-Object | Select-Object Count
-                    """
+                    bat '''
+                    chcp 65001 >NUL
+                    powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "& {
+                        Write-Host 'Memory Usage:'
+                        Get-WmiObject -Class Win32_OperatingSystem | Select-Object @{Name='Usage(%)';Expression={[math]::Round((($_.TotalVisibleMemorySize - $_.FreePhysicalMemory) / $_.TotalVisibleMemorySize) * 100, 2)}}
+
+                        Write-Host 'Disk Space (C Drive):'
+                        Get-WmiObject -Class Win32_LogicalDisk -Filter \\"DeviceID='C:'\\" | Select-Object @{Name='Usage(%)';Expression={[math]::Round((($_.Size - $_.FreeSpace) / $_.Size) * 100, 2)}}
+
+                        Write-Host 'Active Jenkins Workspaces:'
+                        Get-ChildItem -Path '%WORKSPACE%' -Directory | Measure-Object | Select-Object Count
+                    }"
+                    '''
                 } catch (Exception e) {
                     echo "리소스 모니터링 실패: ${e.getMessage()}"
                 }
                 
                 // 휠하우스 잠금 해제 및 정리
                 try {
-                    powershell """
-                        # 휠하우스 잠금 파일 제거
-                        if (Test-Path "${env.WHEELHOUSE_PATH}\\.lock") {
-                            Remove-Item "${env.WHEELHOUSE_PATH}\\.lock" -Force -ErrorAction SilentlyContinue
-                            Write-Host "휠하우스 잠금 해제 완료"
+                    bat '''
+                    chcp 65001 >NUL
+                    set "WHEELHOUSE_PATH=%WHEELHOUSE_PATH%"
+                    set "BACKUP_ROOT=%BACKUP_ROOT%"
+                    set "BUILD_NUMBER=%BUILD_NUMBER%"
+
+                    powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "& {
+                        # Lock file removal
+                        if (Test-Path '%WHEELHOUSE_PATH%\\.lock') {
+                            Remove-Item '%WHEELHOUSE_PATH%\\.lock' -Force -ErrorAction SilentlyContinue
+                            Write-Host 'Wheelhouse lock released'
                         }
-                        
-                        # 임시 빌드 파일 정리
-                        Get-ChildItem -Path "${env.BACKUP_ROOT}" -Filter "*BUILD_${BUILD_NUMBER}*" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
-                        Write-Host "임시 빌드 파일 정리 완료"
-                    """
+
+                        # Temporary build file cleanup
+                        Get-ChildItem -Path '%BACKUP_ROOT%' -Filter '*BUILD_%BUILD_NUMBER%*' -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+                        Write-Host 'Temporary build files cleaned'
+                    }"
+                    '''
                 } catch (Exception e) {
                     echo "리소스 정리 실패: ${e.getMessage()}"
                 }

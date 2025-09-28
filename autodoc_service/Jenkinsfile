@@ -310,12 +310,10 @@ pipeline {
         }
         
         
-        stage('Deploy') {
-            when { 
-                expression { 
-                    def branch = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
-                    return branch == 'main' || branch.endsWith('/main')
-                }
+        // Deploy 스테이지는 루트 Jenkinsfile에서 중앙 관리됩니다.
+        stage('Deploy [Removed]') {
+            when {
+                expression { false } // Deploy 비활성화 - 루트에서 처리
             }
             steps {
                 script {

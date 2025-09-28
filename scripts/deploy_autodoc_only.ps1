@@ -2,15 +2,27 @@
 # AutoDoc 서비스만 배포하는 스크립트
 
 param(
-    [Parameter(Mandatory=$true)][string]$Bid,
-    [Parameter(Mandatory=$true)][int]$AutoPort,
+    # === 분기용 파라미터 ===
+    [Parameter(Mandatory=$false)][switch]$IsMainBranch,
+
+    # === Main 브랜치 전용 파라미터 ===
+    [Parameter(Mandatory=$false)][string]$MainDeployPath = 'C:\deploys\apps\autodoc_service',
+    [Parameter(Mandatory=$false)][string]$MainDataPath = 'C:\deploys\data\autodoc_service',
+    [Parameter(Mandatory=$false)][string]$MainServiceName = 'autodoc_service',
+    [Parameter(Mandatory=$false)][int]$MainPort = 8001,
+
+    # === Feature 브랜치 전용 파라미터 ===
+    [Parameter(Mandatory=$false)][string]$Bid,
+    [Parameter(Mandatory=$false)][int]$AutoPort,
+    [Parameter(Mandatory=$false)][string]$AutoDst,     # C:\deploys\tests\{BID}\apps\autodoc_service
+    [Parameter(Mandatory=$false)][string]$PackagesRoot, # "C:\deploys\tests\{BID}\packages"
+    [Parameter(Mandatory=$false)][switch]$ForceUpdateDeps = $false,  # 의존성 강제 업데이트
+
+    # === 공통 파라미터 ===
     [Parameter(Mandatory=$true)][string]$Py,
     [Parameter(Mandatory=$true)][string]$Nssm,
     [Parameter(Mandatory=$true)][string]$Nginx,
-    [Parameter(Mandatory=$true)][string]$AutoSrc,     # repo/autodoc_service
-    [Parameter(Mandatory=$true)][string]$AutoDst,     # C:\deploys\tests\{BID}\apps\autodoc_service
-    [Parameter(Mandatory=$true)][string]$PackagesRoot, # "C:\deploys\tests\{BID}\packages"
-    [Parameter(Mandatory=$false)][switch]$ForceUpdateDeps = $false  # 의존성 강제 업데이트
+    [Parameter(Mandatory=$true)][string]$AutoSrc     # repo/autodoc_service
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,16 +30,131 @@ $ErrorActionPreference = "Stop"
 # UTF-8 출력 설정 (한글 지원)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# 공통 함수 로드
-. "$PSScriptRoot\deploy_common.ps1" -Bid $Bid -Nssm $Nssm -Nginx $Nginx -PackagesRoot $PackagesRoot
-
 # ==========================================
-# 글로벌 변수 정의 (wheelhouse 감지용)
+# Main/Feature 브랜치 분기 처리
 # ==========================================
-$GlobalWheelPath = "C:\deploys\packages"
 
-Write-Host "===========================================`n"
-Write-Host "AutoDoc 서비스 배포 시작 (독립 배포)`n"
+if ($IsMainBranch) {
+    # =====================================
+    # MAIN 브랜치 프로덕션 배포 로직
+    # =====================================
+    Write-Host "===========================================`n"
+    Write-Host "MAIN 브랜치 AutoDoc 프로덕션 배포 시작`n"
+    Write-Host "===========================================`n"
+    Write-Host "• Deploy Path: $MainDeployPath"
+    Write-Host "• Data Path: $MainDataPath"
+    Write-Host "• Service Name: $MainServiceName"
+    Write-Host "• Port: $MainPort"
+    Write-Host "===========================================`n"
+
+    try {
+        # 1. 서비스 중지
+        Write-Host "1. 서비스 중지 중..."
+        & $Nssm stop $MainServiceName
+        Start-Sleep -Seconds 3
+
+        # 2. 소스 파일 복사
+        Write-Host "2. 소스 파일 복사 중..."
+        if (Test-Path $AutoSrc) {
+            Copy-Item -Path "$AutoSrc\*" -Destination $MainDeployPath -Recurse -Force
+            Write-Host "소스 파일 복사 완료"
+        } else {
+            throw "AutoDoc 소스 경로를 찾을 수 없습니다: $AutoSrc"
+        }
+
+        # 3. 가상환경 확인 및 의존성 업데이트 (Python 환경 격리)
+        Write-Host "3. 가상환경 확인 및 의존성 업데이트 중..."
+        if (Test-Path "$MainDeployPath\.venv312") {
+            # 기존 가상환경이 있는 경우 의존성만 업데이트
+            Write-Host "기존 가상환경 발견 - 의존성 업데이트 중..."
+
+            # Python 환경 격리 래퍼 생성
+            $pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"$MainDeployPath\.venv312\Scripts\pip.exe" %*
+"@
+            $wrapperPath = "$env:TEMP\pip_autodoc_main_clean_$(Get-Random).bat"
+            $pipWrapper | Out-File -FilePath $wrapperPath -Encoding ascii
+
+            try {
+                & $wrapperPath install -r "$MainDeployPath\requirements.txt" --upgrade
+                Write-Host "의존성 업데이트 완료"
+            } finally {
+                Remove-Item $wrapperPath -Force -ErrorAction SilentlyContinue
+            }
+        } else {
+            # 새 가상환경 생성
+            Write-Host "가상환경 생성 중..."
+
+            # Python 환경 격리 래퍼 생성
+            $pyWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+py %*
+"@
+            $pyWrapperPath = "$env:TEMP\py_autodoc_main_clean_$(Get-Random).bat"
+            $pyWrapper | Out-File -FilePath $pyWrapperPath -Encoding ascii
+
+            try {
+                & $pyWrapperPath -3.12 -m venv "$MainDeployPath\.venv312"
+                Write-Host "가상환경 생성 완료"
+
+                # pip 업그레이드 및 의존성 설치
+                $pipWrapper = @"
+@echo off
+set "PYTHONHOME="
+set "PYTHONPATH="
+"$MainDeployPath\.venv312\Scripts\pip.exe" %*
+"@
+                $pipWrapperPath = "$env:TEMP\pip_autodoc_main_clean_$(Get-Random).bat"
+                $pipWrapper | Out-File -FilePath $pipWrapperPath -Encoding ascii
+
+                & $pipWrapperPath install --upgrade pip
+                & $pipWrapperPath install -r "$MainDeployPath\requirements.txt"
+                Write-Host "의존성 설치 완료"
+
+                Remove-Item $pipWrapperPath -Force -ErrorAction SilentlyContinue
+            } finally {
+                Remove-Item $pyWrapperPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        # 4. 서비스 시작
+        Write-Host "4. 서비스 시작 중..."
+        & $Nssm start $MainServiceName
+        Start-Sleep -Seconds 5
+
+        Write-Host "===========================================`n"
+        Write-Host "MAIN 브랜치 AutoDoc 프로덕션 배포 완료`n"
+        Write-Host "===========================================`n"
+
+    } catch {
+        Write-Host "MAIN 브랜치 AutoDoc 배포 실패: $($_.Exception.Message)"
+        # 서비스 복구 시도
+        try {
+            & $Nssm start $MainServiceName
+        } catch {
+            Write-Host "서비스 복구 실패: $($_.Exception.Message)"
+        }
+        throw
+    }
+
+} else {
+    # =====================================
+    # FEATURE 브랜치 테스트 인스턴스 배포 로직
+    # =====================================
+
+    # 공통 함수 로드
+    . "$PSScriptRoot\deploy_common.ps1" -Bid $Bid -Nssm $Nssm -Nginx $Nginx -PackagesRoot $PackagesRoot
+
+    # 글로벌 변수 정의 (wheelhouse 감지용)
+    $GlobalWheelPath = "C:\deploys\packages"
+
+    Write-Host "===========================================`n"
+    Write-Host "AutoDoc 서비스 배포 시작 (독립 배포)`n"
 Write-Host "===========================================`n"
 Write-Host "• BID: $Bid"
 Write-Host "• AutoDoc Port: $AutoPort"
@@ -465,4 +592,5 @@ set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
     # Jenkins에 실패 신호 전송
     Write-Host "❌ AutoDoc 서비스 배포 실패 - Jenkins에 실패 신호 전송 중..."
     exit 1
+}
 }

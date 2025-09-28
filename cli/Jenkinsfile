@@ -249,12 +249,13 @@ pipeline {
                         def installerName = "TestscenarioMaker-CLI-Setup-${branchSuffix}.exe"
                         
                         // Rename installer with branch suffix
-                        bat """
+                        env.INSTALLER_NAME = installerName
+                        bat '''
                             cd dist
                             if exist TestscenarioMaker-CLI-Setup.exe (
-                                move /Y TestscenarioMaker-CLI-Setup.exe "${installerName}"
+                                move /Y TestscenarioMaker-CLI-Setup.exe "%INSTALLER_NAME%"
                             )
-                        """
+                        '''
                         
                         // Archive artifacts
                         archiveArtifacts artifacts: "dist/${installerName}", 
