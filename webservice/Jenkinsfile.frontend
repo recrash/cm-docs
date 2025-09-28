@@ -81,13 +81,13 @@ pipeline {
                             echo "node_modules 오프라인 패키지 복사 중..."
                             bat '''
                             chcp 65001 >NUL
-                            if exist "C:\deploys\packages\frontend\node_modules" (
+                            if exist "C:\\deploys\\packages\\frontend\\node_modules" (
                                 echo Copying node_modules from offline package...
                                 if exist node_modules rd /s /q node_modules
-                                xcopy /E /I /H /Y "C:\deploys\packages\frontend\node_modules" "node_modules\" >nul 2>&1
+                                xcopy /E /I /H /Y "C:\\deploys\\packages\\frontend\\node_modules" "node_modules\\" >nul 2>&1
                                 echo node_modules copy complete
                             ) else (
-                                echo ERROR: Offline node_modules not found at C:\deploys\packages\frontend\node_modules
+                                echo ERROR: Offline node_modules not found at C:\\deploys\\packages\\frontend\\node_modules
                                 echo Run Download-All-Dependencies.ps1 to prepare offline packages
                                 exit 1
                             )
@@ -127,10 +127,10 @@ pipeline {
                             echo "eslint가 설치되지 않음 - 오프라인 패키지 재복사 시도"
                             bat '''
                             chcp 65001 >NUL
-                            if exist "C:\deploys\packages\frontend\node_modules" (
+                            if exist "C:\\deploys\\packages\\frontend\\node_modules" (
                                 echo Reinstalling node_modules for eslint issue...
                                 if exist node_modules rd /s /q node_modules
-                                xcopy /E /I /H /Y "C:\deploys\packages\frontend\node_modules" "node_modules\" >nul 2>&1
+                                xcopy /E /I /H /Y "C:\\deploys\\packages\\frontend\\node_modules" "node_modules\    \" >nul 2>&1
                                 echo node_modules reinstalled
                             )
                             '''
