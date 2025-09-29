@@ -61,6 +61,21 @@ if ($IsMainBranch) {
             throw "빌드된 프론트엔드 아티팩트를 찾을 수 없습니다: $frontendZip"
         }
 
+        # 배포 검증
+        Write-Host "배포 검증 중..."
+        
+        # index.html 존재 확인
+        $indexFile = "$MainNginxRoot\index.html"
+        if (Test-Path $indexFile) {
+            Write-Host "index.html 확인: 정상"
+        } else {
+            throw "index.html을 찾을 수 없습니다: $indexFile"
+        }
+        
+        # 정적 파일들 확인
+        $staticFiles = Get-ChildItem -Path $MainNginxRoot -Recurse | Measure-Object
+        Write-Host "배포된 파일 수: $($staticFiles.Count)개"
+
         Write-Host "✅ Main 브랜치 프론트엔드 배포 완료"
 
     } catch {
