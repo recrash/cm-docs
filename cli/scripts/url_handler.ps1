@@ -12,8 +12,8 @@ $env:PYTHONIOENCODING = 'utf-8'
 Set-Location "C:\deploys\apps\cli"
 
 try {
-    # CLI를 콘솔 창에서 실행 (URL을 따옴표로 감싸서 전달) - 실시간 로그 확인 가능
-    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoExit", "-Command", "& '$exePath' `"$url`"" -WorkingDirectory "C:\deploys\apps\cli"
+    # CLI를 직접 실행 (PowerShell 중첩 없이 바로 실행하여 & 파싱 문제 해결)
+    Start-Process -FilePath $exePath -ArgumentList "`"$url`"" -WindowStyle Normal
 } catch {
     # 오류 발생 시 로그 파일에 기록
     $errorLog = "$env:TEMP\testscenariomaker_error.log"

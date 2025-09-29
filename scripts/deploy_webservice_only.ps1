@@ -49,59 +49,44 @@ if ($IsMainBranch) {
     Write-Host "• Port: $MainPort"
     Write-Host "===========================================`n"
 
+    # 글로벌 변수 정의 (wheelhouse 감지용)
+    $GlobalWheelPath = "C:\deploys\packages"
+
     try {
         # 1. 서비스 중지
         Write-Host "1. 서비스 중지 중..."
         & $Nssm stop $MainServiceName
         Start-Sleep -Seconds 3
 
-        # 2. 소스 파일 복사
-        Write-Host "2. 소스 파일 복사 중..."
-        if (Test-Path $WebSrc) {
-            Copy-Item -Path "$WebSrc\*" -Destination $MainDeployPath -Recurse -Force
-            Write-Host "소스 파일 복사 완료"
+        # 2. Wheel 파일 교체 (Test 브랜치와 동일한 방식)
+        Write-Host "2. Webservice wheel 교체 중..."
+
+        # Wheel 경로 결정
+        $WebWheelSource = ""
+        if (Test-Path "$GlobalWheelPath\webservice\webservice-*.whl") {
+            $WebWheelSource = "$GlobalWheelPath\webservice"
+            Write-Host "글로벌 webservice wheel 사용: $GlobalWheelPath\webservice"
         } else {
-            throw "웹서비스 소스 경로를 찾을 수 없습니다: $WebSrc"
+            throw "webservice wheel 파일을 찾을 수 없습니다: $GlobalWheelPath\webservice"
         }
 
-        # 3. 가상환경 확인 및 의존성 업데이트 (Python 환경 격리 + 폐쇄망 호환)
-        Write-Host "3. 가상환경 확인 및 의존성 업데이트 중..."
+        # wheel 파일 가져오기
+        $webWheelFile = Get-ChildItem -Path "$WebWheelSource" -Filter "webservice-*.whl" | Select-Object -First 1
+        Write-Host "Wheel 파일 교체: $($webWheelFile.Name)"
 
-        # 글로벌 변수 정의 (wheelhouse 감지용)
-        $GlobalWheelPath = "C:\deploys\packages"
+        # 3. 가상환경 확인 (기존 환경 유지)
+        Write-Host "3. 가상환경 확인 중..."
 
-        if (Test-Path "$MainDeployPath\.venv") {
-            # 기존 가상환경이 있는 경우 의존성만 업데이트
-            Write-Host "기존 가상환경 발견 - 의존성 업데이트 중..."
+        if (-not (Test-Path "$MainDeployPath\.venv")) {
+            throw "가상환경을 찾을 수 없습니다: $MainDeployPath\.venv"
+        }
 
-            # UTF-8 인코딩 및 메모리 최적화 환경변수 설정
-            $env:PYTHONIOENCODING = 'utf-8'
-            $env:LC_ALL = 'C.UTF-8'
-            $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
-            $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
-            $env:PIP_NO_BUILD_ISOLATION = '1'     # 빌드 격리 비활성화로 메모리 절약
+        Write-Host "기존 가상환경 유지 (빠른 배포)"
 
-            # Windows 경로 길이 제한 우회를 위한 짧은 임시 디렉토리 사용
-            $shortGuid = [System.Guid]::NewGuid().ToString().Substring(0,8)
-            $tempPipDir = "C:\tmp\pip-web-$shortGuid"
-            $buildDir = "C:\tmp\build-web-$shortGuid"
-
-            # 루트 tmp 디렉토리 생성
-            New-Item -ItemType Directory -Force -Path "C:\tmp" | Out-Null
-            New-Item -ItemType Directory -Force -Path $tempPipDir | Out-Null
-            New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
-
-            # 모든 임시 및 빌드 디렉토리를 짧은 경로로 설정
-            $env:TMPDIR = $tempPipDir
-            $env:TEMP = $tempPipDir
-            $env:TMP = $tempPipDir
-            $env:PIP_BUILD_DIR = $tempPipDir
-            $env:BUILD_DIR = $buildDir
-
-            # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성 (의존성 설치용)
-            $pipWrapper = @"
+        # Python 환경 격리를 위한 wheel 설치용 wrapper 생성
+        $wheelWrapperContent = @"
 @echo off
-REM === Python 환경 완전 격리 (Webservice Main 의존성 설치용) ===
+REM === Python 환경 완전 격리 (wheel 설치용) ===
 set "PYTHONHOME="
 set "PYTHONPATH="
 set "PYTHONSTARTUP="
@@ -112,152 +97,24 @@ REM 시스템 Python 경로 완전 차단
 set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
 "$MainDeployPath\.venv\Scripts\pip.exe" %*
 "@
-            $pipWrapper | Out-File -FilePath "pip_webservice_main_deps.bat" -Encoding ascii
+        $wheelWrapperContent | Out-File -FilePath "pip_main_wheel.bat" -Encoding ascii
 
-            try {
-                Write-Host "Python 환경 격리 상태에서 의존성 설치 중..."
-                # 메모리 효율적인 pip 설치 (환경 격리)
-                if (Test-Path "$MainDeployPath\pip.constraints.txt") {
-                    & ".\pip_webservice_main_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$MainDeployPath\requirements.txt" -c "$MainDeployPath\pip.constraints.txt" --no-cache-dir --disable-pip-version-check
-                } else {
-                    & ".\pip_webservice_main_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$MainDeployPath\requirements.txt" --no-cache-dir --disable-pip-version-check
-                }
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Webservice Main 의존성 설치 실패 (Exit Code: $LASTEXITCODE)"
-                }
-                Write-Host "  - 의존성 설치 완료 (Python 환경 격리)"
-            } finally {
-                # pip wrapper 정리
-                Remove-Item "pip_webservice_main_deps.bat" -Force -ErrorAction SilentlyContinue
-                # 임시 디렉토리 정리
-                if (Test-Path $env:TMPDIR) {
-                    Remove-Item -Recurse -Force $env:TMPDIR -ErrorAction SilentlyContinue
-                }
+        try {
+            # 기존 webservice 패키지만 언인스톨 (의존성은 유지)
+            Write-Host "  - 기존 webservice 패키지 제거 중..."
+            & ".\pip_main_wheel.bat" uninstall webservice -y 2>&1 | Out-Null
+            Write-Host "  - 기존 패키지 제거 완료"
+
+            # 새 wheel 설치
+            Write-Host "  - 새 webservice wheel 설치 중..."
+            & ".\pip_main_wheel.bat" install $webWheelFile.FullName --no-deps --force-reinstall
+            if ($LASTEXITCODE -ne 0) {
+                throw "웹서비스 wheel 설치 실패 (Exit Code: $LASTEXITCODE)"
             }
-        } else {
-            # 새 가상환경 생성
-            Write-Host "가상환경 생성 중..."
-
-            # UTF-8 인코딩 및 메모리 최적화 환경변수 설정 (경로 단축)
-            $shortGuid = ([System.Guid]::NewGuid()).ToString().Substring(0, 8)
-            $env:PYTHONIOENCODING = 'utf-8'
-            $env:LC_ALL = 'C.UTF-8'
-            $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
-            $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
-            $env:TMPDIR = "C:\tmp\pip-web-$shortGuid"  # 단축된 임시 디렉토리
-
-            # 전용 임시 디렉토리 생성
-            New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
-
-            # Python 환경 격리 래퍼 생성
-            $pyWrapper = @"
-@echo off
-set "PYTHONHOME="
-set "PYTHONPATH="
-py %*
-"@
-            $pyWrapperPath = "py_webservice_main_clean.bat"
-            $pyWrapper | Out-File -FilePath $pyWrapperPath -Encoding ascii
-
-            try {
-                # 격리된 환경에서 가상환경 생성
-                & ".\$pyWrapperPath" -3.9 -m venv "$MainDeployPath\.venv"
-                if ($LASTEXITCODE -ne 0) {
-                    throw "가상환경 생성 실패 (Exit Code: $LASTEXITCODE)"
-                }
-                Write-Host "✅ Python 환경 격리로 가상환경 생성 성공"
-
-                Write-Host "pip 업그레이드 중... (메모리 오류 방지 + 환경 격리)"
-
-                # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성
-                $pipWrapper = @"
-@echo off
-REM === Python 환경 완전 격리 (Webservice Main) ===
-set "PYTHONHOME="
-set "PYTHONPATH="
-set "PYTHONSTARTUP="
-set "PYTHONUSERBASE="
-set "PYTHON_EGG_CACHE="
-set "PYTHONDONTWRITEBYTECODE=1"
-REM 시스템 Python 경로 완전 차단
-set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
-"$MainDeployPath\.venv\Scripts\python.exe" %*
-"@
-                $pipWrapper | Out-File -FilePath "python_webservice_main_clean.bat" -Encoding ascii
-
-                try {
-                    Write-Host "Python 환경 격리 상태에서 pip 업그레이드 중..."
-                    Write-Host "wheelhouse 경로 확인: $GlobalWheelPath\wheelhouse"
-
-                    # wheelhouse 폴더와 pip 파일 존재 확인
-                    $wheelhouse_path = "$GlobalWheelPath\wheelhouse"
-                    if (Test-Path $wheelhouse_path) {
-                        $pip_files = Get-ChildItem -Path $wheelhouse_path -Name "pip-*.whl" -ErrorAction SilentlyContinue
-                        if ($pip_files.Count -gt 0) {
-                            Write-Host "wheelhouse에서 pip 파일 발견: $($pip_files -join ', ')"
-                            & ".\python_webservice_main_clean.bat" -m pip install --no-index --find-links="$wheelhouse_path" --upgrade pip setuptools wheel
-                            if ($LASTEXITCODE -ne 0) {
-                                throw "pip 오프라인 업그레이드 실패 (Exit Code: $LASTEXITCODE)"
-                            }
-                            Write-Host "pip 오프라인 업그레이드 완료"
-                        } else {
-                            Write-Host "경고: wheelhouse 폴더는 존재하지만 pip wheel 파일을 찾을 수 없음"
-                            Write-Host "폐쇄망 환경: pip 온라인 업그레이드 건너뜀"
-                        }
-                    } else {
-                        Write-Host "경고: wheelhouse 폴더가 존재하지 않음: $wheelhouse_path"
-                        Write-Host "폐쇄망 환경: pip 온라인 업그레이드 건너뜀 (인터넷 연결 불가)"
-                        Write-Host "기존 pip 버전으로 계속 진행"
-                    }
-                } finally {
-                    Remove-Item "python_webservice_main_clean.bat" -Force -ErrorAction SilentlyContinue
-                }
-
-                # 의존성 설치
-                Write-Host "  - 의존성 설치 (from wheelhouse)..."
-
-                # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성 (의존성 설치용)
-                $pipWrapper = @"
-@echo off
-REM === Python 환경 완전 격리 (Webservice Main 의존성 설치용) ===
-set "PYTHONHOME="
-set "PYTHONPATH="
-set "PYTHONSTARTUP="
-set "PYTHONUSERBASE="
-set "PYTHON_EGG_CACHE="
-set "PYTHONDONTWRITEBYTECODE=1"
-REM 시스템 Python 경로 완전 차단
-set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
-"$MainDeployPath\.venv\Scripts\pip.exe" %*
-"@
-                $pipWrapper | Out-File -FilePath "pip_webservice_main_deps.bat" -Encoding ascii
-
-                try {
-                    Write-Host "Python 환경 격리 상태에서 의존성 설치 중..."
-                    # 메모리 효율적인 pip 설치 (환경 격리)
-                    if (Test-Path "$MainDeployPath\pip.constraints.txt") {
-                        & ".\pip_webservice_main_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$MainDeployPath\requirements.txt" -c "$MainDeployPath\pip.constraints.txt" --no-cache-dir --disable-pip-version-check --prefer-binary --no-build-isolation
-                    } else {
-                        & ".\pip_webservice_main_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$MainDeployPath\requirements.txt" --no-cache-dir --disable-pip-version-check --prefer-binary --no-build-isolation
-                    }
-                    if ($LASTEXITCODE -ne 0) {
-                        throw "Webservice Main 의존성 설치 실패 (Exit Code: $LASTEXITCODE)"
-                    }
-                    Write-Host "  - 의존성 설치 완료 (Python 환경 격리)"
-                } finally {
-                    # pip wrapper 정리
-                    Remove-Item "pip_webservice_main_deps.bat" -Force -ErrorAction SilentlyContinue
-                }
-
-                Write-Host "새 가상환경 생성 및 pip 업그레이드 완료"
-            } finally {
-                # 임시 래퍼 정리
-                Remove-Item $pyWrapperPath -Force -ErrorAction SilentlyContinue
-                # 임시 디렉토리 정리
-                if (Test-Path $env:TMPDIR) {
-                    Remove-Item -Recurse -Force $env:TMPDIR -ErrorAction SilentlyContinue
-                }
-            }
+            Write-Host "  - Webservice wheel 설치 완료"
+        } finally {
+            # wheel wrapper 정리
+            Remove-Item "pip_main_wheel.bat" -Force -ErrorAction SilentlyContinue
         }
 
         # 4. 서비스 시작

@@ -47,46 +47,44 @@ if ($IsMainBranch) {
     Write-Host "• Port: $MainPort"
     Write-Host "===========================================`n"
 
+    # 글로벌 변수 정의 (wheelhouse 감지용)
+    $GlobalWheelPath = "C:\deploys\packages"
+
     try {
         # 1. 서비스 중지
         Write-Host "1. 서비스 중지 중..."
         & $Nssm stop $MainServiceName
         Start-Sleep -Seconds 3
 
-        # 2. 소스 파일 복사
-        Write-Host "2. 소스 파일 복사 중..."
-        if (Test-Path $AutoSrc) {
-            Copy-Item -Path "$AutoSrc\*" -Destination $MainDeployPath -Recurse -Force
-            Write-Host "소스 파일 복사 완료"
+        # 2. Wheel 파일 교체 (Test 브랜치와 동일한 방식)
+        Write-Host "2. AutoDoc wheel 교체 중..."
+
+        # Wheel 경로 결정
+        $AutoWheelSource = ""
+        if (Test-Path "$GlobalWheelPath\autodoc_service\autodoc_service-*.whl") {
+            $AutoWheelSource = "$GlobalWheelPath\autodoc_service"
+            Write-Host "글로벌 autodoc_service wheel 사용: $GlobalWheelPath\autodoc_service"
         } else {
-            throw "AutoDoc 소스 경로를 찾을 수 없습니다: $AutoSrc"
+            throw "autodoc_service wheel 파일을 찾을 수 없습니다: $GlobalWheelPath\autodoc_service"
         }
 
-        # 3. 가상환경 확인 및 의존성 업데이트 (Python 환경 격리 + 폐쇄망 호환)
-        Write-Host "3. 가상환경 확인 및 의존성 업데이트 중..."
+        # wheel 파일 가져오기
+        $autoWheelFile = Get-ChildItem -Path "$AutoWheelSource" -Filter "autodoc_service-*.whl" | Select-Object -First 1
+        Write-Host "Wheel 파일 교체: $($autoWheelFile.Name)"
 
-        # 글로벌 변수 정의 (wheelhouse 감지용)
-        $GlobalWheelPath = "C:\deploys\packages"
+        # 3. 가상환경 확인 (기존 환경 유지)
+        Write-Host "3. 가상환경 확인 중..."
 
-        if (Test-Path "$MainDeployPath\.venv312") {
-            # 기존 가상환경이 있는 경우 의존성만 업데이트
-            Write-Host "기존 가상환경 발견 - 의존성 업데이트 중..."
+        if (-not (Test-Path "$MainDeployPath\.venv312")) {
+            throw "가상환경을 찾을 수 없습니다: $MainDeployPath\.venv312"
+        }
 
-            # UTF-8 인코딩 및 메모리 최적화 환경변수 설정
-            $env:PYTHONIOENCODING = 'utf-8'
-            $env:LC_ALL = 'C.UTF-8'
-            $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
-            $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
-            $env:PIP_NO_BUILD_ISOLATION = '1'     # 빌드 격리 비활성화로 메모리 절약
-            $env:TMPDIR = "$env:TEMP\pip-tmp-autodoc-main-$([System.Guid]::NewGuid())"  # 전용 임시 디렉토리
+        Write-Host "기존 가상환경 유지 (빠른 배포)"
 
-            # 임시 디렉토리 생성
-            New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
-
-            # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성 (의존성 설치용)
-            $pipWrapper = @"
+        # Python 환경 격리를 위한 wheel 설치용 wrapper 생성
+        $wheelWrapperContent = @"
 @echo off
-REM === Python 환경 완전 격리 (AutoDoc Main 의존성 설치용) ===
+REM === Python 환경 완전 격리 (wheel 설치용) ===
 set "PYTHONHOME="
 set "PYTHONPATH="
 set "PYTHONSTARTUP="
@@ -97,143 +95,24 @@ REM 시스템 Python 경로 완전 차단
 set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
 "$MainDeployPath\.venv312\Scripts\pip.exe" %*
 "@
-            $pipWrapper | Out-File -FilePath "pip_autodoc_main_deps.bat" -Encoding ascii
+        $wheelWrapperContent | Out-File -FilePath "pip_autodoc_main_wheel.bat" -Encoding ascii
 
-            try {
-                Write-Host "Python 환경 격리 상태에서 의존성 설치 중..."
-                # 메모리 효율적인 pip 설치 (환경 격리)
-                & ".\pip_autodoc_main_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$MainDeployPath\requirements.txt" --no-cache-dir --disable-pip-version-check
-                if ($LASTEXITCODE -ne 0) {
-                    throw "AutoDoc Main 의존성 설치 실패 (Exit Code: $LASTEXITCODE)"
-                }
-                Write-Host "  - 의존성 설치 완료 (Python 환경 격리)"
-            } finally {
-                # pip wrapper 정리
-                Remove-Item "pip_autodoc_main_deps.bat" -Force -ErrorAction SilentlyContinue
-                # 임시 디렉토리 정리
-                if (Test-Path $env:TMPDIR) {
-                    Remove-Item -Recurse -Force $env:TMPDIR -ErrorAction SilentlyContinue
-                }
+        try {
+            # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
+            Write-Host "  - 기존 autodoc_service 패키지 제거 중..."
+            & ".\pip_autodoc_main_wheel.bat" uninstall autodoc_service -y 2>&1 | Out-Null
+            Write-Host "  - 기존 패키지 제거 완료"
+
+            # 새 wheel 설치
+            Write-Host "  - 새 autodoc_service wheel 설치 중..."
+            & ".\pip_autodoc_main_wheel.bat" install $autoWheelFile.FullName --no-deps --force-reinstall
+            if ($LASTEXITCODE -ne 0) {
+                throw "AutoDoc wheel 설치 실패 (Exit Code: $LASTEXITCODE)"
             }
-        } else {
-            # 새 가상환경 생성
-            Write-Host "가상환경 생성 중..."
-
-            # UTF-8 인코딩 및 메모리 최적화 환경변수 설정
-            $env:PYTHONIOENCODING = 'utf-8'
-            $env:LC_ALL = 'C.UTF-8'
-            $env:PIP_NO_CACHE_DIR = '1'           # 캐시 비활성화로 메모리 절약
-            $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'  # 버전 체크 비활성화
-            $env:TMPDIR = "$env:TEMP\pip-tmp-autodoc-main-$([System.Guid]::NewGuid())"  # 전용 임시 디렉토리
-
-            # 전용 임시 디렉토리 생성
-            New-Item -ItemType Directory -Force -Path $env:TMPDIR | Out-Null
-
-            # Python 환경 격리 래퍼 생성
-            $pyWrapper = @"
-@echo off
-set "PYTHONHOME="
-set "PYTHONPATH="
-py %*
-"@
-            $pyWrapperPath = "py_autodoc_main_clean.bat"
-            $pyWrapper | Out-File -FilePath $pyWrapperPath -Encoding ascii
-
-            try {
-                # 격리된 환경에서 가상환경 생성
-                & ".\$pyWrapperPath" -3.12 -m venv "$MainDeployPath\.venv312"
-                if ($LASTEXITCODE -ne 0) {
-                    throw "가상환경 생성 실패 (Exit Code: $LASTEXITCODE)"
-                }
-                Write-Host "✅ Python 환경 격리로 가상환경 생성 성공"
-
-                Write-Host "pip 업그레이드 중... (메모리 오류 방지 + 환경 격리)"
-
-                # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성
-                $pipWrapper = @"
-@echo off
-REM === Python 환경 완전 격리 (AutoDoc Main) ===
-set "PYTHONHOME="
-set "PYTHONPATH="
-set "PYTHONSTARTUP="
-set "PYTHONUSERBASE="
-set "PYTHON_EGG_CACHE="
-set "PYTHONDONTWRITEBYTECODE=1"
-REM 시스템 Python 경로 완전 차단
-set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
-"$MainDeployPath\.venv312\Scripts\python.exe" %*
-"@
-                $pipWrapper | Out-File -FilePath "python_autodoc_main_clean.bat" -Encoding ascii
-
-                try {
-                    Write-Host "Python 환경 격리 상태에서 pip 업그레이드 중..."
-                    Write-Host "wheelhouse 경로 확인: $GlobalWheelPath\wheelhouse"
-
-                    # wheelhouse 폴더와 pip 파일 존재 확인
-                    $wheelhouse_path = "$GlobalWheelPath\wheelhouse"
-                    if (Test-Path $wheelhouse_path) {
-                        $pip_files = Get-ChildItem -Path $wheelhouse_path -Name "pip-*.whl" -ErrorAction SilentlyContinue
-                        if ($pip_files.Count -gt 0) {
-                            Write-Host "wheelhouse에서 pip 파일 발견: $($pip_files -join ', ')"
-                            & ".\python_autodoc_main_clean.bat" -m pip install --no-index --find-links="$wheelhouse_path" --upgrade pip
-                            if ($LASTEXITCODE -ne 0) {
-                                throw "pip 오프라인 업그레이드 실패 (Exit Code: $LASTEXITCODE)"
-                            }
-                            Write-Host "pip 오프라인 업그레이드 완료"
-                        } else {
-                            Write-Host "경고: wheelhouse 폴더는 존재하지만 pip wheel 파일을 찾을 수 없음"
-                            Write-Host "폐쇄망 환경: pip 온라인 업그레이드 건너뜀"
-                        }
-                    } else {
-                        Write-Host "경고: wheelhouse 폴더가 존재하지 않음: $wheelhouse_path"
-                        Write-Host "폐쇄망 환경: pip 온라인 업그레이드 건너뜀 (인터넷 연결 불가)"
-                        Write-Host "기존 pip 버전으로 계속 진행"
-                    }
-                } finally {
-                    Remove-Item "python_autodoc_main_clean.bat" -Force -ErrorAction SilentlyContinue
-                }
-
-                # 의존성 설치
-                Write-Host "  - 의존성 설치 (from wheelhouse)..."
-
-                # Python 환경 완전 격리를 위한 강화된 pip wrapper 생성 (의존성 설치용)
-                $pipWrapper = @"
-@echo off
-REM === Python 환경 완전 격리 (AutoDoc Main 의존성 설치용) ===
-set "PYTHONHOME="
-set "PYTHONPATH="
-set "PYTHONSTARTUP="
-set "PYTHONUSERBASE="
-set "PYTHON_EGG_CACHE="
-set "PYTHONDONTWRITEBYTECODE=1"
-REM 시스템 Python 경로 완전 차단
-set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
-"$MainDeployPath\.venv312\Scripts\pip.exe" %*
-"@
-                $pipWrapper | Out-File -FilePath "pip_autodoc_main_deps.bat" -Encoding ascii
-
-                try {
-                    Write-Host "Python 환경 격리 상태에서 의존성 설치 중..."
-                    # 메모리 효율적인 pip 설치 (환경 격리)
-                    & ".\pip_autodoc_main_deps.bat" install --no-index --find-links="$GlobalWheelPath\wheelhouse" -r "$MainDeployPath\requirements.txt" --no-cache-dir --disable-pip-version-check
-                    if ($LASTEXITCODE -ne 0) {
-                        throw "AutoDoc Main 의존성 설치 실패 (Exit Code: $LASTEXITCODE)"
-                    }
-                    Write-Host "  - 의존성 설치 완료 (Python 환경 격리)"
-                } finally {
-                    # pip wrapper 정리
-                    Remove-Item "pip_autodoc_main_deps.bat" -Force -ErrorAction SilentlyContinue
-                }
-
-                Write-Host "새 가상환경 생성 및 pip 업그레이드 완료"
-            } finally {
-                # 임시 래퍼 정리
-                Remove-Item $pyWrapperPath -Force -ErrorAction SilentlyContinue
-                # 임시 디렉토리 정리
-                if (Test-Path $env:TMPDIR) {
-                    Remove-Item -Recurse -Force $env:TMPDIR -ErrorAction SilentlyContinue
-                }
-            }
+            Write-Host "  - AutoDoc wheel 설치 완료"
+        } finally {
+            # wheel wrapper 정리
+            Remove-Item "pip_autodoc_main_wheel.bat" -Force -ErrorAction SilentlyContinue
         }
 
         # 4. 서비스 시작

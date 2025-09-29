@@ -731,15 +731,40 @@ pipeline {
                         🚀 MAIN 브랜치 프로덕션 배포 시작
                         ===========================================
                         • 배포 방식: nssm stop → 파일 업데이트 → nssm start
-                        • Webservice: C:\\deploys\\apps\\webservice
-                        • AutoDoc: C:\\deploys\\apps\\autodoc_service
-                        • Frontend: C:\\nginx\\html
+                        • 변경된 서비스만 배포:
+                          - Backend: ${env.WEBSERVICE_BACKEND_CHANGED}
+                          - Frontend: ${env.WEBSERVICE_FRONTEND_CHANGED}
+                          - AutoDoc: ${env.AUTODOC_CHANGED}
                         ===========================================
                         """
 
-                        // 병렬 배포 실행
-                        parallel(
-                            'Webservice Backend': {
+                        // 배포할 서비스 결정
+                        def deployBackend = (env.WEBSERVICE_BACKEND_CHANGED == 'true' && env.WEBSERVICE_BACKEND_STATUS == 'SUCCESS')
+                        def deployFrontend = (env.WEBSERVICE_FRONTEND_CHANGED == 'true' && env.WEBSERVICE_FRONTEND_STATUS == 'SUCCESS')
+                        def deployAutodoc = (env.AUTODOC_CHANGED == 'true' && env.AUTODOC_DEPLOY_STATUS == 'SUCCESS')
+
+                        // 전체 재배포가 필요한 경우
+                        if (env.INFRA_CHANGED == 'true' || env.ROOT_CHANGED == 'true') {
+                            echo "인프라 또는 루트 설정 변경 감지 - 모든 서비스 재배포"
+                            deployBackend = true
+                            deployFrontend = true
+                            deployAutodoc = true
+                        }
+
+                        // 배포할 서비스가 없는 경우
+                        if (!deployBackend && !deployFrontend && !deployAutodoc) {
+                            echo """
+                            프로덕션 배포 스킵
+                            - 변경된 서비스가 없거나 빌드가 실패한 서비스만 있습니다.
+                            """
+                            return
+                        }
+
+                        // 병렬 배포 작업 구성
+                        def parallelDeployments = [:]
+
+                        if (deployBackend) {
+                            parallelDeployments['Webservice Backend'] = {
                                 echo "⚙️ Webservice Backend 프로덕션 배포 시작..."
                                 try {
                                     bat '''
@@ -765,8 +790,11 @@ pipeline {
                                 } catch (Exception e) {
                                     error("❌ Webservice Backend 프로덕션 배포 실패: ${e.getMessage()}")
                                 }
-                            },
-                            'AutoDoc Service': {
+                            }
+                        }
+
+                        if (deployAutodoc) {
+                            parallelDeployments['AutoDoc Service'] = {
                                 echo "📄 AutoDoc Service 프로덕션 배포 시작..."
                                 try {
                                     bat '''
@@ -792,8 +820,11 @@ pipeline {
                                 } catch (Exception e) {
                                     error("❌ AutoDoc Service 프로덕션 배포 실패: ${e.getMessage()}")
                                 }
-                            },
-                            'Frontend': {
+                            }
+                        }
+
+                        if (deployFrontend) {
+                            parallelDeployments['Frontend'] = {
                                 echo "🎨 Frontend 프로덕션 배포 시작..."
                                 try {
                                     bat '''
@@ -811,13 +842,23 @@ pipeline {
                                     error("❌ Frontend 프로덕션 배포 실패: ${e.getMessage()}")
                                 }
                             }
-                        )
+                        }
 
-                        echo """
-                        ===========================================
-                        ✅ MAIN 브랜치 프로덕션 배포 완료
-                        ===========================================
-                        """
+                        // 병렬 배포 실행
+                        if (parallelDeployments.size() > 0) {
+                            parallel parallelDeployments
+
+                            echo """
+                            ===========================================
+                            ✅ MAIN 브랜치 프로덕션 배포 완료
+                            ===========================================
+                            배포된 서비스:
+                            ${deployBackend ? '• Webservice Backend ✓' : ''}
+                            ${deployFrontend ? '• Frontend ✓' : ''}
+                            ${deployAutodoc ? '• AutoDoc Service ✓' : ''}
+                            ===========================================
+                            """
+                        }
 
                     } else {
                         // =====================================

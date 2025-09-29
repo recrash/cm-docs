@@ -724,6 +724,7 @@ def validate_repository_path(repo_path: Path) -> None:
     console.print(f"[green]{vcs_type} repository validated: {repo_path}[/green]")
 
 
+
 def handle_url_protocol() -> None:
     """
     testscenariomaker:// URL 프로토콜 처리
@@ -734,7 +735,7 @@ def handle_url_protocol() -> None:
     try:
         # URL 재조합 (sys.argv[1:]을 다시 합쳐서 완전한 URL 복원)
         raw_url = " ".join(sys.argv[1:])
-        
+
         if not raw_url.startswith('testscenariomaker://'):
             console.print("[red]Invalid URL format.[/red]")
             sys.exit(1)
