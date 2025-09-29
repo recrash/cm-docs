@@ -56,17 +56,33 @@ if ($IsMainBranch) {
         & $Nssm stop $MainServiceName
         Start-Sleep -Seconds 3
 
-        # 2. Wheel 파일 교체 (Test 브랜치와 동일한 방식)
+        # 2. Wheel 파일 교체 (Main 브랜치 전용: 최신 wheel을 Global 경로로 복사)
         Write-Host "2. AutoDoc wheel 교체 중..."
 
-        # Wheel 경로 결정
-        $AutoWheelSource = ""
-        if (Test-Path "$GlobalWheelPath\autodoc_service\autodoc_service-*.whl") {
-            $AutoWheelSource = "$GlobalWheelPath\autodoc_service"
-            Write-Host "글로벌 autodoc_service wheel 사용: $GlobalWheelPath\autodoc_service"
-        } else {
-            throw "autodoc_service wheel 파일을 찾을 수 없습니다: $GlobalWheelPath\autodoc_service"
+        # Jenkins workspace에서 최신 wheel을 찾아서 Global 경로로 복사
+        $JenkinsWheelPath = "$env:WORKSPACE\autodoc_service\dist"
+        $GlobalAutoWheelPath = "$GlobalWheelPath\autodoc_service"
+        
+        # Global wheel 디렉토리 생성
+        if (-not (Test-Path $GlobalAutoWheelPath)) {
+            New-Item -ItemType Directory -Path $GlobalAutoWheelPath -Force | Out-Null
         }
+        
+        # Jenkins에서 빌드된 최신 wheel 파일 찾기
+        $latestWheelFile = Get-ChildItem -Path $JenkinsWheelPath -Filter "autodoc_service-*.whl" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $latestWheelFile) {
+            throw "Jenkins workspace에서 autodoc_service wheel 파일을 찾을 수 없습니다: $JenkinsWheelPath"
+        }
+        
+        Write-Host "최신 wheel 발견: $($latestWheelFile.Name)"
+        
+        # 기존 wheel 파일 제거 후 최신 파일 복사
+        Remove-Item -Path "$GlobalAutoWheelPath\autodoc_service-*.whl" -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path $latestWheelFile.FullName -Destination $GlobalAutoWheelPath -Force
+        Write-Host "최신 wheel을 Global 경로로 복사 완료: $GlobalAutoWheelPath"
+        
+        # 복사된 wheel 파일 사용
+        $AutoWheelSource = $GlobalAutoWheelPath
 
         # wheel 파일 가져오기
         $autoWheelFile = Get-ChildItem -Path "$AutoWheelSource" -Filter "autodoc_service-*.whl" | Select-Object -First 1
