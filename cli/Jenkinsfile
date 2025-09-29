@@ -192,7 +192,9 @@ pipeline {
                         // Run build script
                         script {
                             def baseUrl = params.BASE_URL ?: 'https://cm-docs.cloud'
-                            bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH='src'; \$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' scripts\\build.py --base-url '${baseUrl}'\""
+                            // Jenkinsfile
+                            bat "powershell -Command \"\$env:PYTHONHOME=''; \$env:PYTHONPATH='src'; \$env:PYTHONIOENCODING='utf-8'; & '.venv\\Scripts\\python.exe' -X utf8 scripts\\build.py --base-url '${baseUrl}'\""
+                            
                         }
                         
                         // Verify executable was created

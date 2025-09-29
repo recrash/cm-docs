@@ -412,30 +412,64 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 
 ## 🚀 배포 및 CI/CD
 
+### 🔒 폐쇄망 환경 운영 (Air-gapped)
+**CRITICAL**: 본 시스템은 완전 폐쇄망 환경에서 운영되며 인터넷 연결이 전혀 불가능합니다.
+
+#### 폐쇄망 제약사항
+- ❌ **인터넷 연결 금지**: 외부 API, CDN, npm/PyPI 레지스트리 접근 불가
+- ❌ **외부 AI 서비스 금지**: OpenAI, Anthropic 등 외부 AI API 사용 절대 불가
+- ✅ **로컬 AI만 허용**: Ollama 로컬 서버 (qwen3:8b 모델) 사용 필수
+- ✅ **오프라인 의존성**: 모든 패키지는 사전 다운로드하여 로컬 설치
+
 ### 개발 서버 정보
 - **서버**: `34.64.173.97` (GCP VM T4 인스턴스 - vCPU:4, RAM:15GB)
-- **오픈 포트**: 8000 (Webservice), 8001 (AutoDoc), 3000 (Dev), 80 (Nginx)
+- **오픈 포트**: 8000 (Webservice), 8001 (AutoDoc), 3000 (Dev), 80 (Nginx), 7000 (Jenkins)
 - **환경**: Windows Server 2019 with Jenkins CI/CD
 - **VCS 지원**: Git 및 SVN 저장소 모두 지원
-- **NSSM 서비스**: webservice(8000), autodoc_service(8001), nginx(80)
 
-### 독립적인 배포 파이프라인
-각 서브프로젝트는 독립적인 CI/CD 파이프라인을 가집니다:
+### NSSM 서비스 구성
+- **webservice**: `C:\deploys\apps\webservice\.venv\Scripts\python.exe` (포트 8000)
+- **autodoc_service**: `C:\deploys\apps\autodoc_service\.venv312\Scripts\python.exe` (포트 8001)
+- **nginx-frontend**: `C:\nginx\nginx.exe` (포트 80)
 
-- **Webservice**: Pseudo-MSA 서비스별 독립 배포
-  - **브랜치별 배포 전략**: main/develop만 운영 배포, feature/hotfix는 테스트만
-  - **Frontend**: 브랜치별 base path 자동 설정 (`/` vs `/tests/${BRANCH_NAME}/`)
-  - API 테스트, E2E 테스트, 서비스별 배포 검증
-  - WebSocket 연결 및 실시간 기능 검증
+### Jenkins 설정
+- **접속**: http://localhost:7000 (ID: cmdocs / PW: skc123)
+- **워크스페이스**: `C:\ProgramData\Jenkins\.jenkins\workspace`
 
-- **CLI**: 크로스플랫폼 패키지 및 설치 프로그램 빌드
-  - **Windows 전용 Jenkins 파이프라인** (cli/Jenkinsfile)
-  - 테스트 실패 허용 모드 지원 (returnStatus: true)
-  - Coverage report 자동 생성 및 publishHTML 통합
-  - NSIS installer 자동 빌드 및 경로 자동 감지
-  - Windows 설치 프로그램 (.exe)
-  - macOS 디스크 이미지 (.dmg) + 헬퍼 앱
-  - Linux AppImage 또는 패키지
+### Jenkins CI/CD 파이프라인
+
+#### 브랜치별 배포 전략
+- **main 브랜치**: 프로덕션 배포 (C:\deploys에 NSSM 서비스로 운영)
+- **feature/hotfix 브랜치**: 테스트 인스턴스 배포 (동적 포트 할당)
+
+#### 파이프라인 구성
+- **통합 파이프라인**: 루트 `Jenkinsfile` (변경 감지 기반 스마트 배포)
+- **서비스별 파이프라인**:
+  - `webservice/Jenkinsfile.backend` (API 서비스, 포트 8000)
+  - `webservice/Jenkinsfile.frontend` (React 앱, nginx 80)
+  - `autodoc_service/Jenkinsfile` (문서 서비스, 포트 8001)
+  - `cli/Jenkinsfile` (Windows 실행파일 빌드)
+
+#### 변경 감지 시스템
+```bash
+webservice/          → Webservice 빌드/배포 (Backend + Frontend)
+autodoc_service/     → AutoDoc Service 빌드/배포
+cli/                 → CLI 도구 빌드 (Windows .exe)
+infra/              → 전체 인프라 재배포
+scripts/            → 배포 스크립트 업데이트
+*.md                → 빌드 스킵 (문서 변경만)
+```
+
+#### 배포 환경 구성
+**프로덕션 (main 브랜치)**:
+- Backend API: http://localhost:8000 (NSSM 서비스)
+- Frontend: http://localhost:80 (nginx)
+- AutoDoc: http://localhost:8001 (NSSM 서비스)
+
+**테스트 인스턴스 (feature 브랜치)**:
+- Backend API: http://localhost:8100-8300 (동적 포트)
+- Frontend: `/tests/{브랜치명}/` (nginx 서브패스)
+- AutoDoc: http://localhost:8500-8700 (동적 포트)
 
 ### 폐쇄망 의존성 관리 시스템
 **완전 오프라인 빌드 지원**:
@@ -454,84 +488,119 @@ git subtree push --prefix=cli https://github.com/recrash/TestscenarioMaker-CLI.g
 
 ### 환경별 배포
 
-#### 🚀 MSA 기반 독립 배포
+#### 🚀 Windows 프로덕션 배포 (C:\deploys 구조)
 
+**배포 아키텍처**:
+```
+C:\deploys\
+├── apps\                    # 애플리케이션 실행 공간 (가상환경 & 코드)
+│   ├── webservice\          # Python 3.12 환경
+│   └── autodoc_service\     # Python 3.12 환경
+├── data\                    # 영구 데이터 저장소 (업데이트 시 유지)
+│   ├── webservice\          # 로그, 모델, 템플릿, 출력
+│   └── autodoc_service\     # 로그, 템플릿, 문서
+└── packages\                # 빌드 아티팩트 (.whl 파일)
+```
+
+**서비스 실행 명령어**:
+```powershell
+# Webservice (NSSM 서비스: webservice)
+# PATH: C:\deploys\apps\webservice\.venv\Scripts\python.exe
+# Arguments: -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Environment: WEBSERVICE_DATA_PATH=C:\deploys\data\webservice
+#              ANONYMIZED_TELEMETRY=False
+
+# AutoDoc Service (NSSM 서비스: autodoc_service)
+# PATH: C:\deploys\apps\autodoc_service\.venv312\Scripts\python.exe
+# Arguments: -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+# Environment: AUTODOC_DATA_PATH=C:\deploys\data\autodoc_service
+
+# Nginx Frontend (NSSM 서비스: nginx-frontend)
+# PATH: C:\nginx\nginx.exe
+# Startup Directory: C:\nginx
+```
+
+**개발 환경 테스트**:
 ```bash
-# Webservice 프로덕션 배포 (Python 3.12) - 통합 앱 구조
-cd webservice
-source .venv/bin/activate
-export PYTHONPATH=$(pwd):$PYTHONPATH  # 필수: app.core 모듈 임포트
+# 로컬 개발 환경
+cd webservice && source .venv/bin/activate
+export PYTHONPATH=$(pwd):$PYTHONPATH
+python -m uvicorn app.main:app --reload --port 8000
 
-# 프로덕션 환경변수 설정 (선택적)
-export WEBSERVICE_DATA_PATH="/opt/data/webservice"  # 프로덕션용
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-# 한국어 임베딩 모델 다운로드 (오프라인 환경용)
-python scripts/download_embedding_model.py
-
-# CLI 배포 버전 생성 (Python 3.13)
-cd cli
-source .venv/bin/activate
-python scripts/build.py
-
-# macOS 헬퍼 앱 포함 DMG 생성 (macOS)
-python scripts/create_dmg.py
-
-# AutoDoc Service 배포 (Python 3.12)
-cd autodoc_service
-source .venv312/bin/activate
-
-# 프로덕션 환경변수 설정 (선택적)
-export AUTODOC_DATA_PATH="/opt/data/autodoc_service"  # 프로덕션용
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+cd autodoc_service && source .venv312/bin/activate
+python -m uvicorn app.main:app --reload --port 8001
 ```
 
 ### Nginx로 프론트엔드 배포
 
-- 운영 배포에서는 프론트엔드를 nginx가 포트 80에서 서빙합니다. 개발 시에는 Vite 개발 서버(포트 3000)를 사용합니다.
-- Jenkins 파이프라인(`webservice/Jenkinsfile.frontend`)이 `dist/` 산출물을 `NGINX_ROOT`(기본: `C:\nginx\html`)로 전개하고, 배포 검증을 수행합니다.
+- **운영 환경**: nginx가 포트 80에서 프론트엔드 서빙, `C:\nginx\html`에 React 빌드 결과물 배포
+- **개발 환경**: Vite 개발 서버(포트 3000) 사용
+- **설정 경로**: `C:\nginx\conf\nginx.conf`
 
-예시 nginx 서버 블록:
+현재 nginx 설정 (운영 중):
 
 ```nginx
-server {
-    listen 80;
-    server_name _;
+worker_processes  1;
 
-    root C:/nginx/html;  # Linux의 경우 /usr/share/nginx/html 등으로 변경
-    index index.html;
+events {
+    worker_connections  1024;
+}
 
-    location / {
-        try_files $uri /index.html;
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    map $http_upgrade $connection_upgrade {
+      default upgrade;
+      ''      close;
     }
 
-    # Webservice API (포트 8000)
-    location /api/webservice/ {
-        proxy_pass http://127.0.0.1:8000/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # WebSocket 지원
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-        proxy_read_timeout 600s;
-        proxy_send_timeout 600s;
-    }
-    
-    # AutoDoc Service API (포트 8001)
-    location /api/autodoc/ {
-        proxy_pass http://127.0.0.1:8001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+    server {
+        listen       80;
+        server_name  localhost;
 
-    gzip on;
-    gzip_types text/plain application/javascript application/json text/css image/svg+xml;
+        # React 프론트엔드 (SPA 라우팅 지원)
+        root   C:/nginx/html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        # 일반 API 프록시 (새로 추가)
+        location /api/ {
+          proxy_pass http://127.0.0.1:8000;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+
+          # WebSocket 지원
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_read_timeout 600s;  # 시나리오 생성용 장시간 대기
+        }
+
+        # Webservice API (포트 8000)
+        location /api/webservice/ {
+            proxy_pass http://127.0.0.1:8000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # AutoDoc Service API (포트 8001)
+        location /api/autodoc/ {
+            proxy_pass http://127.0.0.1:8001;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
 }
 ```
 
@@ -569,6 +638,122 @@ server {
 - 크로스플랫폼 호환성 검증 필수 (Windows, macOS, Linux)
 - **VCS 호환성 테스트**: Git 및 SVN 저장소 모두에서 동작 확인
 - MSA 원칙 준수: 서비스별 독립성 보장
+
+## 🔍 문제 해결 가이드
+
+### Windows 서버 운영 이슈
+
+#### 1. NSSM 서비스 관리
+```powershell
+# 서비스 상태 확인
+nssm status webservice
+nssm status autodoc_service
+nssm status nginx-frontend
+
+# 서비스 재시작
+nssm restart webservice
+nssm restart autodoc_service
+net stop nginx && net start nginx
+
+# 서비스 로그 확인
+Get-Content "C:\deploys\apps\webservice\nssm-stderr.log" -Tail 20
+Get-Content "C:\nginx\logs\error.log" -Tail 20
+```
+
+#### 2. Python 환경 문제
+```powershell
+# PYTHONHOME 충돌 해결 (폐쇄망 서버 특화)
+# Jenkins에서 Python 명령어 실행 시 환경 변수 격리 필수
+set "PYTHONHOME="
+set "PYTHONPATH="
+C:\deploys\apps\webservice\.venv\Scripts\python.exe --version
+```
+
+#### 3. ChromaDB 잠금 오류
+```powershell
+# 벡터 DB 초기화 (Windows 경로)
+Remove-Item "C:\deploys\data\webservice\db\" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "C:\deploys\data\webservice\vector_db_data\" -Recurse -Force -ErrorAction SilentlyContinue
+```
+
+#### 4. 포트 충돌 문제
+```powershell
+# 포트 사용 확인
+netstat -ano | findstr ":8000"
+netstat -ano | findstr ":8001"
+netstat -ano | findstr ":80"
+
+# 프로세스 강제 종료 (필요시)
+taskkill /PID [PID번호] /F
+```
+
+### 개발 환경 문제 해결
+
+#### 1. 가상환경 활성화 오류
+```bash
+# Linux/개발 환경
+cd webservice && source .venv/bin/activate
+export PYTHONPATH=$(pwd):$PYTHONPATH
+
+# ChromaDB 제약조건 파일 필수 사용
+pip install -r requirements.txt -c pip.constraints.txt
+```
+
+#### 2. E2E 테스트 타임아웃
+```bash
+# WebSocket 연결 대기 시간 조정 (~60초)
+cd webservice/frontend
+npm run test:e2e -- --timeout 120000
+```
+
+#### 3. Jenkins PowerShell 실행 오류
+```groovy
+// Jenkinsfile에서 안전한 PowerShell 실행
+bat '''
+    @echo off
+    chcp 65001 >NUL
+    set "DEPLOY_PATH=%DEPLOY_PATH%"
+    powershell -Command "Write-Host 'Deploying to:' $env:DEPLOY_PATH"
+'''
+```
+
+### 서비스 상태 확인
+
+#### API 헬스체크
+```powershell
+# Webservice 상태 확인
+Invoke-WebRequest "http://localhost:8000/api/webservice/health" -UseBasicParsing
+
+# AutoDoc Service 상태 확인
+Invoke-WebRequest "http://localhost:8001/api/autodoc/health" -UseBasicParsing
+
+# Frontend 접근 확인
+Invoke-WebRequest "http://localhost:80" -UseBasicParsing
+```
+
+#### 로그 모니터링
+```powershell
+# 실시간 로그 확인
+Get-Content "C:\deploys\data\webservice\logs\webservice.log" -Wait -Tail 10
+Get-Content "C:\deploys\data\autodoc_service\logs\autodoc.log" -Wait -Tail 10
+Get-Content "C:\nginx\logs\access.log" -Wait -Tail 10
+```
+
+### 폐쇄망 환경 특화 문제
+
+#### 1. 의존성 설치 실패
+```powershell
+# 오프라인 패키지 설치 확인
+pip install --no-index --find-links wheelhouse\ -r requirements.txt
+npm install --offline
+```
+
+#### 2. 외부 연결 시도 감지
+```powershell
+# 네트워크 연결 모니터링
+netstat -an | findstr "ESTABLISHED"
+# 모든 연결이 localhost(127.0.0.1) 또는 내부 IP만 있어야 함
+```
 
 ## 📝 라이선스
 

@@ -204,17 +204,27 @@ class SVNAnalyzer(RepositoryAnalyzer):
 
             logger.debug(f"SVN 명령어 실행: {' '.join(command)} (경로: {self.repo_path})")
             
+            # [수정] text=True와 encoding 옵션을 제거해서 순수한 bytes로 결과를 받음
             result = subprocess.run(
                 command,
-                cwd=str(self.repo_path),  # pathlib.Path를 문자열로 변환
+                cwd=str(self.repo_path),
                 capture_output=True,
-                text=True,
-                encoding='utf-8',
                 timeout=timeout,
                 check=True
             )
             
-            return result.stdout
+            # [추가] UTF-8로 먼저 디코딩 시도, 실패 시 CP949로 재시도
+            stdout_bytes = result.stdout
+            try:
+                # 1. 표준어(UTF-8)로 먼저 시도
+                decoded_output = stdout_bytes.decode('utf-8')
+                logger.debug("Successfully decoded SVN output as UTF-8.")
+            except UnicodeDecodeError:
+                # 2. 실패하면 사투리(CP949)로 재시도
+                logger.warning("UTF-8 decoding failed. Retrying with CP949...")
+                decoded_output = stdout_bytes.decode('cp949', errors='replace')
+
+            return decoded_output
 
         except subprocess.TimeoutExpired as e:
             error_msg = f"SVN 명령어 타임아웃 ({timeout}초): {' '.join(command)}"
@@ -222,6 +232,14 @@ class SVNAnalyzer(RepositoryAnalyzer):
             raise RepositoryError(error_msg, self.repo_path)
         
         except subprocess.CalledProcessError as e:
+            # 에러 출력(stderr)도 동일한 방식으로 디코딩
+            stderr_bytes = e.stderr
+            error_message = "SVN command failed with unknown error."
+            if stderr_bytes:
+                try:
+                    error_message = stderr_bytes.decode('utf-8')
+                except UnicodeDecodeError:
+                    error_message = stderr_bytes.decode('cp949', errors='replace')
             # SVN 명령어가 설치되지 않은 경우 특별 처리
             stderr_msg = e.stderr if e.stderr else ""
             if "not found" in str(e) or "command not found" in stderr_msg:
