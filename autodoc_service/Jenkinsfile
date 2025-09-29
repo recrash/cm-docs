@@ -725,7 +725,7 @@ set "PYTHONPATH="
             }
         }
         
-        stage('Store Branch Wheel') {
+        stage('Store Test Branch Wheel') {
             when {
                 expression {
                     def branch = params.BRANCH ?: env.BRANCH_NAME ?: ''
@@ -734,7 +734,7 @@ set "PYTHONPATH="
                 }
             }
             steps {
-                // 브랜치별 wheel 저장 (테스트 배포용)
+                // 테스트 배포용 브랜치별 wheel 저장
                 script {
                     def branchName = params.BRANCH ?: env.BRANCH_NAME ?: 'unknown'
                     branchName = branchName.replaceAll(/[^a-zA-Z0-9_-]/, '_')
@@ -761,7 +761,49 @@ set "PYTHONPATH="
                 }
             }
         }
-        
+
+        stage('Store Main Branch Wheel') {
+            when {
+                expression {
+                    def branch = params.BRANCH ?: env.BRANCH_NAME ?: ''
+                    return branch == 'main'
+                }
+            }
+            steps {
+                // Main 브랜치용 글로벌 packages 폴더로 wheel 복사
+                script {
+                    bat '''
+                        chcp 65001 >NUL
+                        set "GLOBAL_AUTODOC_WHEEL_PATH=C:\\deploys\\packages\\autodoc_service"
+
+                        REM 글로벌 wheel 디렉토리 생성
+                        if not exist "%GLOBAL_AUTODOC_WHEEL_PATH%" mkdir "%GLOBAL_AUTODOC_WHEEL_PATH%"
+
+                        REM 기존 wheel 파일 정리
+                        del /q "%GLOBAL_AUTODOC_WHEEL_PATH%\\autodoc_service-*.whl" 2>nul || echo "기존 wheel 없음"
+
+                        REM PowerShell로 wheel 파일 복사
+                        powershell -Command "& {
+                            $globalAutodocWheelPath = 'C:\\deploys\\packages\\autodoc_service'
+                            $workspaceWheelPath = '%WORKSPACE%\\autodoc_service\\dist'
+
+                            # 최신 wheel 파일 찾기
+                            $latestWhl = Get-ChildItem -Path $workspaceWheelPath -Filter 'autodoc_service-*.whl' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+                            if ($latestWhl) {
+                                Copy-Item -Path $latestWhl.FullName -Destination $globalAutodocWheelPath -Force
+                                Write-Host '✅ Main 브랜치 wheel 복사 완료:' $globalAutodocWheelPath\\$($latestWhl.Name)
+                            } else {
+                                throw '❌ Workspace에서 autodoc_service wheel 파일을 찾을 수 없습니다:' $workspaceWheelPath
+                            }
+                        }"
+                    '''
+
+                    echo "Main 브랜치 autodoc_service wheel을 글로벌 패키지 경로로 복사 완료"
+                }
+            }
+        }
+
         stage('Archive Artifact') {
             steps {
                 // 빌드된 휠 보관
