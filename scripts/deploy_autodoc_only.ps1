@@ -100,8 +100,12 @@ set "PATH=%SystemRoot%\system32;%SystemRoot%;%SystemRoot%\System32\Wbem"
         try {
             # 기존 autodoc_service 패키지만 언인스톨 (의존성은 유지)
             Write-Host "  - 기존 autodoc_service 패키지 제거 중..."
-            & ".\pip_autodoc_main_wheel.bat" uninstall autodoc_service -y 2>&1 | Out-Null
-            Write-Host "  - 기존 패키지 제거 완료"
+            try {
+                & ".\pip_autodoc_main_wheel.bat" uninstall autodoc_service -y 2>&1 | Out-Null
+                Write-Host "  - 기존 패키지 제거 완료"
+            } catch {
+                Write-Host "  - 기존 패키지가 설치되지 않음 (새 설치)"
+            }
 
             # 새 wheel 설치
             Write-Host "  - 새 autodoc_service wheel 설치 중..."
