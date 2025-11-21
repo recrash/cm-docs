@@ -140,6 +140,12 @@ class FullGenerationResultData(BaseModel):
     errors: list = Field(default_factory=list, description="발생한 오류 목록")
     warnings: list = Field(default_factory=list, description="경고 메시지 목록")
 
+    # 피드백 및 미리보기를 위한 추가 데이터
+    test_cases: list = Field(default_factory=list, description="생성된 테스트 케이스 목록")
+    scenario_description: str = Field("", description="시나리오 설명")
+    test_scenario_name: str = Field("", description="테스트 시나리오 이름")
+    llm_response_time: float = Field(0.0, description="LLM 응답 시간 (초)")
+
 
 # 세션 관리 관련 모델들
 class SessionStatus(str, Enum):

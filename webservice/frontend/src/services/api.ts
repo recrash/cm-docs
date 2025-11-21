@@ -192,7 +192,7 @@ export const filesApi = {
   uploadFile: async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const response = await api.post('/files/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -207,10 +207,11 @@ export const autodocApi = {
   parseHtmlOnly: async (file: File): Promise<ParseHtmlResponse> => {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     try {
       const response = await axios.post(
-        `${import.meta.env.BASE_URL}api/autodoc/parse-html-only`,
+        // `${import.meta.env.BASE_URL}api/autodoc/parse-html-only`,
+        `http://localhost:8001/api/autodoc/parse-html-only`,
         formData,
         {
           headers: {
@@ -229,7 +230,7 @@ export const autodocApi = {
   // 3개 문서 일괄 다운로드
   downloadAll: async (downloadUrls: Record<string, string>): Promise<void> => {
     const downloads = [];
-    
+
     // Word 문서 다운로드
     if (downloadUrls.word) {
       downloads.push({
@@ -237,7 +238,7 @@ export const autodocApi = {
         filename: '변경관리_요청서.docx'
       });
     }
-    
+
     // Excel 목록 다운로드
     if (downloadUrls.excel_list) {
       downloads.push({
@@ -245,7 +246,7 @@ export const autodocApi = {
         filename: '변경요청_목록.xlsx'
       });
     }
-    
+
     // 기본 시나리오 다운로드
     if (downloadUrls.base_scenario) {
       downloads.push({
@@ -253,7 +254,7 @@ export const autodocApi = {
         filename: '테스트_시나리오.xlsx'
       });
     }
-    
+
     // 순차적으로 다운로드 실행
     for (const item of downloads) {
       const link = document.createElement('a');
@@ -262,7 +263,7 @@ export const autodocApi = {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       // 다운로드 간 약간의 딜레이
       await new Promise(resolve => setTimeout(resolve, 500));
     }

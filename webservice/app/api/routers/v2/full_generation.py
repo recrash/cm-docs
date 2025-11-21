@@ -255,7 +255,12 @@ async def execute_full_generation(session_id: str, vcs_analysis_text: str, metad
                 steps_completed=steps_completed,
                 total_steps=session["total_steps"],
                 errors=session.get("errors", []),
-                warnings=session.get("warnings", [])
+                warnings=session.get("warnings", []),
+                # 피드백 및 미리보기를 위한 추가 데이터
+                test_cases=result.get("test_cases", []),
+                scenario_description=result.get("scenario_description", ""),
+                test_scenario_name=result.get("test_scenario_name", ""),
+                llm_response_time=result.get("llm_response_time", 0.0)
             )
 
         await full_generation_connection_manager.send_progress(session_id, progress_msg)
@@ -343,7 +348,13 @@ async def execute_full_generation(session_id: str, vcs_analysis_text: str, metad
             "merged_excel_filename": session["results"].get("merged_excel_filename"),
             "integrated_scenario_filename": session["results"].get("integrated_scenario_filename"),
             "scenario_filename": session["results"].get("scenario_filename"),
-            "generation_time": generation_time
+            "scenario_filename": session["results"].get("scenario_filename"),
+            "generation_time": generation_time,
+            # 피드백 및 미리보기를 위한 추가 데이터
+            "test_cases": scenario_result.get("test_cases", []),
+            "scenario_description": scenario_result.get("description", ""),
+            "test_scenario_name": metadata_json.get("title", "테스트 시나리오"),
+            "llm_response_time": scenario_result.get("llm_response_time", 0.0)
         }
 
         # 완료 메시지 전송
