@@ -46,8 +46,15 @@ class ChangeRequest(BaseModel):
     program: Optional[str] = Field("Appl.", description="Program")
     it_request_html: Optional[str] = Field(None, description="IT 지원의뢰서")
     deployer: Optional[str] = Field(None, description="배포자")
+    requirement_detail: Optional[str] = Field(None, description="요구사항 상세분석")
+    replace_manager: Optional[str] = Field(None, description="대무자")
+    
+    # 메타데이터
     has_cm_doc: Optional[str] = Field("O", description="변경관리문서유무")
     author: Optional[str] = Field(None, description="작성자")
+
+    class Config:
+        extra = "allow"  # 추가 필드 허용
 
 
 class ParseHtmlResponse(BaseModel):
