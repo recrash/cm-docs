@@ -221,7 +221,7 @@ class AutoDocClient:
             logger.info(f"Excel 목록 생성 요청: {len(transformed_requests)}개 항목")
             # logger.info(f"Excel 목록 생성 요청: {transformed_requests}")
             response = await self.client.post(
-                f"http://localhost:8001/api/autodoc/create-cm-list",
+                f"{self.base_url}/api/autodoc/create-cm-list",
                 json=transformed_requests
             )
             response.raise_for_status()

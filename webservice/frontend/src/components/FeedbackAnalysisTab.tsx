@@ -295,7 +295,7 @@ export default function FeedbackAnalysisTab() {
                         개선 적용 상태
                       </Typography>
                       <Typography variant="caption" display="block">
-                        ({promptEnhancement.enhancement_summary?.feedback_count || 0}/3 피드백)
+                        ({promptEnhancement?.enhancement_summary?.feedback_count ?? 0}/3 피드백)
                       </Typography>
                     </Box>
                   </Grid>
@@ -322,13 +322,18 @@ export default function FeedbackAnalysisTab() {
                   </Grid>
                 </Grid>
 
-                {promptEnhancement.is_active ? (
+                {promptEnhancement?.is_active ? (
                   <Alert severity="success" sx={{ mt: 2 }}>
-                    ✅ 피드백 기반 프롬프트 개선이 활성화되어 있습니다.
+                    <Typography>
+                      ✅ <strong>프롬프트 개선이 활성화되었습니다!</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      충분한 피드백이 수집되어 AI 프롬프트 개선이 가능합니다.
+                    </Typography>
                   </Alert>
                 ) : (
                   <Alert severity="info" sx={{ mt: 2 }}>
-                    💡 {3 - (promptEnhancement.enhancement_summary?.feedback_count || 0)}개의 추가 피드백이 필요합니다. 
+                    💡 {Math.max(0, 3 - (promptEnhancement?.enhancement_summary?.feedback_count ?? 0))}개의 추가 피드백이 필요합니다.
                     피드백이 충분히 수집되면 자동으로 프롬프트 개선이 활성화됩니다.
                   </Alert>
                 )}

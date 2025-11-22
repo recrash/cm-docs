@@ -100,10 +100,16 @@ export interface IndexingResult {
 }
 
 export interface PromptEnhancement {
-  is_active?: boolean
-  enhancement_summary?: {
-    feedback_count?: number
-    improvement_areas?: unknown[]
+  is_active: boolean
+  enhancement_summary: {
+    feedback_count: number
+    average_score: number
+    improvement_areas: string[]
+    insights: {
+      positive_aspects: string[]
+      areas_for_improvement: string[]
+      common_suggestions: string[]
+    }
     good_examples_available?: number
     bad_examples_available?: number
   }

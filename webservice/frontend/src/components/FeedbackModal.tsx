@@ -53,11 +53,14 @@ export default function FeedbackModal({
       logger.info(`피드백 모달 열림: type=${feedbackType}, test_cases_count=${result.test_cases.length}`)
       
       // 모달이 열릴 때 테스트케이스 피드백 초기화
-      const initialFeedback = result.test_cases.slice(0, 5).map(testCase => ({
-        testcase_id: testCase.ID,
-        score: 3,
-        comments: ''
-      }))
+      const initialFeedback = result.test_cases
+        .filter(tc => tc?.ID && tc?.절차)  // 유효한 테스트 케이스만 필터링
+        .slice(0, 5)
+        .map(testCase => ({
+          testcase_id: testCase.ID!,
+          score: 3,
+          comments: ''
+        }))
       setTestcaseFeedback(initialFeedback)
       setComments('')
       setShowSuccess(false)
@@ -377,9 +380,10 @@ export default function FeedbackModal({
                   const testCase = result.test_cases[index]
                   if (!testCase) return null
 
-                  const truncatedDesc = testCase.절차.length > 50 
-                    ? testCase.절차.slice(0, 50) + '...'
-                    : testCase.절차
+                  const procedureText = testCase.절차 ?? '절차 정보 없음'
+                  const truncatedDesc = procedureText.length > 50
+                    ? procedureText.slice(0, 50) + '...'
+                    : procedureText
 
                   return (
                     <Box 
@@ -394,8 +398,8 @@ export default function FeedbackModal({
                       }}
                     >
                       <Typography variant="subtitle2" gutterBottom>
-                        <Chip label={testCase.ID} size="small" sx={{ mr: 1 }} />
-                        {truncatedDesc}
+                        <Chip label={testCase.ID ?? `Test-${index + 1}`} size="small" sx={{ mr: 1 }} />
+                        {truncatedDesc || '절차 내용 없음'}
                       </Typography>
 
                       <Grid container spacing={2} alignItems="center">
