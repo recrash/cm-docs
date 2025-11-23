@@ -210,8 +210,8 @@ export const autodocApi = {
 
     try {
       const response = await axios.post(
-        // `${import.meta.env.BASE_URL}api/autodoc/parse-html-only`,
-        `http://localhost:8001/api/autodoc/parse-html-only`,
+        `${import.meta.env.BASE_URL}api/autodoc/parse-html-only`,
+        // `http://localhost:8001/api/autodoc/parse-html-only`,
         formData,
         {
           headers: {
