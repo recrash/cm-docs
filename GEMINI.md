@@ -1,461 +1,135 @@
-# GEMINI.md
+# GEMINI.md - TestscenarioMaker Monorepo Architecture Guide
 
-This file provides guidance to Gemini when working with code in this repository.
+이 문서는 소스 코드 분석을 기반으로 작성된 **TestscenarioMaker**의 아키텍처, 개발 환경, 배포 전략 및 제약 사항을 정의한 **Single Source of Truth**입니다.
 
-## Monorepo Architecture
+## 1\. 🏛️ 프로젝트 핵심 철학 및 제약 사항 (Critical Constraints)
 
-Git subtree-based monorepo combining three independent projects:
-- **webservice/**: TestscenarioMaker web service (React + FastAPI + Pseudo-MSA)
-- **cli/**: TestscenarioMaker-CLI tool (Python CLI with cross-platform builds)
-- **autodoc_service/**: Document automation service for HTML parsing and template generation
+이 프로젝트는 일반적인 클라우드 네이티브 환경과 다릅니다. 개발 시 다음 제약 사항을 **반드시** 준수해야 합니다.
 
-### Python Environment Management
-**MSA-based Independent Environment Structure**:
+1.  **Docker 사용 절대 불가 (No Docker):**
+      * 개발 및 운영 서버(GCP VM T4)의 중첩 가상화가 비활성화되어 있습니다.
+      * 모든 서비스는 **Windows Native Process** 또는 **NSSM(Non-Sucking Service Manager)** 서비스로 구동됩니다.
+2.  **폐쇄망 환경 (Air-gapped Environment):**
+      * 운영 서버는 인터넷이 차단되어 있습니다. `pip install`이나 `npm install`이 불가능합니다.
+      * 모든 의존성은 **Wheelhouse(.whl)** 및 **오프라인 캐시** 형태로 미리 준비되어야 합니다.
+3.  **크로스 플랫폼 & Windows 우선 (Cross-Platform, Windows First):**
+      * 서버는 Windows Server 2019입니다.
+      * 경로 처리 시 반드시 `pathlib`을 사용하고, 문자열 경로 결합(`+ "\\"`)을 피해야 합니다.
+      * Powershell 스크립트 작성 시 \*\*UTF-8 인코딩(BOM 이슈)\*\*에 각별히 주의해야 합니다.
+4.  **MSA-like Monorepo:**
+      * 하나의 리포지토리 안에 3개의 독립적인 서비스(`webservice`, `cli`, `autodoc_service`)가 공존합니다.
+      * 각 서비스는 서로 다른 Python 버전을 사용할 수 있으므로 가상환경(`.venv`)을 철저히 분리해야 합니다.
+
+-----
+
+## 2\. 🏗️ 시스템 아키텍처 (System Architecture)
+
+### 2.1 서비스 구성 (Service Components)
+
+| 서비스명 | 경로 | 기술 스택 | Python 버전 | 역할 |
+| :--- | :--- | :--- | :--- | :--- |
+| **Webservice** | `/webservice` | FastAPI, ChromaDB, PyTorch | **3.9** | 메인 백엔드 API, RAG, LLM 연동, 세션 관리 |
+| **Frontend** | `/webservice/frontend` | React, Vite, MUI | Node.js | 사용자 UI, WebSocket 클라이언트 |
+| **AutoDoc** | `/autodoc_service` | FastAPI, python-docx, openpyxl | **3.12** | Word/Excel 문서 생성 및 파싱 전담 (안정성 중시) |
+| **CLI** | `/cli` | Click, Rich, PyInstaller | **3.13** | 로컬 저장소(Git/SVN) 분석 및 API 전송 도구 |
+
+> **⚠️ 주의:** 서비스별 Python 버전이 상이합니다. `Jenkinsfile`과 배포 스크립트(`deploy_test_env.ps1`)를 보면 `webservice`는 CUDA 호환성을 위해 3.9를, 문서를 다루는 `autodoc`은 3.12를, `cli`는 최신 3.13을 사용하고 있습니다.
+
+### 2.2 데이터 흐름 (Data Flow)
+
+1.  **Phase 1 (Scenario Gen):** CLI/Web → Git/SVN 분석 → Webservice → RAG(ChromaDB) → LLM(Ollama) → 결과 JSON → Excel 생성
+2.  **Phase 2 (Full Doc Gen):** Web(HTML 업로드) → AutoDoc(파싱) → Webservice(세션 생성) → CLI(URL Protocol 실행) → WebSocket(진행률) → 문서 통합 생성
+
+-----
+
+## 3\. 📂 디렉토리 구조 및 핵심 파일 (Directory Structure)
+
 ```
-cm-docs/
-├── webservice/.venv/          # Python 3.12 + AI/ML dependencies
-├── cli/.venv/                 # Python 3.13 + CLI tool dependencies
-└── autodoc_service/.venv312/  # Python 3.12 + document processing (stability)
-```
-
-**Service Environment Activation**:
-```bash
-# Webservice
-cd webservice && source .venv/bin/activate
-export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ modules
-
-# CLI
-cd cli && source .venv/bin/activate
-
-# AutoDoc Service
-cd autodoc_service && source .venv312/bin/activate
-```
-
-### Cross-Platform Path Management
-**ALWAYS use `pathlib.Path` for cross-platform compatibility**:
-```python
-from pathlib import Path
-project_root = Path(__file__).parent.parent
-# CRITICAL: Convert Path to string for subprocess cwd
-subprocess.run(['git', 'status'], cwd=str(repo_path), capture_output=True)
-```
-
-### Environment Variable-Based Path System
-**Production Deployment Architecture** (커밋 f57efef에서 도입):
-```bash
-# Production environment variables
-export WEBSERVICE_DATA_PATH="C:/deploys/data/webservice"     # Windows
-export AUTODOC_DATA_PATH="C:/deploys/data/autodoc_service"   # Windows
-
-# Production deployment structure
-C:\deploys\
-├── apps\                    # Application execution space (virtual environments & code)
-│   ├── webservice\         
-│   └── autodoc_service\    
-├── data\                   # Persistent data storage (survives updates)
-│   ├── webservice\
-│   └── autodoc_service\
-└── packages\               # Build artifacts (.whl files)
-
-# Development fallback (environment variables 없으면 자동 사용)
-# webservice/data/    - webservice 개발환경 기본값
-# autodoc_service/data/  - autodoc_service 개발환경 기본값
-```
-
-**Data Directory Structure**:
-```
-data/
-├── logs/         # 로그 파일 (환경변수 기반)
-├── models/       # AI 임베딩 모델 (webservice만)
-├── documents/    # 생성된 문서 출력
-├── templates/    # 템플릿 파일 (환경변수 기반)
-├── outputs/      # Excel 출력 (webservice만)
-└── db/           # 벡터 DB (webservice만)
+root/
+├── webservice/                  # [Main Backend]
+│   ├── app/
+│   │   ├── api/routers/v2/      # Phase 2 (CLI 연동, WebSocket) 핵심 로직
+│   │   ├── core/                # 비즈니스 로직 (LLM, RAG, Excel)
+│   │   │   ├── vector_db/       # ChromaDB 매니저
+│   │   │   └── git_analyzer.py  # Git 분석 로직
+│   │   └── main.py              # FastAPI 진입점
+│   ├── frontend/                # [React App]
+│   └── .venv/                   # Python 3.9 Virtual Env
+├── autodoc_service/             # [Document Service]
+│   ├── app/services/            # 문서 생성 로직 (Word, Excel)
+│   │   ├── html_parser.py       # HTML 파싱 로직
+│   │   └── label_based_word_builder.py # 라벨 기반 Word 매핑
+│   └── .venv312/                # Python 3.12 Virtual Env
+├── cli/                         # [Client Tool]
+│   ├── src/ts_cli/
+│   │   ├── vcs/                 # Git/SVN 전략 패턴 구현
+│   │   └── main.py              # URL Protocol 핸들러 포함
+│   └── .venv/                   # Python 3.13 Virtual Env
+├── scripts/                     # [Deployment Scripts]
+│   ├── deploy_test_env.ps1      # 테스트 인스턴스 배포 (핵심)
+│   └── download-all-dependencies.sh # 오프라인 패키지 수집
+└── utilities/                   # 유틸리티 스크립트
 ```
 
-## Webservice Development
-
-### Technology Stack
-- **Frontend**: React 18 + TypeScript + Material-UI + Vite
-- **Backend**: FastAPI + Python with Pseudo-MSA architecture
-- **AI/LLM**: Ollama integration (qwen3:8b model)
-- **Vector DB**: ChromaDB for RAG system
-- **Testing**: Vitest + Playwright (E2E) + pytest
-
-### ChromaDB 의존성 관리
-**제약조건 파일 필수 사용**:
-```bash
-pip install -r requirements.txt -c pip.constraints.txt  # ✅ 올바른 방법
-```
-
-### Development Commands
-```bash
-# Environment setup
-cd webservice && source .venv/bin/activate
-export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for app.core modules
-
-# Server management  
-cd webservice && python -m uvicorn app.main:app --reload --port 8000
-cd webservice/frontend && npm run dev
-
-# Testing (hierarchical structure)
-cd webservice && pytest tests/unit/                    # Unit tests
-cd webservice && pytest tests/api/                     # API tests  
-cd webservice && pytest tests/integration/             # Integration tests
-cd webservice/frontend && npm run test                 # Frontend unit tests
-cd webservice/frontend && npm run test:e2e             # E2E tests (MANDATORY)
-cd webservice/frontend && npm run test:all             # All tests
-
-# Single test file
-cd webservice && pytest tests/unit/test_config_loader.py
-cd webservice && pytest tests/api/v2/test_scenario_v2.py -v
-
-# Development workflow
-cd webservice/frontend && npm run lint                 # ESLint check
-cd webservice/frontend && npm run build               # Production build
-```
-
-### Architecture Details
-- **Core modules** (`app/core/`): Refactored analysis logic (git_analyzer, excel_writer, llm_handler)
-- **FastAPI Routers** (`app/api/routers/`): Domain-based API endpoints
-  - `/api/scenario` - v1 scenario generation (legacy)
-  - `/api/v2/scenario` - v2 scenario generation (CLI integration)  
-  - `/api/v2/ws/progress/{client_id}` - WebSocket progress updates
-  - `/api/rag` - RAG system management
-  - `/api/feedback` - User feedback collection
-  - `/api/files` - File management operations
-- **React SPA** (`frontend/`): Material-UI components with real-time WebSocket updates
-- **RAG System**: ChromaDB + ko-sroberta-multitask embedding model
-- **V2 API Architecture**: CLI-focused endpoints with WebSocket-based progress tracking
-
-### ESLint Configuration
-**Frontend Rules** (`.eslintrc.cjs`):
-- TypeScript strict mode with React hooks validation
-- No unused variables warnings, no explicit any warnings
-- React refresh and hot reload support
-- Test files: Vitest globals, relaxed any restrictions
-
-### Critical WebSocket Integration
-- **V1 WebSocket**: `/api/scenario/generate-ws` (legacy web interface)
-- **V2 WebSocket**: `/api/v2/ws/progress/{client_id}` (CLI integration)
-- Progress: 10% → 20% → 30% → 80% → 90% → 100%
-- Test requires ~60 second wait time
-- V2 uses structured message format with status enums (analyzing_git, generating_scenarios, etc.)
-
-### JSON Parsing & Error Handling
-**LLM Response Format Support**:
-- Primary: `<json>...</json>` XML-style tags (as specified in prompt)
-- Fallback: `'''json ... '''` markdown code blocks (actual LLM behavior)
-- Both formats supported via dual regex patterns in `scenario_v2.py`
-
-**Frontend Safety Patterns**:
-- All text processing functions handle null/undefined values
-- `formatText()` function includes defensive null checks
-- Test case field rendering protected against missing data
-
-### Webservice-Specific Guidelines
-- **명확한 명령이나 지시가 있기 전까지는 기존 기능 삭제 금지**
-- 프론트엔드 코드를 수정 할 때는 ESlint 정의를 확인하고, 수정을 한 다음에는 Typescript 컴파일 에러를 확인할 것
-- **E2E testing mandatory** for functionality verification
-- **Korean Language**: All user-facing content in Korean
-- Use `pathlib.Path` and relative paths for cross-platform compatibility
-
-### Configuration
-```bash
-webservice/config.json  # Main config (based on config.example.json)
-export PYTHONPATH=$(pwd):$PYTHONPATH  # Required for src/ imports
-
-# Production environment variables (optional, fallback to data/ subdirectories)
-export WEBSERVICE_DATA_PATH="/path/to/webservice/data"  # 프로덕션 전용
-export AUTODOC_DATA_PATH="/path/to/autodoc/data"        # 프로덕션 전용
-```
-
-### Nginx 기반 프론트엔드 배포
-- 운영환경: nginx로 서빙 (포트 80)
-- 개발환경: Vite 개발서버 (포트 3000)
-- Jenkins 파이프라인이 `dist/` 결과물을 `C:\nginx\html`에 전개
-
-## CLI Development
-
-### Technology Stack
-- **Core**: Python 3.8+ + Click + Rich + httpx + tenacity
-- **Build**: PyInstaller for cross-platform executables
-- **Testing**: pytest with unit/integration/e2e markers
-
-### Development Commands
-```bash
-# Setup
-cd cli && source .venv/bin/activate
-pip install -e .  # Editable install
-
-# Testing (with coverage)
-pytest --cov=ts_cli --cov-report=html         # All tests with coverage
-pytest tests/unit/ -v                         # Unit tests only
-pytest tests/integration/ -v                  # Integration tests only  
-pytest tests/e2e/ -v                         # E2E tests only
-pytest -m "not e2e"                          # Skip E2E tests
-
-# Code quality
-black ts_cli/ tests/                          # Format code
-isort ts_cli/ tests/                          # Sort imports
-flake8 ts_cli/ tests/                         # Lint code
-mypy ts_cli/                                  # Type checking
-
-# Building  
-python scripts/build.py                      # Cross-platform executables
-python scripts/build_helper_app.py           # macOS Helper App (sandbox bypass)
-
-# CLI commands
-ts-cli --help                                # Show help
-ts-cli analyze /path/to/repo                 # Analyze repository
-ts-cli info /path/to/repo                    # Repository information
-ts-cli config-show                           # Show configuration
-ts-cli version                               # Version information
-```
-
-### Architecture Details
-- **Strategy Pattern**: VCS support via `RepositoryAnalyzer` interface
-- **URL Protocol**: `testscenariomaker://` handler
-- **macOS Helper**: AppleScript-based helper bypasses sandbox
-
-### CLI Commands & VCS Support
-- `ts-cli analyze`: Main analysis with branch comparison
-- `ts-cli info <path>`: Show repository information
-- `ts-cli config-show`: Display configuration
-- `ts-cli version`: Version information
-
-**VCS Support**:
-- **Git repositories**: Full support with branch comparison and commit analysis
-- **SVN repositories**: Full support with revision analysis and change detection
-- **Auto-detection**: CLI automatically detects repository type (Git vs SVN)
-- **Cross-platform paths**: Uses `pathlib.Path` for Windows/macOS/Linux compatibility
-
-## AutoDoc Service Development
-
-### Technology Stack
-- **Core**: FastAPI + Python 3.12 + Pydantic
-- **Documents**: python-docx (Word), openpyxl (Excel)
-- **HTML Parsing**: BeautifulSoup4 + lxml
-
-### Development Commands  
-```bash
-# Setup & Run
-cd autodoc_service && source .venv312/bin/activate
-python run_autodoc_service.py                # Development server
-
-# Testing
-pytest app/tests/ -v                         # All tests
-pytest app/tests/test_html_parser.py -v      # Specific test file
-
-# Code quality (follows root pyproject.toml)
-black app/ --line-length 88                  # Format code
-isort app/                                    # Sort imports
-```
-
-### Architecture Details
-- **Label-Based Template Mapping**: Maps data by finding label text
-- **Enhanced Payload System**: Transforms HTML data to Word-compatible format
-- **Font Styling**: Applies 맑은 고딕 to all documents
-
-### API Endpoints
-- `/parse-html`: HTML file parsing
-- `/create-cm-word-enhanced`: Enhanced Word generation (12개 필드 매핑)
-- `/create-test-excel`: Excel test scenario generation
-- `/download/{filename}`: Secure file download
-
-### API Usage Example
-```bash
-# Parse HTML
-curl -X POST "http://localhost:8000/parse-html" -F "file=@test.html"
-
-# Generate Word with complete field mapping
-curl -X POST "http://localhost:8000/create-cm-word-enhanced" \
-     -H "Content-Type: application/json" \
-     -d '{"raw_data": {...}, "change_request": {...}}'
-```
-
-## CI/CD Pipeline (Jenkins)
-
-### NSSM Service Integration
-Windows services managed through NSSM:
-- **webservice**: Port 8000
-- **autodoc_service**: Port 8001
-- **Frontend**: nginx on port 80
-
-### Pipeline Architecture
-**통합 멀티브랜치 파이프라인** (`Jenkinsfile`):
-- Change detection via Git diff
-- Parallel service deployment
-- Automatic rollback on failure
-
-**Service Pipelines**:
-- `webservice/Jenkinsfile.backend`: API testing → NSSM deployment (main/develop만)
-- `webservice/Jenkinsfile.frontend`: 브랜치별 빌드 전략 (main/develop → 운영 배포, feature/hotfix → 테스트만)
-- `autodoc_service/Jenkinsfile`: Template validation → NSSM deployment
-
-**브랜치별 배포 전략**:
-- **main/develop**: `/` 루트 경로 빌드 → `C:\nginx\html` 운영 배포
-- **feature/hotfix**: `/tests/${BRANCH_NAME}/` 서브경로 빌드 → 배포 스킵 (테스트만)
-
-### 폐쇄망 의존성 관리 시스템
-**완전 오프라인 빌드 지원**:
-- **Python**: `wheelhouse/` 폴더에 .whl 파일 수집 (`download-all-dependencies.sh/ps1`)
-- **Node.js**: `npm-cache/` 폴더에 npm 패키지 수집 (새로 추가)
-- **deploy_test_env.ps1**: npm 캐시 우선 사용 (`--prefer-offline`)
-
-**의존성 수집 스크립트**:
-```bash
-# Linux/macOS
-./download-all-dependencies.sh  # Python + npm 의존성 수집
-
-# Windows  
-.\Download-All-Dependencies.ps1  # Python + npm 의존성 수집
-```
-
-### Development Server
-- **Server**: `34.64.173.97` (GCP VM)
-- **Ports**: 8000 (Backend), 8001 (AutoDoc), 80 (Frontend)
-
-## Quality Standards
-
-### 로깅 시스템 가이드라인
-**Unicode 및 Emoji 사용 금지** (Windows 호환성):
-```python
-# ❌ 잘못된 예시
-logger.info("🚀 서비스 시작...")
-
-# ✅ 올바른 예시
-logger.info("서비스 시작...")
-```
-
-### Pseudo MSA 개발 원칙
-- **로깅 의무화**: 모든 API 엔드포인트에서 로그 기록 필수
-- **테스트 의무화**: 기능 추가/변경 시 테스트 코드 필수
-- **안정성 우선**: 로깅과 테스트를 통한 유지보수성 확보
-
-### Performance Requirements
-- **Webservice API**: <200ms response time
-- **CLI**: <30s repository analysis
-- **AutoDoc Service**: <1s HTML parsing, <3s document generation
-- **Test Coverage**: ≥80% for all services
-
-## Development Workflow
-
-1. **Environment Setup**: Activate service-specific venv (`webservice/.venv`, `cli/.venv`, `autodoc_service/.venv312`)
-2. **Development**: Work within subproject directories, maintain independent dependencies
-3. **Testing**: Run service-specific test suites before commits
-   - Webservice: `pytest tests/` + `npm run test:e2e` (mandatory)
-   - CLI: `pytest --cov=ts_cli` 
-   - AutoDoc: `pytest app/tests/`
-4. **Quality Check**: Black, isort, flake8, mypy (configured in root `pyproject.toml`)
-5. **Commit Convention**: Use `[webservice]`, `[cli]`, or `[autodoc_service]` prefixes
-
-### Test Organization
-- **Unit tests**: Fast, isolated component tests (`tests/unit/`)
-- **API tests**: HTTP endpoint validation (`tests/api/`)
-- **Integration tests**: Multi-component workflows (`tests/integration/`)  
-- **E2E tests**: Full user journey validation (Playwright in `tests/e2e/`)
-
-### Jenkins Integration
-- Main `Jenkinsfile` detects service changes via git diff
-- Parallel pipeline execution for modified services only
-- Automatic rollback on deployment failures
-- Service health checks post-deployment
-
-## Critical Configuration Files
-
-- **Webservice**: `webservice/config.json` (Ollama, RAG settings)
-- **CLI**: Hierarchical config loading
-- **AutoDoc**: Template files in environment-variable based path (production: `$AUTODOC_DATA_PATH/templates/`, development: `autodoc_service/data/templates/`)
-- **Monorepo**: Root `pyproject.toml` for unified tools
-
-## Environment Variable System
-
-### Path Management (커밋 f57efef)
-**Production Environment Variables**:
-- `WEBSERVICE_DATA_PATH`: webservice 데이터 루트 경로
-- `AUTODOC_DATA_PATH`: autodoc_service 데이터 루트 경로
-
-**Development Fallback** (환경변수 미설정시):
-- webservice: `webservice/data/`
-- autodoc_service: `autodoc_service/data/`
-
-**Path Functions** (자동 디렉토리 생성):
-- `get_data_root()`: 환경변수 기반 데이터 루트
-- `get_logs_dir()`, `get_templates_dir()`, `get_documents_dir()`
-- `get_models_dir()`, `get_outputs_dir()`, `get_vector_db_dir()` (webservice만)
-
-## Template System Architecture
-
-- **Webservice**: Coordinate-based Excel mapping
-- **AutoDoc**: Label-based Word mapping (more resilient)
-- **Font Consistency**: 맑은 고딕 enforced across all documents
-
-## Key Debugging Patterns
-
-### Webservice Startup Issues
-- **RAG System Failures**: Check `startup_rag_system()` in app/main.py:31
-- **Module Import Errors**: Verify `PYTHONPATH=$(pwd):$PYTHONPATH` for app.core modules
-- **WebSocket Connection Issues**: Check v2 progress endpoints vs legacy endpoints
-- **Config Loading**: Use `test_config_paths.py` to debug environment variable paths
-
-### Service Communication
-- **Port Conflicts**: Webservice (8000), AutoDoc (8001), Frontend (80)
-- **NSSM Service Status**: `nssm status webservice`, `nssm status autodoc_service`
-- **Health Endpoints**: `/api/health` (webservice), `/health` (autodoc_service)
-- **CORS Issues**: Check FastAPI middleware settings for React dev server
-
-### Testing Patterns
-- **E2E Test Failures**: Often indicate WebSocket timing issues (~60s scenarios)
-- **ChromaDB Lock Issues**: Clear vector database: `rm -rf webservice/vector_db_data/`  
-- **Dependency Conflicts**: Always use `pip install -r requirements.txt -c pip.constraints.txt`
-
-### CLI Integration Issues
-- **V2 API Mismatch**: Check client_id parameter consistency between CLI and WebSocket
-- **URL Protocol Handler**: macOS requires helper app for `testscenariomaker://` URLs
-- **Cross-platform Paths**: Always use `pathlib.Path`, convert to string for subprocess
-
-### SVN-Specific Debugging Patterns
-- **JSON Parsing Issues**: LLM responses may use `'''json` blocks instead of `<json>` tags
-- **Repository Detection**: SVN repositories detected via `.svn` directory presence
-- **Path Handling**: SVN working copies require absolute paths for analysis
-- **Revision Analysis**: SVN uses revision numbers instead of commit hashes
-- **Frontend Error Recovery**: Null/undefined values in test case fields cause JavaScript errors
-
-## VCS Repository Support
-
-### Supported Version Control Systems
-- **Git**: Full support with branch comparison, commit history analysis, and diff generation
-- **SVN**: Full support with revision analysis, change detection, and path handling
-- **Auto-Detection**: Repository type automatically detected via `.git` or `.svn` directories
-
-### VCS-Specific Implementation Details
-**Git Integration** (`git_analyzer.py`):
-- Uses GitPython library for repository operations
-- Supports branch comparison (default: `origin/develop` → `HEAD`)
-- Extracts commit messages and code diffs between commits
-- Handles merge base detection for accurate comparisons
-
-**SVN Integration** (`cli/src/ts_cli/vcs/svn_analyzer.py`):
-- Uses subprocess calls to `svn` command-line client
-- Analyzes working copy changes and committed revisions
-- Supports path-based change detection and diff generation
-- Handles SVN-specific revision numbering system
-
-### Cross-Platform Path Considerations
-- Always use `pathlib.Path` for cross-platform compatibility
-- Convert `Path` objects to strings when passing to subprocess calls
-- SVN working copies require absolute paths for reliable analysis
-- Git repositories work with both relative and absolute paths
-
-## Notes
-
-- **Python Versions**: 3.13 default, 3.12 for AutoDoc (document stability)
-- **VCS Support**: Both Git and SVN repositories fully supported with auto-detection
-- **Path Management**: Always use pathlib.Path, convert to string for subprocess
-- **Korean Content**: All user-facing text in Korean
-- **E2E Testing**: Mandatory for webservice functionality verification
-- **NSSM Services**: Windows service management for production deployment
-- **Unicode Logging**: No emojis in logs for Windows compatibility
-- **JSON Parsing**: Dual format support for LLM responses (XML tags + markdown blocks)
-- **MCP 서버 사용**: 개발 할 때는 Context7 MCP를 사용하여 공식문서 및 최신문서를 참조할 것
+-----
+
+## 4\. 💻 개발 가이드라인 (Development Guidelines)
+
+### 4.1 환경 변수 및 경로 처리
+
+이 프로젝트는 \*\*프로덕션(배포)\*\*과 **개발(로컬)** 환경을 구분하기 위해 환경 변수를 적극적으로 사용합니다.
+
+  * **데이터 경로:** 코드 내에서 하드코딩하지 말고 `app.core.config_loader` 또는 `paths.py`를 통해 경로를 가져와야 합니다.
+      * `WEBSERVICE_DATA_PATH`: 운영 서버의 데이터 저장소 (예: `C:\deploys\data\webservice`)
+      * `AUTODOC_DATA_PATH`: AutoDoc 서비스 데이터 저장소
+  * **NSSM 서비스:** 운영 서버에서는 `nssm`을 통해 환경 변수를 주입받아 실행됩니다.
+
+### 4.2 로깅 (Logging)
+
+  * **파일 로깅 필수:** Windows 서비스로 동작 시 콘솔 확인이 어렵습니다. `logging_config.py`를 통해 일별 로그 파일(`YYYYMMDD_backend.log`)을 생성합니다.
+  * **인코딩:** 로그 파일 생성 시 반드시 `encoding='utf-8'`을 명시해야 합니다. (한글 깨짐 방지)
+
+### 4.3 API 및 통신
+
+  * **Websocket:** `v2/progress_websocket.py`와 `full_generation_websocket.py`를 통해 장시간 작업의 진행 상황을 전송합니다.
+      * Frontend는 `ping`을 보내고 Backend는 `pong`으로 응답하여 연결을 유지합니다 (Heartbeat).
+  * **Inter-Service:** Webservice가 AutoDoc Service를 호출할 때는 `http://localhost:8001`을 사용합니다.
+
+-----
+
+## 5\. 🚀 배포 프로세스 (Deployment)
+
+### 5.1 Jenkins & PowerShell
+
+  * 배포는 Jenkins에서 `Jenkinsfile`을 통해 트리거되며, 실제 작업은 `scripts/*.ps1` PowerShell 스크립트가 수행합니다.
+  * **Wheelhouse:** 인터넷이 없는 환경을 위해 `download-all-dependencies.sh`로 `.whl` 파일을 미리 받아 `C:\deploys\packages\wheelhouse`에 저장해두고, 배포 시 `--no-index --find-links` 옵션으로 설치합니다.
+
+### 5.2 배포 스크립트 로직 (`deploy_test_env.ps1`)
+
+1.  **격리된 Python 실행:** `py_clean.bat` 래퍼를 생성하여 `PYTHONHOME`, `PYTHONPATH` 환경 변수를 초기화한 뒤 가상환경을 생성합니다. (Windows 전역 Python 설정 충돌 방지)
+2.  **서비스 관리:** `nssm`을 사용하여 서비스를 중지/삭제/등록/시작합니다.
+3.  **Nginx 설정:** 브랜치별로 `nginx` 설정을 동적으로 생성(`tests-{BID}.conf`)하고 리로드합니다.
+
+-----
+
+## 6\. 🔍 문제 해결 (Troubleshooting)
+
+### Q: "Could not import runpy module" 오류가 발생해요.
+
+**A:** Windows 서버에 전역 `PYTHONHOME`이 설정되어 있어 가상환경 Python과 충돌하는 경우입니다. `scripts/python_isolation.ps1`에 구현된 것처럼 배치 파일 래퍼를 통해 환경 변수를 초기화하고 실행해야 합니다.
+
+### Q: 문서 생성 시 폰트가 깨지거나 스타일이 이상해요.
+
+**A:** `autodoc_service`는 서버에 설치된 폰트(맑은 고딕 등)에 의존합니다. 또한 `python-docx`나 `openpyxl` 사용 시 스타일 객체를 정확히 복사/적용하는지 `style_utils.py`(또는 관련 로직)를 확인하세요.
+
+### Q: CLI가 URL Protocol로 실행되지 않아요.
+
+**A:** 레지스트리 등록 문제일 수 있습니다. `cli/scripts/setup_win.nsi` 또는 `url_handler.ps1`이 올바르게 실행되었는지, 그리고 브라우저에서 해당 프로토콜(`testscenariomaker://`)을 허용했는지 확인하세요. 경로는 URL Decoding이 필요합니다.
+
+### Q: RAG 검색 결과가 이상해요.
+
+**A:** `webservice/config.json`의 임베딩 모델 설정과 실제 `vector_db_data`에 저장된 임베딩이 일치하는지 확인하세요. 모델을 변경했다면 DB를 초기화(`rm -rf vector_db_data`)하고 재인덱싱해야 합니다.
+
+-----
+
+이 문서는 코드 베이스가 변경됨에 따라 지속적으로 업데이트되어야 합니다. **항상 코드가 진실(Truth)입니다.**

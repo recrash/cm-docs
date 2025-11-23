@@ -24,7 +24,7 @@ class AnalysisTextResponse(BaseModel):
 class TestCase(BaseModel):
     """개별 테스트 케이스 모델"""
     ID: str = Field(..., description="테스트 케이스 ID")
-    절차: str = Field(..., description="테스트 절차")
+    절차: str = Field(..., description="테스트 절차", alias="Procedure")
     사전조건: str = Field(..., description="테스트 사전조건")
     데이터: str = Field(..., description="테스트 데이터")
     예상결과: str = Field(..., description="예상 결과")

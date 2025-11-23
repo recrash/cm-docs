@@ -100,10 +100,16 @@ export interface IndexingResult {
 }
 
 export interface PromptEnhancement {
-  is_active?: boolean
-  enhancement_summary?: {
-    feedback_count?: number
-    improvement_areas?: unknown[]
+  is_active: boolean
+  enhancement_summary: {
+    feedback_count: number
+    average_score: number
+    improvement_areas: string[]
+    insights: {
+      positive_aspects: string[]
+      areas_for_improvement: string[]
+      common_suggestions: string[]
+    }
     good_examples_available?: number
     bad_examples_available?: number
   }
@@ -164,6 +170,7 @@ export interface FullGenerationResultData {
   excel_list_filename?: string
   base_scenario_filename?: string
   merged_excel_filename?: string
+  scenario_filename?: string // [NEW] 시나리오 파일명 추가
   download_urls: {
     word?: string
     excel_list?: string
@@ -178,6 +185,12 @@ export interface FullGenerationResultData {
   total_steps?: number      // 전체 단계 수
   errors?: string[]         // 발생한 오류 목록
   warnings?: string[]       // 경고 메시지 목록
+
+  // 피드백 및 미리보기를 위한 추가 데이터
+  test_cases?: TestCase[]
+  scenario_description?: string
+  test_scenario_name?: string
+  llm_response_time?: number
 }
 
 export interface ParseHtmlResponse {

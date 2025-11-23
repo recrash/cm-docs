@@ -7,6 +7,7 @@ Phase 2: Webservice에서 autodoc_service로 문서 생성 요청을 보내는 �
 import asyncio
 import httpx
 import os
+import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 import logging
@@ -29,6 +30,7 @@ def transform_metadata_to_enhanced_request(metadata_json: Dict[str, Any]) -> Dic
     Returns:
         autodoc_service에서 기대하는 enhanced 요청 형식
     """
+    logger.info(f"metadata_json: {metadata_json}")
     raw_data = metadata_json.get("raw_data", {})
     
     # 디버그 로깅: 입력 데이터 확인
@@ -64,10 +66,39 @@ def transform_metadata_to_enhanced_request(metadata_json: Dict[str, Any]) -> Dic
         "work_datetime": actual_data.get("작업일시"),
         "deploy_datetime": actual_data.get("배포일시"),
         "customer": actual_data.get("고객사"),
-        "worker_deployer": actual_data.get("배포자"),
-        "created_date": actual_data.get("작성일")
+        # Excel 목록 생성을 위한 추가 필드 매핑
+        "deployer": actual_data.get("배포자"),
+        "created_date": actual_data.get("작성일"),
+        "requirement_detail": actual_data.get("요구사항 상세분석") or actual_data.get("의뢰내용"),
+        "replace_manager": actual_data.get("대무자"),
     }
+        
+    # deploy_datetime, created_date 포맷 처리 (MM/DD HH:MM -> YYYY.M.DD)
+    for date_field in ['deploy_datetime', 'created_date']:
+        if change_request.get(date_field):
+            date_value = str(change_request[date_field]).strip()
+            
+            try:
+                date_part = date_value.split(' ')[0]  # Extract date part, e.g., "05/23" or "2024/05/23"
+                
+                # Try to parse with a year first (e.g., YYYY/MM/DD, YYYY-MM-DD, or YYYY.MM.DD)
+                try:
+                    # Normalize separators to hyphens for consistent parsing
+                    normalized_date = date_part.replace('/', '-').replace('.', '-')
+                    parsed_date = datetime.datetime.strptime(normalized_date, '%Y-%m-%d')
+                except ValueError:
+                    # If parsing with year fails, assume MM/DD or MM-DD or MM.DD format and prepend current year
+                    current_year = datetime.datetime.now().year
+                    # Normalize separators to hyphens
+                    normalized_date = date_part.replace('/', '-').replace('.', '-')
+                    date_part_with_year = f"{current_year}-{normalized_date}"
+                    parsed_date = datetime.datetime.strptime(date_part_with_year, '%Y-%m-%d')
+                
+                change_request[date_field] = parsed_date.strftime('%Y.%m.%d')  # Format to YYYY.M.DD (e.g., 2025.5.23)
+            except Exception as e:
+                logger.warning(f"날짜 포맷 변환 실패 ({date_field}: {change_request[date_field]}): {e}")
     
+            
     # None 값 제거 (autodoc_service에서 Optional 필드들)
     change_request = {k: v for k, v in change_request.items() if v is not None}
     
@@ -188,9 +219,9 @@ class AutoDocClient:
                 transformed_requests.append(enhanced_request['change_request'])
             
             logger.info(f"Excel 목록 생성 요청: {len(transformed_requests)}개 항목")
-            
+            # logger.info(f"Excel 목록 생성 요청: {transformed_requests}")
             response = await self.client.post(
-                f"{self.base_url}/api/autodoc/build-cm-list",
+                f"{self.base_url}/api/autodoc/create-cm-list",
                 json=transformed_requests
             )
             response.raise_for_status()

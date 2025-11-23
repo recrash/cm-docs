@@ -20,6 +20,9 @@ from openpyxl.styles import Font
 from ..models import ChangeRequest
 from .paths import verify_template_exists, get_documents_dir
 from .filename import generate_excel_list_filename, unique_path
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def _format_deploy_date(deploy_datetime: Optional[str]) -> str:
@@ -90,53 +93,79 @@ def build_change_list_xlsx(
     
     # 기존 데이터가 있는 마지막 행 찾기
     max_row = ws.max_row
+
+    # 8행부터 시작
+    start_row = 8
     
-    # 헤더가 있다고 가정하고 데이터 행부터 시작
-    start_row = max_row + 1
-    
+    for row in range(8, max_row + 2):
+        # 해당 행의 모든 셀 값이 None인지 확인 (A~K열)
+        is_empty = True
+        for col in range(1, 12):
+            if ws.cell(row=row, column=col).value is not None:
+                is_empty = False
+                break
+        
+        if is_empty:
+            start_row = row
+            break
+        else:
+            start_row = row + 1
+            
+    logger.info(f"[DEBUG] Writing starts at row: {start_row}")
+            
+    # 오늘 날짜 생성 (yyyy.m.dd 형식)
+    from datetime import datetime
+    today_str = datetime.now().strftime("%Y.%-m.%-d")
+            
     # 각 항목을 행으로 추가
     for i, item in enumerate(items):
         # ChangeRequest 객체를 dict로 변환
         if isinstance(item, ChangeRequest):
-            data = {
-                'deploy_type': item.deploy_type or "정기배포",
-                'system': item.system_short or item.system,
-                'biz_test_date': item.biz_test_date or "",
-                'deploy_datetime': item.deploy_datetime,
-                'requester': item.requester or "",
-                'it_request_html': item.it_request_html or "",
-                'program': item.program or "Appl.",
-                'deployer': item.deployer or "",
-                'change_id': item.change_id,
-                'has_cm_doc': item.has_cm_doc or "O"
-            }
+            logger.info(f"[DEBUG] Item {i} is ChangeRequest: {item}")
+            data = item.dict()
         else:
+            logger.info(f"[DEBUG] Item {i} is Dict: {item}")
             data = item
         
         row_num = start_row + i
+        logger.info(f"[DEBUG] Writing item {i} to row {row_num}: {data}")
         
-        # 11열 데이터 매핑
+        # 2025-11-22 요청된 새로운 컬럼 매핑 (A~R)
         columns = [
-            data.get('deploy_type', '정기배포'),                    # 1) 배포종류
-            data.get('system', ''),                                # 2) 시스템
-            data.get('biz_test_date', ''),                         # 3) 현업 테스트 일자
-            _format_deploy_date(data.get('deploy_datetime')),       # 4) 배포일자
-            data.get('requester', ''),                             # 5) 요청자
-            _extract_filename_only(data.get('it_request_html')),   # 6) IT 지원의뢰서
-            data.get('program', 'Appl.'),                          # 7) Program
-            data.get('source_name', ''),                           # 8) 소스명 (외부 입력)
-            data.get('deployer', ''),                              # 9) 배포자
-            data.get('change_id', ''),                             # 10) 변경관리번호
-            data.get('has_cm_doc', 'O')                            # 11) 변경관리문서유무
+            data.get('change_id', ''),                             # A: change_id
+            today_str,                                             # B: 오늘(yyyy.m.dd)
+            data.get('writer_short', ''),                          # C: writer_short
+            _format_deploy_date(data.get('deploy_datetime')),       # D: deploy_datetime
+            data.get('deployer', ''),                              # E: deployer
+            data.get('system', ''),                                # F: system
+            _format_deploy_date(data.get('created_date')),          # G: created_date
+            data.get('requester', ''),                             # H: requester
+            data.get('title', ''),                                 # I: title
+            data.get('requirement_detail', ''),                    # J: requirement_detail
+            '',                                                    # K: 공란
+            'Y',                                                   # L: Y
+            'Y',                                                   # M: Y
+            '',                                                    # N: 공란
+            '',                                                    # O: 공란
+            '',                                                    # P: 공란
+            data.get('deployer', ''),                              # Q: deployer (G열 중복 -> Q열로 추정)
+            data.get('replace_manager', '')                        # R: replace_manager
         ]
         
-        # 각 열에 데이터 입력 (A, B, C, ... K 열) - 맑은 고딕 폰트와 함께
-        malgun_gothic_font = Font(name='맑은 고딕')
-        
+        # 데이터 쓰기
         for col_idx, value in enumerate(columns, 1):
-            cell = ws.cell(row=row_num, column=col_idx, value=value)
-            # 맑은 고딕 폰트 적용
-            cell.font = malgun_gothic_font
+            cell = ws.cell(row=row_num, column=col_idx)
+            cell.value = value
+            
+            # 스타일 적용 (기본 스타일)
+            # cell.alignment = Alignment(horizontal='center', vertical='center')
+            # cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+            #                     top=Side(style='thin'), bottom=Side(style='thin'))
+        
+        # 폰트 설정 (선택 사항)
+        # for col_idx in range(1, len(columns) + 1):
+        #     cell = ws.cell(row=row_num, column=col_idx)
+        #     cell.font = Font(name='맑은 고딕')
     
     # 파일명 생성
     filename = generate_excel_list_filename()

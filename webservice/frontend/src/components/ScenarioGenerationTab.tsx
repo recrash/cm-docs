@@ -31,9 +31,9 @@ import { FullGenerationWebSocket } from '../services/fullGenerationWebSocket'
 import ScenarioResultViewer from './ScenarioResultViewer'
 import FeedbackModal from './FeedbackModal'
 import RAGSystemPanel from './RAGSystemPanel'
-import { 
-  type ScenarioResponse, 
-  type RAGStatus, 
+import {
+  type ScenarioResponse,
+  type RAGStatus,
   type V2ResultData,
   type WorkflowState,
   type FullGenerationProgressMessage,
@@ -47,7 +47,7 @@ export default function ScenarioGenerationTab() {
   const [performanceMode, setPerformanceMode] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [ragStatus, setRagStatus] = useState<RAGStatus | null>(null)
-  
+
   // 기존 기능 state (테스트 시나리오만)
   const [isGenerating, setIsGenerating] = useState(false)
   const [result, setResult] = useState<ScenarioResponse | null>(null)
@@ -56,7 +56,7 @@ export default function ScenarioGenerationTab() {
   const [v2Progress, setV2Progress] = useState<V2ProgressMessage | null>(null)
   const [v2WebSocket, setV2WebSocket] = useState<V2ProgressWebSocket | null>(null)
   const [isWaitingForCLI, setIsWaitingForCLI] = useState(false)
-  
+
   // Phase 3 전용 state (전체 문서 생성)
   const [workflowState, setWorkflowState] = useState<WorkflowState>('idle')
   const [htmlFile, setHtmlFile] = useState<File | null>(null)
@@ -109,11 +109,11 @@ export default function ScenarioGenerationTab() {
 
   const validateRepoPath = async (path: string) => {
     if (!path.trim()) return false
-    
+
     // 클라이언트사이드 기본 검증
     const isValidFormat = isValidPathFormat(path)
     if (!isValidFormat) return false
-    
+
     // 로컬 환경에서만 서버 검증 수행
     if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       try {
@@ -123,7 +123,7 @@ export default function ScenarioGenerationTab() {
         console.warn('서버 검증 실패, 클라이언트 검증 사용:', error)
       }
     }
-    
+
     return true
   }
 
@@ -182,7 +182,7 @@ export default function ScenarioGenerationTab() {
         },
         onComplete: (resultData: V2ResultData) => {
           console.log('🎉 v2 시나리오 생성 완료!', resultData)
-          
+
           const convertedResult: ScenarioResponse = {
             scenario_description: resultData.description || '',
             test_scenario_name: resultData.test_scenario_name || (resultData.filename ? resultData.filename.replace('.xlsx', '') : ''),
@@ -207,7 +207,7 @@ export default function ScenarioGenerationTab() {
 
       const customUrl = `testscenariomaker://generate?clientId=${clientId}&repoPath=${encodeURIComponent(repoPath)}&performanceMode=${performanceMode}`
       console.log('🔗 CLI 실행 URL:', customUrl)
-      
+
       try {
         window.location.href = customUrl
         console.log('✅ CLI 실행 URL 호출 완료')
@@ -230,7 +230,7 @@ export default function ScenarioGenerationTab() {
       setError('저장소 경로를 입력해주세요.')
       return
     }
-    
+
     if (!htmlFile) {
       setError('HTML 파일을 선택해주세요.')
       return
@@ -250,7 +250,7 @@ export default function ScenarioGenerationTab() {
       setFullGenProgress(null)
       setV2Progress(null)  // 이전 시나리오 생성 진행상태 초기화
       setWorkflowState('parsing')
-      
+
       // 1. sessionId 생성 (Full Generation용)
       const sessionId = generateSessionId()
       setFullGenSessionId(sessionId)
@@ -261,7 +261,7 @@ export default function ScenarioGenerationTab() {
         onProgress: (progress) => {
           console.log('📊 Full Generation 진행:', progress)
           setFullGenProgress(progress)
-          
+
           // CLI가 응답하면 waiting_cli → processing
           if (workflowState === 'waiting_cli') {
             setWorkflowState('processing')
@@ -277,11 +277,27 @@ export default function ScenarioGenerationTab() {
           setFullGenResult(result)
           setWorkflowState('completed')
           setFullGenProgress(null)
-          
+
           // 타임아웃 클리어
           if (cliTimeout) {
             clearTimeout(cliTimeout)
             setCliTimeout(null)
+          }
+
+          // [NEW] 시나리오 결과 뷰어 연동 (피드백 및 미리보기 활성화)
+          if (result.test_cases && result.test_cases.length > 0) {
+            const convertedResult: ScenarioResponse = {
+              scenario_description: result.scenario_description || '',
+              test_scenario_name: result.test_scenario_name || '',
+              test_cases: result.test_cases,
+              metadata: {
+                llm_response_time: result.llm_response_time || 0,
+                prompt_size: 0,
+                added_chunks: 0,
+                excel_filename: result.scenario_filename || '' // 시나리오 파일명 연결
+              }
+            }
+            setResult(convertedResult) // ScenarioResultViewer 및 FeedbackModal 활성화
           }
         },
         onError: (errorMsg) => {
@@ -289,7 +305,7 @@ export default function ScenarioGenerationTab() {
           setError(`문서 생성 오류: ${errorMsg}`)
           setWorkflowState('error')
           setFullGenProgress(null)
-          
+
           // 타임아웃 클리어
           if (cliTimeout) {
             clearTimeout(cliTimeout)
@@ -297,7 +313,7 @@ export default function ScenarioGenerationTab() {
           }
         }
       })
-      
+
       setFullGenWebSocket(ws)
       ws.connect()
       console.log('🔌 WebSocket 연결 시작')
@@ -305,11 +321,11 @@ export default function ScenarioGenerationTab() {
       // 3. HTML 파일 파싱
       console.log('📄 HTML 파일 파싱 중...')
       const parseResult = await autodocApi.parseHtmlOnly(htmlFile)
-      
+
       if (!parseResult.success || !parseResult.data) {
         throw new Error('HTML 파일 파싱 실패: 메타데이터를 추출할 수 없습니다.')
       }
-      
+
       console.log('✅ HTML 파싱 완료:', parseResult)
 
       // 4. 세션에 메타데이터 저장
@@ -328,10 +344,10 @@ export default function ScenarioGenerationTab() {
       setWorkflowState('waiting_cli')
       const customUrl = `testscenariomaker://full-generate?sessionId=${sessionId}&repoPath=${encodeURIComponent(repoPath)}`
       console.log('🔗 Full Generation CLI URL:', customUrl)
-      
+
       window.location.href = customUrl
-      
-      
+
+
     } catch (error) {
       console.error('❌ Full Generation 오류:', error)
       setError(error instanceof Error ? error.message : '전체 문서 생성 중 오류가 발생했습니다.')
@@ -355,7 +371,7 @@ export default function ScenarioGenerationTab() {
   // 일괄 다운로드
   const handleDownloadAll = async () => {
     if (!fullGenResult?.download_urls) return
-    
+
     try {
       await autodocApi.downloadAll(fullGenResult.download_urls)
     } catch (error) {
@@ -451,9 +467,9 @@ export default function ScenarioGenerationTab() {
       <RAGSystemPanel ragStatus={ragStatus} onStatusUpdate={loadRagStatus} />
 
       {/* 공통 입력 섹션 */}
-      <Card 
-        sx={{ 
-          mb: 4, 
+      <Card
+        sx={{
+          mb: 4,
           background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
           border: '2px solid rgba(33, 150, 243, 0.1)',
           position: 'relative',
@@ -476,7 +492,7 @@ export default function ScenarioGenerationTab() {
               VCS 저장소 경로 (필수)
             </Typography>
           </Box>
-          
+
           <TextField
             fullWidth
             label="저장소 경로"
@@ -484,7 +500,7 @@ export default function ScenarioGenerationTab() {
             onChange={(e) => setRepoPath(e.target.value)}
             placeholder="/path/to/your/repository"
             disabled={isGenerating || workflowState !== 'idle'}
-            sx={{ 
+            sx={{
               mb: 3,
               '& .MuiOutlinedInput-root': {
                 backgroundColor: 'rgba(255, 255, 255, 0.8)',
@@ -496,9 +512,9 @@ export default function ScenarioGenerationTab() {
             helperText="분석할 저장소의 로컬 경로를 입력하세요 (Git 또는 SVN 저장소 지원)"
           />
 
-          <Box 
-            sx={{ 
-              p: 3, 
+          <Box
+            sx={{
+              p: 3,
               backgroundColor: 'rgba(33, 150, 243, 0.04)',
               borderRadius: 3,
               border: '1px solid rgba(33, 150, 243, 0.1)'
@@ -518,10 +534,10 @@ export default function ScenarioGenerationTab() {
                   <Typography variant="body1" fontWeight={500}>
                     성능 최적화 모드
                   </Typography>
-                  <Chip 
-                    label="권장" 
-                    size="small" 
-                    color="primary" 
+                  <Chip
+                    label="권장"
+                    size="small"
+                    color="primary"
                     sx={{ fontWeight: 600 }}
                   />
                 </Box>
@@ -538,8 +554,8 @@ export default function ScenarioGenerationTab() {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {/* 기존 기능: 테스트 시나리오만 */}
         <Grid item xs={12} md={6}>
-          <Card 
-            sx={{ 
+          <Card
+            sx={{
               height: '100%',
               background: 'linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%)',
               border: '2px solid rgba(76, 175, 80, 0.2)'
@@ -552,11 +568,11 @@ export default function ScenarioGenerationTab() {
                   테스트 시나리오 생성
                 </Typography>
               </Box>
-              
+
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3, flexGrow: 1 }}>
                 VCS 저장소의 변경 사항을 분석하여 테스트 시나리오를 생성합니다.
               </Typography>
-              
+
               <Button
                 variant="contained"
                 size="large"
@@ -566,8 +582,8 @@ export default function ScenarioGenerationTab() {
                 fullWidth
                 sx={{
                   py: 1.5,
-                  background: isGenerating 
-                    ? 'linear-gradient(45deg, #bdbdbd 30%, #9e9e9e 90%)' 
+                  background: isGenerating
+                    ? 'linear-gradient(45deg, #bdbdbd 30%, #9e9e9e 90%)'
                     : 'linear-gradient(45deg, #4caf50 30%, #388e3c 90%)',
                   boxShadow: '0 4px 12px rgba(76, 175, 80, 0.3)',
                   '&:hover': {
@@ -583,8 +599,8 @@ export default function ScenarioGenerationTab() {
 
         {/* Phase 3: 전체 문서 생성 */}
         <Grid item xs={12} md={6}>
-          <Card 
-            sx={{ 
+          <Card
+            sx={{
               height: '100%',
               background: 'linear-gradient(135deg, #fff3e0 0%, #ffffff 100%)',
               border: '2px solid rgba(255, 152, 0, 0.2)'
@@ -597,11 +613,11 @@ export default function ScenarioGenerationTab() {
                   전체 문서 생성
                 </Typography>
               </Box>
-              
+
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                 HTML 파일과 VCS 저장소를 분석하여 변경관리 문서, 테스트 시나리오를 모두 생성합니다.
               </Typography>
-              
+
               <input
                 ref={fileInputRef}
                 type="file"
@@ -609,7 +625,7 @@ export default function ScenarioGenerationTab() {
                 style={{ display: 'none' }}
                 onChange={handleFileSelect}
               />
-              
+
               <Button
                 variant="outlined"
                 onClick={() => fileInputRef.current?.click()}
@@ -620,7 +636,7 @@ export default function ScenarioGenerationTab() {
               >
                 {htmlFile ? htmlFile.name : 'HTML 파일 선택'}
               </Button>
-              
+
               <Button
                 variant="contained"
                 size="large"
@@ -631,7 +647,7 @@ export default function ScenarioGenerationTab() {
                 sx={{
                   py: 1.5,
                   background: workflowState !== 'idle'
-                    ? 'linear-gradient(45deg, #bdbdbd 30%, #9e9e9e 90%)' 
+                    ? 'linear-gradient(45deg, #bdbdbd 30%, #9e9e9e 90%)'
                     : 'linear-gradient(45deg, #ff9800 30%, #f57c00 90%)',
                   boxShadow: '0 4px 12px rgba(255, 152, 0, 0.3)',
                   '&:hover': {
@@ -664,7 +680,7 @@ export default function ScenarioGenerationTab() {
             <Typography variant="h5" sx={{ mb: 3, color: 'success.main' }}>
               ✅ 문서 생성 완료!
             </Typography>
-            
+
             <Grid container spacing={2}>
               {fullGenResult.download_urls.word && (
                 <Grid item xs={12} sm={6} md={3}>
@@ -679,7 +695,7 @@ export default function ScenarioGenerationTab() {
                   </Button>
                 </Grid>
               )}
-              
+
               {fullGenResult.download_urls.excel_list && (
                 <Grid item xs={12} sm={6} md={3}>
                   <Button
@@ -693,7 +709,7 @@ export default function ScenarioGenerationTab() {
                   </Button>
                 </Grid>
               )}
-              
+
               {fullGenResult.download_urls.base_scenario && (
                 <Grid item xs={12} sm={6} md={3}>
                   <Button
@@ -707,7 +723,7 @@ export default function ScenarioGenerationTab() {
                   </Button>
                 </Grid>
               )}
-              
+
               <Grid item xs={12} sm={6} md={3}>
                 <Button
                   variant="contained"

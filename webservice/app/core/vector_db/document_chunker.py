@@ -2,6 +2,16 @@ import re
 from typing import List, Dict, Any
 from datetime import datetime
 
+# 코드 구조 인식용 분리자 (우선순위 순서)
+DEFAULT_SEPARATORS = [
+    "\nclass ",    # Python 클래스 정의
+    "\ndef ",      # Python 함수 정의
+    "\n\n",        # 문단 구분
+    "\n",          # 줄바꿈
+    " ",           # 공백
+    ""             # 문자 단위 분할 (최후 수단)
+]
+
 class DocumentChunker:
     """문서를 청크 단위로 분할하는 클래스"""
     
@@ -107,45 +117,108 @@ class DocumentChunker:
             sections['full_text'] = git_analysis_text
         
         return sections
-    
-    def _chunk_text(self, text: str) -> List[str]:
-        """텍스트를 지정된 크기로 청크 분할"""
+
+    def _recursive_split_text(self, text: str, separators: List[str]) -> List[str]:
+        """
+        재귀적으로 텍스트를 의미 있는 단위로 분할
+
+        Args:
+            text: 분할할 텍스트
+            separators: 우선순위 순 분리자 리스트
+
+        Returns:
+            분할된 청크 리스트
+        """
+        # 1. 기본 케이스: 텍스트가 충분히 작으면 그대로 반환
+        if not text:
+            return []
+
         if len(text) <= self.chunk_size:
             return [text]
-        
+
+        # 2. 분리자 없으면 강제 문자 단위 분할
+        if not separators:
+            return [text[i:i + self.chunk_size]
+                    for i in range(0, len(text), self.chunk_size)]
+
+        # 3. 현재 분리자로 분할 시도
+        separator = separators[0]
+        next_separators = separators[1:]
+
+        # 빈 문자열 분리자는 문자 단위 분할
+        if separator == "":
+            return [text[i:i + self.chunk_size]
+                    for i in range(0, len(text), self.chunk_size)]
+
+        # 4. 분리자로 텍스트 분할
+        splits = text.split(separator)
+
+        # 5. 분할된 조각들을 chunk_size 이하로 병합
         chunks = []
-        start = 0
-        
-        while start < len(text):
-            end = start + self.chunk_size
-            
-            # 청크가 끝나는 지점에서 적절한 분할점 찾기
-            if end < len(text):
-                # 문장 끝에서 자르기 시도
-                sentence_end = text.rfind('.', start, end)
-                if sentence_end == -1:
-                    sentence_end = text.rfind('!', start, end)
-                if sentence_end == -1:
-                    sentence_end = text.rfind('?', start, end)
-                
-                # 문장 끝을 찾지 못하면 줄바꿈에서 자르기
-                if sentence_end == -1:
-                    newline_pos = text.rfind('\n', start, end)
-                    if newline_pos != -1:
-                        sentence_end = newline_pos
-                
-                # 적절한 분할점을 찾았으면 사용, 아니면 강제로 자르기
-                if sentence_end != -1 and sentence_end > start:
-                    end = sentence_end + 1
-            
-            chunk = text[start:end].strip()
-            if chunk:
-                chunks.append(chunk)
-            
-            # 다음 청크 시작점 계산 (겹침 고려)
-            start = max(start + 1, end - self.chunk_overlap)
-        
+        current_chunk = []
+        current_length = 0
+
+        for i, split in enumerate(splits):
+            # 분리자 복원 (첫 조각 제외)
+            if i > 0:
+                split = separator + split
+
+            split_length = len(split)
+
+            # 단일 조각이 chunk_size 초과 시 재귀 분할
+            if split_length > self.chunk_size:
+                # 현재 누적 청크 저장
+                if current_chunk:
+                    chunks.append("".join(current_chunk))
+                    current_chunk = []
+                    current_length = 0
+
+                # 큰 조각을 다음 분리자로 재귀 분할
+                chunks.extend(
+                    self._recursive_split_text(split, next_separators)
+                )
+
+            # 현재 청크에 추가 가능한 경우
+            elif current_length + split_length <= self.chunk_size:
+                current_chunk.append(split)
+                current_length += split_length
+
+            # 새 청크 시작
+            else:
+                if current_chunk:
+                    chunks.append("".join(current_chunk))
+                current_chunk = [split]
+                current_length = split_length
+
+        # 마지막 청크 추가
+        if current_chunk:
+            chunks.append("".join(current_chunk))
+
         return chunks
+
+    def _chunk_text(self, text: str) -> List[str]:
+        """
+        텍스트를 의미 있는 단위로 청크 분할 (코드 구조 인식)
+
+        Args:
+            text: 분할할 텍스트
+
+        Returns:
+            청크 리스트
+        """
+        # 빈 문자열 또는 None 처리
+        if not text:
+            return []
+
+        # 텍스트가 chunk_size 이하면 그대로 반환
+        if len(text) <= self.chunk_size:
+            return [text]
+
+        # 재귀적 분할 수행 (코드 구조 인식)
+        chunks = self._recursive_split_text(text, DEFAULT_SEPARATORS)
+
+        # 빈 청크 제거 및 공백 정리
+        return [chunk.strip() for chunk in chunks if chunk.strip()]
     
     def chunk_test_scenarios(self, test_scenarios: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
